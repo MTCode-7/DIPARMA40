@@ -11,7 +11,25 @@ if (!function_exists('generateCsrfToken')) {
         if (empty($_SESSION['csrf_token'])) {
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         }
-        return $_SESSION['csrf_token'];
+
+        $token = (string) $_SESSION['csrf_token'];
+        if (!headers_sent()) {
+            $requestIsHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https'
+                || strtolower($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '') === 'on'
+                || str_contains($_SERVER['HTTP_CF_VISITOR'] ?? '', '"scheme":"https"');
+
+            setcookie('diparma_csrf_token', $token, [
+                'expires' => time() + 3600,
+                'path' => '/',
+                'secure' => $requestIsHttps,
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
+        }
+
+        $_COOKIE['diparma_csrf_token'] = $token;
+        return $token;
     }
 }
 
@@ -20,7 +38,24 @@ if (!function_exists('generateCsrfToken')) {
  */
 if (!function_exists('verifyCsrfToken')) {
     function verifyCsrfToken($token) {
-        return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+        $candidate = is_string($token) ? trim($token) : '';
+        if ($candidate === '') {
+            return false;
+        }
+
+        $sessionToken = $_SESSION['csrf_token'] ?? null;
+        $cookieToken = $_COOKIE['diparma_csrf_token'] ?? null;
+
+        if ($sessionToken !== null && hash_equals((string) $sessionToken, $candidate)) {
+            return true;
+        }
+
+        if ($cookieToken !== null && hash_equals((string) $cookieToken, $candidate)) {
+            $_SESSION['csrf_token'] = (string) $cookieToken;
+            return true;
+        }
+
+        return false;
     }
 }
 
