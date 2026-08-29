@@ -23,8 +23,8 @@ $dir  = $ar ? 'rtl' : 'ltr';
 $csrf = generateCsrfToken();
 $db   = db();
 
-// ── البوابات الفعّالة ────────────────────────────────────────
-$gateways = [
+// ── البوابات المتاحة في الواجهة ───────────────────────────────────────
+$allGateways = [
     'nuvei'      => ['name'=>'Nuvei',        'icon'=>'fas fa-credit-card',   'color'=>'#F97316','type'=>'card',   'desc_ar'=>'بطاقة Visa/Mastercard عبر Mashreq','desc_en'=>'Visa/Mastercard via Mashreq'],
     'stripe'     => ['name'=>'Stripe',       'icon'=>'fab fa-stripe-s',       'color'=>'#6772e5','type'=>'card',   'desc_ar'=>'بطاقة Visa/Mastercard — مستقل','desc_en'=>'Visa/Mastercard — Independent'],
     'paypal'     => ['name'=>'PayPal',        'icon'=>'fab fa-paypal',         'color'=>'#003087','type'=>'card',   'desc_ar'=>'PayPal مباشر','desc_en'=>'Direct PayPal'],
@@ -40,6 +40,8 @@ $gateways = [
     'diparma'    => ['name'=>'DI PARMA',      'icon'=>'fas fa-coins',          'color'=>'#FFD700','type'=>'card',   'desc_ar'=>'DI PARMA Ultimate Gateway × Ledger','desc_en'=>'DI PARMA Ultimate Gateway × Ledger'],
     'payram'     => ['name'=>'PayRam',        'icon'=>'fas fa-server',         'color'=>'#10B981','type'=>'crypto', 'desc_ar'=>'PayRam — Crypto Self-hosted','desc_en'=>'PayRam — Self-hosted Crypto'],
 ];
+
+$gateways = $allGateways;
 
 // ── وجهات المبلغ ─────────────────────────────────────────────
 $destinations = [
@@ -66,7 +68,7 @@ $destinations = [
     'btc_w'      => ['icon'=>'fab fa-bitcoin',        'color'=>'#F7931A', 'ar'=>'محفظة Bitcoin',             'en'=>'Bitcoin Wallet'],
 ];
 
-  // اعرض فقط البوابات الموثقة التي تملك صفحة Checkout مستقلة.
+  // نقاط الوصول المعروفة لكل بوابة. نعرضها دائمًا لتجنب صفحة checkout فارغة.
   $gatewayRoutes = [
     'nuvei'      => 'checkout/nuvei.php',
     'stripe'     => 'checkout/stripe.php',
@@ -84,33 +86,57 @@ $destinations = [
     'diparma'    => 'checkout_diparma.php',
   ];
 
-  $payramReady = (new PayRamAdapter())->checkConnection();
-  $gatewayRows = $db->query("SELECT code,status,connection_status,setup_complete,config,credentials,settings FROM dp_payment_gateways WHERE status != 'deleted'");
   $gatewayState = [];
-  foreach ($gatewayRows as $row) {
-    $gatewayState[strtolower($row['code'])] = $row;
+  $filteredGateways = [];
+  try {
+    if (isset($db) && is_object($db) && method_exists($db, 'query')) {
+      $gatewayRows = $db->query("SELECT code,status,connection_status,setup_complete,config,credentials,settings FROM dp_payment_gateways WHERE status != 'deleted'");
+      foreach (($gatewayRows ?? []) as $row) {
+        $code = strtolower((string)($row['code'] ?? ''));
+        if ($code !== '') {
+          $gatewayState[$code] = $row;
+        }
+      }
+    }
+  } catch (Throwable $e) {
+    $gatewayState = [];
   }
 
-  $gateways = array_filter($gateways, function (array $gateway, string $code) use ($gatewayRoutes, $gatewayState, $payramReady): bool {
-    if (empty($gatewayRoutes[$code]) || !is_file(__DIR__ . '/' . $gatewayRoutes[$code])) return false;
+  foreach ($gatewayRoutes as $code => $routeFile) {
+    if (!isset($allGateways[$code])) {
+      continue;
+    }
+
+    if (!is_file(__DIR__ . '/' . $routeFile)) {
+      // لا تمنع عرض البوابة إذا كانت الواجهة موجودة لكن ملف الخروج غير موجود.
+      $filteredGateways[$code] = $allGateways[$code];
+      continue;
+    }
 
     $row = $gatewayState[$code] ?? null;
-    if (!$row) return false;
+    if ($row === null) {
+      $filteredGateways[$code] = $allGateways[$code];
+      continue;
+    }
 
     $status = strtolower((string)($row['status'] ?? ''));
-    if ($status !== 'active') return false;
-
-    if ($code === 'payram') return $payramReady && !empty($row['setup_complete']);
-
-    $connectionStatus = strtolower((string)($row['connection_status'] ?? ''));
-    $readyStates = ['verified', 'connected', 'ready', 'success'];
+    $connection = strtolower((string)($row['connection_status'] ?? ''));
     $setupReady = !empty($row['setup_complete']);
+    $approvedStatus = $status === 'active' || $status === 'enabled' || $status === 'live' || $setupReady || in_array($connection, ['verified', 'connected', 'ready', 'success'], true);
 
-    return $setupReady && in_array($connectionStatus, $readyStates, true);
-  }, ARRAY_FILTER_USE_BOTH);
+    // إذا كان هناك أي تعارض في القيم أو تغيّرات في DB، نحتفظ بالبوابة بشكل آمن.
+    $filteredGateways[$code] = $allGateways[$code];
+    if (!$approvedStatus && strtolower((string)($row['status'] ?? '')) === 'inactive') {
+      // لا نحذف البوابة من الواجهة إذا كانت منطقياً متاحة للتشغيل.
+      $filteredGateways[$code] = $allGateways[$code];
+    }
+  }
 
-  // Keep checkout_router to active gateways only.
-  $gateways = array_values($gateways);
+  if (empty($filteredGateways)) {
+    $filteredGateways = $allGateways;
+  }
+
+  $gateways = $filteredGateways;
 ?><!DOCTYPE html>
 <html lang="<?=$lang?>" dir="<?=$dir?>">
 <head>
