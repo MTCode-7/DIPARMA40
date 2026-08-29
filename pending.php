@@ -50,8 +50,8 @@ h1{font-size:1.45rem;color:var(--gold);margin-bottom:10px} .lead{color:#ddd;font
     <div class="detail"><i class="fas fa-user-check"></i><span><?= $ar ? 'نوع القبول' : 'Approval Type' ?></span><strong><?= $ar ? 'موافقة الإدارة اليدوية' : 'Manual Admin Approval' ?></strong></div>
     <div class="detail"><i class="fas fa-shield-alt"></i><span><?= $ar ? 'التفعيل' : 'Activation' ?></span><strong><?= $ar ? 'بعد الموافقة فقط' : 'After approval only' ?></strong></div>
   </div>
-  <a class="button" href="login.php"><i class="fas fa-sign-in-alt"></i> <?= $ar ? 'العودة لتسجيل الدخول' : 'Back to Login' ?></a>
-  <a class="button" style="margin-top:10px;background:transparent;color:var(--gold);border:1px solid var(--gold)" href="support.php"><i class="fas fa-headset"></i> <?= $ar ? 'التواصل مع خدمة العملاء' : 'Contact Customer Service' ?></a>
+  <a class="button" href="/login.php"><i class="fas fa-sign-in-alt"></i> <?= $ar ? 'العودة لتسجيل الدخول' : 'Back to Login' ?></a>
+  <a class="button" style="margin-top:10px;background:transparent;color:var(--gold);border:1px solid var(--gold)" href="/support.php"><i class="fas fa-headset"></i> <?= $ar ? 'التواصل مع خدمة العملاء' : 'Contact Customer Service' ?></a>
   <p class="note"><?= $ar ? 'لا يمكن تسجيل الدخول حتى تتم الموافقة على الحساب من الإدارة.' : 'Login is unavailable until an administrator approves your account.' ?></p>
 </main>
 </body>
