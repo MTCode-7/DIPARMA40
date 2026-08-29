@@ -1,0 +1,34 @@
+# Ledger Section — حماية المجلد
+Options -Indexes
+DirectoryIndex index.php
+
+# السماح فقط بـ PHP files
+<FilesMatch "\.(pem|key|env|json|log|sql)$">
+    Require all denied
+</FilesMatch>
+
+# ── CSP تسمح بـ Ledger DMK من jsDelivr ──────────────────
+<IfModule mod_headers.c>
+    # نضبط CSP بحيث يسمح بـ script-src من CDN المطلوب
+    Header always set Content-Security-Policy "\
+        default-src 'self'; \
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' \
+            https://cdn.jsdelivr.net \
+            https://cdnjs.cloudflare.com \
+            https://fonts.googleapis.com; \
+        connect-src 'self' \
+            https://cdn.jsdelivr.net \
+            https://apilist.tronscanapi.com \
+            https://api.trongrid.io \
+            https://buy.moonpay.com \
+            https://chart.googleapis.com; \
+        frame-src 'self' https://buy.moonpay.com; \
+        style-src 'self' 'unsafe-inline' \
+            https://fonts.googleapis.com \
+            https://cdnjs.cloudflare.com; \
+        font-src 'self' \
+            https://fonts.gstatic.com \
+            https://cdnjs.cloudflare.com; \
+        img-src 'self' data: https://chart.googleapis.com; \
+    "
+</IfModule>

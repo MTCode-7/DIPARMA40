@@ -1,0 +1,99 @@
+# ============================================================
+# DI PARMA | .htaccess — الأمان + URL Rewriting
+# ============================================================
+
+Options -Indexes
+ServerSignature Off
+DirectoryIndex landing.php
+
+# ── [1] حماية الملفات الحساسة ────────────────────────────────
+<FilesMatch "^(\.env.*|\.git.*|composer\.(json|lock)|package\.json|webpack\.config\.js)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# حماية مجلدات النظام
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # منع الوصول المباشر لمجلدات النظام
+    RewriteRule ^(includes|config|logs|backups|cache|tmp|lib|protocols)/.*$ - [F,L]
+
+    # DI PARMA API v1 routes are handled by the versioned router.
+    RewriteRule ^api/v1/(?:docs?|balance|transactions|charge|refund|void|capture)/?$ api/v1/index.php [L,QSA]
+
+    # ── [2] إعادة توجيه HTTP إلى HTTPS ─────────────────────
+    # يعمل على السيرفر البعيد تلقائياً — Cloudflare يوفر HTTPS
+    RewriteCond %{HTTP:X-Forwarded-Proto} =http
+    RewriteCond %{HTTP_HOST} diparmas\.com [NC]
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+    # ── [3] منع تنفيذ PHP في assets وuploads ────────────────
+    RewriteRule ^assets/.*\.php$ - [F,L]
+    RewriteRule ^uploads/.*\.php$ - [F,L]
+</IfModule>
+
+# ── [4] ضغط GZIP كامل ──────────────────────────────────────
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml
+    AddOutputFilterByType DEFLATE text/css text/javascript
+    AddOutputFilterByType DEFLATE application/json application/javascript
+    AddOutputFilterByType DEFLATE application/x-javascript
+    AddOutputFilterByType DEFLATE application/xml application/xhtml+xml
+    AddOutputFilterByType DEFLATE font/truetype font/opentype
+    AddOutputFilterByType DEFLATE image/svg+xml
+    SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png|ico|webp)$ no-gzip dont-vary
+    Header append Vary User-Agent env=!dont-vary
+</IfModule>
+
+# ── [4b] OPcache Headers ─────────────────────────────────────
+<IfModule mod_headers.c>
+    Header set X-Content-Encoding "gzip" env=gzip
+</IfModule>
+
+# ── [5] Cache للملفات الثابتة ───────────────────────────────
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css               "access plus 7 days"
+    ExpiresByType application/javascript "access plus 7 days"
+    ExpiresByType image/png              "access plus 30 days"
+    ExpiresByType image/svg+xml          "access plus 30 days"
+    ExpiresByType image/x-icon           "access plus 30 days"
+</IfModule>
+
+# ── [6] Security Headers ────────────────────────────────────
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>
+
+# ── حماية مفاتيح RSA والملفات الحساسة ──────────────────────
+<FilesMatch "\.(pem|key|crt|p12|pfx)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# ── [7] حماية ملفات السجلات والنسخ الاحتياطية ───────────────
+<FilesMatch "\.(log|sql|bak|old|swp|orig|sh)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

@@ -1,0 +1,21 @@
+{
+  "name": "DI PARMA POS",
+  "short_name": "POS",
+  "description": "DI PARMA POS Terminal — Nuvei + Mashreq Bank",
+  "start_url": "/pos.php",
+  "display": "standalone",
+  "background_color": "#020508",
+  "theme_color": "#FFD700",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/assets/icons/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "business"],
+  "lang": "ar",
+  "dir": "rtl"
+}

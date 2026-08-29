@@ -1,0 +1,30 @@
+name: Webhook integration test
+
+on:
+  push:
+    paths:
+      - '**/api/**'
+      - 'tmp_*'
+  workflow_dispatch:
+
+jobs:
+  webhook-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - name: Install mbstring
+        run: sudo apt-get update && sudo apt-get install -y php8.2-mbstring || true
+      - name: Start PHP built-in server
+        run: |
+          php -S 127.0.0.1:8080 -t . > /tmp/php-server.log 2>&1 &
+          sleep 2
+      - name: Generate UTF-16 test file
+        run: php tmp_generate_utf16.php
+      - name: Run webhook test runner
+        run: php tmp_webhook_test_runner.php
+      - name: Show webhook log tail
+        run: tail -n 40 logs/webhook_test.log || true

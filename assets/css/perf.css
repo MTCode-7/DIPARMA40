@@ -1,0 +1,18 @@
+/* DI PARMA | Critical Performance CSS */
+:root{--gold:#FFD700;--gold-dark:#B58E15;--bg:#0A0F1E;--text:#E8F0FF;--border-gold:rgba(255,215,0,.25);--success:#4CAF50;--danger:#d9534f;--warning:#f0ad4e}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;text-rendering:optimizeSpeed}
+img,video{max-width:100%;height:auto;display:block}
+a{color:inherit;text-decoration:none}
+input,select,textarea,button{font-family:inherit}
+/* GPU-accelerated transitions */
+.transition-gpu{transform:translateZ(0);will-change:transform;backface-visibility:hidden}
+/* Skeleton loading */
+.skeleton{background:linear-gradient(90deg,rgba(255,255,255,.05) 25%,rgba(255,255,255,.1) 50%,rgba(255,255,255,.05) 75%);background-size:200% 100%;animation:skeleton-shine 1.5s infinite}
+@keyframes skeleton-shine{0%{background-position:200% 0}100%{background-position:-200% 0}}
+/* Lazy images */
+img[loading="lazy"]{transition:opacity .3s;opacity:0}
+img[loading="lazy"].loaded{opacity:1}
+/* Reduce motion */
+@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}

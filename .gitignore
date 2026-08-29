@@ -1,0 +1,14 @@
+# حماية الملفات الحساسة
+.env
+.env.*
+!.env.example
+.vscode/
+.env.production
+storage/
+backups/
+cache/
+logs/
+tmp/
+*.pem
+*.key
+*.log
