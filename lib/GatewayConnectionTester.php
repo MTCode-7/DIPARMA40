@@ -210,7 +210,7 @@ class GatewayConnectionTester
             return ['success' => false, 'message' => 'AUTHNET_API_LOGIN_ID أو AUTHNET_TRANSACTION_KEY مفقود'];
         }
 
-        $env  = $creds['environment'] ?? getenv('AUTHNET_ENVIRONMENT') ?: 'sandbox';
+        $env  = $creds['environment'] ?? getenv('AUTHNET_ENVIRONMENT') ?: '';
         $url  = $env === 'live'
             ? 'https://api.authorize.net/xml/v1/request.api'
             : 'https://apitest.authorize.net/xml/v1/request.api';
@@ -245,7 +245,7 @@ class GatewayConnectionTester
             return ['success' => false, 'message' => 'PAYPAL_CLIENT_ID أو PAYPAL_SECRET مفقود'];
         }
 
-        $env  = $creds['environment'] ?? getenv('PAYPAL_ENVIRONMENT') ?: 'sandbox';
+        $env  = $creds['environment'] ?? getenv('PAYPAL_ENVIRONMENT') ?: '';
         $base = $env === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
 
         $res = $this->curl('POST', $base . '/v1/oauth2/token',
@@ -272,7 +272,7 @@ class GatewayConnectionTester
             return ['success' => false, 'message' => 'BRAINTREE_MERCHANT_ID / PUBLIC_KEY / PRIVATE_KEY مفقود'];
         }
 
-        $env  = $creds['environment'] ?? getenv('BRAINTREE_ENVIRONMENT') ?: 'sandbox';
+        $env  = $creds['environment'] ?? getenv('BRAINTREE_ENVIRONMENT') ?: '';
         $base = $env === 'production'
             ? 'https://api.braintreegateway.com:443'
             : 'https://api.sandbox.braintreegateway.com:443';

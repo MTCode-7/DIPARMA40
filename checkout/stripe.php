@@ -430,13 +430,6 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
   </div>
 </header>
 
-<?php if($isTestMode): ?>
-<div class="test-banner">
-  <i class="fas fa-flask"></i>
-  <?=$ar?'وضع الاختبار — استخدم بطاقة 4242 4242 4242 4242':'Test Mode — Use card 4242 4242 4242 4242'?>
-</div>
-<?php endif; ?>
-
 <div class="layout">
 <div>
 
@@ -482,7 +475,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <!-- Extra: PI for capture/refund/void -->
     <div class="extra-fields <?=$txnDef['requires_original'] ? 'show' : ''?>" id="extraPI">
       <div class="fld">
-        <label><i class="fas fa-hashtag"></i> <?=$ar?'المرجع الأصلي (RRN/Approval)':'Original Reference (RRN/Approval)'?></label>
+        <label><i class="fas fa-hashtag"></i> <?=$ar?'المرجع الأصلي (RRN)':'Original Reference (RRN)'?></label>
         <input type="text" id="origRef" placeholder="<?=$ar?'رقم العملية السابقة':'Previous transaction reference'?>">
       </div>
     </div>

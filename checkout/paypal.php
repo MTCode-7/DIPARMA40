@@ -406,8 +406,12 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <!-- Extra Fields (Original Reference) -->
     <div class="extra-fields <?=$txnDef['requires_original'] ? 'show' : ''?>" id="extraOrigRef">
       <div class="fld">
-        <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي (RRN/Approval)':'Original Reference (RRN/Approval)'?></label>
+        <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي (RRN)':'Original Reference (RRN)'?></label>
         <input type="text" id="origRef" placeholder="<?=$ar?'رقم العملية السابقة':'Previous transaction reference'?>">
+      </div>
+      <div class="fld" id="approvalCodeWrap" style="display:none">
+        <label><i class="fas fa-check-circle"></i> <?=$ar?'رمز الموافقة':'Approval Code'?></label>
+        <input type="text" id="approvalCode" placeholder="<?=$ar?'أدخل رمز الموافقة':'Enter approval code'?>">
       </div>
     </div>
   </div>

@@ -5,7 +5,7 @@
  * اختيار البوابة + وجهة المبلغ → صفحة checkout مستقلة
  * ============================================================
  */
-// Temporary test override: allow the checkout router to render without login enforcement.
+// Checkout Router — اختيار البوابة والمبلغ
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
@@ -15,7 +15,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// NOTE: auth protection intentionally disabled here for checkout testing.
+// NOTE: auth check is required for checkout operations.
 
 $lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang']==='en' ? 'en' : 'ar';
 $ar   = ($lang === 'ar');
@@ -25,6 +25,7 @@ $db   = db();
 
 // ── البوابات المتاحة في الواجهة ───────────────────────────────────────
 $allGateways = [
+    'diparma'    => ['name'=>'DI PARMA',      'icon'=>'fas fa-coins',          'color'=>'#FFD700','type'=>'card',   'desc_ar'=>'DI PARMA Ultimate Gateway × Ledger','desc_en'=>'DI PARMA Ultimate Gateway × Ledger'],
     'nuvei'      => ['name'=>'Nuvei',        'icon'=>'fas fa-credit-card',   'color'=>'#F97316','type'=>'card',   'desc_ar'=>'بطاقة Visa/Mastercard عبر Mashreq','desc_en'=>'Visa/Mastercard via Mashreq'],
     'stripe'     => ['name'=>'Stripe',       'icon'=>'fab fa-stripe-s',       'color'=>'#6772e5','type'=>'card',   'desc_ar'=>'بطاقة Visa/Mastercard — مستقل','desc_en'=>'Visa/Mastercard — Independent'],
     'paypal'     => ['name'=>'PayPal',        'icon'=>'fab fa-paypal',         'color'=>'#003087','type'=>'card',   'desc_ar'=>'PayPal مباشر','desc_en'=>'Direct PayPal'],
@@ -37,7 +38,6 @@ $allGateways = [
     'nbe_egypt'  => ['name'=>'NBE Egypt',     'icon'=>'fas fa-landmark',       'color'=>'#006633','type'=>'bank',   'desc_ar'=>'البنك الأهلي المصري','desc_en'=>'National Bank of Egypt'],
     'jpmorgan'   => ['name'=>'JP Morgan Chase','icon'=>'fas fa-landmark',      'color'=>'#003087','type'=>'bank',   'desc_ar'=>'JP Morgan IOLTA','desc_en'=>'JP Morgan IOLTA'],
     'whop'       => ['name'=>'Whop',          'icon'=>'fas fa-bolt',           'color'=>'#7C3AED','type'=>'digital','desc_ar'=>'Whop Marketplace','desc_en'=>'Whop Marketplace'],
-    'diparma'    => ['name'=>'DI PARMA',      'icon'=>'fas fa-coins',          'color'=>'#FFD700','type'=>'card',   'desc_ar'=>'DI PARMA Ultimate Gateway × Ledger','desc_en'=>'DI PARMA Ultimate Gateway × Ledger'],
     'payram'     => ['name'=>'PayRam',        'icon'=>'fas fa-server',         'color'=>'#10B981','type'=>'crypto', 'desc_ar'=>'PayRam — Crypto Self-hosted','desc_en'=>'PayRam — Self-hosted Crypto'],
 ];
 
@@ -82,7 +82,7 @@ $destinations = [
     'nbe_egypt'  => 'checkout/bank_nbe.php',
     'jpmorgan'   => 'checkout/bank_jpmorgan.php',
     'whop'       => 'checkout/whop.php',
-    'payram'     => 'checkout/payram.php',
+    'payram'     => 'checkout_diparma.php',
     'diparma'    => 'checkout_diparma.php',
   ];
 
@@ -365,7 +365,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <!-- حقل المرجع الأصلي (يظهر لبعض العمليات) -->
       <div id="origRefWrap" style="display:none;margin-bottom:16px">
         <div class="fld">
-          <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي (RRN / Approval)':'Original Reference (RRN / Approval)'?></label>
+          <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي (RRN)':'Original Reference (RRN)'?></label>
           <input type="text" id="txnOrigRef" placeholder="<?=$ar?'رقم العملية السابقة':'Previous transaction reference'?>">
         </div>
       </div>
@@ -461,7 +461,7 @@ const GW_ROUTES = {
   whop:         'checkout/whop.php',
   redotpay:     'checkout/redotpay.php',
   diparma:      'checkout_diparma.php',
-  payram:       'checkout/payram.php',
+  payram:       'checkout_diparma.php',
 };
 
 // ── Step Navigation ────────────────────────────────────────
@@ -525,9 +525,18 @@ window.selectSecMode = function(mode, el) {
 window.selectGateway = function(code, el) {
   STATE.gateway = code;
   document.querySelectorAll('.gw-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
+  if (el) el.classList.add('selected');
   document.getElementById('btn-step1').disabled = false;
 };
+
+window.addEventListener('DOMContentLoaded', function() {
+  const preferred = 'payram';
+  const cardEl = document.getElementById('gw-' + preferred);
+  if (cardEl) {
+    selectGateway(preferred, cardEl);
+    document.getElementById('btn-step1').disabled = false;
+  }
+});
 
 // ── Destination Selection ──────────────────────────────────
 window.selectDestination = function(code, el) {

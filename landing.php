@@ -114,12 +114,10 @@ a{text-decoration:none;color:inherit}
         <a href="/stores.php" class="btn-out"><i class="fas fa-store"></i> <?=$ar?'دعوة لأكبر الماركات':'Invitation for Top Brands'?></a>
       <a href="#about" class="btn-out"><i class="fas fa-play-circle"></i> <?=$ar?'اكتشف الخدمات':'Explore'?></a>
     </div>
-    <div class="hero-stats">
-      <div class="hs"><div class="hs-n">847</div><div class="hs-l"><?=$ar?'بوابة دفع':'Payment Gateways'?></div></div>
-      <div class="hs"><div class="hs-n">100</div><div class="hs-l"><?=$ar?'بنك':'Banks'?></div></div>
-      <div class="hs"><div class="hs-n">196</div><div class="hs-l"><?=$ar?'دولة':'Countries'?></div></div>
-      <div class="hs"><div class="hs-n">50+</div><div class="hs-l"><?=$ar?'عملة رقمية':'Cryptos'?></div></div>
-      <div class="hs"><div class="hs-n">24/7</div><div class="hs-l"><?=$ar?'متاح دائماً':'Always On'?></div></div>
+    <div class="hero-stats" style="grid-template-columns:repeat(3,1fr);">
+      <div class="hs"><div class="hs-n" style="font-size:1.1rem;">Live</div><div class="hs-l"><?=$ar?'مدفوعات حقيقية':'Real payments'?></div></div>
+      <div class="hs"><div class="hs-n" style="font-size:1.1rem;">Secure</div><div class="hs-l"><?=$ar?'أمان متقدم':'Advanced security'?></div></div>
+      <div class="hs"><div class="hs-n" style="font-size:1.1rem;">Global</div><div class="hs-l"><?=$ar?'خدمات عالمية':'Global services'?></div></div>
     </div>
   </div>
 </section>
@@ -167,8 +165,8 @@ a{text-decoration:none;color:inherit}
         <?=$ar?'كل ما تحتاجه<br><span style="color:var(--gold)">في منصة واحدة</span>':'Everything You Need<br><span style="color:var(--gold)">In One Platform</span>'?>
       </h2>
       <p style="color:var(--muted);line-height:1.8;margin-bottom:24px;font-size:.88rem">
-        <?=$ar?'DI PARMA تجمع أكثر من 200 بوابة دفع عالمية، معاملات OTC، On Ramp/Off Ramp، جميع أنواع الكريبتو، خدمات رجال الأعمال، والجمعيات الخيرية في واجهة واحدة متكاملة.':
-        'DI PARMA unifies 200+ global payment gateways, OTC transactions, On/Off Ramp, all crypto types, business services, and charity operations in one integrated interface.'?>
+        <?=$ar?'DI PARMA تجمع حلول الدفع والتسوية والتمويل الرقمي في واجهة واحدة متكاملة لعملياتك اليومية.':
+        'DI PARMA brings payment, settlement, and digital finance solutions together in one integrated interface for your daily operations.'?>
       </p>
       <ul class="feat">
         <li><i class="fas fa-check-circle"></i> <?=$ar?'ISO/IEC 27001 + PCI DSS Level 1':'ISO/IEC 27001 + PCI DSS Level 1'?></li>
@@ -315,9 +313,9 @@ a{text-decoration:none;color:inherit}
 <div class="sec" id="gateways">
   <div class="sec-hd">
     <div class="sec-tag"><?=$ar?'بوابات الدفع':'Payment Gateways'?></div>
-    <h2><?=$ar?'<span>847</span> بوابة دفع في منصة واحدة':'<span>847</span> Gateways, One Platform'?></h2>
+    <h2><?=$ar?'بوابات دفع متعددة في منصة واحدة':'Multiple payment gateways in one platform'?></h2>
     <div class="divider"></div>
-    <p><?=$ar?'من PayPal إلى Wise، من Binance إلى MyFatoorah — جميع البوابات فعّالة ومتاحة فوراً':'From PayPal to Wise, Binance to MyFatoorah — all gateways active and available instantly'?></p>
+    <p><?=$ar?'من PayPal إلى Wise، من Binance إلى MyFatoorah — البوابات المهيأة تظهر بشكل نظيف ومتسلسل في المنصة':'From PayPal to Wise, from Binance to MyFatoorah — configured gateways are displayed clearly and in order within the platform'?></p>
   </div>
   <?php
   $gws=[
@@ -349,11 +347,10 @@ a{text-decoration:none;color:inherit}
   </div>
   <!-- بانر إحصاء -->
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px">
-    <?php $gstats=[['847','Payment Gateways',($ar?'بوابة دفع':'')],['100','Banks',($ar?'بنك':'')],
-      ['196','Countries',($ar?'دولة':'')],['50+','Digital Currencies',($ar?'عملة رقمية':'')]];
+    <?php $gstats=[['Live','Real Payments',($ar?'مدفوعات حقيقية':'Real Payments')],['Secure','Security',($ar?'أمان':'Security')],['Global','Worldwide Access',($ar?'تغطية عالمية':'Worldwide Access')],['Ready','Configured',($ar?'جاهز':'Ready')]];
     foreach($gstats as $s): ?>
     <div style="background:rgba(255,215,0,.04);border:1px solid rgba(255,215,0,.1);border-radius:14px;padding:18px;text-align:center">
-      <div style="font-size:1.4rem;font-weight:900;color:var(--gold)"><?=$s[0]?></div>
+      <div style="font-size:1.1rem;font-weight:900;color:var(--gold)"><?=$s[0]?></div>
       <div style="font-size:.7rem;color:var(--muted);margin-top:4px"><?=$ar?$s[2]:$s[1]?></div>
     </div>
     <?php endforeach; ?>

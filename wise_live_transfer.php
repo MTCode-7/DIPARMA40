@@ -19,7 +19,7 @@ $profileId = 68162936;
 $sourceCurrency = 'USD';
 $targetCurrency = 'EUR';
 $sourceAmount = 100.00;
-$targetAccountId = 'YOUR_TARGET_BENEFICIARY_ACCOUNT_ID'; // معرف حساب المستلم المسجل مسبقاً في وايز
+$targetAccountId = ''; // معرف حساب المستلم - يجب تحديثه من .env
 $referenceId = 'DP_LIVE_' . strtoupper(bin2hex(random_bytes(6)));
 
 // الخطوة الأولى: إنشاء تسعيرة التحويل (Quote)
@@ -30,7 +30,7 @@ $quoteData = [
     'sourceAmount' => $sourceAmount
 ];
 
-$ch = curl_init("https://api.wise.com/v1/quotes"); // استخدم api.sandbox.wise.com للاختبار و api.wise.com للحي
+$ch = curl_init("https://api.wise.com/v1/quotes"); // استخدم البيئة المناسبة من .env
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($quoteData));

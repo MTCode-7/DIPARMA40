@@ -1,36 +1,36 @@
-<?php
+﻿<?php
 /**
  * ============================================================
- * DI PARMA | 13 نوع شراء حقيقي من البطاقة → Ledger
+ * DI PARMA | 13 ظ†ظˆط¹ ط´ط±ط§ط، ط­ظ‚ظٹظ‚ظٹ ظ…ظ† ط§ظ„ط¨ط·ط§ظ‚ط© â†’ Ledger
  * ============================================================
  * 
- * الأنواع المدعومة (13 نوع):
+ * ط§ظ„ط£ظ†ظˆط§ط¹ ط§ظ„ظ…ط¯ط¹ظˆظ…ط© (13 ظ†ظˆط¹):
  * 
- * ─── مشتريات عادية ───
- * 1.  purchase_3d      → شراء عادي مع 3D Secure
- * 2.  purchase_2d      → شراء بدون 3D Secure
- * 3.  purchase_advice  → شراء إرشادي (Advice Purchase)
- * 4.  purchase_offline → شراء خارج الخط (Offline - MOTO)
- * 5.  purchase_online  → شراء عبر الإنترنت (Online - MOTO)
+ * â”€â”€â”€ ظ…ط´طھط±ظٹط§طھ ط¹ط§ط¯ظٹط© â”€â”€â”€
+ * 1.  purchase_3d      â†’ ط´ط±ط§ط، ط¹ط§ط¯ظٹ ظ…ط¹ 3D Secure
+ * 2.  purchase_2d      â†’ ط´ط±ط§ط، ط¨ط¯ظˆظ† 3D Secure
+ * 3.  purchase_advice  â†’ ط´ط±ط§ط، ط¥ط±ط´ط§ط¯ظٹ (Advice Purchase)
+ * 4.  purchase_offline â†’ ط´ط±ط§ط، ط®ط§ط±ط¬ ط§ظ„ط®ط· (Offline - MOTO)
+ * 5.  purchase_online  â†’ ط´ط±ط§ط، ط¹ط¨ط± ط§ظ„ط¥ظ†طھط±ظ†طھ (Online - MOTO)
  * 
- * ─── مشتريات متخصصة ───
- * 6.  auth_hold        → تجميد مبلغ (Authorization Hold)
- * 7.  auth_capture     → تأكيد التجميد
- * 8.  recurring        → شراء متكرر (اشتراك)
- * 9.  installment      → شراء بالتقسيط
- * 10. crypto_purchase  → شراء عملات رقمية
- * 11. gift_card        → شراء بطاقة هدايا
- * 12. wire_transfer    → تحويل بنكي مباشر
- * 13. quasi_cash       → سحب نقدي شبيه (Quasi Cash)
+ * â”€â”€â”€ ظ…ط´طھط±ظٹط§طھ ظ…طھط®طµطµط© â”€â”€â”€
+ * 6.  auth_hold        â†’ طھط¬ظ…ظٹط¯ ظ…ط¨ظ„ط؛ (Authorization Hold)
+ * 7.  auth_capture     â†’ طھط£ظƒظٹط¯ ط§ظ„طھط¬ظ…ظٹط¯
+ * 8.  recurring        â†’ ط´ط±ط§ط، ظ…طھظƒط±ط± (ط§ط´طھط±ط§ظƒ)
+ * 9.  installment      â†’ ط´ط±ط§ط، ط¨ط§ظ„طھظ‚ط³ظٹط·
+ * 10. crypto_purchase  â†’ ط´ط±ط§ط، ط¹ظ…ظ„ط§طھ ط±ظ‚ظ…ظٹط©
+ * 11. gift_card        â†’ ط´ط±ط§ط، ط¨ط·ط§ظ‚ط© ظ‡ط¯ط§ظٹط§
+ * 12. wire_transfer    â†’ طھط­ظˆظٹظ„ ط¨ظ†ظƒظٹ ظ…ط¨ط§ط´ط±
+ * 13. quasi_cash       â†’ ط³ط­ط¨ ظ†ظ‚ط¯ظٹ ط´ط¨ظٹظ‡ (Quasi Cash)
  * 
  * ============================================================
- * العمله الأساسية: USD (دولار أمريكي)
- * جميع المعاملات حقيقية 100% بدون محاكاة
+ * ط§ظ„ط¹ظ…ظ„ظ‡ ط§ظ„ط£ط³ط§ط³ظٹط©: USD (ط¯ظˆظ„ط§ط± ط£ظ…ط±ظٹظƒظٹ)
+ * ط¬ظ…ظٹط¹ ط§ظ„ظ…ط¹ط§ظ…ظ„ط§طھ ط­ظ‚ظٹظ‚ظٹط© 100% ط¨ط¯ظˆظ† ظ…ط­ط§ظƒط§ط©
  * ============================================================
  */
 
 // ============================================================
-// 1. إعدادات الرأس والأمان
+// 1. ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ط±ط£ط³ ظˆط§ظ„ط£ظ…ط§ظ†
 // ============================================================
 
 header('Content-Type: application/json; charset=utf-8');
@@ -38,13 +38,13 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-Api-Key, X-Timestamp, X-Signature, X-Transaction-Type');
 
-// معالجة طلبات OPTIONS
+// ظ…ط¹ط§ظ„ط¬ط© ط·ظ„ط¨ط§طھ OPTIONS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-// قبول طلبات POST فقط
+// ظ‚ط¨ظˆظ„ ط·ظ„ط¨ط§طھ POST ظپظ‚ط·
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode([
@@ -55,30 +55,30 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // ============================================================
-// 2. استيراد الملفات المطلوبة
+// 2. ط§ط³طھظٹط±ط§ط¯ ط§ظ„ظ…ظ„ظپط§طھ ط§ظ„ظ…ط·ظ„ظˆط¨ط©
 // ============================================================
 
-require_once __DIR__ . '/../includes/config.php';
-require_once __DIR__ . '/../includes/database.php';
-require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../../includes/config.php';
+require_once __DIR__ . '/../../includes/database.php';
+require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../lib/PayRamAdapter.php';
 
 // ============================================================
-// 3. تعريف أنواع العمليات (13 نوع)
+// 3. طھط¹ط±ظٹظپ ط£ظ†ظˆط§ط¹ ط§ظ„ط¹ظ…ظ„ظٹط§طھ (13 ظ†ظˆط¹)
 // ============================================================
 
 $TRANSACTION_TYPES = [
     // ============================================================
-    // 1. PURCHASE 3D SECURE - شراء مع 3D Secure
+    // 1. PURCHASE 3D SECURE - ط´ط±ط§ط، ظ…ط¹ 3D Secure
     // ============================================================
     'purchase_3d' => [
         'id' => '01',
-        'label' => 'شراء مع 3D Secure',
+        'label' => 'ط´ط±ط§ط، ظ…ط¹ 3D Secure',
         'iso' => '0200',
         'security' => '3D',
         'category' => 'online',
         'moto_type' => null,
-        'description' => 'شراء عبر الإنترنت مع تحقق 3D Secure من البنك المصدر',
+        'description' => 'ط´ط±ط§ط، ط¹ط¨ط± ط§ظ„ط¥ظ†طھط±ظ†طھ ظ…ط¹ طھط­ظ‚ظ‚ 3D Secure ظ…ظ† ط§ظ„ط¨ظ†ظƒ ط§ظ„ظ…طµط¯ط±',
         'requires_original' => false,
         'settlement_days' => 2,
         'type' => 'card',
@@ -87,16 +87,16 @@ $TRANSACTION_TYPES = [
     ],
     
     // ============================================================
-    // 2. PURCHASE 2D - شراء بدون 3D Secure
+    // 2. PURCHASE 2D - ط´ط±ط§ط، ط¨ط¯ظˆظ† 3D Secure
     // ============================================================
     'purchase_2d' => [
         'id' => '02',
-        'label' => 'شراء بدون 3D Secure',
+        'label' => 'ط´ط±ط§ط، ط¨ط¯ظˆظ† 3D Secure',
         'iso' => '0200',
         'security' => '2D',
         'category' => 'online',
         'moto_type' => null,
-        'description' => 'شراء عبر الإنترنت بدون تحقق 3D Secure',
+        'description' => 'ط´ط±ط§ط، ط¹ط¨ط± ط§ظ„ط¥ظ†طھط±ظ†طھ ط¨ط¯ظˆظ† طھط­ظ‚ظ‚ 3D Secure',
         'requires_original' => false,
         'settlement_days' => 1,
         'type' => 'card',
@@ -105,16 +105,16 @@ $TRANSACTION_TYPES = [
     ],
     
     // ============================================================
-    // 3. ADVICE PURCHASE - شراء إرشادي
+    // 3. ADVICE PURCHASE - ط´ط±ط§ط، ط¥ط±ط´ط§ط¯ظٹ
     // ============================================================
     'purchase_advice' => [
         'id' => '03',
-        'label' => 'شراء إرشادي (Advice Purchase)',
+        'label' => 'ط´ط±ط§ط، ط¥ط±ط´ط§ط¯ظٹ (Advice Purchase)',
         'iso' => '0220',
         'security' => '2D',
         'category' => 'advice',
         'moto_type' => 'advice',
-        'description' => 'معاملة إرشادية تتم بعد موافقة مسبقة (ISO 0220)',
+        'description' => 'ظ…ط¹ط§ظ…ظ„ط© ط¥ط±ط´ط§ط¯ظٹط© طھطھظ… ط¨ط¹ط¯ ظ…ظˆط§ظپظ‚ط© ظ…ط³ط¨ظ‚ط© (ISO 0220)',
         'requires_original' => true,
         'settlement_days' => 1,
         'type' => 'card',
@@ -123,16 +123,16 @@ $TRANSACTION_TYPES = [
     ],
     
     // ============================================================
-    // 4. OFFLINE SALES - MOTO (مبيعات خارج الخط)
+    // 4. OFFLINE SALES - MOTO (ظ…ط¨ظٹط¹ط§طھ ط®ط§ط±ط¬ ط§ظ„ط®ط·)
     // ============================================================
     'purchase_offline' => [
         'id' => '04',
-        'label' => 'مبيعات خارج الخط (Offline - MOTO)',
+        'label' => 'ظ…ط¨ظٹط¹ط§طھ ط®ط§ط±ط¬ ط§ظ„ط®ط· (Offline - MOTO)',
         'iso' => '0200',
         'security' => '2D',
         'category' => 'offline',
         'moto_type' => 'offline',
-        'description' => 'معاملة تتم خارج الإنترنت (هاتف، بريد، فاكس) - MOTO',
+        'description' => 'ظ…ط¹ط§ظ…ظ„ط© طھطھظ… ط®ط§ط±ط¬ ط§ظ„ط¥ظ†طھط±ظ†طھ (ظ‡ط§طھظپطŒ ط¨ط±ظٹط¯طŒ ظپط§ظƒط³) - MOTO',
         'requires_original' => false,
         'settlement_days' => 1,
         'type' => 'card',
@@ -142,16 +142,16 @@ $TRANSACTION_TYPES = [
     ],
     
     // ============================================================
-    // 5. ONLINE SALES - MOTO (مبيعات عبر الإنترنت - MOTO)
+    // 5. ONLINE SALES - MOTO (ظ…ط¨ظٹط¹ط§طھ ط¹ط¨ط± ط§ظ„ط¥ظ†طھط±ظ†طھ - MOTO)
     // ============================================================
     'purchase_online' => [
         'id' => '05',
-        'label' => 'مبيعات عبر الإنترنت (Online - MOTO)',
+        'label' => 'ظ…ط¨ظٹط¹ط§طھ ط¹ط¨ط± ط§ظ„ط¥ظ†طھط±ظ†طھ (Online - MOTO)',
         'iso' => '0200',
         'security' => '2D',
         'category' => 'online',
         'moto_type' => 'online',
-        'description' => 'معاملة عبر الإنترنت مع تصنيف MOTO (Mail Order/Telephone Order)',
+        'description' => 'ظ…ط¹ط§ظ…ظ„ط© ط¹ط¨ط± ط§ظ„ط¥ظ†طھط±ظ†طھ ظ…ط¹ طھطµظ†ظٹظپ MOTO (Mail Order/Telephone Order)',
         'requires_original' => false,
         'settlement_days' => 1,
         'type' => 'card',
@@ -161,16 +161,16 @@ $TRANSACTION_TYPES = [
     ],
     
     // ============================================================
-    // 6. AUTHORIZATION HOLD - تجميد مبلغ
+    // 6. AUTHORIZATION HOLD - طھط¬ظ…ظٹط¯ ظ…ط¨ظ„ط؛
     // ============================================================
     'auth_hold' => [
         'id' => '06',
-        'label' => 'تجميد مبلغ (Authorization Hold)',
+        'label' => 'طھط¬ظ…ظٹط¯ ظ…ط¨ظ„ط؛ (Authorization Hold)',
         'iso' => '0100',
         'security' => '3D',
         'category' => 'auth',
         'moto_type' => null,
-        'description' => 'تجميد المبلغ مؤقتاً لحين تأكيد العملية (ISO 0100)',
+        'description' => 'طھط¬ظ…ظٹط¯ ط§ظ„ظ…ط¨ظ„ط؛ ظ…ط¤ظ‚طھط§ظ‹ ظ„ط­ظٹظ† طھط£ظƒظٹط¯ ط§ظ„ط¹ظ…ظ„ظٹط© (ISO 0100)',
         'requires_original' => false,
         'settlement_days' => 3,
         'type' => 'card',
@@ -179,16 +179,16 @@ $TRANSACTION_TYPES = [
     ],
     
     // ============================================================
-    // 7. AUTHORIZATION CAPTURE - تأكيد التجميد
+    // 7. AUTHORIZATION CAPTURE - طھط£ظƒظٹط¯ ط§ظ„طھط¬ظ…ظٹط¯
     // ============================================================
     'auth_capture' => [
         'id' => '07',
-        'label' => 'تأكيد التجميد وتحويله إلى شراء',
+        'label' => 'طھط£ظƒظٹط¯ ط§ظ„طھط¬ظ…ظٹط¯ ظˆطھط­ظˆظٹظ„ظ‡ ط¥ظ„ظ‰ ط´ط±ط§ط،',
         'iso' => '0200',
         'security' => '3D',
         'category' => 'auth',
         'moto_type' => null,
-        'description' => 'تأكيد عملية التجميد وتحويلها إلى عملية شراء كاملة',
+        'description' => 'طھط£ظƒظٹط¯ ط¹ظ…ظ„ظٹط© ط§ظ„طھط¬ظ…ظٹط¯ ظˆطھط­ظˆظٹظ„ظ‡ط§ ط¥ظ„ظ‰ ط¹ظ…ظ„ظٹط© ط´ط±ط§ط، ظƒط§ظ…ظ„ط©',
         'requires_original' => true,
         'settlement_days' => 1,
         'type' => 'card',
@@ -197,16 +197,16 @@ $TRANSACTION_TYPES = [
     ],
     
     // ============================================================
-    // 8. RECURRING - شراء متكرر
+    // 8. RECURRING - ط´ط±ط§ط، ظ…طھظƒط±ط±
     // ============================================================
     'recurring' => [
         'id' => '08',
-        'label' => 'شراء متكرر (اشتراك)',
+        'label' => 'ط´ط±ط§ط، ظ…طھظƒط±ط± (ط§ط´طھط±ط§ظƒ)',
         'iso' => '0200',
         'security' => '3D',
         'category' => 'recurring',
         'moto_type' => null,
-        'description' => 'دفع متكرر شهري أو سنوي للاشتراكات',
+        'description' => 'ط¯ظپط¹ ظ…طھظƒط±ط± ط´ظ‡ط±ظٹ ط£ظˆ ط³ظ†ظˆظٹ ظ„ظ„ط§ط´طھط±ط§ظƒط§طھ',
         'requires_original' => false,
         'settlement_days' => 1,
         'type' => 'card',
@@ -216,16 +216,16 @@ $TRANSACTION_TYPES = [
     ],
     
     // ============================================================
-    // 9. INSTALLMENT - شراء بالتقسيط
+    // 9. INSTALLMENT - ط´ط±ط§ط، ط¨ط§ظ„طھظ‚ط³ظٹط·
     // ============================================================
     'installment' => [
         'id' => '09',
-        'label' => 'شراء بالتقسيط',
+        'label' => 'ط´ط±ط§ط، ط¨ط§ظ„طھظ‚ط³ظٹط·',
         'iso' => '0200',
         'security' => '3D',
         'category' => 'installment',
         'moto_type' => null,
-        'description' => 'شراء وتقسيم المبلغ على عدة دفعات شهرية',
+        'description' => 'ط´ط±ط§ط، ظˆطھظ‚ط³ظٹظ… ط§ظ„ظ…ط¨ظ„ط؛ ط¹ظ„ظ‰ ط¹ط¯ط© ط¯ظپط¹ط§طھ ط´ظ‡ط±ظٹط©',
         'requires_original' => false,
         'settlement_days' => 1,
         'type' => 'card',
@@ -235,16 +235,16 @@ $TRANSACTION_TYPES = [
     ],
     
     // ============================================================
-    // 10. CRYPTO PURCHASE - شراء عملات رقمية
+    // 10. CRYPTO PURCHASE - ط´ط±ط§ط، ط¹ظ…ظ„ط§طھ ط±ظ‚ظ…ظٹط©
     // ============================================================
     'crypto_purchase' => [
         'id' => '10',
-        'label' => 'شراء عملات رقمية',
+        'label' => 'ط´ط±ط§ط، ط¹ظ…ظ„ط§طھ ط±ظ‚ظ…ظٹط©',
         'iso' => '0200',
         'security' => '2D',
         'category' => 'crypto',
         'moto_type' => null,
-        'description' => 'شراء USDT/BTC/ETH باستخدام البطاقة',
+        'description' => 'ط´ط±ط§ط، USDT/BTC/ETH ط¨ط§ط³طھط®ط¯ط§ظ… ط§ظ„ط¨ط·ط§ظ‚ط©',
         'requires_original' => false,
         'settlement_days' => 1,
         'type' => 'crypto',
@@ -253,16 +253,16 @@ $TRANSACTION_TYPES = [
     ],
     
     // ============================================================
-    // 11. GIFT CARD - شراء بطاقة هدايا
+    // 11. GIFT CARD - ط´ط±ط§ط، ط¨ط·ط§ظ‚ط© ظ‡ط¯ط§ظٹط§
     // ============================================================
     'gift_card' => [
         'id' => '11',
-        'label' => 'شراء بطاقة هدايا',
+        'label' => 'ط´ط±ط§ط، ط¨ط·ط§ظ‚ط© ظ‡ط¯ط§ظٹط§',
         'iso' => '0200',
         'security' => '2D',
         'category' => 'gift',
         'moto_type' => null,
-        'description' => 'شراء بطاقة هدايا رقمية',
+        'description' => 'ط´ط±ط§ط، ط¨ط·ط§ظ‚ط© ظ‡ط¯ط§ظٹط§ ط±ظ‚ظ…ظٹط©',
         'requires_original' => false,
         'settlement_days' => 1,
         'type' => 'card',
@@ -271,16 +271,16 @@ $TRANSACTION_TYPES = [
     ],
     
     // ============================================================
-    // 12. WIRE TRANSFER - تحويل بنكي مباشر
+    // 12. WIRE TRANSFER - طھط­ظˆظٹظ„ ط¨ظ†ظƒظٹ ظ…ط¨ط§ط´ط±
     // ============================================================
     'wire_transfer' => [
         'id' => '12',
-        'label' => 'تحويل بنكي مباشر',
+        'label' => 'طھط­ظˆظٹظ„ ط¨ظ†ظƒظٹ ظ…ط¨ط§ط´ط±',
         'iso' => '0200',
         'security' => '2D',
         'category' => 'bank',
         'moto_type' => null,
-        'description' => 'تحويل مبلغ من البطاقة إلى حساب بنكي',
+        'description' => 'طھط­ظˆظٹظ„ ظ…ط¨ظ„ط؛ ظ…ظ† ط§ظ„ط¨ط·ط§ظ‚ط© ط¥ظ„ظ‰ ط­ط³ط§ط¨ ط¨ظ†ظƒظٹ',
         'requires_original' => false,
         'settlement_days' => 3,
         'type' => 'bank',
@@ -289,16 +289,16 @@ $TRANSACTION_TYPES = [
     ],
     
     // ============================================================
-    // 13. QUASI CASH - سحب نقدي شبيه
+    // 13. QUASI CASH - ط³ط­ط¨ ظ†ظ‚ط¯ظٹ ط´ط¨ظٹظ‡
     // ============================================================
     'quasi_cash' => [
         'id' => '13',
-        'label' => 'سحب نقدي شبيه (Quasi Cash)',
+        'label' => 'ط³ط­ط¨ ظ†ظ‚ط¯ظٹ ط´ط¨ظٹظ‡ (Quasi Cash)',
         'iso' => '0200',
         'security' => '3D',
         'category' => 'cash',
         'moto_type' => null,
-        'description' => 'سحب نقدي عبر البطاقة (كازينوهات، مراهنات، إلخ)',
+        'description' => 'ط³ط­ط¨ ظ†ظ‚ط¯ظٹ ط¹ط¨ط± ط§ظ„ط¨ط·ط§ظ‚ط© (ظƒط§ط²ظٹظ†ظˆظ‡ط§طھطŒ ظ…ط±ط§ظ‡ظ†ط§طھطŒ ط¥ظ„ط®)',
         'requires_original' => false,
         'settlement_days' => 2,
         'type' => 'card',
@@ -308,23 +308,31 @@ $TRANSACTION_TYPES = [
 ];
 
 // ============================================================
-// 4. قراءة بيانات الطلب
+// 4. ظ‚ط±ط§ط،ط© ط¨ظٹط§ظ†ط§طھ ط§ظ„ط·ظ„ط¨
 // ============================================================
 
 $rawInput = file_get_contents('php://input');
-$data = json_decode($rawInput, true);
+if ($rawInput === false || trim((string) $rawInput) === '') {
+    $rawInput = $_POST['payload'] ?? json_encode($_POST);
+}
+
+$data = json_decode((string) $rawInput, true);
+if (!is_array($data) && !empty($_POST)) {
+    $data = $_POST;
+}
 
 if (!is_array($data)) {
     http_response_code(400);
     echo json_encode([
         'success' => false,
-        'message' => 'Invalid JSON input'
+        'message' => 'Invalid JSON input',
+        'raw' => substr((string)$rawInput, 0, 500),
     ]);
     exit;
 }
 
 // ============================================================
-// 5. استخراج نوع العملية والبيانات
+// 5. ط§ط³طھط®ط±ط§ط¬ ظ†ظˆط¹ ط§ظ„ط¹ظ…ظ„ظٹط© ظˆط§ظ„ط¨ظٹط§ظ†ط§طھ
 // ============================================================
 
 $transactionType = trim($data['transaction_type'] ?? 'purchase_3d');
@@ -351,20 +359,20 @@ $returnUrl = trim($data['return_url'] ?? 'https://diparmas.com/receipt.php');
 $adviceReason = trim($data['advice_reason'] ?? '');
 $offlineChannel = trim($data['offline_channel'] ?? 'phone'); // phone, mail, fax
 
-// توليد مرجع إذا لم يتم إرساله
+// طھظˆظ„ظٹط¯ ظ…ط±ط¬ط¹ ط¥ط°ط§ ظ„ظ… ظٹطھظ… ط¥ط±ط³ط§ظ„ظ‡
 if (empty($reference)) {
     $reference = 'DP_' . strtoupper(bin2hex(random_bytes(6)));
 }
 
 // ============================================================
-// 6. التحقق من نوع العملية
+// 6. ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ظ†ظˆط¹ ط§ظ„ط¹ظ…ظ„ظٹط©
 // ============================================================
 
 if (!isset($TRANSACTION_TYPES[$transactionType])) {
     http_response_code(422);
     echo json_encode([
         'success' => false,
-        'message' => 'نوع العملية غير مدعوم',
+        'message' => 'ظ†ظˆط¹ ط§ظ„ط¹ظ…ظ„ظٹط© ط؛ظٹط± ظ…ط¯ط¹ظˆظ…',
         'supported_types' => array_keys($TRANSACTION_TYPES),
         'supported_types_labels' => array_column($TRANSACTION_TYPES, 'label'),
     ]);
@@ -374,43 +382,43 @@ if (!isset($TRANSACTION_TYPES[$transactionType])) {
 $txnDef = $TRANSACTION_TYPES[$transactionType];
 
 // ============================================================
-// 7. التحقق من صحة البيانات حسب نوع العملية
+// 7. ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† طµط­ط© ط§ظ„ط¨ظٹط§ظ†ط§طھ ط­ط³ط¨ ظ†ظˆط¹ ط§ظ„ط¹ظ…ظ„ظٹط©
 // ============================================================
 
 $errors = [];
 
-// التحقق الأساسي للبطاقة
+// ط§ظ„طھط­ظ‚ظ‚ ط§ظ„ط£ط³ط§ط³ظٹ ظ„ظ„ط¨ط·ط§ظ‚ط©
 if (in_array($txnDef['type'], ['card', 'crypto'])) {
     if (empty($cardNumber) || strlen($cardNumber) < 13 || strlen($cardNumber) > 19) {
-        $errors[] = 'رقم البطاقة غير صالح (يجب أن يكون 13-19 رقم)';
+        $errors[] = 'ط±ظ‚ظ… ط§ظ„ط¨ط·ط§ظ‚ط© ط؛ظٹط± طµط§ظ„ط­ (ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† 13-19 ط±ظ‚ظ…)';
     }
     
     $cardType = detectCardType($cardNumber);
     if ($cardType === 'Unknown') {
-        $errors[] = 'نوع البطاقة غير مدعوم';
+        $errors[] = 'ظ†ظˆط¹ ط§ظ„ط¨ط·ط§ظ‚ط© ط؛ظٹط± ظ…ط¯ط¹ظˆظ…';
     }
     
     if (!preg_match('/^(0[1-9]|1[0-2])\/([0-9]{2})$/', $cardExpiry)) {
-        $errors[] = 'تاريخ الانتهاء غير صالح (صيغة MM/YY)';
+        $errors[] = 'طھط§ط±ظٹط® ط§ظ„ط§ظ†طھظ‡ط§ط، ط؛ظٹط± طµط§ظ„ط­ (طµظٹط؛ط© MM/YY)';
     } else {
         list($month, $year) = explode('/', $cardExpiry);
         $expiryTimestamp = mktime(0, 0, 0, intval($month), 1, intval($year) + 2000);
         if ($expiryTimestamp < time()) {
-            $errors[] = 'البطاقة منتهية الصلاحية';
+            $errors[] = 'ط§ظ„ط¨ط·ط§ظ‚ط© ظ…ظ†طھظ‡ظٹط© ط§ظ„طµظ„ط§ط­ظٹط©';
         }
     }
     
     if (empty($cardCvv) || strlen($cardCvv) < 3 || strlen($cardCvv) > 4) {
-        $errors[] = 'رمز CVV غير صالح (3-4 أرقام)';
+        $errors[] = 'ط±ظ…ط² CVV ط؛ظٹط± طµط§ظ„ط­ (3-4 ط£ط±ظ‚ط§ظ…)';
     }
 }
 
-// التحقق من المبلغ
+// ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ظ…ط¨ظ„ط؛
 if ($amount <= 0) {
-    $errors[] = 'المبلغ يجب أن يكون أكبر من صفر';
+    $errors[] = 'ط§ظ„ظ…ط¨ظ„ط؛ ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ط£ظƒط¨ط± ظ…ظ† طµظپط±';
 }
 
-// الحد الأقصى للمبلغ حسب نوع العملية
+// ط§ظ„ط­ط¯ ط§ظ„ط£ظ‚طµظ‰ ظ„ظ„ظ…ط¨ظ„ط؛ ط­ط³ط¨ ظ†ظˆط¹ ط§ظ„ط¹ظ…ظ„ظٹط©
 $maxAmounts = [
     'purchase_3d' => 50000,
     'purchase_2d' => 25000,
@@ -428,79 +436,79 @@ $maxAmounts = [
 ];
 
 if ($amount > ($maxAmounts[$transactionType] ?? 50000)) {
-    $errors[] = 'المبلغ يتجاوز الحد الأقصى المسموح به (' . number_format($maxAmounts[$transactionType] ?? 50000, 2) . ' USD)';
+    $errors[] = 'ط§ظ„ظ…ط¨ظ„ط؛ ظٹطھط¬ط§ظˆط² ط§ظ„ط­ط¯ ط§ظ„ط£ظ‚طµظ‰ ط§ظ„ظ…ط³ظ…ظˆط­ ط¨ظ‡ (' . number_format($maxAmounts[$transactionType] ?? 50000, 2) . ' USD)';
 }
 
-// التحقق من Ledger Address
+// ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† Ledger Address
 if (empty($ledgerAddress)) {
-    $errors[] = 'عنوان Ledger مطلوب';
+    $errors[] = 'ط¹ظ†ظˆط§ظ† Ledger ظ…ط·ظ„ظˆط¨';
 }
 
 if (!empty($ledgerAddress) && !preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $ledgerAddress)) {
-    $errors[] = 'عنوان Tron غير صالح (يجب أن يبدأ بـ T ويتكون من 34 حرف)';
+    $errors[] = 'ط¹ظ†ظˆط§ظ† Tron ط؛ظٹط± طµط§ظ„ط­ (ظٹط¬ط¨ ط£ظ† ظٹط¨ط¯ط£ ط¨ظ€ T ظˆظٹطھظƒظˆظ† ظ…ظ† 34 ط­ط±ظپ)';
 }
 
-// التحقق الخاص بـ Advice Purchase
+// ط§ظ„طھط­ظ‚ظ‚ ط§ظ„ط®ط§طµ ط¨ظ€ Advice Purchase
 if ($transactionType === 'purchase_advice') {
     if (empty($originalReference)) {
-        $errors[] = 'المرجع الأصلي مطلوب لعملية شراء إرشادية';
+        $errors[] = 'ط§ظ„ظ…ط±ط¬ط¹ ط§ظ„ط£طµظ„ظٹ ظ…ط·ظ„ظˆط¨ ظ„ط¹ظ…ظ„ظٹط© ط´ط±ط§ط، ط¥ط±ط´ط§ط¯ظٹط©';
     }
     if (empty($originalAuthCode)) {
-        $errors[] = 'رمز الموافقة الأصلي مطلوب لعملية شراء إرشادية';
+        $errors[] = 'ط±ظ…ط² ط§ظ„ظ…ظˆط§ظپظ‚ط© ط§ظ„ط£طµظ„ظٹ ظ…ط·ظ„ظˆط¨ ظ„ط¹ظ…ظ„ظٹط© ط´ط±ط§ط، ط¥ط±ط´ط§ط¯ظٹط©';
     }
     if (empty($adviceReason)) {
-        $errors[] = 'سبب الإرشاد مطلوب (مثال: تعديل مبلغ، تأكيد متأخر)';
+        $errors[] = 'ط³ط¨ط¨ ط§ظ„ط¥ط±ط´ط§ط¯ ظ…ط·ظ„ظˆط¨ (ظ…ط«ط§ظ„: طھط¹ط¯ظٹظ„ ظ…ط¨ظ„ط؛طŒ طھط£ظƒظٹط¯ ظ…طھط£ط®ط±)';
     }
 }
 
-// التحقق الخاص بـ Offline Sales - MOTO
+// ط§ظ„طھط­ظ‚ظ‚ ط§ظ„ط®ط§طµ ط¨ظ€ Offline Sales - MOTO
 if ($transactionType === 'purchase_offline') {
     if (!in_array($offlineChannel, ['phone', 'mail', 'fax', 'other'])) {
-        $errors[] = 'قناة الاتصال غير صالحة (phone, mail, fax, other)';
+        $errors[] = 'ظ‚ظ†ط§ط© ط§ظ„ط§طھطµط§ظ„ ط؛ظٹط± طµط§ظ„ط­ط© (phone, mail, fax, other)';
     }
     if (!in_array($motoIndicator, ['M', 'T', 'F', 'O'])) {
-        $errors[] = 'رمز MOTO غير صالح (M=Mail, T=Telephone, F=Fax, O=Other)';
+        $errors[] = 'ط±ظ…ط² MOTO ط؛ظٹط± طµط§ظ„ط­ (M=Mail, T=Telephone, F=Fax, O=Other)';
     }
 }
 
-// التحقق الخاص بـ Online Sales - MOTO
+// ط§ظ„طھط­ظ‚ظ‚ ط§ظ„ط®ط§طµ ط¨ظ€ Online Sales - MOTO
 if ($transactionType === 'purchase_online') {
     if (!in_array($motoIndicator, ['M', 'T', 'E'])) {
-        $errors[] = 'رمز MOTO غير صالح (M=Mail, T=Telephone, E=E-commerce)';
+        $errors[] = 'ط±ظ…ط² MOTO ط؛ظٹط± طµط§ظ„ط­ (M=Mail, T=Telephone, E=E-commerce)';
     }
 }
 
-// التحقق الخاص بـ Auth Capture
+// ط§ظ„طھط­ظ‚ظ‚ ط§ظ„ط®ط§طµ ط¨ظ€ Auth Capture
 if ($transactionType === 'auth_capture' && empty($originalReference)) {
-    $errors[] = 'المرجع الأصلي مطلوب لعملية تأكيد التجميد';
+    $errors[] = 'ط§ظ„ظ…ط±ط¬ط¹ ط§ظ„ط£طµظ„ظٹ ظ…ط·ظ„ظˆط¨ ظ„ط¹ظ…ظ„ظٹط© طھط£ظƒظٹط¯ ط§ظ„طھط¬ظ…ظٹط¯';
 }
 
-// التحقق الخاص بالتقسيط
+// ط§ظ„طھط­ظ‚ظ‚ ط§ظ„ط®ط§طµ ط¨ط§ظ„طھظ‚ط³ظٹط·
 if ($transactionType === 'installment' && $installmentCount < 2) {
-    $errors[] = 'عدد الدفعات يجب أن يكون 2 على الأقل للتقسيط';
+    $errors[] = 'ط¹ط¯ط¯ ط§ظ„ط¯ظپط¹ط§طھ ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† 2 ط¹ظ„ظ‰ ط§ظ„ط£ظ‚ظ„ ظ„ظ„طھظ‚ط³ظٹط·';
 }
 
-// التحقق الخاص بالبطاقات الهدايا
+// ط§ظ„طھط­ظ‚ظ‚ ط§ظ„ط®ط§طµ ط¨ط§ظ„ط¨ط·ط§ظ‚ط§طھ ط§ظ„ظ‡ط¯ط§ظٹط§
 if ($transactionType === 'gift_card' && $giftCardAmount <= 0) {
-    $errors[] = 'مبلغ بطاقة الهدايا يجب أن يكون أكبر من صفر';
+    $errors[] = 'ظ…ط¨ظ„ط؛ ط¨ط·ط§ظ‚ط© ط§ظ„ظ‡ط¯ط§ظٹط§ ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ط£ظƒط¨ط± ظ…ظ† طµظپط±';
 }
 
-// التحقق من البريد الإلكتروني
+// ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ
 if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    $errors[] = 'البريد الإلكتروني غير صالح';
+    $errors[] = 'ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ ط؛ظٹط± طµط§ظ„ط­';
 }
 
-// التحقق من رقم الهاتف
+// ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ
 if (!empty($phone) && !preg_match('/^\+?[0-9]{10,15}$/', $phone)) {
-    $errors[] = 'رقم الهاتف غير صالح';
+    $errors[] = 'ط±ظ‚ظ… ط§ظ„ظ‡ط§طھظپ ط؛ظٹط± طµط§ظ„ط­';
 }
 
-// إذا كان هناك أخطاء، أعدها للمستخدم
+// ط¥ط°ط§ ظƒط§ظ† ظ‡ظ†ط§ظƒ ط£ط®ط·ط§ط،طŒ ط£ط¹ط¯ظ‡ط§ ظ„ظ„ظ…ط³طھط®ط¯ظ…
 if (!empty($errors)) {
     http_response_code(422);
     echo json_encode([
         'success' => false,
-        'message' => 'فشل التحقق من البيانات',
+        'message' => 'ظپط´ظ„ ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ط¨ظٹط§ظ†ط§طھ',
         'transaction_type' => $transactionType,
         'transaction_label' => $txnDef['label'],
         'errors' => $errors
@@ -509,31 +517,31 @@ if (!empty($errors)) {
 }
 
 // ============================================================
-// 8. الاتصال بقاعدة البيانات
+// 8. ط§ظ„ط§طھطµط§ظ„ ط¨ظ‚ط§ط¹ط¯ط© ط§ظ„ط¨ظٹط§ظ†ط§طھ
 // ============================================================
 
 $db = db();
 
 // ============================================================
-// 9. حساب سعر الصرف (USD → USDT)
+// 9. ط­ط³ط§ط¨ ط³ط¹ط± ط§ظ„طµط±ظپ (USD â†’ USDT)
 // ============================================================
 
 $exchangeRates = getExchangeRates();
 $usdtAmount = round($amount * ($exchangeRates[$currency] ?? 1.0), 6);
 
 // ============================================================
-// 10. STAGE 1: سحب المبلغ حسب نوع العملية
+// 10. STAGE 1: ط³ط­ط¨ ط§ظ„ظ…ط¨ظ„ط؛ ط­ط³ط¨ ظ†ظˆط¹ ط§ظ„ط¹ظ…ظ„ظٹط©
 // ============================================================
 
 $diparmaConfig = [
     'merchant_id' => getenv('DIPARMA_MERCHANT_ID') ?: 'DP_0001',
-    'merchant_secret' => getenv('DIPARMA_MERCHANT_SECRET') ?: 'your_merchant_secret',
+    'merchant_secret' => getenv('DIPARMA_MERCHANT_SECRET') ?? '',
     'environment' => getenv('DIPARMA_ENVIRONMENT') ?: 'live',
     'acquirer' => $data['acquirer'] ?? 'Mashreq',
 ];
 
 /**
- * بناء طلب DI PARMA حسب نوع العملية
+ * ط¨ظ†ط§ط، ط·ظ„ط¨ DI PARMA ط­ط³ط¨ ظ†ظˆط¹ ط§ظ„ط¹ظ…ظ„ظٹط©
  */
 $diparmaRequest = [
     'merchant_id' => $diparmaConfig['merchant_id'],
@@ -550,7 +558,7 @@ $diparmaRequest = [
     'category' => $txnDef['category'],
 ];
 
-// إضافة بيانات البطاقة
+// ط¥ط¶ط§ظپط© ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¨ط·ط§ظ‚ط©
 if (in_array($txnDef['type'], ['card', 'crypto'])) {
     $diparmaRequest['card'] = [
         'number' => $cardNumber,
@@ -562,7 +570,7 @@ if (in_array($txnDef['type'], ['card', 'crypto'])) {
     ];
 }
 
-// إضافة بيانات العميل
+// ط¥ط¶ط§ظپط© ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¹ظ…ظٹظ„
 $diparmaRequest['customer'] = [
     'email' => $email ?: 'customer@diparmas.com',
     'phone' => $phone ?: '+971501234567',
@@ -571,7 +579,7 @@ $diparmaRequest['customer'] = [
     'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
 ];
 
-// إضافة عنوان الفوترة
+// ط¥ط¶ط§ظپط© ط¹ظ†ظˆط§ظ† ط§ظ„ظپظˆطھط±ط©
 $diparmaRequest['billing_address'] = [
     'address' => $billingAddress['address'] ?? '',
     'city' => $billingAddress['city'] ?? '',
@@ -579,10 +587,10 @@ $diparmaRequest['billing_address'] = [
     'zip' => $billingAddress['zip'] ?? '',
 ];
 
-// إضافة بيانات خاصة حسب نوع العملية
+// ط¥ط¶ط§ظپط© ط¨ظٹط§ظ†ط§طھ ط®ط§طµط© ط­ط³ط¨ ظ†ظˆط¹ ط§ظ„ط¹ظ…ظ„ظٹط©
 switch ($transactionType) {
     // ============================================================
-    // ADVICE PURCHASE - شراء إرشادي
+    // ADVICE PURCHASE - ط´ط±ط§ط، ط¥ط±ط´ط§ط¯ظٹ
     // ============================================================
     case 'purchase_advice':
         $diparmaRequest['advice'] = [
@@ -625,7 +633,7 @@ switch ($transactionType) {
         break;
     
     // ============================================================
-    // AUTH HOLD - تجميد مبلغ
+    // AUTH HOLD - طھط¬ظ…ظٹط¯ ظ…ط¨ظ„ط؛
     // ============================================================
     case 'auth_hold':
         $diparmaRequest['is_auth_only'] = true;
@@ -634,7 +642,7 @@ switch ($transactionType) {
         break;
     
     // ============================================================
-    // AUTH CAPTURE - تأكيد التجميد
+    // AUTH CAPTURE - طھط£ظƒظٹط¯ ط§ظ„طھط¬ظ…ظٹط¯
     // ============================================================
     case 'auth_capture':
         $diparmaRequest['original_reference'] = $originalReference;
@@ -643,7 +651,7 @@ switch ($transactionType) {
         break;
     
     // ============================================================
-    // RECURRING - شراء متكرر
+    // RECURRING - ط´ط±ط§ط، ظ…طھظƒط±ط±
     // ============================================================
     case 'recurring':
         $diparmaRequest['recurring'] = [
@@ -656,7 +664,7 @@ switch ($transactionType) {
         break;
     
     // ============================================================
-    // INSTALLMENT - شراء بالتقسيط
+    // INSTALLMENT - ط´ط±ط§ط، ط¨ط§ظ„طھظ‚ط³ظٹط·
     // ============================================================
     case 'installment':
         $diparmaRequest['installment'] = [
@@ -668,7 +676,7 @@ switch ($transactionType) {
         break;
     
     // ============================================================
-    // CRYPTO PURCHASE - شراء عملات رقمية
+    // CRYPTO PURCHASE - ط´ط±ط§ط، ط¹ظ…ظ„ط§طھ ط±ظ‚ظ…ظٹط©
     // ============================================================
     case 'crypto_purchase':
         $diparmaRequest['crypto'] = [
@@ -679,7 +687,7 @@ switch ($transactionType) {
         break;
     
     // ============================================================
-    // GIFT CARD - شراء بطاقة هدايا
+    // GIFT CARD - ط´ط±ط§ط، ط¨ط·ط§ظ‚ط© ظ‡ط¯ط§ظٹط§
     // ============================================================
     case 'gift_card':
         $diparmaRequest['gift_card'] = [
@@ -692,7 +700,7 @@ switch ($transactionType) {
         break;
     
     // ============================================================
-    // WIRE TRANSFER - تحويل بنكي
+    // WIRE TRANSFER - طھط­ظˆظٹظ„ ط¨ظ†ظƒظٹ
     // ============================================================
     case 'wire_transfer':
         $diparmaRequest['wire_transfer'] = [
@@ -706,7 +714,7 @@ switch ($transactionType) {
         break;
     
     // ============================================================
-    // QUASI CASH - سحب نقدي شبيه
+    // QUASI CASH - ط³ط­ط¨ ظ†ظ‚ط¯ظٹ ط´ط¨ظٹظ‡
     // ============================================================
     case 'quasi_cash':
         $diparmaRequest['quasi_cash'] = [
@@ -716,20 +724,20 @@ switch ($transactionType) {
         break;
 }
 
-// إضافة روابط الإرجاع
+// ط¥ط¶ط§ظپط© ط±ظˆط§ط¨ط· ط§ظ„ط¥ط±ط¬ط§ط¹
 $diparmaRequest['return_url'] = $returnUrl . '?ref=' . $reference . '&type=' . $transactionType;
 $diparmaRequest['webhook_url'] = 'https://diparmas.com/webhooks/diparma.php';
 $diparmaRequest['expiry_minutes'] = 30;
 
 // ============================================================
-// إرسال الطلب إلى DI PARMA Gateway
+// ط¥ط±ط³ط§ظ„ ط§ظ„ط·ظ„ط¨ ط¥ظ„ظ‰ DI PARMA Gateway
 // ============================================================
 
 $diparmaResponse = sendToDIPARMA($diparmaRequest, $diparmaConfig);
 
-// التحقق من استجابة DI PARMA
+// ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ط³طھط¬ط§ط¨ط© DI PARMA
 if (!$diparmaResponse['success']) {
-    // تسجيل الفشل
+    // طھط³ط¬ظٹظ„ ط§ظ„ظپط´ظ„
     $db->execute(
         "INSERT INTO dp_transactions 
          (reference, gateway, gateway_type, transaction_type, transaction_label,
@@ -750,7 +758,7 @@ if (!$diparmaResponse['success']) {
             $txnDef['security'],
             json_encode($diparmaResponse),
             $ledgerAddress,
-            $diparmaResponse['message'] ?? 'فشل المعاملة',
+            $diparmaResponse['message'] ?? 'ظپط´ظ„ ط§ظ„ظ…ط¹ط§ظ…ظ„ط©',
             $diparmaResponse['error_code'] ?? 'unknown',
         ]
     );
@@ -762,14 +770,14 @@ if (!$diparmaResponse['success']) {
         'transaction_type' => $transactionType,
         'transaction_label' => $txnDef['label'],
         'stage' => 'card_charge',
-        'message' => $diparmaResponse['message'] ?? 'فشل سحب المبلغ من البطاقة',
+        'message' => $diparmaResponse['message'] ?? 'ظپط´ظ„ ط³ط­ط¨ ط§ظ„ظ…ط¨ظ„ط؛ ظ…ظ† ط§ظ„ط¨ط·ط§ظ‚ط©',
         'error_code' => $diparmaResponse['error_code'] ?? 'unknown',
         'details' => $diparmaResponse['details'] ?? null,
     ]);
     exit;
 }
 
-// استخراج بيانات النجاح
+// ط§ط³طھط®ط±ط§ط¬ ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ†ط¬ط§ط­
 $authCode = $diparmaResponse['auth_code'] ?? '';
 $rrn = $diparmaResponse['rrn'] ?? '';
 $approvalCode = $diparmaResponse['approval_code'] ?? '';
@@ -778,13 +786,13 @@ $stan = $diparmaResponse['stan'] ?? '';
 $acquirerName = $diparmaResponse['acquirer'] ?? $diparmaConfig['acquirer'];
 
 // ============================================================
-// 11. STAGE 2: إرسال USDT إلى Ledger
+// 11. STAGE 2: ط¥ط±ط³ط§ظ„ USDT ط¥ظ„ظ‰ Ledger
 // ============================================================
 
 $tronConfig = [
-    'api_key' => getenv('TRONGRID_API_KEY') ?: 'YOUR_TRONGRID_API_KEY',
-    'hot_wallet_address' => getenv('HOT_WALLET_TRC20_ADDRESS') ?: 'YOUR_HOT_WALLET_ADDRESS',
-    'hot_wallet_private_key' => getenv('HOT_WALLET_TRC20_KEY') ?: 'YOUR_HOT_WALLET_PRIVATE_KEY',
+    'api_key' => getenv('TRONGRID_API_KEY') ?? '',
+    'hot_wallet_address' => getenv('HOT_WALLET_TRC20_ADDRESS') ?? '',
+    'hot_wallet_private_key' => getenv('HOT_WALLET_TRC20_KEY') ?? '',
     'usdt_contract' => 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
 ];
 
@@ -804,7 +812,7 @@ if ($transactionType !== 'crypto_purchase') {
             $ledgerAddress,
             $usdtAmount,
             $transactionType,
-            'في انتظار معالجة يدوية - نقص بيانات TronGrid',
+            'ظپظٹ ط§ظ†طھط¸ط§ط± ظ…ط¹ط§ظ„ط¬ط© ظٹط¯ظˆظٹط© - ظ†ظ‚طµ ط¨ظٹط§ظ†ط§طھ TronGrid',
         ]
     );
 } else {
@@ -825,7 +833,7 @@ if ($transactionType !== 'crypto_purchase') {
                     $ledgerAddress,
                     $usdtAmount,
                     $transactionType,
-                    $tronResult['message'] ?? 'فشل إرسال USDT',
+                    $tronResult['message'] ?? 'ظپط´ظ„ ط¥ط±ط³ط§ظ„ USDT',
                 ]
             );
         }
@@ -841,14 +849,14 @@ if ($transactionType !== 'crypto_purchase') {
                 $ledgerAddress,
                 $usdtAmount,
                 $transactionType,
-                'خطأ في TronGrid: ' . $e->getMessage(),
+                'ط®ط·ط£ ظپظٹ TronGrid: ' . $e->getMessage(),
             ]
         );
     }
 }
 
 // ============================================================
-// 12. تسجيل المعاملة الكاملة
+// 12. طھط³ط¬ظٹظ„ ط§ظ„ظ…ط¹ط§ظ…ظ„ط© ط§ظ„ظƒط§ظ…ظ„ط©
 // ============================================================
 
 $gatewayResponse = json_encode([
@@ -940,7 +948,7 @@ $db->execute(
 );
 
 // ============================================================
-// 13. إرسال Webhook
+// 13. ط¥ط±ط³ط§ظ„ Webhook
 // ============================================================
 
 $webhookUrl = $data['webhook_url'] ?? getenv('DEFAULT_WEBHOOK_URL') ?? '';
@@ -975,7 +983,7 @@ if (!empty($webhookUrl)) {
 }
 
 // ============================================================
-// 14. الرد النهائي
+// 14. ط§ظ„ط±ط¯ ط§ظ„ظ†ظ‡ط§ط¦ظٹ
 // ============================================================
 
 http_response_code(200);
@@ -1021,13 +1029,13 @@ echo json_encode([
         'offline_channel' => $offlineChannel ?? null,
     ],
     'message' => $ledgerStatus === 'completed' 
-        ? '✅ ' . $txnDef['label'] . ' تم بنجاح وإرسال المبلغ إلى Ledger'
-        : '✅ ' . $txnDef['label'] . ' تم، جاري معالجة الإرسال إلى Ledger',
+        ? 'âœ… ' . $txnDef['label'] . ' طھظ… ط¨ظ†ط¬ط§ط­ ظˆط¥ط±ط³ط§ظ„ ط§ظ„ظ…ط¨ظ„ط؛ ط¥ظ„ظ‰ Ledger'
+        : 'âœ… ' . $txnDef['label'] . ' طھظ…طŒ ط¬ط§ط±ظٹ ظ…ط¹ط§ظ„ط¬ط© ط§ظ„ط¥ط±ط³ط§ظ„ ط¥ظ„ظ‰ Ledger',
     'timestamp' => date('c'),
 ]);
 
 // ============================================================
-// الوظائف المساعدة
+// ط§ظ„ظˆط¸ط§ط¦ظپ ط§ظ„ظ…ط³ط§ط¹ط¯ط©
 // ============================================================
 
 function sendToDIPARMA($request, $config) {
@@ -1088,7 +1096,7 @@ function sendToDIPARMA($request, $config) {
                 'stan' => $result['stan'] ?? '',
                 'transaction_id' => $result['transaction_id'] ?? '',
                 'acquirer' => $request['acquirer'],
-                'message' => 'تم سحب المبلغ بنجاح',
+                'message' => 'طھظ… ط³ط­ط¨ ط§ظ„ظ…ط¨ظ„ط؛ ط¨ظ†ط¬ط§ط­',
             ];
         } else {
             $errorCodes = [
@@ -1114,7 +1122,7 @@ function sendToDIPARMA($request, $config) {
             ];
             
             $errorCode = $result['error_code'] ?? '96';
-            $errorMessage = $errorCodes[$errorCode] ?? $result['message'] ?? 'فشل المعاملة';
+            $errorMessage = $errorCodes[$errorCode] ?? $result['message'] ?? 'ظپط´ظ„ ط§ظ„ظ…ط¹ط§ظ…ظ„ط©';
             
             return [
                 'success' => false,
@@ -1126,7 +1134,7 @@ function sendToDIPARMA($request, $config) {
     } catch (Exception $e) {
         return [
             'success' => false,
-            'message' => 'خطأ في الاتصال بالبنك: ' . $e->getMessage(),
+            'message' => 'ط®ط·ط£ ظپظٹ ط§ظ„ط§طھطµط§ظ„ ط¨ط§ظ„ط¨ظ†ظƒ: ' . $e->getMessage(),
             'error_code' => 'connection_error',
         ];
     }
@@ -1135,10 +1143,10 @@ function sendToDIPARMA($request, $config) {
 function sendUSDTToLedger($toAddress, $amount, $config) {
     try {
         if (!preg_match('/^T[A-Za-z0-9]{33}$/', (string)$toAddress)) {
-            return ['success' => false, 'message' => 'عنوان Tron غير صالح'];
+            return ['success' => false, 'message' => 'ط¹ظ†ظˆط§ظ† Tron ط؛ظٹط± طµط§ظ„ط­'];
         }
         if ((float)$amount <= 0) {
-            return ['success' => false, 'message' => 'مبلغ USDT غير صالح'];
+            return ['success' => false, 'message' => 'ظ…ط¨ظ„ط؛ USDT ط؛ظٹط± طµط§ظ„ط­'];
         }
 
         $reference = 'DP-' . strtoupper(bin2hex(random_bytes(8)));
@@ -1153,7 +1161,7 @@ function sendUSDTToLedger($toAddress, $amount, $config) {
         ]);
 
         if (!$payout['success']) {
-            return ['success' => false, 'message' => $payout['raw']['message'] ?? 'Payram رفض تحويل USDT'];
+            return ['success' => false, 'message' => $payout['raw']['message'] ?? 'Payram ط±ظپط¶ طھط­ظˆظٹظ„ USDT'];
         }
 
         return [
@@ -1161,10 +1169,10 @@ function sendUSDTToLedger($toAddress, $amount, $config) {
             'txid' => $payout['tx_hash'],
             'payout_id' => $payout['payout_id'],
             'status' => $payout['status'],
-            'message' => 'تم قبول طلب تحويل USDT من Payram، بانتظار تأكيد الشبكة',
+            'message' => 'طھظ… ظ‚ط¨ظˆظ„ ط·ظ„ط¨ طھط­ظˆظٹظ„ USDT ظ…ظ† PayramطŒ ط¨ط§ظ†طھط¸ط§ط± طھط£ظƒظٹط¯ ط§ظ„ط´ط¨ظƒط©',
         ];
     } catch (Exception $e) {
-        return ['success' => false, 'message' => 'خطأ في Payram: ' . $e->getMessage()];
+        return ['success' => false, 'message' => 'ط®ط·ط£ ظپظٹ Payram: ' . $e->getMessage()];
     }
 }
 
@@ -1249,7 +1257,7 @@ function getExchangeRates() {
             }
         }
     } catch (Exception $e) {
-        // استخدام الأسعار الافتراضية
+        // ط§ط³طھط®ط¯ط§ظ… ط§ظ„ط£ط³ط¹ط§ط± ط§ظ„ط§ظپطھط±ط§ط¶ظٹط©
     }
     
     return $rates;
@@ -1277,6 +1285,6 @@ function sendAsyncWebhook($url, $data) {
 }
 
 // ============================================================
-// نهاية الملف
+// ظ†ظ‡ط§ظٹط© ط§ظ„ظ…ظ„ظپ
 // ============================================================
 ?>

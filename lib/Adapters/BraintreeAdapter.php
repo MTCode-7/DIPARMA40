@@ -33,7 +33,7 @@ final class BraintreeAdapter implements GatewayAdapterInterface
         $this->merchantId  = getenv('BRAINTREE_MERCHANT_ID')  ?: '';
         $this->publicKey   = getenv('BRAINTREE_PUBLIC_KEY')   ?: '';
         $this->privateKey  = getenv('BRAINTREE_PRIVATE_KEY')  ?: '';
-        $this->environment = getenv('BRAINTREE_ENVIRONMENT')  ?: 'sandbox';
+        $this->environment = getenv('BRAINTREE_ENVIRONMENT')  ?: '';
         $this->baseUrl     = $this->environment === 'production'
             ? 'https://api.braintreegateway.com:443'
             : 'https://api.sandbox.braintreegateway.com:443';

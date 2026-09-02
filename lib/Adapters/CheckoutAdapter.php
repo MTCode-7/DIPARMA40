@@ -20,7 +20,7 @@ class CheckoutAdapter implements GatewayAdapterInterface
     {
         $this->secretKey = getenv('CHECKOUT_API_KEY')    ?: getenv('CHECKOUT_SECRET_KEY') ?: '';
         $this->publicKey = getenv('CHECKOUT_PUBLIC_KEY') ?: '';
-        $env             = getenv('CHECKOUT_ENVIRONMENT') ?: 'sandbox';
+        $env             = getenv('CHECKOUT_ENVIRONMENT') ?: '';
         $this->baseUrl   = $env === 'live'
             ? 'https://api.checkout.com'
             : 'https://api.sandbox.checkout.com';

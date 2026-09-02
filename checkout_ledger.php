@@ -396,8 +396,12 @@ body.pos-mode .amount-big{font-size:1.8rem}
     <!-- ORIG REF (يظهر لبعض الأنواع) -->
     <div class="orig-ref-wrap" id="orig-ref-wrap">
       <div class="fld" style="margin-bottom:12px">
-        <label><i class="fas fa-hashtag"></i> <?= $ar ? 'رقم المرجع الأصلي (RRN / Approval)' : 'Original Reference (RRN / Approval)' ?></label>
+        <label><i class="fas fa-hashtag"></i> <?= $ar ? 'رقم المرجع الأصلي (RRN)' : 'Original Reference (RRN)' ?></label>
         <input type="text" id="orig-ref" placeholder="<?= $ar ? 'رقم العملية السابقة' : 'Previous transaction reference' ?>">
+      </div>
+      <div class="fld" id="approval-code-wrap" style="display:none;margin-bottom:12px">
+        <label><i class="fas fa-check-circle"></i> <?= $ar ? 'رمز الموافقة' : 'Approval Code' ?></label>
+        <input type="text" id="approval-code" placeholder="<?= $ar ? 'أدخل رمز الموافقة' : 'Enter approval code' ?>">
       </div>
     </div>
 

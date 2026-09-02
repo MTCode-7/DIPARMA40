@@ -1,11 +1,11 @@
-<?php
+﻿<?php
 // Legacy entry point retained as a simple alias to the public checkout router.
 header('Location: checkout_router.php' . (!empty($_SERVER['QUERY_STRING']) ? '?' . $_SERVER['QUERY_STRING'] : ''));
 exit();
 
 /**
- * DI PARMA | Checkout — إدخال البطاقة + شراء USDT
- * التدفق: بيانات البطاقة → RiskEngine → KYC → CardPayment → Webhook → USDT
+ * DI PARMA | Checkout â€” ط¥ط¯ط®ط§ظ„ ط§ظ„ط¨ط·ط§ظ‚ط© + ط´ط±ط§ط، USDT
+ * ط§ظ„طھط¯ظپظ‚: ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¨ط·ط§ظ‚ط© â†’ RiskEngine â†’ KYC â†’ CardPayment â†’ Webhook â†’ USDT
  */
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/database.php';
@@ -15,7 +15,7 @@ require_once __DIR__ . '/includes/crypto_schema.php';
 require_once __DIR__ . '/lib/ExchangeRateService.php';
 require_once __DIR__ . '/lib/KYCService.php';
 require_once __DIR__ . '/lib/RiskEngine.php';
-// lang.php مُحمَّل من auth_check.php تلقائياً
+// lang.php ظ…ظڈط­ظ…ظژظ‘ظ„ ظ…ظ† auth_check.php طھظ„ظ‚ط§ط¦ظٹط§ظ‹
 
 dp_create_crypto_tables();
 RiskEngine::ensureTables();
@@ -23,16 +23,16 @@ RiskEngine::ensureTables();
 $userId     = intval($_SESSION['user_id'] ?? 0);
 $db         = db();
 $csrfToken  = generateCsrfToken();
-// اللغة من auth_check.php (محمّل مسبقاً)
+// ط§ظ„ظ„ط؛ط© ظ…ظ† auth_check.php (ظ…ط­ظ…ظ‘ظ„ ظ…ط³ط¨ظ‚ط§ظ‹)
 if (!isset($currentLang)) {
     $currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en') ? 'en' : 'ar';
     $pageDir     = $currentLang === 'en' ? 'ltr' : 'rtl';
 }
 
-// ── حالة KYC ────────────────────────────────────────────
+// â”€â”€ ط­ط§ظ„ط© KYC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 $kyc = KYCService::getInstance()->getStatus($userId);
 
-// ── السعر الحالي ─────────────────────────────────────────
+// â”€â”€ ط§ظ„ط³ط¹ط± ط§ظ„ط­ط§ظ„ظٹ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 $rates = [];
 try {
     $fx = ExchangeRateService::getInstance();
@@ -41,11 +41,11 @@ try {
     }
 } catch (Exception $e) {}
 
-// ── بوابات الدفع — لا يوجد افتراضي، المستخدم يختار ─────
+// â”€â”€ ط¨ظˆط§ط¨ط§طھ ط§ظ„ط¯ظپط¹ â€” ظ„ط§ ظٹظˆط¬ط¯ ط§ظپطھط±ط§ط¶ظٹطŒ ط§ظ„ظ…ط³طھط®ط¯ظ… ظٹط®طھط§ط± â”€â”€â”€â”€â”€
 $stripePublic = getenv('STRIPE_PUBLIC_KEY') ?: '';
-$cardProvider = ''; // لا بوابة مختارة افتراضياً
+$cardProvider = ''; // ظ„ط§ ط¨ظˆط§ط¨ط© ظ…ط®طھط§ط±ط© ط§ظپطھط±ط§ط¶ظٹط§ظ‹
 
-// ── جلب البوابات النشطة فقط من جدول البوابات المُدار من قِبل مشرف النظام
+// â”€â”€ ط¬ظ„ط¨ ط§ظ„ط¨ظˆط§ط¨ط§طھ ط§ظ„ظ†ط´ط·ط© ظپظ‚ط· ظ…ظ† ط¬ط¯ظˆظ„ ط§ظ„ط¨ظˆط§ط¨ط§طھ ط§ظ„ظ…ظڈط¯ط§ط± ظ…ظ† ظ‚ظگط¨ظ„ ظ…ط´ط±ظپ ط§ظ„ظ†ط¸ط§ظ…
 $gatewayRows = $db->query(
     "SELECT code, name, type, status, config, credentials, settings,
             connection_status, gateway_type, supports_2d, supports_3d,
@@ -72,7 +72,7 @@ foreach ($gatewayRows as $row) {
         continue;
     }
 
-    // ✅ البوابة verified = اختبارها نجح = تُضاف مباشرة
+    // âœ… ط§ظ„ط¨ظˆط§ط¨ط© verified = ط§ط®طھط¨ط§ط±ظ‡ط§ ظ†ط¬ط­ = طھظڈط¶ط§ظپ ظ…ط¨ط§ط´ط±ط©
     $cfg = json_decode($row['config'] ?? '{}', true) ?: [];
     $activeGateways[] = [
         'code'             => $code,
@@ -87,9 +87,9 @@ foreach ($gatewayRows as $row) {
     ];
 }
 
-// أيقونات وألوان لكل بوابة ومحفظة
+// ط£ظٹظ‚ظˆظ†ط§طھ ظˆط£ظ„ظˆط§ظ† ظ„ظƒظ„ ط¨ظˆط§ط¨ط© ظˆظ…ط­ظپط¸ط©
 $gatewayMeta = [
-    // بوابات دفع
+    // ط¨ظˆط§ط¨ط§طھ ط¯ظپط¹
     'myfatoorah'     => ['icon'=>'fas fa-money-bill-wave',    'color'=>'#00b09b'],
     'stripe'         => ['icon'=>'fab fa-stripe-s',           'color'=>'#6772e5'],
     'wise'           => ['icon'=>'fas fa-exchange-alt',       'color'=>'#9fe870'],
@@ -126,12 +126,12 @@ $gatewayMeta = [
     'safepal'        => ['icon'=>'fas fa-shield',             'color'=>'#444444'],
 ];
 
-// إذا لم توجد بوابات نشطة فعلياً — لا تعرض أي بوابة افتراضية
+// ط¥ط°ط§ ظ„ظ… طھظˆط¬ط¯ ط¨ظˆط§ط¨ط§طھ ظ†ط´ط·ط© ظپط¹ظ„ظٹط§ظ‹ â€” ظ„ط§ طھط¹ط±ط¶ ط£ظٹ ط¨ظˆط§ط¨ط© ط§ظپطھط±ط§ط¶ظٹط©
 if (empty($activeGateways)) {
     $activeGateways = [];
 }
 
-// تأكد أن cardProvider موجود في النشطة
+// طھط£ظƒط¯ ط£ظ† cardProvider ظ…ظˆط¬ظˆط¯ ظپظٹ ط§ظ„ظ†ط´ط·ط©
 $validCodes = array_column($activeGateways, 'code');
 if (!in_array($cardProvider, $validCodes, true) && !empty($validCodes)) {
     $cardProvider = $validCodes[0];
@@ -151,9 +151,9 @@ if (!in_array($cardProvider, $validCodes, true) && !empty($validCodes)) {
 <?php if (!empty($stripePublic)): ?>
 <script src="https://js.stripe.com/v3/"></script>
 <?php endif; ?>
-<!-- PayPal SDK v6 — يُحمَّل بشكل غير متزامن لا يعطل JS -->
+<!-- PayPal SDK v6 â€” ظٹظڈط­ظ…ظژظ‘ظ„ ط¨ط´ظƒظ„ ط؛ظٹط± ظ…طھط²ط§ظ…ظ† ظ„ط§ ظٹط¹ط·ظ„ JS -->
 <?php
-// PayPal — نحسب المتغيرات قبل الـ script
+// PayPal â€” ظ†ط­ط³ط¨ ط§ظ„ظ…طھط؛ظٹط±ط§طھ ظ‚ط¨ظ„ ط§ظ„ظ€ script
 $_ppClientId = addslashes(getenv('PAYPAL_CLIENT_ID') ?: '');
 $_ppLocale   = (($currentLang ?? 'ar') === 'en') ? 'en-US' : 'ar-AE';
 ?>
@@ -182,10 +182,10 @@ window.addEventListener('load', function() {
 <?php endif; ?>
 <!-- MyFatoorah JS SDK -->
 <?php
-$mfEnv = getenv('MYFAOORAH_ENVIRONMENT') ?: 'sandbox';
+$mfEnv = getenv('MYFAOORAH_ENVIRONMENT') ?: (defined('APP_ENV') && APP_ENV === 'production' ? 'live' : '');
 $mfJsUrl = $mfEnv === 'live'
     ? 'https://portal.myfatoorah.com/Files/API/myfatoorah.js'
-    : 'https://demo.myfatoorah.com/Files/API/myfatoorah.js';
+    : 'https://portal.myfatoorah.com/Files/API/myfatoorah.js';
 ?>
 <script>
 window.addEventListener('load', function() {
@@ -334,7 +334,7 @@ var RATES       = <?= json_encode(array_map(function($r){return['final_rate'=>$r
 var CSRF_TOKEN  = '<?= $csrfToken ?>';
 var STRIPE_KEY  = '<?= addslashes($stripePublic) ?>';
 
-// ── Stripe ──────────────────────────────────────────────
+// â”€â”€ Stripe â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 var stripe=null,stripeEl=null,stripeReady=false;
 function initStripe(){
     if(stripeReady||!STRIPE_KEY||typeof Stripe==='undefined')return;
@@ -346,7 +346,7 @@ function initStripe(){
     stripeReady=true;
 }
 
-// ── selectGateway ───────────────────────────────────────
+// â”€â”€ selectGateway â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function selectGateway(code){
     var gwPages = {
         'stripe':     'checkout_stripe.php',
@@ -375,78 +375,78 @@ function selectGateway(code){
     if(sel){sel.style.borderColor=GW[code]||'var(--gold)';sel.style.background='rgba(255,215,0,0.06)';}
     var si=document.getElementById('stripeElementWrap'),mf=document.getElementById('myfatoorahFields'),ci=document.getElementById('cardInputFields'),nt=document.getElementById('redirectNotice'),nm=document.getElementById('redirectMsg'),btn=document.getElementById('payBtn'),cn=document.getElementById('chooseGatewayNotice'),mo=document.getElementById('motoFields');
 
-    // بوابات المحافظ
+    // ط¨ظˆط§ط¨ط§طھ ط§ظ„ظ…ط­ط§ظپط¸
     var WALLETS=['binance','coinbase_ex','kraken','bybit','okx','kucoin','gate_io','gemini','bitfinex','mexc','trust_wallet','metamask','phantom','ledger_live','exodus','electrum','coinbase_wallet','zengo','rabby','safepal'];
-    // بوابات لها redirect خاص — تُخفي Security Level
+    // ط¨ظˆط§ط¨ط§طھ ظ„ظ‡ط§ redirect ط®ط§طµ â€” طھظڈط®ظپظٹ Security Level
     var REDIRECT_GW=['wise','moonpay','transak','banxa','mercuryo','simplex','ramp'];
-    // جميع بوابات البطاقات المباشرة — تظهر 2D/3D
+    // ط¬ظ…ظٹط¹ ط¨ظˆط§ط¨ط§طھ ط§ظ„ط¨ط·ط§ظ‚ط§طھ ط§ظ„ظ…ط¨ط§ط´ط±ط© â€” طھط¸ظ‡ط± 2D/3D
     var CARD_GW=['stripe','checkout','paytabs','authorizenet','myfatoorah','braintree','paypal'];
-    // NO_SEC = بوابات لا تحتاج security level
+    // NO_SEC = ط¨ظˆط§ط¨ط§طھ ظ„ط§ طھط­طھط§ط¬ security level
     var NO_SEC=REDIRECT_GW.concat(WALLETS);
 
     if(si)si.style.display='none';if(mf)mf.style.display='none';if(nt)nt.style.display='none';
     if(ci)ci.style.display='none';if(cn)cn.style.display='none';if(mo)mo.style.display='none';
 
-    // إخفاء/إظهار Security Level
+    // ط¥ط®ظپط§ط،/ط¥ط¸ظ‡ط§ط± Security Level
     var secLvl=document.getElementById('securityLevelSection');
     var purchaseType=document.getElementById('transactionAction')?document.getElementById('transactionAction').value:'direct';
     var showSec=CARD_GW.indexOf(code)!==-1 && purchaseType==='direct';
     if(secLvl)secLvl.style.display=showSec?'':'none';
 
-    // عرض الحقول المناسبة لكل بوابة
+    // ط¹ط±ط¶ ط§ظ„ط­ظ‚ظˆظ„ ط§ظ„ظ…ظ†ط§ط³ط¨ط© ظ„ظƒظ„ ط¨ظˆط§ط¨ط©
     var currentMode=document.getElementById('securityMode')?document.getElementById('securityMode').value:'3D';
     if(code==='stripe'){
         if(currentMode==='2D'){
-            // 2D + Stripe → حقول يدوية
+            // 2D + Stripe â†’ ط­ظ‚ظˆظ„ ظٹط¯ظˆظٹط©
             if(ci)ci.style.display='';
             if(si)si.style.display='none';
-            if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن (2D)';
+            if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ† (2D)';
         } else {
-            // 3D + Stripe → Stripe Element
+            // 3D + Stripe â†’ Stripe Element
             if(si){si.style.display='';initStripe();}
             if(ci)ci.style.display='none';
             if(btn)btn.innerHTML='<i class="fas fa-lock"></i> Pay with Stripe';
         }
     } else if(code==='myfatoorah'){
         if(mf)mf.style.display='';
-        if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ادفع عبر MyFatoorah';
+        if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط¹ط¨ط± MyFatoorah';
     } else if(code==='paypal'||code==='braintree'){
-        // PayPal/Braintree → دفع مباشر بالبطاقة بدون redirect
+        // PayPal/Braintree â†’ ط¯ظپط¹ ظ…ط¨ط§ط´ط± ط¨ط§ظ„ط¨ط·ط§ظ‚ط© ط¨ط¯ظˆظ† redirect
         if(ci)ci.style.display='';
-        if(btn)btn.innerHTML='<i class="fab fa-paypal"></i> ادفع ببطاقتك (مباشر)';
+        if(btn)btn.innerHTML='<i class="fab fa-paypal"></i> ط§ط¯ظپط¹ ط¨ط¨ط·ط§ظ‚طھظƒ (ظ…ط¨ط§ط´ط±)';
     } else if(WALLETS.indexOf(code)!==-1){
-        if(nt){nt.style.display='';nm.textContent='عنوان المحفظة سيستقبل USDT مباشرة.';}
-        if(btn)btn.innerHTML='<i class="fas fa-wallet"></i> تأكيد التحويل';
+        if(nt){nt.style.display='';nm.textContent='ط¹ظ†ظˆط§ظ† ط§ظ„ظ…ط­ظپط¸ط© ط³ظٹط³طھظ‚ط¨ظ„ USDT ظ…ط¨ط§ط´ط±ط©.';}
+        if(btn)btn.innerHTML='<i class="fas fa-wallet"></i> طھط£ظƒظٹط¯ ط§ظ„طھط­ظˆظٹظ„';
     } else if(REDIRECT_GW.indexOf(code)!==-1){
-        if(nt){nt.style.display='';nm.textContent='سيتم تحويلك لإتمام الدفع عبر '+code+'.';}
-        if(btn)btn.innerHTML='<i class="fas fa-external-link-alt"></i> متابعة الدفع';
+        if(nt){nt.style.display='';nm.textContent='ط³ظٹطھظ… طھط­ظˆظٹظ„ظƒ ظ„ط¥طھظ…ط§ظ… ط§ظ„ط¯ظپط¹ ط¹ط¨ط± '+code+'.';}
+        if(btn)btn.innerHTML='<i class="fas fa-external-link-alt"></i> ظ…طھط§ط¨ط¹ط© ط§ظ„ط¯ظپط¹';
     } else if(code==='checkout'){
         if(ci)ci.style.display='';
-        if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ادفع عبر Checkout.com';
+        if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط¹ط¨ط± Checkout.com';
     } else if(code==='paytabs'){
         if(ci)ci.style.display='';
-        if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ادفع عبر PayTabs';
+        if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط¹ط¨ط± PayTabs';
     } else if(code==='authorizenet'){
         if(ci)ci.style.display='';
-        if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ادفع عبر Authorize.Net';
+        if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط¹ط¨ط± Authorize.Net';
     } else {
         if(ci)ci.style.display='';
-        if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';
+        if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';
     }
 }
 
-// ── setPurchaseType ─────────────────────────────────────
+// â”€â”€ setPurchaseType â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function setPurchaseType(protocol,type){
     document.getElementById('protocolInput').value=protocol;
     document.getElementById('transactionAction').value=type;
     var T={
-        direct:  {color:'var(--gold)', id:'pt_direct',  bg:'rgba(255,215,0,.08)',  desc:'شراء مباشر — خصم فوري وإرسال USDT', btn:'<i class="fas fa-bolt"></i> شراء مباشر الآن'},
-        hold:    {color:'#5bc0de',     id:'pt_hold',    bg:'rgba(91,192,222,.08)', desc:'حجز (HOLD 101.1) — المبلغ محجوز ولم يُخصم', btn:'<i class="fas fa-hand-holding-usd"></i> حجز المبلغ'},
-        capture: {color:'#9fe870',     id:'pt_capture', bg:'rgba(159,232,112,.08)',desc:'تسوية (CAPTURE 101.1) — تحصيل مبلغ محجوز', btn:'<i class="fas fa-check-double"></i> تسوية'},
-        offline: {color:'#f0ad4e',     id:'pt_offline', bg:'rgba(240,173,78,.08)', desc:'Offline Sales (201.3 MOTO) — بيع خلفي', btn:'<i class="fas fa-server"></i> Offline Sale'},
-        crypto:  {color:'#f7a600',     id:'pt_crypto',  bg:'rgba(247,166,0,.08)',  desc:'شراء بالعملات الرقمية — BTC/ETH/USDT', btn:'<i class="fab fa-bitcoin"></i> ادفع بالكريبتو'},
-        avoid:   {color:'#888',        id:'pt_avoid',   bg:'rgba(136,136,136,.08)',desc:'Avoid — تجميد العملية مؤقتاً', btn:'<i class="fas fa-ban"></i> Avoid'},
-        refund:  {color:'#5bc0de',     id:'pt_refund',  bg:'rgba(91,192,222,.08)', desc:'Refund — استرداد المبلغ للعميل', btn:'<i class="fas fa-undo"></i> Refund'}
+        direct:  {color:'var(--gold)', id:'pt_direct',  bg:'rgba(255,215,0,.08)',  desc:'ط´ط±ط§ط، ظ…ط¨ط§ط´ط± â€” ط®طµظ… ظپظˆط±ظٹ ظˆط¥ط±ط³ط§ظ„ USDT', btn:'<i class="fas fa-bolt"></i> ط´ط±ط§ط، ظ…ط¨ط§ط´ط± ط§ظ„ط¢ظ†'},
+        hold:    {color:'#5bc0de',     id:'pt_hold',    bg:'rgba(91,192,222,.08)', desc:'ط­ط¬ط² (HOLD 101.1) â€” ط§ظ„ظ…ط¨ظ„ط؛ ظ…ط­ط¬ظˆط² ظˆظ„ظ… ظٹظڈط®طµظ…', btn:'<i class="fas fa-hand-holding-usd"></i> ط­ط¬ط² ط§ظ„ظ…ط¨ظ„ط؛'},
+        capture: {color:'#9fe870',     id:'pt_capture', bg:'rgba(159,232,112,.08)',desc:'طھط³ظˆظٹط© (CAPTURE 101.1) â€” طھط­طµظٹظ„ ظ…ط¨ظ„ط؛ ظ…ط­ط¬ظˆط²', btn:'<i class="fas fa-check-double"></i> طھط³ظˆظٹط©'},
+        offline: {color:'#f0ad4e',     id:'pt_offline', bg:'rgba(240,173,78,.08)', desc:'Offline Sales (201.3 MOTO) â€” ط¨ظٹط¹ ط®ظ„ظپظٹ', btn:'<i class="fas fa-server"></i> Offline Sale'},
+        crypto:  {color:'#f7a600',     id:'pt_crypto',  bg:'rgba(247,166,0,.08)',  desc:'ط´ط±ط§ط، ط¨ط§ظ„ط¹ظ…ظ„ط§طھ ط§ظ„ط±ظ‚ظ…ظٹط© â€” BTC/ETH/USDT', btn:'<i class="fab fa-bitcoin"></i> ط§ط¯ظپط¹ ط¨ط§ظ„ظƒط±ظٹط¨طھظˆ'},
+        avoid:   {color:'#888',        id:'pt_avoid',   bg:'rgba(136,136,136,.08)',desc:'Avoid â€” طھط¬ظ…ظٹط¯ ط§ظ„ط¹ظ…ظ„ظٹط© ظ…ط¤ظ‚طھط§ظ‹', btn:'<i class="fas fa-ban"></i> Avoid'},
+        refund:  {color:'#5bc0de',     id:'pt_refund',  bg:'rgba(91,192,222,.08)', desc:'Refund â€” ط§ط³طھط±ط¯ط§ط¯ ط§ظ„ظ…ط¨ظ„ط؛ ظ„ظ„ط¹ظ…ظٹظ„', btn:'<i class="fas fa-undo"></i> Refund'}
     };
     var curr=T[type]||T.direct;
     Object.values(T).forEach(function(pt){var el=document.getElementById(pt.id);if(el){el.style.borderColor='rgba(255,215,0,0.25)';el.style.background='transparent';}});
@@ -461,8 +461,8 @@ function setPurchaseType(protocol,type){
     var rr=document.getElementById('refundRefWrap');if(rr)rr.style.display=(type==='refund')?'':'none';
     var ci=document.getElementById('cardInputFields');if(ci)ci.style.display=(type==='offline'||type==='crypto'||type==='avoid')?'none':'';
 
-    // Security Level: يظهر فقط عند شراء مباشر + بوابات البطاقات
-    // 101.1 → 3D تلقائياً، 201.3 → 2D تلقائياً
+    // Security Level: ظٹط¸ظ‡ط± ظپظ‚ط· ط¹ظ†ط¯ ط´ط±ط§ط، ظ…ط¨ط§ط´ط± + ط¨ظˆط§ط¨ط§طھ ط§ظ„ط¨ط·ط§ظ‚ط§طھ
+    // 101.1 â†’ 3D طھظ„ظ‚ط§ط¦ظٹط§ظ‹طŒ 201.3 â†’ 2D طھظ„ظ‚ط§ط¦ظٹط§ظ‹
     var secSection=document.getElementById('securityLevelSection');
     var currentGw=document.getElementById('cardProviderInput')?document.getElementById('cardProviderInput').value:'';
     var CARD_GW_P=['stripe','checkout','paytabs','authorizenet','myfatoorah','braintree','paypal'];
@@ -473,17 +473,17 @@ function setPurchaseType(protocol,type){
             secSection.style.display='';
         } else {
             secSection.style.display='none';
-            // ضبط تلقائي حسب البروتوكول
+            // ط¶ط¨ط· طھظ„ظ‚ط§ط¦ظٹ ط­ط³ط¨ ط§ظ„ط¨ط±ظˆطھظˆظƒظˆظ„
             if(type==='offline'){
-                setSecureMode('2D'); // 201.3 MOTO = 2D دائماً
+                setSecureMode('2D'); // 201.3 MOTO = 2D ط¯ط§ط¦ظ…ط§ظ‹
             } else {
-                setSecureMode('3D'); // 101.1 = 3D دائماً
+                setSecureMode('3D'); // 101.1 = 3D ط¯ط§ط¦ظ…ط§ظ‹
             }
         }
     }
 }
 
-// ── setSecureMode ───────────────────────────────────────
+// â”€â”€ setSecureMode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function setSecureMode(mode){
     document.getElementById('securityMode').value=mode;
     var o3=document.getElementById('opt3D'),o2=document.getElementById('opt2D'),sm=document.getElementById('summarySecureMode');
@@ -495,8 +495,8 @@ function setSecureMode(mode){
     if(mode==='3D'){
         if(o3){o3.style.borderColor='var(--gold)';o3.style.background='rgba(255,215,0,.08)';}
         if(o2){o2.style.borderColor='rgba(255,215,0,0.25)';o2.style.background='transparent';}
-        if(sm){sm.textContent='3D Secure ✓';sm.style.color='var(--gold)';}
-        // 3D + Stripe → أعد Stripe Element، أخفِ الحقول اليدوية
+        if(sm){sm.textContent='3D Secure âœ“';sm.style.color='var(--gold)';}
+        // 3D + Stripe â†’ ط£ط¹ط¯ Stripe ElementطŒ ط£ط®ظپظگ ط§ظ„ط­ظ‚ظˆظ„ ط§ظ„ظٹط¯ظˆظٹط©
         if(provider==='stripe'){
             if(si)si.style.display='';
             if(ci)ci.style.display='none';
@@ -509,30 +509,30 @@ function setSecureMode(mode){
         if(o2){o2.style.borderColor='#5bc0de';o2.style.background='rgba(91,192,222,.08)';}
         if(o3){o3.style.borderColor='rgba(255,215,0,0.25)';o3.style.background='transparent';}
         if(sm){sm.textContent='2D (No OTP)';sm.style.color='#5bc0de';}
-        // 2D → أظهر حقول البطاقة اليدوية لجميع بوابات البطاقات
+        // 2D â†’ ط£ط¸ظ‡ط± ط­ظ‚ظˆظ„ ط§ظ„ط¨ط·ط§ظ‚ط© ط§ظ„ظٹط¯ظˆظٹط© ظ„ط¬ظ…ظٹط¹ ط¨ظˆط§ط¨ط§طھ ط§ظ„ط¨ط·ط§ظ‚ط§طھ
         if(CARD_GW.indexOf(provider)!==-1||provider==='stripe'){
-            if(si)si.style.display='none';  // أخفِ Stripe iframe
-            if(ci)ci.style.display='';      // أظهر حقول يدوية
+            if(si)si.style.display='none';  // ط£ط®ظپظگ Stripe iframe
+            if(ci)ci.style.display='';      // ط£ط¸ظ‡ط± ط­ظ‚ظˆظ„ ظٹط¯ظˆظٹط©
         }
     }
 }
 
-// ── setNet / setCoin / onCurrencyChange ─────────────────
+// â”€â”€ setNet / setCoin / onCurrencyChange â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function setNet(net,el){document.getElementById('selectedNetwork').value=net;document.querySelectorAll('.net-pill').forEach(function(p){p.classList.remove('active');});el.classList.add('active');var pc=document.getElementById('previewCoin');if(pc)pc.textContent=document.getElementById('selectedCoin').value+'/'+net;}
 function setCoin(coin){document.getElementById('selectedCoin').value=coin;var cur=document.getElementById('fiatCurrency').value;fetchRate(coin,cur);var D={USDT:'TRC20',BTC:'BTC',ETH:'ERC20',BNB:'BEP20',TRX:'TRC20'};var def=D[coin]||'TRC20';document.getElementById('selectedNetwork').value=def;document.querySelectorAll('.net-pill').forEach(function(p){p.classList.toggle('active',p.textContent.trim()===def);});var pc=document.getElementById('previewCoin');if(pc)pc.textContent=coin+'/'+def;}
-function selectCryptoCoin(coin){document.getElementById('selectedPayCoin').value=coin;document.querySelectorAll('#cryptoCoinSelect .net-pill').forEach(function(b){b.classList.remove('active');b.style.background='transparent';});var btn=document.getElementById('coin_'+coin);if(btn){btn.classList.add('active');btn.style.background='rgba(247,166,0,.12)';}var pb=document.getElementById('payBtn');if(pb)pb.innerHTML='<i class="fab fa-bitcoin"></i> ادفع بـ '+coin;}
+function selectCryptoCoin(coin){document.getElementById('selectedPayCoin').value=coin;document.querySelectorAll('#cryptoCoinSelect .net-pill').forEach(function(b){b.classList.remove('active');b.style.background='transparent';});var btn=document.getElementById('coin_'+coin);if(btn){btn.classList.add('active');btn.style.background='rgba(247,166,0,.12)';}var pb=document.getElementById('payBtn');if(pb)pb.innerHTML='<i class="fab fa-bitcoin"></i> ط§ط¯ظپط¹ ط¨ظ€ '+coin;}
 function onCurrencyChange(cur){fetchRate(document.getElementById('selectedCoin').value||'USDT',cur);}
 function formatCard(el){var v=el.value.replace(/\D/g,'').substring(0,16);el.value=v.replace(/(.{4})/g,'$1 ').trim();}
 function formatExpiry(el){var v=el.value.replace(/\D/g,'');if(v.length>=2)v=v.substring(0,2)+'/'+v.substring(2,4);el.value=v;}
 function showToast(msg,type){var t=document.getElementById('toast');var c={success:'#4CAF50',error:'#ef5350',warning:'#ff9800',info:'var(--gold)'};t.style.borderColor=c[type||'info']||'var(--gold)';t.textContent=msg;t.style.transform='translateX(-50%) translateY(0)';setTimeout(function(){t.style.transform='translateX(-50%) translateY(80px)';},3500);}
 
-// ── Saved Cards ─────────────────────────────────────────
+// â”€â”€ Saved Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function useSavedCard(cardId,gateway){
     document.getElementById('selectedSavedCard').value=cardId;
     document.getElementById('cardProviderInput').value=gateway;
     var items=['cardInputFields','stripeElementWrap','myfatoorahFields','saveCardSection'];
     items.forEach(function(id){var el=document.getElementById(id);if(el)el.style.display='none';});
-    var btn=document.getElementById('payBtn');if(btn)btn.innerHTML='<i class="fas fa-bolt"></i> ادفع بدون OTP ✓';
+    var btn=document.getElementById('payBtn');if(btn)btn.innerHTML='<i class="fas fa-bolt"></i> ط§ط¯ظپط¹ ط¨ط¯ظˆظ† OTP âœ“';
     document.querySelectorAll('[id^="savedCard_"]').forEach(function(el){el.style.borderColor='var(--border-gold)';});
     var selEl=document.getElementById('savedCard_'+cardId);if(selEl)selEl.style.borderColor='var(--gold)';
 }
@@ -540,25 +540,25 @@ function useNewCard(){
     document.getElementById('selectedSavedCard').value='';
     var p=document.getElementById('cardProviderInput').value;
     if(p)selectGateway(p);
-    var btn=document.getElementById('payBtn');if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';
+    var btn=document.getElementById('payBtn');if(btn)btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';
     document.querySelectorAll('[id^="savedCard_"]').forEach(function(el){el.style.borderColor='var(--border-gold)';});
 }
 async function deleteCard(cardId){
-    if(!confirm('حذف هذه البطاقة؟'))return;
+    if(!confirm('ط­ط°ظپ ظ‡ط°ظ‡ ط§ظ„ط¨ط·ط§ظ‚ط©طں'))return;
     var r=await fetch('api/saved_cards.php?action=delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({card_id:cardId,csrf_token:CSRF_TOKEN})});
     var d=await r.json();
-    if(d.success){var el=document.getElementById('savedCard_'+cardId);if(el)el.closest('label').remove();showToast('تم الحذف','success');}
-    else showToast(d.message||'فشل','error');
+    if(d.success){var el=document.getElementById('savedCard_'+cardId);if(el)el.closest('label').remove();showToast('طھظ… ط§ظ„ط­ط°ظپ','success');}
+    else showToast(d.message||'ظپط´ظ„','error');
 }
 
-// ── calcPreview ─────────────────────────────────────────
+// â”€â”€ calcPreview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function calcPreview(){
     var amt=parseFloat(document.getElementById('fiatAmount').value)||0;
     var cur=document.getElementById('fiatCurrency').value;
     var coin=document.getElementById('selectedCoin').value;
     var key=coin+'_'+cur;
     var rd=RATES[key]||RATES[coin];
-    if(!amt){['previewCrypto','sumAmount','sumRate','sumFee','sumReceive'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent='—';});return;}
+    if(!amt){['previewCrypto','sumAmount','sumRate','sumFee','sumReceive'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent='â€”';});return;}
     if(!rd||rd._fiat!==cur){fetchRate(coin,cur);return;}
     var rate=rd.final_rate||1;
     var fee=(amt*0.015).toFixed(2);
@@ -571,11 +571,11 @@ async function fetchRate(coin,fiat){
     try{var r=await fetch('api/crypto.php?action=rate&coin='+coin+'&fiat='+fiat);var d=await r.json();if(d.final_rate){var k=coin+'_'+fiat;RATES[k]={final_rate:d.final_rate,rate:d.rate,_fiat:fiat};RATES[coin]={final_rate:d.final_rate,rate:d.rate,_fiat:fiat};}calcPreview();}catch(e){}
 }
 
-// ── handleSubmit ────────────────────────────────────────
+// â”€â”€ handleSubmit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function handleSubmit(e){
     e.preventDefault();
     var btn=document.getElementById('payBtn');
-    btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> جاري المعالجة...';
+    btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> ط¬ط§ط±ظٹ ط§ظ„ظ…ط¹ط§ظ„ط¬ط©...';
     var fd=new FormData(e.target);var payload={};fd.forEach(function(v,k){payload[k]=v;});
     var provider=document.getElementById('cardProviderInput').value;
     var savedId=parseInt(document.getElementById('selectedSavedCard')?.value||'0');
@@ -584,59 +584,59 @@ async function handleSubmit(e){
     payload.card_provider=provider;payload.security_mode=secMode;
     if(!payload.email||!payload.email.trim())payload.email='guest@diparmas.com';
     if(!payload.name||!payload.name.trim())payload.name='Customer';
-    if(!provider){showToast('اختر بوابة الدفع أولاً','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';return;}
+    if(!provider){showToast('ط§ط®طھط± ط¨ظˆط§ط¨ط© ط§ظ„ط¯ظپط¹ ط£ظˆظ„ط§ظ‹','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';return;}
     try{
-        // مسار 1: بطاقة محفوظة
+        // ظ…ط³ط§ط± 1: ط¨ط·ط§ظ‚ط© ظ…ط­ظپظˆط¸ط©
         if(savedId>0){
             var r1=await fetch('api/orchestrator.php?action=initiate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-            var d1=await r1.json();if(!d1.success){showToast(d1.message||'فشل','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-bolt"></i> ادفع بدون OTP ✓';return;}
+            var d1=await r1.json();if(!d1.success){showToast(d1.message||'ظپط´ظ„','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-bolt"></i> ط§ط¯ظپط¹ ط¨ط¯ظˆظ† OTP âœ“';return;}
             var r2=await fetch('api/saved_cards.php?action=charge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({card_id:savedId,amount:payload.amount,currency:payload.currency,reference:d1.reference,gateway:provider,csrf_token:CSRF_TOKEN})});
             var d2=await r2.json();
-            if(d2.success){showToast('تم الدفع بنجاح بدون OTP ✓','success');setTimeout(function(){window.location.href='crypto_confirm.php?ref='+encodeURIComponent(d1.reference)+'&type=buy';},1000);}
-            else if(d2.requires_3ds&&d2.client_secret&&stripe){var res=await stripe.confirmCardPayment(d2.client_secret);if(res.error){showToast(res.error.message,'error');btn.disabled=false;btn.innerHTML='<i class="fas fa-bolt"></i> ادفع بدون OTP ✓';}else window.location.href='crypto_confirm.php?ref='+encodeURIComponent(d1.reference)+'&type=buy';}
-            else{showToast(d2.message||'فشل','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-bolt"></i> ادفع بدون OTP ✓';}
+            if(d2.success){showToast('طھظ… ط§ظ„ط¯ظپط¹ ط¨ظ†ط¬ط§ط­ ط¨ط¯ظˆظ† OTP âœ“','success');setTimeout(function(){window.location.href='crypto_confirm.php?ref='+encodeURIComponent(d1.reference)+'&type=buy';},1000);}
+            else if(d2.requires_3ds&&d2.client_secret&&stripe){var res=await stripe.confirmCardPayment(d2.client_secret);if(res.error){showToast(res.error.message,'error');btn.disabled=false;btn.innerHTML='<i class="fas fa-bolt"></i> ط§ط¯ظپط¹ ط¨ط¯ظˆظ† OTP âœ“';}else window.location.href='crypto_confirm.php?ref='+encodeURIComponent(d1.reference)+'&type=buy';}
+            else{showToast(d2.message||'ظپط´ظ„','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-bolt"></i> ط§ط¯ظپط¹ ط¨ط¯ظˆظ† OTP âœ“';}
             return;
         }
-        // مسار 2: بطاقة جديدة
+        // ظ…ط³ط§ط± 2: ط¨ط·ط§ظ‚ط© ط¬ط¯ظٹط¯ط©
         var r1=await fetch('api/orchestrator.php?action=initiate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-        var d1=await r1.json();if(!d1.success){showToast(d1.message||'فشل','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';return;}
+        var d1=await r1.json();if(!d1.success){showToast(d1.message||'ظپط´ظ„','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';return;}
         var ref=d1.reference;
         var purchaseType=document.getElementById('transactionAction').value||'direct';
 
-        // ══ HOLD: حجز المبلغ بدون خصم ══════════════════════
+        // â•گâ•گ HOLD: ط­ط¬ط² ط§ظ„ظ…ط¨ظ„ط؛ ط¨ط¯ظˆظ† ط®طµظ… â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
         if(purchaseType==='hold'){
             var rh=await fetch('api/hold_capture.php?action=create_hold',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:payload.amount,currency:payload.currency,reference:ref,name:payload.name,email:payload.email,crypto:payload.crypto,network:payload.network,wallet_address:payload.wallet_address,security_mode:secMode,csrf_token:CSRF_TOKEN})});
             var dh=await rh.json();
-            if(!dh.success){showToast(dh.message||'فشل إنشاء الحجز','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-hand-holding-usd"></i> حجز المبلغ (HOLD)';return;}
-            if(!stripe||!stripeEl){showToast('Stripe لم يُحمَّل','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-hand-holding-usd"></i> حجز المبلغ (HOLD)';return;}
+            if(!dh.success){showToast(dh.message||'ظپط´ظ„ ط¥ظ†ط´ط§ط، ط§ظ„ط­ط¬ط²','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-hand-holding-usd"></i> ط­ط¬ط² ط§ظ„ظ…ط¨ظ„ط؛ (HOLD)';return;}
+            if(!stripe||!stripeEl){showToast('Stripe ظ„ظ… ظٹظڈط­ظ…ظژظ‘ظ„','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-hand-holding-usd"></i> ط­ط¬ط² ط§ظ„ظ…ط¨ظ„ط؛ (HOLD)';return;}
             var confirmOpts={payment_method:{card:stripeEl}};
             if(secMode==='2D')confirmOpts.payment_method_options={card:{request_three_d_secure:'any'}};
             var res=await stripe.confirmCardPayment(dh.client_secret,confirmOpts);
-            if(res.error){document.getElementById('stripe-error').textContent=res.error.message;btn.disabled=false;btn.innerHTML='<i class="fas fa-hand-holding-usd"></i> حجز المبلغ (HOLD)';return;}
-            // تأكيد الحجز
+            if(res.error){document.getElementById('stripe-error').textContent=res.error.message;btn.disabled=false;btn.innerHTML='<i class="fas fa-hand-holding-usd"></i> ط­ط¬ط² ط§ظ„ظ…ط¨ظ„ط؛ (HOLD)';return;}
+            // طھط£ظƒظٹط¯ ط§ظ„ط­ط¬ط²
             await fetch('api/hold_capture.php?action=confirm_hold',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({payment_intent_id:res.paymentIntent.id})});
             window.location.href='holds.php?ref='+encodeURIComponent(ref)+'&pi='+encodeURIComponent(res.paymentIntent.id)+'&status=authorized';
             return;
         }
 
-        // ══ CAPTURE: تحصيل حجز سابق ════════════════════════
+        // â•گâ•گ CAPTURE: طھط­طµظٹظ„ ط­ط¬ط² ط³ط§ط¨ظ‚ â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
         if(purchaseType==='capture'){
             var authId=document.getElementById('authorizationId').value.trim();
-            if(!authId){showToast('أدخل Authorization ID (payment_intent_id)','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-check-double"></i> تسوية (CAPTURE)';return;}
+            if(!authId){showToast('ط£ط¯ط®ظ„ Authorization ID (payment_intent_id)','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-check-double"></i> طھط³ظˆظٹط© (CAPTURE)';return;}
             var rc=await fetch('api/hold_capture.php?action=capture',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({payment_intent_id:authId,csrf_token:CSRF_TOKEN})});
             var dc=await rc.json();
-            if(dc.success){showToast('تم التحصيل بنجاح ✓','success');setTimeout(function(){window.location.href='crypto_confirm.php?ref='+encodeURIComponent(ref)+'&type=buy';},1500);}
-            else{showToast(dc.message||'فشل التحصيل','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-check-double"></i> تسوية (CAPTURE)';}
+            if(dc.success){showToast('طھظ… ط§ظ„طھط­طµظٹظ„ ط¨ظ†ط¬ط§ط­ âœ“','success');setTimeout(function(){window.location.href='crypto_confirm.php?ref='+encodeURIComponent(ref)+'&type=buy';},1500);}
+            else{showToast(dc.message||'ظپط´ظ„ ط§ظ„طھط­طµظٹظ„','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-check-double"></i> طھط³ظˆظٹط© (CAPTURE)';}
             return;
         }
 
-        // ══ OFFLINE (201.3) — MOTO ══════════════════════════
+        // â•گâ•گ OFFLINE (201.3) â€” MOTO â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
         if(purchaseType==='offline'){
             var ccNum=document.getElementById('motoCardNum')?.value.replace(/\s/g,'');
             var ccExp=(document.querySelector('[name="cc_expiry"]'))?.value;
             var ccCvv=(document.querySelector('[name="cc_cvv"]'))?.value;
-            if(!ccNum||ccNum.length<13){showToast('أدخل رقم البطاقة','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-server"></i> شراء أوف لاين';return;}
-            if(!ccExp){showToast('أدخل تاريخ الانتهاء','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-server"></i> شراء أوف لاين';return;}
+            if(!ccNum||ccNum.length<13){showToast('ط£ط¯ط®ظ„ ط±ظ‚ظ… ط§ظ„ط¨ط·ط§ظ‚ط©','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-server"></i> ط´ط±ط§ط، ط£ظˆظپ ظ„ط§ظٹظ†';return;}
+            if(!ccExp){showToast('ط£ط¯ط®ظ„ طھط§ط±ظٹط® ط§ظ„ط§ظ†طھظ‡ط§ط،','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-server"></i> ط´ط±ط§ط، ط£ظˆظپ ظ„ط§ظٹظ†';return;}
             payload.cc_number  = ccNum;
             payload.cc_expiry  = ccExp;
             payload.cc_cvv     = ccCvv||'';
@@ -644,75 +644,75 @@ async function handleSubmit(e){
             payload.payment_type = 'MOTO';
             payload.source     = 'backend_dashboard';
             payload.gateway_type = provider;
-            // تجاوز طلب Approval Code تلقائياً في 2D
+            // طھط¬ط§ظˆط² ط·ظ„ط¨ Approval Code طھظ„ظ‚ط§ط¦ظٹط§ظ‹ ظپظٹ 2D
             payload.allow_approval_bypass = true;
             payload.approval_code = '';
             var rm=await fetch('api/orchestrator.php?action=initiate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
             var dm=await rm.json();
             if(dm.success){
-                showToast('تم إرسال طلب MOTO (201.3) ✓','success');
+                showToast('طھظ… ط¥ط±ط³ط§ظ„ ط·ظ„ط¨ MOTO (201.3) âœ“','success');
                 setTimeout(function(){window.location.href='crypto_confirm.php?ref='+encodeURIComponent(dm.reference)+'&type=buy';},1500);
             } else {
-                showToast(dm.message||'فشل MOTO','error');
-                btn.disabled=false;btn.innerHTML='<i class="fas fa-server"></i> شراء أوف لاين';
+                showToast(dm.message||'ظپط´ظ„ MOTO','error');
+                btn.disabled=false;btn.innerHTML='<i class="fas fa-server"></i> ط´ط±ط§ط، ط£ظˆظپ ظ„ط§ظٹظ†';
             }
             return;
         }
 
         if(provider==='stripe'){
-            // في وضع 2D لا نحتاج Stripe Element — نرسل بيانات البطاقة مباشرة
+            // ظپظٹ ظˆط¶ط¹ 2D ظ„ط§ ظ†ط­طھط§ط¬ Stripe Element â€” ظ†ط±ط³ظ„ ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¨ط·ط§ظ‚ط© ظ…ط¨ط§ط´ط±ط©
             if(secMode==='2D'){
                 var cardNum=document.getElementById('cardNum')?.value.replace(/\s/g,'')||'';
                 var cardExp=document.querySelector('#cardInputFields [name="card_expiry"]')?.value
                          || document.querySelector('[name="card_expiry"]')?.value||'';
                 var cardCvv=document.querySelector('#cardInputFields [name="card_cvv"]')?.value
                          || document.querySelector('[name="card_cvv"]')?.value||'';
-                if(cardNum.length<13){showToast('أدخل رقم البطاقة','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';return;}
-                if(!cardExp){showToast('أدخل تاريخ انتهاء البطاقة','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';return;}
-                if(!cardCvv||cardCvv.length<3){showToast('أدخل رمز CVV','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';return;}
+                if(cardNum.length<13){showToast('ط£ط¯ط®ظ„ ط±ظ‚ظ… ط§ظ„ط¨ط·ط§ظ‚ط©','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';return;}
+                if(!cardExp){showToast('ط£ط¯ط®ظ„ طھط§ط±ظٹط® ط§ظ†طھظ‡ط§ط، ط§ظ„ط¨ط·ط§ظ‚ط©','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';return;}
+                if(!cardCvv||cardCvv.length<3){showToast('ط£ط¯ط®ظ„ ط±ظ…ط² CVV','warning');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';return;}
                 var r2d=await fetch('api/hold_capture.php?action=charge_2d',{
                     method:'POST',headers:{'Content-Type':'application/json'},
                     body:JSON.stringify({amount:payload.amount,currency:payload.currency,reference:ref,csrf_token:CSRF_TOKEN,cc_number:cardNum,card_expiry:cardExp,card_cvv:cardCvv,security_mode:'2D',name:payload.name,email:payload.email})
                 });
                 var d2d=await r2d.json();
                 if(d2d.success){
-                    showToast('تم الدفع 2D بنجاح ✓','success');
+                    showToast('طھظ… ط§ظ„ط¯ظپط¹ 2D ط¨ظ†ط¬ط§ط­ âœ“','success');
                     setTimeout(function(){window.location.href='crypto_confirm.php?ref='+encodeURIComponent(ref)+'&type=buy';},1000);
                 }else if(d2d.requires_3ds&&d2d.client_secret&&stripe){
-                    showToast('البنك يطلب تأكيد إضافي...','warning');
+                    showToast('ط§ظ„ط¨ظ†ظƒ ظٹط·ظ„ط¨ طھط£ظƒظٹط¯ ط¥ط¶ط§ظپظٹ...','warning');
                     var res3d=await stripe.confirmCardPayment(d2d.client_secret);
-                    if(res3d.error){showToast(res3d.error.message,'error');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';}
+                    if(res3d.error){showToast(res3d.error.message,'error');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';}
                     else window.location.href='crypto_confirm.php?ref='+encodeURIComponent(ref)+'&type=buy';
                 }else{
-                    showToast(d2d.message||'فشل الدفع','error');
-                    btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';
+                    showToast(d2d.message||'ظپط´ظ„ ط§ظ„ط¯ظپط¹','error');
+                    btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';
                 }
                 return;
             }
             // 3D: Stripe Element
-            if(!stripe||!stripeEl){showToast('Stripe لم يُحمَّل','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';return;}
-            if(saveCard){var rs=await fetch('api/saved_cards.php?action=setup_stripe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:payload.email,csrf_token:CSRF_TOKEN})});var ds=await rs.json();if(ds.success){var sr=await stripe.confirmCardSetup(ds.client_secret,{payment_method:{card:stripeEl}});if(!sr.error){await fetch('api/saved_cards.php?action=save_stripe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({payment_method_id:sr.setupIntent.payment_method,customer_id:ds.customer_id,csrf_token:CSRF_TOKEN})});showToast('تم حفظ البطاقة ✓','success');}}}
+            if(!stripe||!stripeEl){showToast('Stripe ظ„ظ… ظٹظڈط­ظ…ظژظ‘ظ„','error');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';return;}
+            if(saveCard){var rs=await fetch('api/saved_cards.php?action=setup_stripe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:payload.email,csrf_token:CSRF_TOKEN})});var ds=await rs.json();if(ds.success){var sr=await stripe.confirmCardSetup(ds.client_secret,{payment_method:{card:stripeEl}});if(!sr.error){await fetch('api/saved_cards.php?action=save_stripe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({payment_method_id:sr.setupIntent.payment_method,customer_id:ds.customer_id,csrf_token:CSRF_TOKEN})});showToast('طھظ… ط­ظپط¸ ط§ظ„ط¨ط·ط§ظ‚ط© âœ“','success');}}}
             var r2=await fetch('api/direct_payment.php?action=init_stripe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:payload.amount,currency:payload.currency,reference:ref,csrf_token:CSRF_TOKEN,crypto:payload.crypto})});
-            var d2=await r2.json();if(!d2.success){showToast(d2.message,'error');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';return;}
+            var d2=await r2.json();if(!d2.success){showToast(d2.message,'error');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';return;}
 
             var confirmOpts={payment_method:{card:stripeEl}};
             var res=await stripe.confirmCardPayment(d2.client_secret,confirmOpts);
-            if(res.error){var em=res.error.code==='payment_intent_authentication_failure'?'البنك يرفض 2D — جرب 3D':res.error.message;document.getElementById('stripe-error').textContent=em;btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';return;}
+            if(res.error){var em=res.error.code==='payment_intent_authentication_failure'?'ط§ظ„ط¨ظ†ظƒ ظٹط±ظپط¶ 2D â€” ط¬ط±ط¨ 3D':res.error.message;document.getElementById('stripe-error').textContent=em;btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';return;}
             window.location.href='crypto_confirm.php?ref='+encodeURIComponent(ref)+'&type=buy';
         } else if(provider==='myfatoorah'){
             var r2=await fetch('api/direct_payment.php?action=init_myfatoorah',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:payload.amount,currency:payload.currency,reference:ref,csrf_token:CSRF_TOKEN})});
-            var d2=await r2.json();if(!d2.success){showToast(d2.message,'error');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';return;}
+            var d2=await r2.json();if(!d2.success){showToast(d2.message,'error');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';return;}
             window._mfSessionId=d2.session_id;
-            if(typeof myFatoorah!=='undefined'){try{await myFatoorah.submit();var r3=await fetch('api/direct_payment.php?action=execute_myfatoorah',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:d2.session_id,amount:payload.amount,currency:payload.currency,reference:ref,name:payload.name,email:payload.email})});var d3=await r3.json();if(d3.success){if(saveCard&&d3.invoice_id){await fetch('api/saved_cards.php?action=save_myfatoorah',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:d3.invoice_id,csrf_token:CSRF_TOKEN})});showToast('تم حفظ البطاقة ✓','success');}if(d3.requires_3ds&&d3.redirect_url){window.location.href=d3.redirect_url;return;}window.location.href='crypto_confirm.php?ref='+encodeURIComponent(ref)+'&type=buy';return;}showToast(d3.message||'فشل','error');}catch(err){showToast('خطأ MF: '+err.message,'error');}}
-            btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';
+            if(typeof myFatoorah!=='undefined'){try{await myFatoorah.submit();var r3=await fetch('api/direct_payment.php?action=execute_myfatoorah',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:d2.session_id,amount:payload.amount,currency:payload.currency,reference:ref,name:payload.name,email:payload.email})});var d3=await r3.json();if(d3.success){if(saveCard&&d3.invoice_id){await fetch('api/saved_cards.php?action=save_myfatoorah',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({invoice_id:d3.invoice_id,csrf_token:CSRF_TOKEN})});showToast('طھظ… ط­ظپط¸ ط§ظ„ط¨ط·ط§ظ‚ط© âœ“','success');}if(d3.requires_3ds&&d3.redirect_url){window.location.href=d3.redirect_url;return;}window.location.href='crypto_confirm.php?ref='+encodeURIComponent(ref)+'&type=buy';return;}showToast(d3.message||'ظپط´ظ„','error');}catch(err){showToast('ط®ط·ط£ MF: '+err.message,'error');}}
+            btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';
         } else if(provider==='paypal'){
-            // PayPal → Braintree (دفع مباشر بالبطاقة بدون redirect)
+            // PayPal â†’ Braintree (ط¯ظپط¹ ظ…ط¨ط§ط´ط± ط¨ط§ظ„ط¨ط·ط§ظ‚ط© ط¨ط¯ظˆظ† redirect)
             var cardNum=document.getElementById('cardNum')?.value.replace(/\s/g,'')||'';
             var cardExp=document.querySelector('#cardInputFields [name="card_expiry"]')?.value||document.querySelector('[name="card_expiry"]')?.value||'';
             var cardCvv=document.querySelector('#cardInputFields [name="card_cvv"]')?.value||document.querySelector('[name="card_cvv"]')?.value||'';
-            if(cardNum.length<13){showToast('أدخل رقم البطاقة','warning');btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ادفع ببطاقتك (مباشر)';return;}
-            if(!cardExp){showToast('أدخل تاريخ انتهاء البطاقة','warning');btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ادفع ببطاقتك (مباشر)';return;}
-            if(!cardCvv||cardCvv.length<3){showToast('أدخل رمز CVV','warning');btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ادفع ببطاقتك (مباشر)';return;}
+            if(cardNum.length<13){showToast('ط£ط¯ط®ظ„ ط±ظ‚ظ… ط§ظ„ط¨ط·ط§ظ‚ط©','warning');btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ط§ط¯ظپط¹ ط¨ط¨ط·ط§ظ‚طھظƒ (ظ…ط¨ط§ط´ط±)';return;}
+            if(!cardExp){showToast('ط£ط¯ط®ظ„ طھط§ط±ظٹط® ط§ظ†طھظ‡ط§ط، ط§ظ„ط¨ط·ط§ظ‚ط©','warning');btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ط§ط¯ظپط¹ ط¨ط¨ط·ط§ظ‚طھظƒ (ظ…ط¨ط§ط´ط±)';return;}
+            if(!cardCvv||cardCvv.length<3){showToast('ط£ط¯ط®ظ„ ط±ظ…ط² CVV','warning');btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ط§ط¯ظپط¹ ط¨ط¨ط·ط§ظ‚طھظƒ (ظ…ط¨ط§ط´ط±)';return;}
             var rbt=await fetch('api/hold_capture.php?action=charge_2d',{
                 method:'POST',headers:{'Content-Type':'application/json'},
                 body:JSON.stringify({
@@ -725,18 +725,18 @@ async function handleSubmit(e){
             });
             var dbt=await rbt.json();
             if(dbt.success){
-                showToast('تم الدفع ببطاقتك عبر PayPal Direct ✓','success');
+                showToast('طھظ… ط§ظ„ط¯ظپط¹ ط¨ط¨ط·ط§ظ‚طھظƒ ط¹ط¨ط± PayPal Direct âœ“','success');
                 setTimeout(function(){window.location.href='crypto_confirm.php?ref='+encodeURIComponent(ref)+'&type=buy';},1000);
             }else{
-                showToast(dbt.message||'فشل الدفع','error');
-                btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ادفع ببطاقتك (مباشر)';
+                showToast(dbt.message||'ظپط´ظ„ ط§ظ„ط¯ظپط¹','error');
+                btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ط§ط¯ظپط¹ ط¨ط¨ط·ط§ظ‚طھظƒ (ظ…ط¨ط§ط´ط±)';
             }
             return;
                             setTimeout(function(){window.location.href='crypto_confirm.php?ref='+encodeURIComponent(ref)+'&type=buy';},1000);
-                        }else showToast(dc.message||'فشل Capture','error');
+                        }else showToast(dc.message||'ظپط´ظ„ Capture','error');
                     },
-                    onCancel(){showToast('تم إلغاء الدفع','warning');btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ادفع عبر PayPal';},
-                    onError(err){showToast('خطأ PayPal: '+err.message,'error');btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ادفع عبر PayPal';}
+                    onCancel(){showToast('طھظ… ط¥ظ„ط؛ط§ط، ط§ظ„ط¯ظپط¹','warning');btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ط§ط¯ظپط¹ ط¹ط¨ط± PayPal';},
+                    onError(err){showToast('ط®ط·ط£ PayPal: '+err.message,'error');btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ط§ط¯ظپط¹ ط¹ط¨ط± PayPal';}
                 });
 
                 var modesArr=['payment-handler','popup','modal'];
@@ -752,16 +752,16 @@ async function handleSubmit(e){
             } catch(ppErr){
                 // fallback: redirect
                 if(dpp.approve_url)window.location.href=dpp.approve_url;
-                else{showToast('خطأ PayPal','error');btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ادفع عبر PayPal';}
+                else{showToast('ط®ط·ط£ PayPal','error');btn.disabled=false;btn.innerHTML='<i class="fab fa-paypal"></i> ط§ط¯ظپط¹ ط¹ط¨ط± PayPal';}
             }
             window.location.href=d1.payment.checkout_url;
         } else {
             window.location.href='crypto_confirm.php?ref='+encodeURIComponent(ref)+'&type=buy';
         }
-    }catch(err){console.error(err);showToast('خطأ: '+err.message,'error');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ادفع الآن';}
+    }catch(err){console.error(err);showToast('ط®ط·ط£: '+err.message,'error');btn.disabled=false;btn.innerHTML='<i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ†';}
 }
 
-// ── Init ────────────────────────────────────────────────
+// â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 document.addEventListener('DOMContentLoaded',function(){
     var coin=document.getElementById('selectedCoin').value||'USDT';
     var cur=document.getElementById('fiatCurrency').value||'AED';
@@ -781,24 +781,24 @@ document.addEventListener('DOMContentLoaded',function(){
     <div style="display:flex;gap:12px;align-items:center">
         <?= langSwitcher() ?>
         <a href="dashboard.php" style="color:var(--text-muted);font-size:.85rem;text-decoration:none">
-            <i class="fas fa-chart-pie"></i> <?= $currentLang==='en'?'Dashboard':'لوحة التحكم' ?>
+            <i class="fas fa-chart-pie"></i> <?= $currentLang==='en'?'Dashboard':'ظ„ظˆط­ط© ط§ظ„طھط­ظƒظ…' ?>
         </a>
         <a href="index.php" style="color:var(--text-muted);font-size:.85rem;text-decoration:none">
-            <i class="fas fa-home"></i> <?= $currentLang==='en'?'Home':'الرئيسية' ?>
+            <i class="fas fa-home"></i> <?= $currentLang==='en'?'Home':'ط§ظ„ط±ط¦ظٹط³ظٹط©' ?>
         </a>
     </div>
 </nav>
 
 <div class="checkout-wrap">
 
-<!-- ── العمود الرئيسي ── -->
+<!-- â”€â”€ ط§ظ„ط¹ظ…ظˆط¯ ط§ظ„ط±ط¦ظٹط³ظٹ â”€â”€ -->
 <div>
     <!-- Step Indicator -->
     <div class="step-indicator">
-        <div class="step done"><i class="fas fa-check"></i> الطلب</div>
-        <div class="step active"><i class="fas fa-credit-card"></i> الدفع</div>
+        <div class="step done"><i class="fas fa-check"></i> ط§ظ„ط·ظ„ط¨</div>
+        <div class="step active"><i class="fas fa-credit-card"></i> ط§ظ„ط¯ظپط¹</div>
         <div class="step"><i class="fas fa-coins"></i> USDT</div>
-        <div class="step"><i class="fas fa-check-circle"></i> مكتمل</div>
+        <div class="step"><i class="fas fa-check-circle"></i> ظ…ظƒطھظ…ظ„</div>
     </div>
 
     <!-- KYC Banner -->
@@ -807,10 +807,10 @@ document.addEventListener('DOMContentLoaded',function(){
         <p style="color:#f0ad4e;margin:0;font-size:.88rem">
             <i class="fas fa-id-card" style="margin-left:6px"></i>
             <?php if ($kyc['status'] === 'not_started'): ?>
-            لم تُكمل التحقق من الهوية (KYC). الحد الحالي: <?= number_format($kyc['daily_limit']) ?> USD/يوم.
-            <a href="kyc.php" style="color:var(--gold);font-weight:700"> أكمل التحقق →</a>
+            ظ„ظ… طھظڈظƒظ…ظ„ ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ظ‡ظˆظٹط© (KYC). ط§ظ„ط­ط¯ ط§ظ„ط­ط§ظ„ظٹ: <?= number_format($kyc['daily_limit']) ?> USD/ظٹظˆظ….
+            <a href="kyc.php" style="color:var(--gold);font-weight:700"> ط£ظƒظ…ظ„ ط§ظ„طھط­ظ‚ظ‚ â†’</a>
             <?php elseif ($kyc['status'] === 'pending'): ?>
-            طلب KYC قيد المراجعة. ستتلقى إشعاراً عند القبول.
+            ط·ظ„ط¨ KYC ظ‚ظٹط¯ ط§ظ„ظ…ط±ط§ط¬ط¹ط©. ط³طھطھظ„ظ‚ظ‰ ط¥ط´ط¹ط§ط±ط§ظ‹ ط¹ظ†ط¯ ط§ظ„ظ‚ط¨ظˆظ„.
             <?php endif; ?>
         </p>
     </div>
@@ -823,7 +823,7 @@ document.addEventListener('DOMContentLoaded',function(){
         <p style="color:var(--text-muted);font-size:.82rem;margin:0 0 22px">
             <?= $currentLang === 'en'
                 ? 'Your card data is protected with TLS 1.3 encryption and never stored on our servers.'
-                : 'بيانات بطاقتك محمية بتشفير TLS 1.3 ولا تُخزَّن على خوادمنا.' ?>
+                : 'ط¨ظٹط§ظ†ط§طھ ط¨ط·ط§ظ‚طھظƒ ظ…ط­ظ…ظٹط© ط¨طھط´ظپظٹط± TLS 1.3 ظˆظ„ط§ طھظڈط®ط²ظژظ‘ظ† ط¹ظ„ظ‰ ط®ظˆط§ط¯ظ…ظ†ط§.' ?>
         </p>
 
         <!-- Card Icons -->
@@ -831,7 +831,7 @@ document.addEventListener('DOMContentLoaded',function(){
             <div class="card-icon" style="background:#1a1f71;color:white">VISA</div>
             <div class="card-icon" style="background:#eb001b;color:white">MC</div>
             <div class="card-icon" style="background:#007bc1;color:white">AMEX</div>
-            <div class="card-icon" style="background:#00843d;color:white">مدى</div>
+            <div class="card-icon" style="background:#00843d;color:white">ظ…ط¯ظ‰</div>
         </div>
 
         <form id="checkoutForm" onsubmit="handleSubmit(event)">
@@ -839,7 +839,7 @@ document.addEventListener('DOMContentLoaded',function(){
             <input type="hidden" id="selectedCoin"    name="crypto"   value="USDT">
             <input type="hidden" id="selectedNetwork" name="network"  value="TRC20">
 
-            <!-- المبلغ والعملة -->
+            <!-- ط§ظ„ظ…ط¨ظ„ط؛ ظˆط§ظ„ط¹ظ…ظ„ط© -->
             <div class="field-row">
                 <div class="field-wrap">
                     <label><?= __('amount') ?></label>
@@ -850,34 +850,34 @@ document.addEventListener('DOMContentLoaded',function(){
                 <div class="field-wrap">
                     <label><?= __('currency') ?></label>
                     <select name="currency" id="fiatCurrency" onchange="onCurrencyChange(this.value)">
-                        <option value="AED">AED — درهم إماراتي</option>
-                        <option value="SAR">SAR — ريال سعودي</option>
-                        <option value="USD">USD — دولار أمريكي</option>
-                        <option value="EUR">EUR — يورو</option>
-                        <option value="GBP">GBP — جنيه إسترليني</option>
+                        <option value="AED">AED â€” ط¯ط±ظ‡ظ… ط¥ظ…ط§ط±ط§طھظٹ</option>
+                        <option value="SAR">SAR â€” ط±ظٹط§ظ„ ط³ط¹ظˆط¯ظٹ</option>
+                        <option value="USD">USD â€” ط¯ظˆظ„ط§ط± ط£ظ…ط±ظٹظƒظٹ</option>
+                        <option value="EUR">EUR â€” ظٹظˆط±ظˆ</option>
+                        <option value="GBP">GBP â€” ط¬ظ†ظٹظ‡ ط¥ط³طھط±ظ„ظٹظ†ظٹ</option>
                     </select>
                 </div>
             </div>
 
-            <!-- العملة الرقمية والشبكة -->
+            <!-- ط§ظ„ط¹ظ…ظ„ط© ط§ظ„ط±ظ‚ظ…ظٹط© ظˆط§ظ„ط´ط¨ظƒط© -->
             <div class="field-wrap">
                 <label><?= __('crypto') ?></label>
                 <select name="crypto_display" onchange="setCoin(this.value)">
-                    <option value="USDT">USDT — Tether</option>
-                    <option value="BTC">BTC — Bitcoin</option>
-                    <option value="ETH">ETH — Ethereum</option>
-                    <option value="BNB">BNB — BNB Chain</option>
-                    <option value="TRX">TRX — Tron</option>
+                    <option value="USDT">USDT â€” Tether</option>
+                    <option value="BTC">BTC â€” Bitcoin</option>
+                    <option value="ETH">ETH â€” Ethereum</option>
+                    <option value="BNB">BNB â€” BNB Chain</option>
+                    <option value="TRX">TRX â€” Tron</option>
                 </select>
             </div>
             </div>
 
-            <!-- اختيار بوابة الدفع -->
+            <!-- ط§ط®طھظٹط§ط± ط¨ظˆط§ط¨ط© ط§ظ„ط¯ظپط¹ -->
             <div class="field-wrap" style="margin-bottom:22px">
                 <label><?= __('payment_gateway') ?></label>
 
                 <?php
-                // فصل البوابات عن المحافظ
+                // ظپطµظ„ ط§ظ„ط¨ظˆط§ط¨ط§طھ ط¹ظ† ط§ظ„ظ…ط­ط§ظپط¸
                 $payGateways = [];
                 $custodialWallets = [];
                 $selfWallets = [];
@@ -893,7 +893,7 @@ document.addEventListener('DOMContentLoaded',function(){
                 <?php if (!empty($payGateways)): ?>
                 <p style="color:var(--text-muted);font-size:.75rem;margin:8px 0 6px">
                     <i class="fas fa-credit-card" style="color:var(--gold)"></i>
-                    <?= $currentLang==='en'?'Payment Gateways':'بوابات الدفع' ?>
+                    <?= $currentLang==='en'?'Payment Gateways':'ط¨ظˆط§ط¨ط§طھ ط§ظ„ط¯ظپط¹' ?>
                 </p>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:12px">
                     <?php foreach ($payGateways as $gw):
@@ -919,7 +919,7 @@ document.addEventListener('DOMContentLoaded',function(){
                 <?php if (!empty($custodialWallets)): ?>
                 <p style="color:var(--text-muted);font-size:.75rem;margin:8px 0 6px">
                     <i class="fas fa-building" style="color:#f3ba2f"></i>
-                    <?= $currentLang==='en'?'Custodial Wallets (CEX)':'محافظ مركزية (CEX)' ?>
+                    <?= $currentLang==='en'?'Custodial Wallets (CEX)':'ظ…ط­ط§ظپط¸ ظ…ط±ظƒط²ظٹط© (CEX)' ?>
                 </p>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:12px">
                     <?php foreach ($custodialWallets as $gw):
@@ -945,7 +945,7 @@ document.addEventListener('DOMContentLoaded',function(){
                 <?php if (!empty($selfWallets)): ?>
                 <p style="color:var(--text-muted);font-size:.75rem;margin:8px 0 6px">
                     <i class="fas fa-shield-halved" style="color:#3375bb"></i>
-                    <?= $currentLang==='en'?'Self-Custody Wallets':'محافظ لا مركزية (Self-Custody)' ?>
+                    <?= $currentLang==='en'?'Self-Custody Wallets':'ظ…ط­ط§ظپط¸ ظ„ط§ ظ…ط±ظƒط²ظٹط© (Self-Custody)' ?>
                 </p>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px">
                     <?php foreach ($selfWallets as $gw):
@@ -973,21 +973,21 @@ document.addEventListener('DOMContentLoaded',function(){
                 <input type="hidden" id="activeGatewaysList" value="<?= htmlspecialchars(json_encode(array_column($activeGateways, 'code'))) ?>">
             </div>
 
-            <!-- بيانات الاتصال (اختيارية) -->
+            <!-- ط¨ظٹط§ظ†ط§طھ ط§ظ„ط§طھطµط§ظ„ (ط§ط®طھظٹط§ط±ظٹط©) -->
             <div class="field-row">
                 <div class="field-wrap">
-                    <label><?= __('full_name') ?> <span style="color:var(--text-muted);font-size:.72rem">(<?= $currentLang==='en'?'optional':'اختياري' ?>)</span></label>
-                    <input type="text" name="name" placeholder="<?= $currentLang === 'en' ? 'Your name (optional)' : 'اسمك (اختياري)' ?>">
+                    <label><?= __('full_name') ?> <span style="color:var(--text-muted);font-size:.72rem">(<?= $currentLang==='en'?'optional':'ط§ط®طھظٹط§ط±ظٹ' ?>)</span></label>
+                    <input type="text" name="name" placeholder="<?= $currentLang === 'en' ? 'Your name (optional)' : 'ط§ط³ظ…ظƒ (ط§ط®طھظٹط§ط±ظٹ)' ?>">
                 </div>
                 <div class="field-wrap">
-                    <label><?= __('email') ?> <span style="color:var(--text-muted);font-size:.72rem">(<?= $currentLang==='en'?'optional':'اختياري' ?>)</span></label>
+                    <label><?= __('email') ?> <span style="color:var(--text-muted);font-size:.72rem">(<?= $currentLang==='en'?'optional':'ط§ط®طھظٹط§ط±ظٹ' ?>)</span></label>
                     <input type="email" name="email" placeholder="email@... (optional)">
                 </div>
             </div>
 
-            <!-- بيانات البطاقة — تُتحكم بها JavaScript -->
+            <!-- ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¨ط·ط§ظ‚ط© â€” طھظڈطھط­ظƒظ… ط¨ظ‡ط§ JavaScript -->
 
-            <!-- خيار حفظ البطاقة للمستقبل -->
+            <!-- ط®ظٹط§ط± ط­ظپط¸ ط§ظ„ط¨ط·ط§ظ‚ط© ظ„ظ„ظ…ط³طھظ‚ط¨ظ„ -->
             <div id="saveCardSection" style="display:none;margin-bottom:18px">
                 <label style="display:flex;align-items:center;gap:10px;cursor:pointer;
                               background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.15);
@@ -997,18 +997,18 @@ document.addEventListener('DOMContentLoaded',function(){
                     <div>
                         <div style="color:var(--text-light);font-size:.9rem;font-weight:600">
                             <i class="fas fa-shield-halved" style="color:var(--gold);margin-left:6px"></i>
-                            <?= $currentLang==='en'?'Save card for future payments (no OTP)':'احفظ بطاقتي للمدفوعات القادمة (بدون OTP)' ?>
+                            <?= $currentLang==='en'?'Save card for future payments (no OTP)':'ط§ط­ظپط¸ ط¨ط·ط§ظ‚طھظٹ ظ„ظ„ظ…ط¯ظپظˆط¹ط§طھ ط§ظ„ظ‚ط§ط¯ظ…ط© (ط¨ط¯ظˆظ† OTP)' ?>
                         </div>
                         <div style="color:var(--text-muted);font-size:.76rem;margin-top:3px">
                             <?= $currentLang==='en'
                                 ?'Next time you pay, no verification code needed'
-                                :'في المرة القادمة لن تحتاج رمز تحقق من البنك' ?>
+                                :'ظپظٹ ط§ظ„ظ…ط±ط© ط§ظ„ظ‚ط§ط¯ظ…ط© ظ„ظ† طھط­طھط§ط¬ ط±ظ…ط² طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ط¨ظ†ظƒ' ?>
                         </div>
                     </div>
                 </label>
             </div>
 
-            <!-- البطاقات المحفوظة (تظهر إذا وجدت) -->
+            <!-- ط§ظ„ط¨ط·ط§ظ‚ط§طھ ط§ظ„ظ…ط­ظپظˆط¸ط© (طھط¸ظ‡ط± ط¥ط°ط§ ظˆط¬ط¯طھ) -->
             <?php
             require_once __DIR__ . '/lib/SavedPaymentService.php';
             $savedCards = SavedPaymentService::getInstance()->getUserCards($userId);
@@ -1017,7 +1017,7 @@ document.addEventListener('DOMContentLoaded',function(){
             <div id="savedCardsSection" style="margin-bottom:18px">
                 <p style="color:var(--text-muted);font-size:.82rem;margin:0 0 10px">
                     <i class="fas fa-credit-card" style="color:var(--gold)"></i>
-                    <?= $currentLang==='en'?'Saved cards (pay without OTP):':'بطاقاتك المحفوظة (ادفع بدون OTP):' ?>
+                    <?= $currentLang==='en'?'Saved cards (pay without OTP):':'ط¨ط·ط§ظ‚ط§طھظƒ ط§ظ„ظ…ط­ظپظˆط¸ط© (ط§ط¯ظپط¹ ط¨ط¯ظˆظ† OTP):' ?>
                 </p>
                 <div style="display:flex;flex-direction:column;gap:8px">
                     <?php foreach ($savedCards as $card): ?>
@@ -1034,15 +1034,15 @@ document.addEventListener('DOMContentLoaded',function(){
                                style="font-size:1.4rem;color:<?= $card['card_brand']==='visa'?'#1a1f71':($card['card_brand']==='mastercard'?'#eb001b':'var(--gold)') ?>"></i>
                             <div>
                                 <div style="color:var(--text-light);font-size:.9rem;font-weight:600">
-                                    <?= strtoupper($card['card_brand']) ?> •••• <?= htmlspecialchars($card['card_last4']) ?>
+                                    <?= strtoupper($card['card_brand']) ?> â€¢â€¢â€¢â€¢ <?= htmlspecialchars($card['card_last4']) ?>
                                     <?php if ($card['is_default']): ?>
-                                    <span style="background:rgba(255,215,0,.15);color:var(--gold);padding:2px 8px;border-radius:10px;font-size:.7rem;margin-right:6px">افتراضي</span>
+                                    <span style="background:rgba(255,215,0,.15);color:var(--gold);padding:2px 8px;border-radius:10px;font-size:.7rem;margin-right:6px">ط§ظپطھط±ط§ط¶ظٹ</span>
                                     <?php endif; ?>
                                 </div>
                                 <div style="color:var(--text-muted);font-size:.75rem">
                                     <?= htmlspecialchars($card['gateway']) ?>
-                                    <?= $card['card_expiry'] ? ' — ' . $card['card_expiry'] : '' ?>
-                                    <span style="color:#4CAF50"> ✓ بدون OTP</span>
+                                    <?= $card['card_expiry'] ? ' â€” ' . $card['card_expiry'] : '' ?>
+                                    <span style="color:#4CAF50"> âœ“ ط¨ط¯ظˆظ† OTP</span>
                                 </div>
                             </div>
                         </div>
@@ -1060,18 +1060,18 @@ document.addEventListener('DOMContentLoaded',function(){
                                style="width:18px;height:18px;accent-color:var(--gold)" checked>
                         <span style="color:var(--text-muted);font-size:.88rem">
                             <i class="fas fa-plus" style="color:var(--gold);margin-left:6px"></i>
-                            <?= $currentLang==='en'?'Use a new card':'استخدام بطاقة جديدة' ?>
+                            <?= $currentLang==='en'?'Use a new card':'ط§ط³طھط®ط¯ط§ظ… ط¨ط·ط§ظ‚ط© ط¬ط¯ظٹط¯ط©' ?>
                         </span>
                     </label>
                 </div>
                 <input type="hidden" id="selectedSavedCard" name="use_saved_card" value="">
             </div>
             <?php endif; ?>
-            <!-- حقول MOTO للـ 201.3 (تظهر عند اختيار أوف لاين) -->
+            <!-- ط­ظ‚ظˆظ„ MOTO ظ„ظ„ظ€ 201.3 (طھط¸ظ‡ط± ط¹ظ†ط¯ ط§ط®طھظٹط§ط± ط£ظˆظپ ظ„ط§ظٹظ†) -->
             <div id="motoFields" style="display:none;background:rgba(240,173,78,.06);border:1.5px solid rgba(240,173,78,.3);border-radius:14px;padding:18px;margin-bottom:16px">
                 <p style="color:#f0ad4e;font-size:.82rem;margin:0 0 14px;font-weight:600">
                     <i class="fas fa-server" style="margin-left:6px"></i>
-                    <?= $currentLang==='en'?'Offline MOTO — Enter card details manually':'أوف لاين MOTO — أدخل بيانات البطاقة يدوياً' ?>
+                    <?= $currentLang==='en'?'Offline MOTO â€” Enter card details manually':'ط£ظˆظپ ظ„ط§ظٹظ† MOTO â€” ط£ط¯ط®ظ„ ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¨ط·ط§ظ‚ط© ظٹط¯ظˆظٹط§ظ‹' ?>
                 </p>
                 <div class="field-wrap">
                     <label style="color:var(--text-muted);font-size:.82rem"><?= __('card_number') ?></label>
@@ -1089,7 +1089,7 @@ document.addEventListener('DOMContentLoaded',function(){
                     </div>
                     <div class="field-wrap">
                         <label style="color:var(--text-muted);font-size:.82rem">CVV</label>
-                        <input type="text" name="cc_cvv" placeholder="•••" maxlength="4"
+                        <input type="text" name="cc_cvv" placeholder="â€¢â€¢â€¢" maxlength="4"
                                style="width:100%;padding:12px 16px;background:rgba(255,255,255,.04);border:1.5px solid rgba(240,173,78,.4);border-radius:10px;color:var(--text-light)">
                     </div>
                 </div>
@@ -1099,27 +1099,27 @@ document.addEventListener('DOMContentLoaded',function(){
                  border-radius:12px;padding:16px;margin-bottom:16px;text-align:center">
                 <p style="color:var(--text-muted);margin:0;font-size:.9rem">
                     <i class="fas fa-arrow-up" style="color:var(--gold)"></i>
-                    <?= $currentLang==='en'?'Please select a payment gateway above':'اختر بوابة الدفع من الأعلى' ?>
+                    <?= $currentLang==='en'?'Please select a payment gateway above':'ط§ط®طھط± ط¨ظˆط§ط¨ط© ط§ظ„ط¯ظپط¹ ظ…ظ† ط§ظ„ط£ط¹ظ„ظ‰' ?>
                 </p>
             </div>
 
-            <!-- Stripe Elements (مخفي افتراضياً) -->
+            <!-- Stripe Elements (ظ…ط®ظپظٹ ط§ظپطھط±ط§ط¶ظٹط§ظ‹) -->
             <div class="field-wrap" id="stripeElementWrap" style="display:none">
-                <label><?= $currentLang==='en'?'Card Details':'بيانات البطاقة' ?></label>
+                <label><?= $currentLang==='en'?'Card Details':'ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¨ط·ط§ظ‚ط©' ?></label>
                 <div id="stripe-card-element" class="stripe-element"></div>
                 <div id="stripe-error" style="color:#ef5350;font-size:.82rem;margin-top:6px"></div>
             </div>
 
-            <!-- MyFatoorah Hosted Fields (مخفي افتراضياً) -->
+            <!-- MyFatoorah Hosted Fields (ظ…ط®ظپظٹ ط§ظپطھط±ط§ط¶ظٹط§ظ‹) -->
             <div id="myfatoorahFields" style="display:none">
                 <div class="field-wrap">
-                    <label><?= $currentLang==='en'?'Card Details (MyFatoorah)':'بيانات البطاقة (MyFatoorah)' ?></label>
+                    <label><?= $currentLang==='en'?'Card Details (MyFatoorah)':'ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¨ط·ط§ظ‚ط© (MyFatoorah)' ?></label>
                     <div id="myfatoorah-card" style="padding:14px;background:rgba(255,255,255,.04);
                          border:1.5px solid var(--border-gold);border-radius:11px;min-height:52px"></div>
                 </div>
             </div>
 
-            <!-- رسالة توضيحية -->
+            <!-- ط±ط³ط§ظ„ط© طھظˆط¶ظٹط­ظٹط© -->
             <div id="redirectNotice" style="display:none;background:rgba(91,192,222,.08);
                  border:1px solid rgba(91,192,222,.3);border-radius:12px;padding:16px;margin-bottom:16px">
                 <p style="color:#5bc0de;margin:0;font-size:.9rem">
@@ -1128,7 +1128,7 @@ document.addEventListener('DOMContentLoaded',function(){
                 </p>
             </div>
 
-            <!-- حقول البطاقة العامة (تظهر افتراضياً) -->
+            <!-- ط­ظ‚ظˆظ„ ط§ظ„ط¨ط·ط§ظ‚ط© ط§ظ„ط¹ط§ظ…ط© (طھط¸ظ‡ط± ط§ظپطھط±ط§ط¶ظٹط§ظ‹) -->
             <div id="cardInputFields">
             <div class="field-wrap">
                 <label><?= __('card_number') ?></label>
@@ -1144,63 +1144,63 @@ document.addEventListener('DOMContentLoaded',function(){
                 </div>
                 <div class="field-wrap">
                     <label>CVV</label>
-                    <input type="text" name="card_cvv" placeholder="•••"
+                    <input type="text" name="card_cvv" placeholder="â€¢â€¢â€¢"
                            maxlength="4" autocomplete="cc-csc">
                 </div>
             </div>
             </div>
 
-            <!-- نوع الشراء / البروتوكول -->
+            <!-- ظ†ظˆط¹ ط§ظ„ط´ط±ط§ط، / ط§ظ„ط¨ط±ظˆطھظˆظƒظˆظ„ -->
             <div class="field-wrap" style="margin-bottom:22px">
                 <label><?= __('purchase_type') ?></label>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px">
 
-                    <!-- 1. شراء مباشر -->
+                    <!-- 1. ط´ط±ط§ط، ظ…ط¨ط§ط´ط± -->
                     <div class="purchase-option selected" id="pt_direct"
                          onclick="setPurchaseType('SIMPLE_WITHDRAWAL','direct')"
                          style="border:2px solid var(--gold);border-radius:12px;padding:14px;
                                 cursor:pointer;background:rgba(255,215,0,.08);transition:all .2s">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
                             <i class="fas fa-bolt" style="color:var(--gold);font-size:1.1rem"></i>
-                            <span style="color:var(--gold);font-weight:700;font-size:.85rem">شراء مباشر</span>
+                            <span style="color:var(--gold);font-weight:700;font-size:.85rem">ط´ط±ط§ط، ظ…ط¨ط§ط´ط±</span>
                         </div>
                         <div style="color:var(--text-muted);font-size:.72rem;line-height:1.5">
                             Direct Purchase<br>
-                            <span style="color:#4CAF50">✓ فوري — خصم فوري</span>
+                            <span style="color:#4CAF50">âœ“ ظپظˆط±ظٹ â€” ط®طµظ… ظپظˆط±ظٹ</span>
                         </div>
                     </div>
 
-                    <!-- 2. حجز / تفويض -->
+                    <!-- 2. ط­ط¬ط² / طھظپظˆظٹط¶ -->
                     <div class="purchase-option" id="pt_hold"
                          onclick="setPurchaseType('101.1','hold')"
                          style="border:2px solid var(--border-gold);border-radius:12px;padding:14px;
                                 cursor:pointer;background:transparent;transition:all .2s">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
                             <i class="fas fa-hand-holding-usd" style="color:#5bc0de;font-size:1.1rem"></i>
-                            <span style="color:#5bc0de;font-weight:700;font-size:.85rem">حجز / تفويض</span>
+                            <span style="color:#5bc0de;font-weight:700;font-size:.85rem">ط­ط¬ط² / طھظپظˆظٹط¶</span>
                         </div>
                         <div style="color:var(--text-muted);font-size:.72rem;line-height:1.5">
                             HOLD / AUTHORIZE<br>
-                            <span style="color:#5bc0de">بروتوكول 101.1</span>
+                            <span style="color:#5bc0de">ط¨ط±ظˆطھظˆظƒظˆظ„ 101.1</span>
                         </div>
                     </div>
 
-                    <!-- 3. تسوية / كابتشر -->
+                    <!-- 3. طھط³ظˆظٹط© / ظƒط§ط¨طھط´ط± -->
                     <div class="purchase-option" id="pt_capture"
                          onclick="setPurchaseType('101.1','capture')"
                          style="border:2px solid var(--border-gold);border-radius:12px;padding:14px;
                                 cursor:pointer;background:transparent;transition:all .2s">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
                             <i class="fas fa-check-double" style="color:#9fe870;font-size:1.1rem"></i>
-                            <span style="color:#9fe870;font-weight:700;font-size:.85rem">تسوية / كابتشر</span>
+                            <span style="color:#9fe870;font-weight:700;font-size:.85rem">طھط³ظˆظٹط© / ظƒط§ط¨طھط´ط±</span>
                         </div>
                         <div style="color:var(--text-muted);font-size:.72rem;line-height:1.5">
                             COMPLETION / CAPTURE<br>
-                            <span style="color:#9fe870">بروتوكول 101.1</span>
+                            <span style="color:#9fe870">ط¨ط±ظˆطھظˆظƒظˆظ„ 101.1</span>
                         </div>
                     </div>
 
-                    <!-- 4. أوف لاين OFFLINE SALES -->
+                    <!-- 4. ط£ظˆظپ ظ„ط§ظٹظ† OFFLINE SALES -->
                     <div class="purchase-option" id="pt_offline"
                          onclick="setPurchaseType('201.3','offline')"
                          style="border:2px solid var(--border-gold);border-radius:12px;padding:14px;cursor:pointer;background:transparent;transition:all .2s">
@@ -1210,21 +1210,21 @@ document.addEventListener('DOMContentLoaded',function(){
                         </div>
                         <div style="color:var(--text-muted);font-size:.72rem;line-height:1.5">
                             MOTO / Backend Billing<br>
-                            <span style="color:#f0ad4e">بروتوكول 201.3</span>
+                            <span style="color:#f0ad4e">ط¨ط±ظˆطھظˆظƒظˆظ„ 201.3</span>
                         </div>
                     </div>
 
-                    <!-- 5. شراء بالعملات الرقمية -->
+                    <!-- 5. ط´ط±ط§ط، ط¨ط§ظ„ط¹ظ…ظ„ط§طھ ط§ظ„ط±ظ‚ظ…ظٹط© -->
                     <div class="purchase-option" id="pt_crypto"
                          onclick="setPurchaseType('CRYPTO','crypto')"
                          style="border:2px solid var(--border-gold);border-radius:12px;padding:14px;cursor:pointer;background:transparent;transition:all .2s">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
                             <i class="fab fa-bitcoin" style="color:#f7a600;font-size:1.1rem"></i>
-                            <span style="color:#f7a600;font-weight:700;font-size:.85rem">شراء بالكريبتو</span>
+                            <span style="color:#f7a600;font-weight:700;font-size:.85rem">ط´ط±ط§ط، ط¨ط§ظ„ظƒط±ظٹط¨طھظˆ</span>
                         </div>
                         <div style="color:var(--text-muted);font-size:.72rem;line-height:1.5">
                             BTC / ETH / USDT / BNB<br>
-                            <span style="color:#f7a600">دفع بالعملات الرقمية</span>
+                            <span style="color:#f7a600">ط¯ظپط¹ ط¨ط§ظ„ط¹ظ…ظ„ط§طھ ط§ظ„ط±ظ‚ظ…ظٹط©</span>
                         </div>
                     </div>
 
@@ -1237,8 +1237,8 @@ document.addEventListener('DOMContentLoaded',function(){
                             <span style="color:#888;font-weight:700;font-size:.85rem">Avoid</span>
                         </div>
                         <div style="color:var(--text-muted);font-size:.72rem;line-height:1.5">
-                            تجميد العملية<br>
-                            <span style="color:#888">إيقاف مؤقت</span>
+                            طھط¬ظ…ظٹط¯ ط§ظ„ط¹ظ…ظ„ظٹط©<br>
+                            <span style="color:#888">ط¥ظٹظ‚ط§ظپ ظ…ط¤ظ‚طھ</span>
                         </div>
                     </div>
 
@@ -1251,17 +1251,17 @@ document.addEventListener('DOMContentLoaded',function(){
                             <span style="color:#5bc0de;font-weight:700;font-size:.85rem">Refund</span>
                         </div>
                         <div style="color:var(--text-muted);font-size:.72rem;line-height:1.5">
-                            استرداد المبلغ<br>
-                            <span style="color:#5bc0de">إعادة للمرسل</span>
+                            ط§ط³طھط±ط¯ط§ط¯ ط§ظ„ظ…ط¨ظ„ط؛<br>
+                            <span style="color:#5bc0de">ط¥ط¹ط§ط¯ط© ظ„ظ„ظ…ط±ط³ظ„</span>
                         </div>
                     </div>
 
                 </div>
 
-                <!-- اختيار عملة الكريبتو -->
+                <!-- ط§ط®طھظٹط§ط± ط¹ظ…ظ„ط© ط§ظ„ظƒط±ظٹط¨طھظˆ -->
                 <div id="cryptoCoinSelect" style="display:none;margin-top:12px;padding:14px;background:rgba(247,166,0,.06);border:1.5px solid rgba(247,166,0,.3);border-radius:12px">
                     <label style="color:#f7a600;font-size:.82rem;font-weight:600;display:block;margin-bottom:8px">
-                        <i class="fab fa-bitcoin"></i> اختر عملة الدفع
+                        <i class="fab fa-bitcoin"></i> ط§ط®طھط± ط¹ظ…ظ„ط© ط§ظ„ط¯ظپط¹
                     </label>
                     <div style="display:flex;gap:8px;flex-wrap:wrap">
                         <?php foreach ([['BTC','#f7931a'],['ETH','#627eea'],['USDT','#26a17b'],['BNB','#f3ba2f'],['TRX','#eb0029'],['SOL','#9945ff']] as [$sym,$col]): ?>
@@ -1272,24 +1272,24 @@ document.addEventListener('DOMContentLoaded',function(){
                     <input type="hidden" id="selectedPayCoin" name="pay_coin" value="BTC">
                 </div>
 
-                <!-- حقل Reference للـ REFUND -->
+                <!-- ط­ظ‚ظ„ Reference ظ„ظ„ظ€ REFUND -->
                 <div id="refundRefWrap" style="display:none;margin-top:12px">
-                    <label style="color:#5bc0de;font-size:.82rem;display:block;margin-bottom:6px">رقم المعاملة المراد استردادها *</label>
+                    <label style="color:#5bc0de;font-size:.82rem;display:block;margin-bottom:6px">ط±ظ‚ظ… ط§ظ„ظ…ط¹ط§ظ…ظ„ط© ط§ظ„ظ…ط±ط§ط¯ ط§ط³طھط±ط¯ط§ط¯ظ‡ط§ *</label>
                     <input type="text" name="refund_reference" id="refundReference" placeholder="REF_XXXXXXXX"
                            style="width:100%;padding:11px 16px;background:rgba(255,255,255,.04);border:1.5px solid #5bc0de;border-radius:10px;color:#fff;font-family:monospace;font-size:.88rem;outline:none">
                 </div>
                 <input type="hidden" name="protocol" id="protocolInput" value="SIMPLE_WITHDRAWAL">
                 <input type="hidden" name="transaction_action" id="transactionAction" value="direct">
 
-                <!-- تفاصيل النوع المختار -->
+                <!-- طھظپط§طµظٹظ„ ط§ظ„ظ†ظˆط¹ ط§ظ„ظ…ط®طھط§ط± -->
                 <div id="purchaseTypeDesc" style="margin-top:10px;padding:10px 14px;
                      background:rgba(255,215,0,.05);border-radius:10px;
                      border:1px solid rgba(255,215,0,.15);font-size:.8rem;color:var(--text-muted)">
                     <i class="fas fa-info-circle" style="color:var(--gold)"></i>
-                    شراء مباشر — يتم خصم المبلغ فوراً وإرسال USDT للمحفظة
+                    ط´ط±ط§ط، ظ…ط¨ط§ط´ط± â€” ظٹطھظ… ط®طµظ… ط§ظ„ظ…ط¨ظ„ط؛ ظپظˆط±ط§ظ‹ ظˆط¥ط±ط³ط§ظ„ USDT ظ„ظ„ظ…ط­ظپط¸ط©
                 </div>
 
-                <!-- حقل Authorization ID (يظهر فقط عند Capture) -->
+                <!-- ط­ظ‚ظ„ Authorization ID (ظٹط¸ظ‡ط± ظپظ‚ط· ط¹ظ†ط¯ Capture) -->
                 <div id="authIdWrap" style="display:none;margin-top:12px">
                     <label style="color:var(--text-muted);font-size:.82rem;display:block;margin-bottom:6px">
                         Authorization ID <span style="color:#ef5350">*</span>
@@ -1312,9 +1312,9 @@ document.addEventListener('DOMContentLoaded',function(){
                             <span style="color:var(--gold);font-weight:700;font-size:.9rem">3D Secure</span>
                         </div>
                         <div style="color:var(--text-muted);font-size:.75rem;line-height:1.5">
-                            يتطلب OTP من البنك<br>
-                            <span style="color:#4CAF50">✓ حماية أعلى</span> —
-                            <span style="color:#f0ad4e">قد يأخذ وقتاً أطول</span>
+                            ظٹطھط·ظ„ط¨ OTP ظ…ظ† ط§ظ„ط¨ظ†ظƒ<br>
+                            <span style="color:#4CAF50">âœ“ ط­ظ…ط§ظٹط© ط£ط¹ظ„ظ‰</span> â€”
+                            <span style="color:#f0ad4e">ظ‚ط¯ ظٹط£ط®ط° ظˆظ‚طھط§ظ‹ ط£ط·ظˆظ„</span>
                         </div>
                     </div>
                     <!-- 2D -->
@@ -1323,65 +1323,65 @@ document.addEventListener('DOMContentLoaded',function(){
                                 cursor:pointer;background:transparent;transition:all .2s">
                         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
                             <i class="fas fa-bolt" style="color:#5bc0de;font-size:1.2rem"></i>
-                            <span style="color:#5bc0de;font-weight:700;font-size:.9rem">2D (بدون OTP)</span>
+                            <span style="color:#5bc0de;font-weight:700;font-size:.9rem">2D (ط¨ط¯ظˆظ† OTP)</span>
                         </div>
                         <div style="color:var(--text-muted);font-size:.75rem;line-height:1.5">
-                            بدون رمز تحقق إضافي<br>
-                            <span style="color:#4CAF50">✓ أسرع</span> —
-                            <span style="color:#ef5350">حماية أقل</span>
+                            ط¨ط¯ظˆظ† ط±ظ…ط² طھط­ظ‚ظ‚ ط¥ط¶ط§ظپظٹ<br>
+                            <span style="color:#4CAF50">âœ“ ط£ط³ط±ط¹</span> â€”
+                            <span style="color:#ef5350">ط­ظ…ط§ظٹط© ط£ظ‚ظ„</span>
                         </div>
                     </div>
                 </div>
                 <input type="hidden" name="security_mode" id="securityMode" value="3D">
                 <p style="color:var(--text-muted);font-size:.75rem;margin:8px 0 0">
                     <i class="fas fa-info-circle" style="color:var(--gold)"></i>
-                    يُوصى بـ 3D Secure لحماية أموالك. قد لا تدعم بعض البوابات 2D.
+                    ظٹظڈظˆطµظ‰ ط¨ظ€ 3D Secure ظ„ط­ظ…ط§ظٹط© ط£ظ…ظˆط§ظ„ظƒ. ظ‚ط¯ ظ„ط§ طھط¯ط¹ظ… ط¨ط¹ط¶ ط§ظ„ط¨ظˆط§ط¨ط§طھ 2D.
                 </p>
             </div>
 
-            <!-- زر الدفع -->
+            <!-- ط²ط± ط§ظ„ط¯ظپط¹ -->
             <button type="submit" class="pay-btn" id="payBtn">
-                <i class="fas fa-lock"></i> ادفع الآن وابدأ الشراء
+                <i class="fas fa-lock"></i> ط§ط¯ظپط¹ ط§ظ„ط¢ظ† ظˆط§ط¨ط¯ط£ ط§ظ„ط´ط±ط§ط،
             </button>
 
             <div class="security-row">
                 <i class="fas fa-shield-halved" style="color:var(--gold)"></i>
-                محمي بـ 3D Secure + TLS 1.3 + HMAC Verification
+                ظ…ط­ظ…ظٹ ط¨ظ€ 3D Secure + TLS 1.3 + HMAC Verification
             </div>
         </form>
     </div>
 </div>
 
-<!-- ── العمود الجانبي: ملخص الطلب ── -->
+<!-- â”€â”€ ط§ظ„ط¹ظ…ظˆط¯ ط§ظ„ط¬ط§ظ†ط¨ظٹ: ظ…ظ„ط®طµ ط§ظ„ط·ظ„ط¨ â”€â”€ -->
 <div>
     <div class="co-card" style="position:sticky;top:20px">
             <h3 style="color:var(--gold);margin:0 0 20px;font-size:1rem">
             <i class="fas fa-receipt" style="margin-left:8px"></i><?= __('order_summary') ?>
         </h3>
 
-        <!-- معاينة حية -->
+        <!-- ظ…ط¹ط§ظٹظ†ط© ط­ظٹط© -->
         <div style="background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.15);
                     border-radius:12px;padding:16px;margin-bottom:20px;text-align:center">
-            <div style="font-size:1.8rem;font-weight:800;color:var(--gold)" id="previewCrypto">—</div>
+            <div style="font-size:1.8rem;font-weight:800;color:var(--gold)" id="previewCrypto">â€”</div>
             <div style="color:var(--text-muted);font-size:.82rem" id="previewCoin">USDT/TRC20</div>
         </div>
 
         <div id="orderSummary">
             <div class="order-row">
                 <span style="color:var(--text-muted)"><?= __('amount') ?></span>
-                <span id="sumAmount">—</span>
+                <span id="sumAmount">â€”</span>
             </div>
             <div class="order-row">
                 <span style="color:var(--text-muted)"><?= __('rate') ?></span>
-                <span id="sumRate">—</span>
+                <span id="sumRate">â€”</span>
             </div>
             <div class="order-row">
                 <span style="color:var(--text-muted)"><?= __('platform_fee') ?></span>
-                <span id="sumFee">—</span>
+                <span id="sumFee">â€”</span>
             </div>
             <div class="order-row">
                 <span><?= __('you_receive') ?></span>
-                <span id="sumReceive" style="color:var(--gold)">—</span>
+                <span id="sumReceive" style="color:var(--gold)">â€”</span>
             </div>
         </div>
 
@@ -1392,7 +1392,7 @@ document.addEventListener('DOMContentLoaded',function(){
                 <span style="color:var(--text-muted);font-size:.82rem"><?= __('kyc_level') ?></span>
                 <span style="color:<?= $kyc['status']==='approved'?'#4CAF50':'#f0ad4e' ?>;font-size:.82rem;font-weight:700">
                     <?php if ($kyc['status'] === 'approved'): ?>
-                        Level <?= $kyc['level'] ?> — <?= __('verified') ?>
+                        Level <?= $kyc['level'] ?> â€” <?= __('verified') ?>
                     <?php else: ?>
                         <?= __('no_limits') ?>
                     <?php endif; ?>
@@ -1401,29 +1401,29 @@ document.addEventListener('DOMContentLoaded',function(){
             <div style="display:flex;justify-content:space-between">
                 <span style="color:var(--text-muted);font-size:.82rem"><?= __('daily_limit') ?></span>
                 <span style="color:#4CAF50;font-size:.82rem;font-weight:700">
-                    <?= $kyc['daily_limit'] >= 999999999 ? '∞ بلا حدود' : '$' . number_format($kyc['daily_limit']) . ' USD' ?>
+                    <?= $kyc['daily_limit'] >= 999999999 ? 'âˆ‍ ط¨ظ„ط§ ط­ط¯ظˆط¯' : '$' . number_format($kyc['daily_limit']) . ' USD' ?>
                 </span>
             </div>
         </div>
 
-        <!-- مستوى الأمان في الملخص -->
+        <!-- ظ…ط³طھظˆظ‰ ط§ظ„ط£ظ…ط§ظ† ظپظٹ ط§ظ„ظ…ظ„ط®طµ -->
         <div style="margin-top:14px;padding:10px 14px;background:rgba(255,215,0,.05);
                     border-radius:10px;border:1px solid rgba(255,215,0,.15)">
             <div style="display:flex;justify-content:space-between;align-items:center">
-                <span style="color:var(--text-muted);font-size:.82rem">مستوى الأمان</span>
+                <span style="color:var(--text-muted);font-size:.82rem">ظ…ط³طھظˆظ‰ ط§ظ„ط£ظ…ط§ظ†</span>
                 <span id="summarySecureMode"
                       style="color:var(--gold);font-size:.82rem;font-weight:700">
-                    3D Secure ✓
+                    3D Secure âœ“
                 </span>
             </div>
         </div>
 
-        <!-- معلومات الحماية -->
+        <!-- ظ…ط¹ظ„ظˆظ…ط§طھ ط§ظ„ط­ظ…ط§ظٹط© -->
         <div style="margin-top:16px">
             <?php foreach ([
-                ['fas fa-shield-alt','حماية 3D Secure'],
-                ['fas fa-clock','معالجة فورية'],
-                ['fas fa-undo','ضمان استرداد'],
+                ['fas fa-shield-alt','ط­ظ…ط§ظٹط© 3D Secure'],
+                ['fas fa-clock','ظ…ط¹ط§ظ„ط¬ط© ظپظˆط±ظٹط©'],
+                ['fas fa-undo','ط¶ظ…ط§ظ† ط§ط³طھط±ط¯ط§ط¯'],
             ] as [$ic,$lb]): ?>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
                 <i class="<?= $ic ?>" style="color:var(--gold);width:16px"></i>
@@ -1442,3 +1442,4 @@ document.addEventListener('DOMContentLoaded',function(){
     transition:transform .3s;white-space:nowrap"></div>
 </body>
 </html>
+

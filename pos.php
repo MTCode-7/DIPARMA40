@@ -476,8 +476,8 @@ function renderExtraFields(type) {
 
   if (type === 'auth_complete' || type === 'reversal' || type === 'void' || type === 'refund') {
     html = `<div class="fld">
-      <label><i class="fas fa-hashtag"></i> ${AR?'رقم المرجع الأصلي':'Original Reference / RRN'}</label>
-      <input type="text" id="origRef" placeholder="${AR?'RRN أو Approval Code الأصلي':'Original RRN or Approval Code'}">
+      <label><i class="fas fa-hashtag"></i> ${AR?'رقم المرجع الأصلي (RRN)':'Original Reference (RRN)'}</label>
+      <input type="text" id="origRef" placeholder="${AR?'رقم العملية السابقة':'Previous transaction reference'}">
     </div>`;
   }
 

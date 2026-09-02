@@ -198,7 +198,7 @@ class CardPaymentService
     ): array {
         $apiKey  = getenv('MYFAOORAH_API_KEY') ?: '';
         $siteUrl = defined('SITE_URL') ? SITE_URL : 'https://diparmas.com';
-        $env     = getenv('MYFAOORAH_ENVIRONMENT') ?: 'sandbox';
+        $env     = getenv('MYFAOORAH_ENVIRONMENT') ?: '';
         $baseUrl = $env === 'live'
             ? 'https://api.myfatoorah.com'
             : 'https://apitest.myfatoorah.com';

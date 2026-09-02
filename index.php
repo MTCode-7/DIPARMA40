@@ -2272,12 +2272,12 @@ $ui = [
             <div class="form-grid">
                 <div class="field-group">
                     <label><i class="fas fa-user"></i> <?= $ui['full_name'] ?> <span style="color:#888;font-size:0.85rem;">(<?= $ui['optional'] ?>)</span></label>
-                    <input type="text" name="customer_name" id="customerName" placeholder="<?= $currentLang === 'en' ? 'John Smith' : 'أحمد محمد' ?>">
+                    <input type="text" name="customer_name" id="customerName" placeholder="<?= $currentLang === 'en' ? 'Full Name' : 'الاسم الكامل' ?>">>
                     <small style="display:block;margin-top:5px;color:#999;line-height:1.5;">اسم صاحب البطاقة أو العميل كما هو مسجّل في البنك. يُستخدم في إيصال الدفع وسجلات المعاملات.</small>
                 </div>
                 <div class="field-group">
                     <label><i class="fas fa-envelope"></i> <?= $ui['email'] ?> <span style="color:#888;font-size:0.85rem;">(<?= $ui['optional'] ?>)</span></label>
-                    <input type="email" name="customer_email" id="customerEmail" placeholder="<?= $currentLang === 'en' ? 'john@example.com' : 'ahmed@example.com' ?>">
+                    <input type="email" name="customer_email" id="customerEmail" placeholder="<?= $currentLang === 'en' ? 'Enter email' : 'أدخل البريد الإلكتروني' ?>">>
                     <small style="display:block;margin-top:5px;color:#999;line-height:1.5;">البريد الإلكتروني للعميل لإرسال إيصال الدفع والإشعارات. يُدخل بصيغة: user@domain.com</small>
                 </div>
                 <div class="field-group">

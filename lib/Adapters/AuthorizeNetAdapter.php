@@ -26,7 +26,7 @@ final class AuthorizeNetAdapter implements GatewayAdapterInterface
     {
         $this->apiLoginId     = getenv('AUTHNET_API_LOGIN_ID')    ?: '';
         $this->transactionKey = getenv('AUTHNET_TRANSACTION_KEY') ?: '';
-        $env                  = getenv('AUTHNET_ENVIRONMENT')      ?: 'sandbox';
+        $env                  = getenv('AUTHNET_ENVIRONMENT')      ?: '';
         $this->baseUrl        = $env === 'live'
             ? 'https://api.authorize.net/xml/v1/request.api'
             : 'https://apitest.authorize.net/xml/v1/request.api';

@@ -15,7 +15,8 @@ $dir  = $ar ? 'rtl' : 'ltr';
 // MoonPay key من .env
 $moonpayKey = defined('MOONPAY_PUBLISHABLE_KEY') ? MOONPAY_PUBLISHABLE_KEY : getenv('MOONPAY_PUBLISHABLE_KEY');
 if (empty($moonpayKey) || str_contains($moonpayKey, 'REPLACE')) {
-    $moonpayKey = 'pk_test_U7mWGOaOgvuB0cfU6FdFwszVHpmNj0r';
+    // لا تستخدم مفاتيح وهمية — يجب تحديث .env
+    $moonpayKey = '';
 }
 
 // عنوان Ledger TRX من .env

@@ -1,7 +1,7 @@
-<?php
+﻿<?php
 /**
  * ============================================================
- * DI PARMA | معالجة المدفوعات الفعلية (Live Payment Processing)
+ * DI PARMA | ظ…ط¹ط§ظ„ط¬ط© ط§ظ„ظ…ط¯ظپظˆط¹ط§طھ ط§ظ„ظپط¹ظ„ظٹط© (Live Payment Processing)
  * ============================================================
  * 
  * 
@@ -9,7 +9,7 @@
  */
 
 // ============================================================
-// 1. إعدادات الرأس والأمان
+// 1. ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ط±ط£ط³ ظˆط§ظ„ط£ظ…ط§ظ†
 // ============================================================
 
 header('Content-Type: application/json; charset=utf-8');
@@ -17,13 +17,13 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-Api-Key, X-Timestamp, X-Signature');
 
-// معالجة طلبات OPTIONS (CORS Preflight)
+// ظ…ط¹ط§ظ„ط¬ط© ط·ظ„ط¨ط§طھ OPTIONS (CORS Preflight)
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
 }
 
-// قبول طلبات POST فقط
+// ظ‚ط¨ظˆظ„ ط·ظ„ط¨ط§طھ POST ظپظ‚ط·
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode([
@@ -34,20 +34,20 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 // ============================================================
-// 2. استيراد الملفات المطلوبة
+// 2. ط§ط³طھظٹط±ط§ط¯ ط§ظ„ظ…ظ„ظپط§طھ ط§ظ„ظ…ط·ظ„ظˆط¨ط©
 // ============================================================
 
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 
-// تحميل مكتبات البوابات
+// طھط­ظ…ظٹظ„ ظ…ظƒطھط¨ط§طھ ط§ظ„ط¨ظˆط§ط¨ط§طھ
 if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
 }
 
 // ============================================================
-// 3. إعدادات السجلات
+// 3. ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ط³ط¬ظ„ط§طھ
 // ============================================================
 
 $logFile = __DIR__ . '/../logs/gateway_processor.log';
@@ -83,7 +83,7 @@ function secureLog($message, $level = 'INFO', $data = null) {
 secureLog('=== New payment request ===', 'INFO');
 
 // ============================================================
-// 4. قراءة بيانات الطلب
+// 4. ظ‚ط±ط§ط،ط© ط¨ظٹط§ظ†ط§طھ ط§ظ„ط·ظ„ط¨
 // ============================================================
 
 $rawPayload = file_get_contents('php://input');
@@ -104,7 +104,7 @@ if (!$data) {
 }
 
 // ============================================================
-// 5. استخراج وتنظيف البيانات
+// 5. ط§ط³طھط®ط±ط§ط¬ ظˆطھظ†ط¸ظٹظپ ط§ظ„ط¨ظٹط§ظ†ط§طھ
 // ============================================================
 
 $reference = trim($data['reference'] ?? '');
@@ -122,29 +122,29 @@ $ledgerAddress = trim($data['ledger_address'] ?? '');
 $cryptoCurrency = strtoupper(trim($data['crypto_currency'] ?? 'USDT'));
 $payramNetwork = trim($data['payram_network'] ?? 'polygon-erc20'); // polygon-erc20, trc20, etc.
 
-// توليد مرجع إذا لم يتم إرساله
+// طھظˆظ„ظٹط¯ ظ…ط±ط¬ط¹ ط¥ط°ط§ ظ„ظ… ظٹطھظ… ط¥ط±ط³ط§ظ„ظ‡
 if (empty($reference)) {
     $reference = 'DP_' . strtoupper(bin2hex(random_bytes(6)));
 }
 
-// تحديد نوع العملية (MOTO أو عادية)
+// طھط­ط¯ظٹط¯ ظ†ظˆط¹ ط§ظ„ط¹ظ…ظ„ظٹط© (MOTO ط£ظˆ ط¹ط§ط¯ظٹط©)
 $isMoto = isset($data['is_moto']) ? (bool)$data['is_moto'] : false;
 $motoIndicator = $isMoto ? 'M' : 'E';
 
-// MOTO = 2D (بدون 3D Secure)
+// MOTO = 2D (ط¨ط¯ظˆظ† 3D Secure)
 $securityMode = '2D';
 $use3DSecure = false;
 
 secureLog('Processing reference: ' . $reference . ', Gateway: ' . $gateway, 'INFO');
 
 // ============================================================
-// 6. التحقق من صحة البطاقة (Luhn, Expiry, CVV)
+// 6. ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† طµط­ط© ط§ظ„ط¨ط·ط§ظ‚ط© (Luhn, Expiry, CVV)
 // ============================================================
 
 function validateCard($cardNumber, $cardExpiry, $cardCvv) {
     $errors = [];
     
-    // 6.1 التحقق من رقم البطاقة (Luhn)
+    // 6.1 ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط±ظ‚ظ… ط§ظ„ط¨ط·ط§ظ‚ط© (Luhn)
     if (empty($cardNumber) || strlen($cardNumber) < 13 || strlen($cardNumber) > 19) {
         $errors[] = 'Invalid card number length (must be 13-19 digits)';
     } else {
@@ -153,7 +153,7 @@ function validateCard($cardNumber, $cardExpiry, $cardCvv) {
         }
     }
     
-    // 6.2 التحقق من تاريخ الانتهاء
+    // 6.2 ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† طھط§ط±ظٹط® ط§ظ„ط§ظ†طھظ‡ط§ط،
     if (empty($cardExpiry) || !preg_match('/^(0[1-9]|1[0-2])\/([0-9]{2})$/', $cardExpiry)) {
         $errors[] = 'Invalid expiry date (format: MM/YY)';
     } else {
@@ -164,7 +164,7 @@ function validateCard($cardNumber, $cardExpiry, $cardCvv) {
         }
     }
     
-    // 6.3 التحقق من CVV
+    // 6.3 ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† CVV
     $cardType = detectCardType($cardNumber);
     $cvvLength = $cardType === 'Amex' ? 4 : 3;
     if (empty($cardCvv) || strlen($cardCvv) !== $cvvLength || !ctype_digit($cardCvv)) {
@@ -179,7 +179,7 @@ function validateCard($cardNumber, $cardExpiry, $cardCvv) {
     ];
 }
 
-// 6.4 دوال التحقق المساعدة
+// 6.4 ط¯ظˆط§ظ„ ط§ظ„طھط­ظ‚ظ‚ ط§ظ„ظ…ط³ط§ط¹ط¯ط©
 function isValidLuhn($number) {
     $number = preg_replace('/\D/', '', $number);
     $sum = 0;
@@ -209,40 +209,40 @@ function detectCardType($number) {
 }
 
 // ============================================================
-// 7. التحقق من صحة البيانات العامة
+// 7. ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† طµط­ط© ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¹ط§ظ…ط©
 // ============================================================
 
 $errors = [];
 
-// التحقق من المبلغ
+// ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ظ…ط¨ظ„ط؛
 if ($amount <= 0) {
     $errors[] = 'Amount must be greater than 0';
 }
 
-// التحقق من العملة
+// ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ط¹ظ…ظ„ط©
 $allowedCurrencies = ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'EGP', 'KWD', 'QAR'];
 if (!in_array($currency, $allowedCurrencies)) {
     $errors[] = 'Unsupported currency: ' . $currency;
 }
 
-// التحقق من البوابة
+// ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ط¨ظˆط§ط¨ط©
 $allowedGateways = ['payram', 'wise', 'stripe', 'paypal', 'myfatoorah'];
 if (!in_array($gateway, $allowedGateways)) {
     $errors[] = 'Unsupported gateway: ' . $gateway;
 }
 
-// التحقق من البريد الإلكتروني
+// ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ
 if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     $errors[] = 'Invalid email address';
 }
 
-// التحقق من البطاقة
+// ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ط¨ط·ط§ظ‚ط©
 $cardValidation = validateCard($cardNumber, $cardExpiry, $cardCvv);
 if (!$cardValidation['success']) {
     $errors = array_merge($errors, $cardValidation['errors']);
 }
 
-// إذا كان هناك أخطاء، أعدها للمستخدم
+// ط¥ط°ط§ ظƒط§ظ† ظ‡ظ†ط§ظƒ ط£ط®ط·ط§ط،طŒ ط£ط¹ط¯ظ‡ط§ ظ„ظ„ظ…ط³طھط®ط¯ظ…
 if (!empty($errors)) {
     secureLog('Validation errors: ' . implode(', ', $errors), 'ERROR');
     http_response_code(422);
@@ -255,13 +255,13 @@ if (!empty($errors)) {
 }
 
 // ============================================================
-// 8. الاتصال بقاعدة البيانات
+// 8. ط§ظ„ط§طھطµط§ظ„ ط¨ظ‚ط§ط¹ط¯ط© ط§ظ„ط¨ظٹط§ظ†ط§طھ
 // ============================================================
 
 $db = db();
 
 // ============================================================
-// 9. تسجيل المعاملة في قاعدة البيانات
+// 9. طھط³ط¬ظٹظ„ ط§ظ„ظ…ط¹ط§ظ…ظ„ط© ظپظٹ ظ‚ط§ط¹ط¯ط© ط§ظ„ط¨ظٹط§ظ†ط§طھ
 // ============================================================
 
 try {
@@ -303,7 +303,7 @@ try {
 }
 
 // ============================================================
-// 10. معالجة الدفع حسب البوابة (فعلي)
+// 10. ظ…ط¹ط§ظ„ط¬ط© ط§ظ„ط¯ظپط¹ ط­ط³ط¨ ط§ظ„ط¨ظˆط§ط¨ط© (ظپط¹ظ„ظٹ)
 // ============================================================
 
 $response = [];
@@ -316,13 +316,13 @@ $gatewayResponse = [];
 
 try {
     
-    // ════════════════════════════════════════════════════════
-    // 10.1 PAYRAM - العملات الرقمية الذاتية
-    // ════════════════════════════════════════════════════════
+    // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+    // 10.1 PAYRAM - ط§ظ„ط¹ظ…ظ„ط§طھ ط§ظ„ط±ظ‚ظ…ظٹط© ط§ظ„ط°ط§طھظٹط©
+    // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
     if ($gateway === 'payram') {
         secureLog('Processing PayRam payment: ' . $reference, 'INFO');
         
-        // إعدادات PayRam
+        // ط¥ط¹ط¯ط§ط¯ط§طھ PayRam
         $payramConfig = [
             'api_key' => getenv('PAYRAM_API_KEY') ?: '',
             'api_secret' => getenv('PAYRAM_API_SECRET') ?: '',
@@ -335,7 +335,7 @@ try {
             throw new Exception('PayRam API credentials not configured');
         }
         
-        // بناء الطلب لـ PayRam
+        // ط¨ظ†ط§ط، ط§ظ„ط·ظ„ط¨ ظ„ظ€ PayRam
         $payramPayload = [
             'amount' => $amount,
             'currency' => $currency,
@@ -367,7 +367,7 @@ try {
             ],
         ];
         
-        // إرسال الطلب إلى PayRam API
+        // ط¥ط±ط³ط§ظ„ ط§ظ„ط·ظ„ط¨ ط¥ظ„ظ‰ PayRam API
         $timestamp = time();
         $signature = hash_hmac('sha256', $timestamp . '.' . $reference . '.' . $amount, $payramConfig['api_secret']);
         
@@ -414,9 +414,9 @@ try {
         }
     }
     
-    // ════════════════════════════════════════════════════════
-    // 10.2 WISE - التحويلات البنكية الدولية
-    // ════════════════════════════════════════════════════════
+    // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+    // 10.2 WISE - ط§ظ„طھط­ظˆظٹظ„ط§طھ ط§ظ„ط¨ظ†ظƒظٹط© ط§ظ„ط¯ظˆظ„ظٹط©
+    // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
     elseif ($gateway === 'wise') {
         secureLog('Processing Wise payment: ' . $reference, 'INFO');
         
@@ -427,7 +427,7 @@ try {
             throw new Exception('Wise API credentials not configured');
         }
         
-        // إنشاء Quote في Wise
+        // ط¥ظ†ط´ط§ط، Quote ظپظٹ Wise
         $wisePayload = [
             'targetCurrency' => 'USD',
             'sourceCurrency' => $currency,
@@ -458,7 +458,7 @@ try {
             $wiseData = json_decode($wiseResponse, true);
             
             if (isset($wiseData['id'])) {
-                // إنشاء Transfer في Wise
+                // ط¥ظ†ط´ط§ط، Transfer ظپظٹ Wise
                 $transferPayload = [
                     'quoteId' => $wiseData['id'],
                     'sourceCurrency' => $currency,
@@ -512,9 +512,9 @@ try {
         }
     }
     
-    // ════════════════════════════════════════════════════════
-    // 10.3 STRIPE - البطاقات الائتمانية (مع MOTO = 2D)
-    // ════════════════════════════════════════════════════════
+    // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+    // 10.3 STRIPE - ط§ظ„ط¨ط·ط§ظ‚ط§طھ ط§ظ„ط§ط¦طھظ…ط§ظ†ظٹط© (ظ…ط¹ MOTO = 2D)
+    // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
     elseif ($gateway === 'stripe') {
         secureLog('Processing Stripe payment: ' . $reference, 'INFO');
         
@@ -529,7 +529,7 @@ try {
         
         \Stripe\Stripe::setApiKey($stripeSecret);
         
-        // إنشاء PaymentMethod
+        // ط¥ظ†ط´ط§ط، PaymentMethod
         $paymentMethod = \Stripe\PaymentMethod::create([
             'type' => 'card',
             'card' => [
@@ -545,7 +545,7 @@ try {
             ],
         ]);
         
-        // MOTO = 2D: لا نطلب 3D Secure
+        // MOTO = 2D: ظ„ط§ ظ†ط·ظ„ط¨ 3D Secure
         $intentData = [
             'amount' => (int)($amount * 100),
             'currency' => strtolower($currency),
@@ -562,20 +562,20 @@ try {
             ],
             'statement_descriptor' => 'DI PARMA PAYMENT',
             'receipt_email' => $email,
-            // MOTO = 2D: نمنع 3D Secure
+            // MOTO = 2D: ظ†ظ…ظ†ط¹ 3D Secure
             'payment_method_options' => [
                 'card' => [
-                    'request_three_d_secure' => 'automatic', // Stripe يعرف أنها MOTO
+                    'request_three_d_secure' => 'automatic', // Stripe ظٹط¹ط±ظپ ط£ظ†ظ‡ط§ MOTO
                 ],
             ],
         ];
         
-        // إضافة return_url
+        // ط¥ط¶ط§ظپط© return_url
         $intentData['return_url'] = getenv('SITE_URL') . '/receipt.php?ref=' . $reference;
         
         $paymentIntent = \Stripe\PaymentIntent::create($intentData);
         
-        // التحقق من الحالة
+        // ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ط­ط§ظ„ط©
         if ($paymentIntent->status === 'succeeded' || $paymentIntent->status === 'requires_capture') {
             $status = 'completed';
             $message = 'Stripe payment processed successfully';
@@ -589,9 +589,9 @@ try {
         }
     }
     
-    // ════════════════════════════════════════════════════════
-    // 10.4 PAYPAL - المحافظ الإلكترونية
-    // ════════════════════════════════════════════════════════
+    // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+    // 10.4 PAYPAL - ط§ظ„ظ…ط­ط§ظپط¸ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹط©
+    // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
     elseif ($gateway === 'paypal') {
         secureLog('Processing PayPal payment: ' . $reference, 'INFO');
         
@@ -603,7 +603,7 @@ try {
             throw new Exception('PayPal credentials not configured');
         }
         
-        // الحصول على Access Token
+        // ط§ظ„ط­طµظˆظ„ ط¹ظ„ظ‰ Access Token
         $auth = base64_encode($clientId . ':' . $clientSecret);
         $url = $env === 'production' 
             ? 'https://api-m.paypal.com/v1/oauth2/token'
@@ -631,7 +631,7 @@ try {
             throw new Exception('Failed to get PayPal access token');
         }
         
-        // إنشاء Order
+        // ط¥ظ†ط´ط§ط، Order
         $paypalUrl = $env === 'production'
             ? 'https://api-m.paypal.com/v2/checkout/orders'
             : 'https://api-m.sandbox.paypal.com/v2/checkout/orders';
@@ -684,9 +684,9 @@ try {
         }
     }
     
-    // ════════════════════════════════════════════════════════
-    // 10.5 MYFATOORAH - بوابة الشرق الأوسط
-    // ════════════════════════════════════════════════════════
+    // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+    // 10.5 MYFATOORAH - ط¨ظˆط§ط¨ط© ط§ظ„ط´ط±ظ‚ ط§ظ„ط£ظˆط³ط·
+    // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
     elseif ($gateway === 'myfatoorah') {
         secureLog('Processing MyFatoorah payment: ' . $reference, 'INFO');
         
@@ -711,7 +711,7 @@ try {
             'CallBackUrl' => getenv('SITE_URL') . '/receipt.php?ref=' . $reference,
             'ErrorUrl' => getenv('SITE_URL') . '/checkout.php?error=payment_failed',
             'PaymentMethod' => 'Card',
-            // MyFatoorah يدعم MOTO
+            // MyFatoorah ظٹط¯ط¹ظ… MOTO
             'MotoIndicator' => $isMoto ? 'M' : null,
         ];
         
@@ -751,7 +751,7 @@ try {
     
 } catch (Exception $e) {
     // ============================================================
-    // 11. معالجة الأخطاء
+    // 11. ظ…ط¹ط§ظ„ط¬ط© ط§ظ„ط£ط®ط·ط§ط،
     // ============================================================
     
     $status = 'failed';
@@ -771,7 +771,7 @@ try {
 }
 
 // ============================================================
-// 12. تحديث المعاملة في قاعدة البيانات
+// 12. طھط­ط¯ظٹط« ط§ظ„ظ…ط¹ط§ظ…ظ„ط© ظپظٹ ظ‚ط§ط¹ط¯ط© ط§ظ„ط¨ظٹط§ظ†ط§طھ
 // ============================================================
 
 try {
@@ -785,14 +785,14 @@ try {
         'updated_at' => date('Y-m-d H:i:s'),
     ], ['reference' => $reference]);
     
-    secureLog('Transaction updated: ' . $reference . ' → ' . $status, 'INFO');
+    secureLog('Transaction updated: ' . $reference . ' â†’ ' . $status, 'INFO');
     
 } catch (Exception $e) {
     secureLog('Database update error: ' . $e->getMessage(), 'ERROR');
 }
 
 // ============================================================
-// 13. إرسال Webhook (إذا تم تعيينه)
+// 13. ط¥ط±ط³ط§ظ„ Webhook (ط¥ط°ط§ طھظ… طھط¹ظٹظٹظ†ظ‡)
 // ============================================================
 
 $webhookUrl = getenv('DEFAULT_WEBHOOK_URL') ?: '';
@@ -833,7 +833,7 @@ if (!empty($webhookUrl) && $status !== 'failed') {
 }
 
 // ============================================================
-// 14. الرد النهائي
+// 14. ط§ظ„ط±ط¯ ط§ظ„ظ†ظ‡ط§ط¦ظٹ
 // ============================================================
 
 http_response_code(200);
@@ -856,9 +856,9 @@ echo json_encode([
     'timestamp' => date('c'),
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
-secureLog('Response sent: ' . $reference . ' → ' . $status, 'INFO');
+secureLog('Response sent: ' . $reference . ' â†’ ' . $status, 'INFO');
 
 // ============================================================
-// نهاية الملف
+// ظ†ظ‡ط§ظٹط© ط§ظ„ظ…ظ„ظپ
 // ============================================================
 ?>

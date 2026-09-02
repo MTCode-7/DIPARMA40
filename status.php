@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
@@ -8,17 +8,17 @@ requireAdmin();
 
 $db = db();
 
-// ══════════════════════════════════════════════════════════
-// [1] إحصائيات عامة
-// ══════════════════════════════════════════════════════════
+// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+// [1] ط¥ط­طµط§ط¦ظٹط§طھ ط¹ط§ظ…ط©
+// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
 $totalTransactions = $db->query("SELECT COUNT(*) as count FROM " . DB_PREFIX . "transactions")[0]['count'] ?? 0;
 $completedTransactions = $db->query("SELECT COUNT(*) as count FROM " . DB_PREFIX . "transactions WHERE status = 'completed'")[0]['count'] ?? 0;
 $totalAmount = $db->query("SELECT SUM(amount) as total FROM " . DB_PREFIX . "transactions WHERE status = 'completed'")[0]['total'] ?? 0;
 $totalFees = $db->query("SELECT SUM(fees) as total FROM " . DB_PREFIX . "transactions WHERE status = 'completed'")[0]['total'] ?? 0;
 
-// ══════════════════════════════════════════════════════════
-// [2] حالة البوابات
-// ══════════════════════════════════════════════════════════
+// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+// [2] ط­ط§ظ„ط© ط§ظ„ط¨ظˆط§ط¨ط§طھ
+// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
 $gateways = $db->query("SELECT * FROM " . DB_PREFIX . "payment_gateways ORDER BY code ASC");
 $gatewayStatus = [];
 foreach ($gateways as $gw) {
@@ -39,9 +39,9 @@ foreach ($gateways as $gw) {
     ];
 }
 
-// ══════════════════════════════════════════════════════════
-// [3] اختبار Wise API
-// ══════════════════════════════════════════════════════════
+// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+// [3] ط§ط®طھط¨ط§ط± Wise API
+// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
 $wiseStatus = ['status' => 'not_configured'];
 if (isset($gatewayStatus['wise']) && $gatewayStatus['wise']['has_credentials']) {
     $wiseConfig = getGatewayConfig('wise');
@@ -70,9 +70,9 @@ if (isset($gatewayStatus['wise']) && $gatewayStatus['wise']['has_credentials']) 
     ];
 }
 
-// ══════════════════════════════════════════════════════════
-// [4] حالة Tunnel
-// ══════════════════════════════════════════════════════════
+// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+// [4] ط­ط§ظ„ط© Tunnel
+// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
 $tunnelUrl = 'https://lovely-spiders-deny.loca.lt';
 $ch = curl_init($tunnelUrl);
 curl_setopt_array($ch, [
@@ -86,9 +86,9 @@ $tunnelCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 $tunnelActive = ($tunnelCode > 0 && $tunnelCode < 500);
 
-// ══════════════════════════════════════════════════════════
-// [5] آخر 10 معاملات
-// ══════════════════════════════════════════════════════════
+// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
+// [5] ط¢ط®ط± 10 ظ…ط¹ط§ظ…ظ„ط§طھ
+// â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
 $recentTransactions = $db->query("SELECT * FROM " . DB_PREFIX . "transactions ORDER BY created_at DESC LIMIT 10");
 
 $csrfToken = generateCsrfToken();
@@ -98,7 +98,7 @@ $csrfToken = generateCsrfToken();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DI PARMA | حالة النظام</title>
+    <title>DI PARMA | ط­ط§ظ„ط© ط§ظ„ظ†ط¸ط§ظ…</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -275,40 +275,40 @@ $csrfToken = generateCsrfToken();
     <!-- Header -->
     <div class="header">
         <div>
-            <h1>📊 حالة النظام و البوابات</h1>
-            <p style="color:#AAA;margin-top:5px;">مراقبة شاملة لجميع البوابات والعمليات</p>
+            <h1>ًں“ٹ ط­ط§ظ„ط© ط§ظ„ظ†ط¸ط§ظ… ظˆ ط§ظ„ط¨ظˆط§ط¨ط§طھ</h1>
+            <p style="color:#AAA;margin-top:5px;">ظ…ط±ط§ظ‚ط¨ط© ط´ط§ظ…ظ„ط© ظ„ط¬ظ…ظٹط¹ ط§ظ„ط¨ظˆط§ط¨ط§طھ ظˆط§ظ„ط¹ظ…ظ„ظٹط§طھ</p>
         </div>
-        <a href="index.php" class="btn"><i class="fas fa-home"></i> الرئيسية</a>
+        <a href="index.php" class="btn"><i class="fas fa-home"></i> ط§ظ„ط±ط¦ظٹط³ظٹط©</a>
     </div>
 
     <!-- Stats Grid -->
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="icon">💰</div>
+            <div class="icon">ًں’°</div>
             <div class="value"><?= number_format($totalAmount, 2) ?></div>
-            <div class="label">إجمالي المبلغ المحصّل (AED)</div>
+            <div class="label">ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…ط¨ظ„ط؛ ط§ظ„ظ…ط­طµظ‘ظ„ (AED)</div>
         </div>
         <div class="stat-card">
-            <div class="icon">📈</div>
+            <div class="icon">ًں“ˆ</div>
             <div class="value"><?= $completedTransactions ?></div>
-            <div class="label">العمليات المكتملة</div>
+            <div class="label">ط§ظ„ط¹ظ…ظ„ظٹط§طھ ط§ظ„ظ…ظƒطھظ…ظ„ط©</div>
         </div>
         <div class="stat-card">
-            <div class="icon">📊</div>
+            <div class="icon">ًں“ٹ</div>
             <div class="value"><?= $totalTransactions ?></div>
-            <div class="label">إجمالي العمليات</div>
+            <div class="label">ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط¹ظ…ظ„ظٹط§طھ</div>
         </div>
         <div class="stat-card">
-            <div class="icon">💸</div>
+            <div class="icon">ًں’¸</div>
             <div class="value"><?= number_format($totalFees, 2) ?></div>
-            <div class="label">إجمالي الرسوم</div>
+            <div class="label">ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط±ط³ظˆظ…</div>
         </div>
     </div>
 
     <!-- Tunnel Status -->
     <div class="section">
         <div class="section-title">
-            <i class="fas fa-network-wired"></i> حالة Localtunnel (Webhook)
+            <i class="fas fa-network-wired"></i> ط­ط§ظ„ط© Localtunnel (Webhook)
         </div>
         <div class="tunnel-status">
             <div class="pulse <?= $tunnelActive ? 'active' : 'inactive' ?>"></div>
@@ -316,8 +316,8 @@ $csrfToken = generateCsrfToken();
                 <div style="font-weight:600;margin-bottom:5px;"><?= $tunnelUrl ?></div>
                 <div style="font-size:0.9rem;color:#AAA;">
                     <?= $tunnelActive 
-                        ? '<span style="color:var(--success);">✅ النفق نشط — Webhooks ستعمل بشكل صحيح</span>' 
-                        : '<span style="color:var(--danger);">❌ النفق غير متاح — قم بتشغيل: lt --port 80 --subdomain lovely-spiders-deny</span>' 
+                        ? '<span style="color:var(--success);">âœ… ط§ظ„ظ†ظپظ‚ ظ†ط´ط· â€” Webhooks ط³طھط¹ظ…ظ„ ط¨ط´ظƒظ„ طµط­ظٹط­</span>' 
+                        : '<span style="color:var(--danger);">â‌Œ ط§ظ„ظ†ظپظ‚ ط؛ظٹط± ظ…طھط§ط­ â€” ظ‚ظ… ط¨طھط´ط؛ظٹظ„: lt --port 80 --subdomain lovely-spiders-deny</span>' 
                     ?>
                 </div>
             </div>
@@ -327,7 +327,7 @@ $csrfToken = generateCsrfToken();
     <!-- Gateways Status -->
     <div class="section">
         <div class="section-title">
-            <i class="fas fa-credit-card"></i> حالة البوابات (<?= count($gatewayStatus) ?> بوابة)
+            <i class="fas fa-credit-card"></i> ط­ط§ظ„ط© ط§ظ„ط¨ظˆط§ط¨ط§طھ (<?= count($gatewayStatus) ?> ط¨ظˆط§ط¨ط©)
         </div>
         <div class="gateway-grid">
             <?php foreach ($gatewayStatus as $code => $gw): ?>
@@ -349,16 +349,16 @@ $csrfToken = generateCsrfToken();
                             <?php
                             if ($gw['status'] === 'active' && $gw['has_credentials']) {
                                 if ($code === 'wise' && $wiseStatus['status'] === 'connected') {
-                                    echo '<span class="status-badge badge-success">✅ متصلة (API OK)</span>';
+                                    echo '<span class="status-badge badge-success">âœ… ظ…طھطµظ„ط© (API OK)</span>';
                                 } elseif ($code === 'wise' && $wiseStatus['status'] === 'failed') {
-                                    echo '<span class="status-badge badge-danger">❌ فشل الاتصال</span>';
+                                    echo '<span class="status-badge badge-danger">â‌Œ ظپط´ظ„ ط§ظ„ط§طھطµط§ظ„</span>';
                                 } else {
-                                    echo '<span class="status-badge badge-success">✅ مُهيّأة</span>';
+                                    echo '<span class="status-badge badge-success">âœ… ظ…ظڈظ‡ظٹظ‘ط£ط©</span>';
                                 }
                             } elseif ($gw['status'] === 'active') {
-                                echo '<span class="status-badge badge-warning">⚠️ بيانات ناقصة</span>';
+                                echo '<span class="status-badge badge-warning">âڑ ï¸ڈ ط¨ظٹط§ظ†ط§طھ ظ†ط§ظ‚طµط©</span>';
                             } else {
-                                echo '<span class="status-badge badge-danger">❌ غير نشطة</span>';
+                                echo '<span class="status-badge badge-danger">â‌Œ ط؛ظٹط± ظ†ط´ط·ط©</span>';
                             }
                             ?>
                             <span style="margin-left:8px;font-size:0.8rem;color:#888;"><?= $gw['environment'] ?></span>
@@ -370,7 +370,7 @@ $csrfToken = generateCsrfToken();
         
         <?php if ($wiseStatus['status'] !== 'not_configured'): ?>
         <div style="margin-top:20px;padding:15px;background:rgba(52,168,224,0.05);border:1px solid rgba(52,168,224,0.2);border-radius:12px;">
-            <strong>تفاصيل Wise:</strong><br>
+            <strong>طھظپط§طµظٹظ„ Wise:</strong><br>
             Profile ID: <code><?= htmlspecialchars($wiseStatus['profile_id'] ?? 'N/A') ?></code><br>
             HTTP Code: <span style="color:<?= $wiseStatus['http_code'] === 200 ? 'var(--success)' : 'var(--danger)' ?>"><?= $wiseStatus['http_code'] ?? 'N/A' ?></span><br>
             Environment: <strong><?= htmlspecialchars($wiseStatus['environment'] ?? 'N/A') ?></strong>
@@ -381,16 +381,16 @@ $csrfToken = generateCsrfToken();
     <!-- Recent Transactions -->
     <div class="section">
         <div class="section-title">
-            <i class="fas fa-history"></i> آخر 10 عمليات
+            <i class="fas fa-history"></i> ط¢ط®ط± 10 ط¹ظ…ظ„ظٹط§طھ
         </div>
         <table>
             <thead>
                 <tr>
-                    <th>المرجع</th>
-                    <th>البوابة</th>
-                    <th>المبلغ</th>
-                    <th>الحالة</th>
-                    <th>التاريخ</th>
+                    <th>ط§ظ„ظ…ط±ط¬ط¹</th>
+                    <th>ط§ظ„ط¨ظˆط§ط¨ط©</th>
+                    <th>ط§ظ„ظ…ط¨ظ„ط؛</th>
+                    <th>ط§ظ„ط­ط§ظ„ط©</th>
+                    <th>ط§ظ„طھط§ط±ظٹط®</th>
                 </tr>
             </thead>
             <tbody>
@@ -414,3 +414,4 @@ $csrfToken = generateCsrfToken();
 </div>
 </body>
 </html>
+

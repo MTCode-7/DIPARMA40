@@ -3,6 +3,12 @@
  * DI PARMA | Checkout — PayRam (Self-hosted Crypto Gateway)
  * DI PARMA → PayRam → Ledger TRX (USDT)
  */
+// Keep legacy PayRam links inside DI PARMA instead of exposing the hosted-link flow.
+$internalCheckout = rtrim(defined('SITE_URL') ? SITE_URL : '', '/') . '/checkout_diparma.php';
+$queryString = $_SERVER['QUERY_STRING'] ?? '';
+header('Location: ' . $internalCheckout . ($queryString !== '' ? '?' . $queryString : ''));
+exit;
+
 require_once __DIR__ . '/../includes/auth_check.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
@@ -173,7 +179,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="card-title"><i class="fas fa-user"></i> <?=$ar?'بيانات العميل':'Customer Details'?></div>
     <div class="fld">
       <label>Email</label>
-      <input type="email" id="custEmail" placeholder="customer@example.com" value="client@diparmas.com">
+      <input type="email" id="custEmail" placeholder="customer@example.com">
     </div>
     <div class="fld">
       <label><?=$ar?'رقم العميل (اختياري)':'Customer ID (optional)'?></label>

@@ -259,7 +259,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <!-- Orig Ref -->
     <div class="orig-wrap" id="origWrap">
       <div class="fld">
-        <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي':'Original Reference (RRN/Approval)'?></label>
+        <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي (RRN)':'Original Reference (RRN)'?></label>
         <input type="text" id="origRef" placeholder="<?=$ar?'RRN / Approval Code':'RRN / Approval Code'?>">
       </div>
     </div>

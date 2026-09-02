@@ -1,14 +1,14 @@
-<?php
+﻿<?php
 /**
  * ============================================================
- * DI PARMA | ����� ������ ����� - Version 3.0.0
+ * DI PARMA | ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ - Version 3.0.0
  * ============================================================
- * ���� 100+ ����� ��� �� ���� ����� ������
+ * ï؟½ï؟½ï؟½ï؟½ 100+ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½
  * ============================================================
  */
 
 // ============================================================
-// [1] ������ �������� ��������
+// [1] ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½
 // ============================================================
 
 /**
@@ -26,23 +26,23 @@ function getAllGatewayTransactionTypes(): array {
 
 $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     // ============================================================
-    // 1. �������� �������� ������ (Global)
+    // 1. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ (Global)
     // ============================================================
     'stripe' => [
         'name' => 'Stripe',
         'region' => 'Global',
         'icon' => 'fab fa-stripe-s',
         'credentials' => [
-            'api_key' => getenv('STRIPE_SECRET_KEY') ?: 'sk_test_...',
-            'public_key' => getenv('STRIPE_PUBLIC_KEY') ?: 'pk_test_...',
-            'webhook_secret' => getenv('STRIPE_WEBHOOK_SECRET') ?: 'whsec_...',
+            'api_key' => getenv('STRIPE_SECRET_KEY') ?: '',
+            'public_key' => getenv('STRIPE_PUBLIC_KEY') ?: '',
+            'webhook_secret' => getenv('STRIPE_WEBHOOK_SECRET') ?: '',
         ],
         'urls' => [
             'success' => getenv('STRIPE_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('STRIPE_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('STRIPE_WEBHOOK_URL') ?: '/api/webhook.php?gateway=stripe',
         ],
-        'environment' => getenv('STRIPE_ENVIRONMENT') ?: 'test',
+        'environment' => getenv('STRIPE_ENVIRONMENT') ?? '',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'KWD', 'BHD', 'OMR', 'QAR', 'EGP'],
         'fees' => ['percentage' => 2.9, 'fixed' => 0.30],
         'limits' => ['min' => 0.5, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -56,15 +56,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Global',
         'icon' => 'fab fa-paypal',
         'credentials' => [
-            'client_id' => getenv('PAYPAL_CLIENT_ID') ?: 'your_client_id',
-            'secret' => getenv('PAYPAL_SECRET') ?: 'your_secret',
+            'client_id' => getenv('PAYPAL_CLIENT_ID') ?? '',
+            'secret' => getenv('PAYPAL_SECRET') ?? '',
         ],
         'urls' => [
             'success' => getenv('PAYPAL_RETURN_URL') ?: '/payment_success.php',
             'cancel' => getenv('PAYPAL_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('PAYPAL_WEBHOOK_URL') ?: '/api/webhook.php?gateway=paypal',
         ],
-        'environment' => getenv('PAYPAL_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('PAYPAL_ENVIRONMENT') ?? '',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'KWD', 'BHD', 'OMR', 'QAR'],
         'fees' => ['percentage' => 3.4, 'fixed' => 0.30],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -78,15 +78,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Global',
         'icon' => 'fas fa-arrow-right-arrow-left',
         'credentials' => [
-            'api_key' => getenv('ADYEN_API_KEY') ?: 'your_api_key',
-            'merchant_account' => getenv('ADYEN_MERCHANT_ACCOUNT') ?: 'your_merchant_account',
+            'api_key' => getenv('ADYEN_API_KEY') ?? '',
+            'merchant_account' => getenv('ADYEN_MERCHANT_ACCOUNT') ?? '',
         ],
         'urls' => [
             'success' => getenv('ADYEN_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('ADYEN_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('ADYEN_WEBHOOK_URL') ?: '/api/webhook.php?gateway=adyen',
         ],
-        'environment' => getenv('ADYEN_ENVIRONMENT') ?: 'test',
+        'environment' => getenv('ADYEN_ENVIRONMENT') ?? '',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'KWD', 'BHD', 'OMR', 'QAR'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.20],
         'limits' => ['min' => 0.5, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -100,14 +100,14 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Global',
         'icon' => 'fas fa-shopping-cart',
         'credentials' => [
-            'api_key' => getenv('CHECKOUT_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('CHECKOUT_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('CHECKOUT_API_KEY') ?? '',
+            'secret_key' => getenv('CHECKOUT_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('CHECKOUT_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('CHECKOUT_CANCEL_URL') ?: '/payment_cancelled.php',
         ],
-        'environment' => getenv('CHECKOUT_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('CHECKOUT_ENVIRONMENT') ?? '',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'KWD', 'BHD', 'OMR', 'QAR'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.20],
         'limits' => ['min' => 0.5, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -117,7 +117,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     ],
     
     // ============================================================
-    // 2. ������ ������ (Europe)
+    // 2. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ (Europe)
     // ============================================================
     'wise' => [
         'name' => 'Wise',
@@ -125,7 +125,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'icon' => 'fas fa-exchange-alt',
         'credentials' => [
             'api_key'    => getenv('WISE_API_KEY') ?: '5497cf6e-ae91-42d2-99b8-e77d3328bf53',
-            'profile_id' => getenv('WISE_PROFILE_ID') ?: '', // ����� �������� ��� ��� ���
+            'profile_id' => getenv('WISE_PROFILE_ID') ?: '', // ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½
         ],
         'urls' => [
             'success' => getenv('WISE_SUCCESS_URL') ?: '/payment_success.php?gateway=wise',
@@ -147,15 +147,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Europe',
         'icon' => 'fas fa-credit-card',
         'credentials' => [
-            'api_key' => getenv('KLARNA_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('KLARNA_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('KLARNA_API_KEY') ?? '',
+            'secret_key' => getenv('KLARNA_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('KLARNA_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('KLARNA_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('KLARNA_WEBHOOK_URL') ?: '/api/webhook.php?gateway=klarna',
         ],
-        'environment' => getenv('KLARNA_ENVIRONMENT') ?: 'test',
+        'environment' => getenv('KLARNA_ENVIRONMENT') ?? '',
         'currencies' => ['EUR', 'USD', 'GBP', 'DKK', 'NOK', 'SEK'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -169,14 +169,14 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Europe',
         'icon' => 'fas fa-bolt',
         'credentials' => [
-            'api_key' => getenv('SOFORT_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('SOFORT_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('SOFORT_API_KEY') ?? '',
+            'secret_key' => getenv('SOFORT_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('SOFORT_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('SOFORT_CANCEL_URL') ?: '/payment_cancelled.php',
         ],
-        'environment' => getenv('SOFORT_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('SOFORT_ENVIRONMENT') ?? '',
         'currencies' => ['EUR'],
         'fees' => ['percentage' => 1.5, 'fixed' => 0.10],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -190,10 +190,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Europe',
         'icon' => 'fas fa-university',
         'credentials' => [
-            'api_key' => getenv('GIROPAY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('GIROPAY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('GIROPAY_API_KEY') ?? '',
+            'secret_key' => getenv('GIROPAY_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('GIROPAY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('GIROPAY_ENVIRONMENT') ?? '',
         'currencies' => ['EUR'],
         'fees' => ['percentage' => 1.5, 'fixed' => 0.10],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -207,10 +207,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Europe',
         'icon' => 'fas fa-university',
         'credentials' => [
-            'api_key' => getenv('IDEAL_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('IDEAL_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('IDEAL_API_KEY') ?? '',
+            'secret_key' => getenv('IDEAL_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('IDEAL_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('IDEAL_ENVIRONMENT') ?? '',
         'currencies' => ['EUR'],
         'fees' => ['percentage' => 1.5, 'fixed' => 0.10],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -220,22 +220,22 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     ],
     
     // ============================================================
-    // 3. ������ �������� (UK)
+    // 3. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ (UK)
     // ============================================================
     'revolut' => [
         'name' => 'Revolut',
         'region' => 'UK',
         'icon' => 'fas fa-credit-card',
         'credentials' => [
-            'api_key' => getenv('REVOLUT_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('REVOLUT_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('REVOLUT_API_KEY') ?? '',
+            'secret_key' => getenv('REVOLUT_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('REVOLUT_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('REVOLUT_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('REVOLUT_WEBHOOK_URL') ?: '/api/webhook.php?gateway=revolut',
         ],
-        'environment' => getenv('REVOLUT_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('REVOLUT_ENVIRONMENT') ?? '',
         'currencies' => ['GBP', 'USD', 'EUR', 'AED', 'SAR'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -245,22 +245,22 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     ],
     
     // ============================================================
-    // 4. ������ ������ (USA)
+    // 4. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ (USA)
     // ============================================================
     'square' => [
         'name' => 'Square',
         'region' => 'USA',
         'icon' => 'fas fa-square',
         'credentials' => [
-            'api_key' => getenv('SQUARE_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('SQUARE_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('SQUARE_API_KEY') ?? '',
+            'secret_key' => getenv('SQUARE_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('SQUARE_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('SQUARE_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('SQUARE_WEBHOOK_URL') ?: '/api/webhook.php?gateway=square',
         ],
-        'environment' => getenv('SQUARE_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('SQUARE_ENVIRONMENT') ?? '',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'CAD', 'AUD', 'JPY'],
         'fees' => ['percentage' => 2.6, 'fixed' => 0.10],
         'limits' => ['min' => 0.5, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -274,10 +274,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'USA',
         'icon' => 'fas fa-shield-alt',
         'credentials' => [
-            'api_key' => getenv('AUTHORIZE_NET_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('AUTHORIZE_NET_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('AUTHORIZE_NET_API_KEY') ?? '',
+            'secret_key' => getenv('AUTHORIZE_NET_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('AUTHORIZE_NET_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('AUTHORIZE_NET_ENVIRONMENT') ?? '',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'CAD', 'AUD', 'JPY', 'CHF'],
         'fees' => ['percentage' => 2.9, 'fixed' => 0.30],
         'limits' => ['min' => 0.5, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -291,10 +291,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'USA',
         'icon' => 'fas fa-tree',
         'credentials' => [
-            'api_key' => getenv('BRAINTREE_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('BRAINTREE_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('BRAINTREE_API_KEY') ?? '',
+            'secret_key' => getenv('BRAINTREE_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('BRAINTREE_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('BRAINTREE_ENVIRONMENT') ?? '',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'CAD', 'AUD', 'JPY'],
         'fees' => ['percentage' => 2.9, 'fixed' => 0.30],
         'limits' => ['min' => 0.5, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -304,22 +304,22 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     ],
     
     // ============================================================
-    // 5. ������ ����� (China)
+    // 5. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ (China)
     // ============================================================
     'alipay' => [
         'name' => 'Alipay',
         'region' => 'China',
         'icon' => 'fas fa-credit-card',
         'credentials' => [
-            'api_key' => getenv('ALIPAY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('ALIPAY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('ALIPAY_API_KEY') ?? '',
+            'secret_key' => getenv('ALIPAY_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('ALIPAY_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('ALIPAY_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('ALIPAY_WEBHOOK_URL') ?: '/api/webhook.php?gateway=alipay',
         ],
-        'environment' => getenv('ALIPAY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('ALIPAY_ENVIRONMENT') ?? '',
         'currencies' => ['CNY', 'USD', 'EUR', 'GBP', 'AED', 'JPY'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.30],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -333,15 +333,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'China',
         'icon' => 'fab fa-weixin',
         'credentials' => [
-            'api_key' => getenv('WECHAT_PAY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('WECHAT_PAY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('WECHAT_PAY_API_KEY') ?? '',
+            'secret_key' => getenv('WECHAT_PAY_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('WECHAT_PAY_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('WECHAT_PAY_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('WECHAT_PAY_WEBHOOK_URL') ?: '/api/webhook.php?gateway=wechat_pay',
         ],
-        'environment' => getenv('WECHAT_PAY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('WECHAT_PAY_ENVIRONMENT') ?? '',
         'currencies' => ['CNY', 'USD', 'EUR', 'GBP', 'AED', 'JPY'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.30],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -355,8 +355,8 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'China',
         'icon' => 'fas fa-credit-card',
         'credentials' => [
-            'api_key' => getenv('UNIONPAY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('UNIONPAY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('UNIONPAY_API_KEY') ?? '',
+            'secret_key' => getenv('UNIONPAY_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('UNIONPAY_SUCCESS_URL') ?: '/payment_success.php',
@@ -372,22 +372,22 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     ],
     
     // ============================================================
-    // 6. ������ ������� (Japan)
+    // 6. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ (Japan)
     // ============================================================
     'line_pay' => [
         'name' => 'LINE Pay',
         'region' => 'Japan',
         'icon' => 'fab fa-line',
         'credentials' => [
-            'api_key' => getenv('LINE_PAY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('LINE_PAY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('LINE_PAY_API_KEY') ?? '',
+            'secret_key' => getenv('LINE_PAY_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('LINE_PAY_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('LINE_PAY_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('LINE_PAY_WEBHOOK_URL') ?: '/api/webhook.php?gateway=line_pay',
         ],
-        'environment' => getenv('LINE_PAY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('LINE_PAY_ENVIRONMENT') ?? '',
         'currencies' => ['JPY', 'USD', 'EUR', 'GBP', 'AED'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.30],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -401,15 +401,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Japan',
         'icon' => 'fas fa-yen-sign',
         'credentials' => [
-            'api_key' => getenv('PAYPAY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('PAYPAY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('PAYPAY_API_KEY') ?? '',
+            'secret_key' => getenv('PAYPAY_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('PAYPAY_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('PAYPAY_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('PAYPAY_WEBHOOK_URL') ?: '/api/webhook.php?gateway=paypay',
         ],
-        'environment' => getenv('PAYPAY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('PAYPAY_ENVIRONMENT') ?? '',
         'currencies' => ['JPY', 'USD'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -419,22 +419,22 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     ],
     
     // ============================================================
-    // 7. ������ ����� (South Korea)
+    // 7. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ (South Korea)
     // ============================================================
     'kakao_pay' => [
         'name' => 'KakaoPay',
         'region' => 'Korea',
         'icon' => 'fas fa-comment',
         'credentials' => [
-            'api_key' => getenv('KAKAO_PAY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('KAKAO_PAY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('KAKAO_PAY_API_KEY') ?? '',
+            'secret_key' => getenv('KAKAO_PAY_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('KAKAO_PAY_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('KAKAO_PAY_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('KAKAO_PAY_WEBHOOK_URL') ?: '/api/webhook.php?gateway=kakao_pay',
         ],
-        'environment' => getenv('KAKAO_PAY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('KAKAO_PAY_ENVIRONMENT') ?? '',
         'currencies' => ['KRW', 'USD'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -448,10 +448,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Korea',
         'icon' => 'fas fa-coin',
         'credentials' => [
-            'api_key' => getenv('TOSS_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('TOSS_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('TOSS_API_KEY') ?? '',
+            'secret_key' => getenv('TOSS_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('TOSS_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('TOSS_ENVIRONMENT') ?? '',
         'currencies' => ['KRW', 'USD'],
         'fees' => ['percentage' => 1.5, 'fixed' => 0.10],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -461,17 +461,17 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     ],
     
     // ============================================================
-    // 8. ������ ���� ��� ���� (SE Asia)
+    // 8. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ (SE Asia)
     // ============================================================
     'grab_pay' => [
         'name' => 'GrabPay',
         'region' => 'SE Asia',
         'icon' => 'fas fa-car',
         'credentials' => [
-            'api_key' => getenv('GRAB_PAY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('GRAB_PAY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('GRAB_PAY_API_KEY') ?? '',
+            'secret_key' => getenv('GRAB_PAY_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('GRAB_PAY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('GRAB_PAY_ENVIRONMENT') ?? '',
         'currencies' => ['SGD', 'MYR', 'USD', 'EUR', 'GBP', 'AED'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -485,10 +485,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'SE Asia',
         'icon' => 'fas fa-motorcycle',
         'credentials' => [
-            'api_key' => getenv('GOPAY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('GOPAY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('GOPAY_API_KEY') ?? '',
+            'secret_key' => getenv('GOPAY_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('GOPAY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('GOPAY_ENVIRONMENT') ?? '',
         'currencies' => ['IDR', 'USD'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -502,10 +502,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'SE Asia',
         'icon' => 'fas fa-mobile-alt',
         'credentials' => [
-            'api_key' => getenv('OVO_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('OVO_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('OVO_API_KEY') ?? '',
+            'secret_key' => getenv('OVO_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('OVO_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('OVO_ENVIRONMENT') ?? '',
         'currencies' => ['IDR', 'USD'],
         'fees' => ['percentage' => 1.5, 'fixed' => 0.10],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -519,10 +519,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'SE Asia',
         'icon' => 'fas fa-money-bill',
         'credentials' => [
-            'api_key' => getenv('TRUEMONEY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('TRUEMONEY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('TRUEMONEY_API_KEY') ?? '',
+            'secret_key' => getenv('TRUEMONEY_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('TRUEMONEY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('TRUEMONEY_ENVIRONMENT') ?? '',
         'currencies' => ['THB', 'USD'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -536,10 +536,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'SE Asia',
         'icon' => 'fas fa-mobile-alt',
         'credentials' => [
-            'api_key' => getenv('GCASH_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('GCASH_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('GCASH_API_KEY') ?? '',
+            'secret_key' => getenv('GCASH_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('GCASH_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('GCASH_ENVIRONMENT') ?? '',
         'currencies' => ['PHP', 'USD'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -553,10 +553,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'SE Asia',
         'icon' => 'fas fa-wallet',
         'credentials' => [
-            'api_key' => getenv('MOMO_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('MOMO_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('MOMO_API_KEY') ?? '',
+            'secret_key' => getenv('MOMO_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('MOMO_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('MOMO_ENVIRONMENT') ?? '',
         'currencies' => ['VND', 'USD'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -566,22 +566,22 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     ],
     
     // ============================================================
-    // 9. ������ ����� (India)
+    // 9. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ (India)
     // ============================================================
     'razorpay' => [
         'name' => 'Razorpay',
         'region' => 'India',
         'icon' => 'fas fa-razor',
         'credentials' => [
-            'api_key' => getenv('RAZORPAY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('RAZORPAY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('RAZORPAY_API_KEY') ?? '',
+            'secret_key' => getenv('RAZORPAY_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('RAZORPAY_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('RAZORPAY_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('RAZORPAY_WEBHOOK_URL') ?: '/api/webhook.php?gateway=razorpay',
         ],
-        'environment' => getenv('RAZORPAY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('RAZORPAY_ENVIRONMENT') ?? '',
         'currencies' => ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SAR'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.30],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -595,10 +595,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'India',
         'icon' => 'fas fa-building-columns',
         'credentials' => [
-            'api_key' => getenv('CCAVENUE_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('CCAVENUE_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('CCAVENUE_API_KEY') ?? '',
+            'secret_key' => getenv('CCAVENUE_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('CCAVENUE_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('CCAVENUE_ENVIRONMENT') ?? '',
         'currencies' => ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SAR'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.30],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -612,10 +612,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'India',
         'icon' => 'fas fa-mobile-alt',
         'credentials' => [
-            'api_key' => getenv('PAYTM_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('PAYTM_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('PAYTM_API_KEY') ?? '',
+            'secret_key' => getenv('PAYTM_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('PAYTM_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('PAYTM_ENVIRONMENT') ?? '',
         'currencies' => ['INR', 'USD'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -629,10 +629,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'India',
         'icon' => 'fas fa-phone-alt',
         'credentials' => [
-            'api_key' => getenv('PHONEPE_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('PHONEPE_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('PHONEPE_API_KEY') ?? '',
+            'secret_key' => getenv('PHONEPE_SECRET_KEY') ?? '',
         ],
-        'environment' => getenv('PHONEPE_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('PHONEPE_ENVIRONMENT') ?? '',
         'currencies' => ['INR'],
         'fees' => ['percentage' => 1.5, 'fixed' => 0.10],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -642,22 +642,22 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     ],
     
     // ============================================================
-    // 10. ������ ����� ������ (MENA)
+    // 10. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ (MENA)
     // ============================================================
     'paytabs' => [
         'name' => 'PayTabs',
         'region' => 'MENA',
         'icon' => 'fas fa-tab',
         'credentials' => [
-            'api_key' => getenv('PAYTABS_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('PAYTABS_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('PAYTABS_API_KEY') ?? '',
+            'secret_key' => getenv('PAYTABS_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('PAYTABS_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('PAYTABS_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('PAYTABS_WEBHOOK_URL') ?: '/api/webhook.php?gateway=paytabs',
         ],
-        'environment' => getenv('PAYTABS_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('PAYTABS_ENVIRONMENT') ?? '',
         'currencies' => ['USD', 'EUR', 'AED', 'SAR', 'KWD', 'BHD', 'OMR', 'QAR', 'EGP'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.30],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -671,15 +671,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'MENA',
         'icon' => 'fas fa-fort-awesome',
         'credentials' => [
-            'api_key' => getenv('PAYFORT_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('PAYFORT_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('PAYFORT_API_KEY') ?? '',
+            'secret_key' => getenv('PAYFORT_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('PAYFORT_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('PAYFORT_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('PAYFORT_WEBHOOK_URL') ?: '/api/webhook.php?gateway=payfort',
         ],
-        'environment' => getenv('PAYFORT_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('PAYFORT_ENVIRONMENT') ?? '',
         'currencies' => ['AED', 'SAR', 'USD', 'EUR', 'GBP', 'KWD', 'BHD', 'OMR', 'QAR'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.30],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -693,15 +693,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'MENA',
         'icon' => 'fas fa-bolt',
         'credentials' => [
-            'api_key' => getenv('HYPERPAY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('HYPERPAY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('HYPERPAY_API_KEY') ?? '',
+            'secret_key' => getenv('HYPERPAY_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('HYPERPAY_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('HYPERPAY_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('HYPERPAY_WEBHOOK_URL') ?: '/api/webhook.php?gateway=hyperpay',
         ],
-        'environment' => getenv('HYPERPAY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('HYPERPAY_ENVIRONMENT') ?? '',
         'currencies' => ['AED', 'SAR', 'USD', 'EUR', 'GBP', 'KWD', 'BHD', 'OMR', 'QAR'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.30],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -715,15 +715,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'MENA',
         'icon' => 'fas fa-tap',
         'credentials' => [
-            'api_key' => getenv('TAP_PAYMENTS_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('TAP_PAYMENTS_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('TAP_PAYMENTS_API_KEY') ?? '',
+            'secret_key' => getenv('TAP_PAYMENTS_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('TAP_PAYMENTS_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('TAP_PAYMENTS_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('TAP_PAYMENTS_WEBHOOK_URL') ?: '/api/webhook.php?gateway=tap',
         ],
-        'environment' => getenv('TAP_PAYMENTS_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('TAP_PAYMENTS_ENVIRONMENT') ?? '',
         'currencies' => ['AED', 'SAR', 'USD', 'EUR', 'GBP', 'KWD', 'BHD', 'OMR', 'QAR'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -745,7 +745,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
             'cancel' => getenv('MYFAOORAH_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('MYFAOORAH_WEBHOOK_URL') ?: 'https://diparmas.com/diparma/api/webhook_receiver.php',
         ],
-        'environment' => getenv('MYFAOORAH_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('MYFAOORAH_ENVIRONMENT') ?? '',
         'currencies' => ['AED', 'SAR', 'KWD', 'BHD', 'OMR', 'QAR', 'USD', 'EUR'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -754,22 +754,22 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'setup_complete' => true
     ],
 
-    // integrated محذوف نهائياً — لا محاكاة
+    // integrated ظ…ط­ط°ظˆظپ ظ†ظ‡ط§ط¦ظٹط§ظ‹ â€” ظ„ط§ ظ…ط­ط§ظƒط§ط©
     
     'ziina' => [
         'name' => 'Ziina',
         'region' => 'MENA',
         'icon' => 'fas fa-wallet',
         'credentials' => [
-            'api_key' => getenv('ZIINA_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('ZIINA_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('ZIINA_API_KEY') ?? '',
+            'secret_key' => getenv('ZIINA_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('ZIINA_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('ZIINA_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('ZIINA_WEBHOOK_URL') ?: '/api/webhook.php?gateway=ziina',
         ],
-        'environment' => getenv('ZIINA_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('ZIINA_ENVIRONMENT') ?? '',
         'currencies' => ['AED', 'USD', 'EUR', 'GBP', 'SAR'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -783,15 +783,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'MENA',
         'icon' => 'fas fa-mobile-alt',
         'credentials' => [
-            'api_key' => getenv('PAYMOB_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('PAYMOB_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('PAYMOB_API_KEY') ?? '',
+            'secret_key' => getenv('PAYMOB_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('PAYMOB_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('PAYMOB_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('PAYMOB_WEBHOOK_URL') ?: '/api/webhook.php?gateway=paymob',
         ],
-        'environment' => getenv('PAYMOB_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('PAYMOB_ENVIRONMENT') ?? '',
         'currencies' => ['EGP', 'USD', 'EUR', 'AED', 'SAR'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.20],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -805,15 +805,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'MENA',
         'icon' => 'fas fa-credit-card',
         'credentials' => [
-            'api_key' => getenv('FAWRY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('FAWRY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('FAWRY_API_KEY') ?? '',
+            'secret_key' => getenv('FAWRY_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('FAWRY_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('FAWRY_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('FAWRY_WEBHOOK_URL') ?: '/api/webhook.php?gateway=fawry',
         ],
-        'environment' => getenv('FAWRY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('FAWRY_ENVIRONMENT') ?? '',
         'currencies' => ['EGP', 'USD'],
         'fees' => ['percentage' => 2.0, 'fixed' => 0.15],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -823,22 +823,22 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     ],
     
     // ============================================================
-    // 11. ������ ������� (Africa)
+    // 11. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ (Africa)
     // ============================================================
     'flutterwave' => [
         'name' => 'Flutterwave',
         'region' => 'Africa',
         'icon' => 'fas fa-wave-square',
         'credentials' => [
-            'api_key' => getenv('FLUTTERWAVE_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('FLUTTERWAVE_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('FLUTTERWAVE_API_KEY') ?? '',
+            'secret_key' => getenv('FLUTTERWAVE_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('FLUTTERWAVE_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('FLUTTERWAVE_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('FLUTTERWAVE_WEBHOOK_URL') ?: '/api/webhook.php?gateway=flutterwave',
         ],
-        'environment' => getenv('FLUTTERWAVE_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('FLUTTERWAVE_ENVIRONMENT') ?? '',
         'currencies' => ['NGN', 'USD', 'EUR', 'GBP', 'AED', 'SAR', 'KWD', 'BHD', 'OMR', 'QAR'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.30],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -852,15 +852,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Africa',
         'icon' => 'fas fa-stack-overflow',
         'credentials' => [
-            'api_key' => getenv('PAYSTACK_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('PAYSTACK_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('PAYSTACK_API_KEY') ?? '',
+            'secret_key' => getenv('PAYSTACK_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('PAYSTACK_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('PAYSTACK_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('PAYSTACK_WEBHOOK_URL') ?: '/api/webhook.php?gateway=paystack',
         ],
-        'environment' => getenv('PAYSTACK_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('PAYSTACK_ENVIRONMENT') ?? '',
         'currencies' => ['NGN', 'USD', 'GBP', 'EUR', 'AED', 'SAR'],
         'fees' => ['percentage' => 2.5, 'fixed' => 0.30],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -874,15 +874,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Africa',
         'icon' => 'fas fa-mobile-alt',
         'credentials' => [
-            'api_key' => getenv('MPESA_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('MPESA_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('MPESA_API_KEY') ?? '',
+            'secret_key' => getenv('MPESA_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('MPESA_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('MPESA_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('MPESA_WEBHOOK_URL') ?: '/api/webhook.php?gateway=mpesa',
         ],
-        'environment' => getenv('MPESA_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('MPESA_ENVIRONMENT') ?? '',
         'currencies' => ['KES', 'USD', 'EUR', 'GBP', 'AED'],
         'fees' => ['percentage' => 1.5, 'fixed' => 0.10],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -892,22 +892,22 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     ],
     
     // ============================================================
-    // 12. ������ ������� ������� (Cryptocurrency)
+    // 12. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ (Cryptocurrency)
     // ============================================================
     'binance' => [
         'name' => 'Binance Pay',
         'region' => 'Crypto',
         'icon' => 'fab fa-btc',
         'credentials' => [
-            'api_key' => getenv('BINANCE_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('BINANCE_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('BINANCE_API_KEY') ?? '',
+            'secret_key' => getenv('BINANCE_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('BINANCE_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('BINANCE_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('BINANCE_WEBHOOK_URL') ?: '/api/webhook.php?gateway=binance',
         ],
-        'environment' => getenv('BINANCE_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('BINANCE_ENVIRONMENT') ?? '',
         'currencies' => ['USDT', 'BNB', 'BTC', 'ETH', 'BUSD', 'USDC', 'XRP', 'SOL', 'ADA'],
         'fees' => ['percentage' => 1.0, 'fixed' => 0.10],
         'limits' => ['min' => 5, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -921,15 +921,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Crypto',
         'icon' => 'fab fa-bitcoin',
         'credentials' => [
-            'api_key' => getenv('COINBASE_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('COINBASE_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('COINBASE_API_KEY') ?? '',
+            'secret_key' => getenv('COINBASE_SECRET_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('COINBASE_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('COINBASE_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('COINBASE_WEBHOOK_URL') ?: '/api/webhook.php?gateway=coinbase',
         ],
-        'environment' => getenv('COINBASE_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('COINBASE_ENVIRONMENT') ?? '',
         'currencies' => ['BTC', 'ETH', 'USDT', 'USDC', 'DAI', 'BUSD', 'PAXG', 'WBTC'],
         'fees' => ['percentage' => 1.0, 'fixed' => 0.00],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -943,8 +943,8 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Crypto',
         'icon' => 'fas fa-moon',
         'credentials' => [
-            'api_key' => getenv('MOONPAY_API_KEY') ?: 'your_api_key',
-            'secret_key' => getenv('MOONPAY_SECRET_KEY') ?: 'your_secret_key',
+            'api_key' => getenv('MOONPAY_API_KEY') ?? '',
+            'secret_key' => getenv('MOONPAY_SECRET_KEY') ?? '',
             'moonpay_id' => getenv('MOONPAY_ID') ?: '',
             'moonpay_token' => getenv('MOONPAY_TOKEN') ?: '',
         ],
@@ -953,7 +953,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
             'cancel' => getenv('MOONPAY_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('MOONPAY_WEBHOOK_URL') ?: '/api/webhook.php?gateway=moonpay',
         ],
-        'environment' => getenv('MOONPAY_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('MOONPAY_ENVIRONMENT') ?? '',
         'currencies' => ['BTC', 'ETH', 'USDT', 'USDC', 'DAI', 'BUSD', 'PAXG', 'WBTC', 'LINK'],
         'fees' => ['percentage' => 1.5, 'fixed' => 0.20],
         'limits' => ['min' => 5, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -967,15 +967,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Global',
         'icon' => 'fas fa-rocket',
         'credentials' => [
-            'api_key' => getenv('RAMP_API_KEY') ?: 'your_api_key',
-            'public_key' => getenv('RAMP_PUBLIC_KEY') ?: 'your_public_key',
+            'api_key' => getenv('RAMP_API_KEY') ?? '',
+            'public_key' => getenv('RAMP_PUBLIC_KEY') ?? '',
         ],
         'urls' => [
             'success' => getenv('RAMP_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('RAMP_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('RAMP_WEBHOOK_URL') ?: '/api/webhook.php?gateway=ramp',
         ],
-        'environment' => getenv('RAMP_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('RAMP_ENVIRONMENT') ?? '',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'KWD', 'BHD', 'OMR', 'QAR'],
         'fees' => ['percentage' => 1.9, 'fixed' => 0.30],
         'limits' => ['min' => 10, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -989,14 +989,14 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Global',
         'icon' => 'fas fa-book',
         'credentials' => [
-            'client_id' => getenv('QUICKBOOKS_CLIENT_ID') ?: 'your_client_id',
-            'client_secret' => getenv('QUICKBOOKS_CLIENT_SECRET') ?: 'your_client_secret',
-            'realm_id' => getenv('QUICKBOOKS_REALM_ID') ?: 'your_realm_id',
+            'client_id' => getenv('QUICKBOOKS_CLIENT_ID') ?? '',
+            'client_secret' => getenv('QUICKBOOKS_CLIENT_SECRET') ?? '',
+            'realm_id' => getenv('QUICKBOOKS_REALM_ID') ?? '',
         ],
         'urls' => [
             'webhook' => getenv('QUICKBOOKS_WEBHOOK_URL') ?: '/api/webhook.php?gateway=quickbooks',
         ],
-        'environment' => getenv('QUICKBOOKS_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('QUICKBOOKS_ENVIRONMENT') ?? '',
         'currencies' => ['USD', 'EUR', 'GBP', 'CAD', 'AUD'],
         'fees' => ['percentage' => 0.0, 'fixed' => 0.00],
         'limits' => ['min' => 0.01, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -1051,7 +1051,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
 ];
 
 // ============================================================
-// [2] ���� ���� ��������
+// [2] ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½
 // ============================================================
 
 function getDbGatewaysConfig() {
@@ -1156,7 +1156,7 @@ function buildMoonPaySignedUrl(array $payload = [], array $config = []): ?string
         return null;
     }
 
-    $environment = strtolower((string)($config['environment'] ?? getenv('MOONPAY_ENVIRONMENT') ?: 'sandbox'));
+    $environment = strtolower((string)($config['environment'] ?? getenv('MOONPAY_ENVIRONMENT') ?: ''));
     $baseUrl = ($environment === 'live') ? 'https://buy.moonpay.com/' : 'https://buy-sandbox.moonpay.com/';
 
     $params = [];
@@ -1210,7 +1210,7 @@ function getGatewayConfig($code) {
 }
 
 function hasValidGatewayConfig(array $gw): bool {
-    // 1. setup_complete = true صريح
+    // 1. setup_complete = true طµط±ظٹط­
     if (!empty($gw['setup_complete'])) {
         return true;
     }
@@ -1220,7 +1220,7 @@ function hasValidGatewayConfig(array $gw): bool {
         return true;
     }
 
-    // 3. يوجد API Key حقيقي
+    // 3. ظٹظˆط¬ط¯ API Key ط­ظ‚ظٹظ‚ظٹ
     $creds = $gw['credentials'] ?? [];
     if (!empty($creds) && is_array($creds)) {
         $badValues = ['your_api_key','your_secret','your_client_id','','your_merchant_id',
@@ -1376,7 +1376,7 @@ function gateway_service() {
                 }
 
                 $txnId = $db->insert('transactions', $transactionData);
-                // ��� ����� ������� ��������� �� ���� �����
+                // ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½
                 try {
                     $db->execute("CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "contracts` (
                         `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -1395,7 +1395,7 @@ function gateway_service() {
                     if (function_exists('getSiteTerms') && trim(getSiteTerms()) !== '') {
                         $termsText = getSiteTerms();
                     } else {
-                        $termsText = "������ ��������: ��� ����� ����� ��� ����� ����� ������ �� �������. �� ���� ��������� �� ����� ����� ��� ����� ����� ��� �������� ���� �� ����� ������.";
+                        $termsText = "ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½: ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½. ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½.";
                     }
                     $db->insert('contracts', [
                         'reference' => $reference,
@@ -1409,7 +1409,7 @@ function gateway_service() {
                         'created_at' => date('Y-m-d H:i:s')
                     ]);
                 } catch (Exception $e) {
-                    // �� ���� �������� ��� ��� ��� ����ϡ ��� ���� �����
+                    // ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½د، ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½
                     logEvent('Failed to persist contract: ' . $e->getMessage(), 'error');
                 }
 
@@ -1709,20 +1709,20 @@ function gateway_service() {
             $currency    = strtoupper(trim($payload['currency'] ?? 'USD'));
             $appleToken  = trim($payload['apple_pay_token'] ?? $payload['payment_token'] ?? '');
 
-            // Apple Pay ����� Payment Session ��� ������
-            // �� �������: ������ ������ �� ������ ? ������ ��� PSP (Stripe/Adyen)
-            // ��� ������ ��� Stripe ��� ��� ������� ���� ����� pending
+            // Apple Pay ï؟½ï؟½ï؟½ï؟½ï؟½ Payment Session ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½
+            // ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½: ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ? ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ PSP (Stripe/Adyen)
+            // ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ Stripe ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ pending
             $stripeConfig = getGatewayConfig('stripe');
             $stripeKey    = trim($stripeConfig['credentials']['api_key'] ?? getenv('STRIPE_SECRET_KEY') ?: '');
 
             if (!empty($stripeKey) && strpos($stripeKey, 'sk_') === 0 && !empty($appleToken)) {
-                // ����� Apple Pay token ��� Stripe
+                // ï؟½ï؟½ï؟½ï؟½ï؟½ Apple Pay token ï؟½ï؟½ï؟½ Stripe
                 $stripePayload = json_encode([
                     'amount'               => intval($amount * 100),
                     'currency'             => strtolower($currency),
                     'payment_method_data'  => ['type' => 'card', 'card' => ['token' => $appleToken]],
                     'confirm'              => 'true',
-                    'description'          => $payload['description'] ?? 'Apple Pay � DI PARMA',
+                    'description'          => $payload['description'] ?? 'Apple Pay ï؟½ DI PARMA',
                     'metadata'             => ['reference' => $reference, 'source' => 'apple_pay'],
                 ]);
                 $ch = curl_init('https://api.stripe.com/v1/payment_intents');
@@ -1743,7 +1743,7 @@ function gateway_service() {
                     return [
                         'success'        => true,
                         'status'         => 'captured',
-                        'message'        => '? �� ����� Apple Pay ����� ��� Stripe',
+                        'message'        => '? ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ Apple Pay ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ Stripe',
                         'provider'       => 'apple_pay',
                         'reference'      => $reference,
                         'transaction_id' => $decoded['id'] ?? null,
@@ -1759,11 +1759,11 @@ function gateway_service() {
                 ];
             }
 
-            // Fallback: Apple Pay pending (������� JS token �� ������)
+            // Fallback: Apple Pay pending (ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ JS token ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½)
             return [
                 'success'              => true,
                 'status'               => 'pending',
-                'message'              => 'Apple Pay: ���� ����� ��� �������� ���������� ��� ������. ���� ������� �� ������.',
+                'message'              => 'Apple Pay: ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½. ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½.',
                 'provider'             => 'apple_pay',
                 'reference'            => $reference,
                 'payment_method'       => 'apple_pay',
@@ -1785,7 +1785,7 @@ function gateway_service() {
             $currency     = strtoupper(trim($payload['currency'] ?? 'USD'));
             $googleToken  = trim($payload['google_pay_token'] ?? $payload['payment_token'] ?? '');
 
-            // Google Pay ����� encryptedPaymentData ? ������ ��� PSP
+            // Google Pay ï؟½ï؟½ï؟½ï؟½ï؟½ encryptedPaymentData ? ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ PSP
             $stripeConfig = getGatewayConfig('stripe');
             $stripeKey    = trim($stripeConfig['credentials']['api_key'] ?? getenv('STRIPE_SECRET_KEY') ?: '');
 
@@ -1795,7 +1795,7 @@ function gateway_service() {
                     'currency'            => strtolower($currency),
                     'payment_method_data' => ['type' => 'card', 'card' => ['token' => $googleToken]],
                     'confirm'             => 'true',
-                    'description'         => $payload['description'] ?? 'Google Pay � DI PARMA',
+                    'description'         => $payload['description'] ?? 'Google Pay ï؟½ DI PARMA',
                     'metadata'            => ['reference' => $reference, 'source' => 'google_pay'],
                 ]);
                 $ch = curl_init('https://api.stripe.com/v1/payment_intents');
@@ -1816,7 +1816,7 @@ function gateway_service() {
                     return [
                         'success'        => true,
                         'status'         => 'captured',
-                        'message'        => '? �� ����� Google Pay ����� ��� Stripe',
+                        'message'        => '? ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ Google Pay ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ Stripe',
                         'provider'       => 'google_pay',
                         'reference'      => $reference,
                         'transaction_id' => $decoded['id'] ?? null,
@@ -1836,7 +1836,7 @@ function gateway_service() {
             return [
                 'success'              => true,
                 'status'               => 'pending',
-                'message'              => 'Google Pay: ���� ����� ��� �������� ��� ���� Google. ���� ������� �� ������.',
+                'message'              => 'Google Pay: ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ Google. ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½.',
                 'provider'             => 'google_pay',
                 'reference'            => $reference,
                 'payment_method'       => 'google_pay',
@@ -1862,7 +1862,7 @@ function gateway_service() {
                 ];
             }
 
-            $environment = $config['environment'] ?? getenv('MYFAOORAH_ENVIRONMENT') ?: 'sandbox';
+            $environment = $config['environment'] ?? getenv('MYFAOORAH_ENVIRONMENT') ?: '';
             $baseUrl = ($environment === 'live') ? 'https://api.myfatoorah.com' : 'https://apitest.myfatoorah.com';
             $amount = round(floatval($payload['amount'] ?? 0), 2);
             $currency = strtoupper(trim($payload['currency'] ?? 'AED'));
@@ -2111,3 +2111,6 @@ function gateway_service() {
 }
 
 ?>
+
+
+

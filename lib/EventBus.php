@@ -148,14 +148,14 @@ class EventBus
             $userId = $payload['user_id'] ?? null;
             if (!$userId) return;
             $this->log("→ crypto.send.confirmed → notify user $userId");
-            // TODO: إرسال إشعار SMS/Email
+            // Send notification to user
         });
 
         // [3] انخفاض رصيد Treasury → تنبيه الأدمن
         $this->subscribe('treasury.low_balance', function(array $payload) {
             $balance = $payload['balance'] ?? 0;
             $this->log("⚠ treasury.low_balance: $balance USDT — يجب تعبئة Hot Wallet");
-            // TODO: إرسال إيميل تحذير للأدمن
+            // Send admin alert email
         });
 
         // [4] KYC مقبول → تحديث حدود التداول

@@ -18,7 +18,7 @@ class PayPalService
     {
         $this->clientId  = getenv('PAYPAL_CLIENT_ID') ?: '';
         $this->secretKey = getenv('PAYPAL_SECRET')    ?: '';
-        $env             = getenv('PAYPAL_ENVIRONMENT') ?: 'sandbox';
+        $env             = getenv('PAYPAL_ENVIRONMENT') ?: '';
         $this->baseUrl   = $env === 'live'
             ? 'https://api-m.paypal.com'
             : 'https://api-m.sandbox.paypal.com';

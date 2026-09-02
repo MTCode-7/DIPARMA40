@@ -180,7 +180,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <!-- Orig Ref -->
     <div id="bankOrigRefWrap" style="display:none;margin-bottom:12px">
       <div class="fld">
-        <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي':'Original Reference'?></label>
+        <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي (RRN)':'Original Reference (RRN)'?></label>
         <input type="text" id="bankOrigRef" placeholder="<?=$ar?'RRN / Approval Code':'RRN / Approval Code'?>">
       </div>
     </div>

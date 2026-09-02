@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database.php';
 
@@ -12,25 +12,25 @@ header('Pragma: no-cache');
 echo chr(0xEF).chr(0xBB).chr(0xBF);
 echo "<table border='1'>";
 echo "<tr style='background:#1a1a2e;color:#FFD700;font-weight:bold'>
-<td>الكود</td>
-<td>الاسم</td>
-<td>النوع</td>
-<td>الحالة</td>
-<td>المنطقة</td>
-<td>الرسوم %</td>
-<td>الحد الأدنى USD</td>
-<td>الحد اليومي USD</td>
+<td>ط§ظ„ظƒظˆط¯</td>
+<td>ط§ظ„ط§ط³ظ…</td>
+<td>ط§ظ„ظ†ظˆط¹</td>
+<td>ط§ظ„ط­ط§ظ„ط©</td>
+<td>ط§ظ„ظ…ظ†ط·ظ‚ط©</td>
+<td>ط§ظ„ط±ط³ظˆظ… %</td>
+<td>ط§ظ„ط­ط¯ ط§ظ„ط£ط¯ظ†ظ‰ USD</td>
+<td>ط§ظ„ط­ط¯ ط§ظ„ظٹظˆظ…ظٹ USD</td>
 <td>API Key</td>
 <td>Secret Key</td>
 <td>Merchant ID</td>
 <td>Webhook URL</td>
 <td>Success URL</td>
-<td>البيئة</td>
-<td>الميزات</td>
-<td>أنواع البطاقات</td>
-<td>العملات</td>
-<td>الوصف</td>
-<td>رابط التسجيل</td>
+<td>ط§ظ„ط¨ظٹط¦ط©</td>
+<td>ط§ظ„ظ…ظٹط²ط§طھ</td>
+<td>ط£ظ†ظˆط§ط¹ ط§ظ„ط¨ط·ط§ظ‚ط§طھ</td>
+<td>ط§ظ„ط¹ظ…ظ„ط§طھ</td>
+<td>ط§ظ„ظˆطµظپ</td>
+<td>ط±ط§ط¨ط· ط§ظ„طھط³ط¬ظٹظ„</td>
 </tr>";
 
 $registrationLinks = [
@@ -83,7 +83,7 @@ foreach ($gateways as $gw) {
     $secretKey = $creds['secret_key'] ?? $creds['secret']       ?? $creds['client_secret'] ?? '';
     $merchantId= $creds['merchant_id']?? $creds['merchant_account'] ?? $creds['store_id'] ?? '';
 
-    $status = $gw['status'] === 'active' ? 'نشط ✓' : 'غير نشط';
+    $status = $gw['status'] === 'active' ? 'ظ†ط´ط· âœ“' : 'ط؛ظٹط± ظ†ط´ط·';
     $bgColor = $gw['status'] === 'active' ? '#e8f5e9' : '#fff';
 
     echo "<tr style='background:{$bgColor}'>
@@ -95,8 +95,8 @@ foreach ($gateways as $gw) {
     <td>" . ($fees['percentage'] ?? 0) . "%</td>
     <td>" . ($limits['min'] ?? 0) . "</td>
     <td>" . number_format($limits['max_daily'] ?? 0) . "</td>
-    <td>" . (empty($apiKey) ? '(فارغ)' : $apiKey) . "</td>
-    <td>" . (empty($secretKey) ? '(فارغ)' : $secretKey) . "</td>
+    <td>" . (empty($apiKey) ? '(ظپط§ط±ط؛)' : $apiKey) . "</td>
+    <td>" . (empty($secretKey) ? '(ظپط§ط±ط؛)' : $secretKey) . "</td>
     <td>" . (empty($merchantId) ? '-' : $merchantId) . "</td>
     <td>" . ($settings['webhook_url'] ?? $settings['webhook'] ?? '-') . "</td>
     <td>" . ($settings['success_url'] ?? $config['urls']['success'] ?? '-') . "</td>
@@ -109,3 +109,4 @@ foreach ($gateways as $gw) {
     </tr>";
 }
 echo "</table>";
+

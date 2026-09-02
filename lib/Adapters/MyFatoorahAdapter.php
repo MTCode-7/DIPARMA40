@@ -18,7 +18,7 @@ class MyFatoorahAdapter implements GatewayAdapterInterface
     public function __construct()
     {
         $this->apiKey  = getenv('MYFAOORAH_API_KEY') ?: '';
-        $env           = getenv('MYFAOORAH_ENVIRONMENT') ?: 'sandbox';
+        $env           = getenv('MYFAOORAH_ENVIRONMENT') ?: '';
         $this->baseUrl = $env === 'live'
             ? 'https://api.myfatoorah.com'
             : 'https://apitest.myfatoorah.com';

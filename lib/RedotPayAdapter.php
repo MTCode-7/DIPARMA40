@@ -31,7 +31,7 @@ class RedotPayAdapter
         $this->privateKey = defined('REDOTPAY_PRIVATE_KEY') ? REDOTPAY_PRIVATE_KEY : (getenv('REDOTPAY_PRIVATE_KEY') ?: '');
         $this->publicKey  = defined('REDOTPAY_PUBLIC_KEY')  ? REDOTPAY_PUBLIC_KEY  : (getenv('REDOTPAY_PUBLIC_KEY')  ?: '');
         $this->keyVersion = (int)(defined('REDOTPAY_KEY_VERSION') ? REDOTPAY_KEY_VERSION : (getenv('REDOTPAY_KEY_VERSION') ?: 1));
-        $env              = defined('REDOTPAY_ENVIRONMENT') ? REDOTPAY_ENVIRONMENT : (getenv('REDOTPAY_ENVIRONMENT') ?: 'sandbox');
+        $env              = defined('REDOTPAY_ENVIRONMENT') ? REDOTPAY_ENVIRONMENT : (getenv('REDOTPAY_ENVIRONMENT') ?: '');
         $this->isLive     = in_array($env, ['live','production']);
         $this->baseUrl    = $this->isLive ? self::URL_PRODUCTION : self::URL_SANDBOX;
     }

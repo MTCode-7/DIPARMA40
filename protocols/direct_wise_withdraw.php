@@ -16,7 +16,7 @@ $amount         = floatval($requestData['amount'] ?? 0);
 $sourceCurrency = strtoupper(trim($requestData['currency'] ?? 'USD'));
 $targetCurrency = strtoupper(trim($requestData['target_currency'] ?? 'EUR')); // العملة المستلمة
 $customerName   = trim($requestData['customer_name'] ?? 'FAHAD ALOTAIBI');
-$customerEmail  = trim($requestData['customer_email'] ?? 'customer@example.com');
+$customerEmail  = trim($requestData['customer_email'] ?? '');
 $targetIban     = trim($requestData['target_iban'] ?? ''); // حساب/آيبان المستلم
 
 // [2] التحقق من صحة المبلغ

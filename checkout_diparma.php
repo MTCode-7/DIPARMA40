@@ -65,7 +65,7 @@ $TXN = [
         'icon'=>'fa-shield-alt', 
         'c'=>'#10B981', 
         'sub'=>'3D Secure',
-        'orig'=>false, 
+        'orig'=>true, 
         'noamt'=>false, 
         'secmode'=>'3D',
         'iso'=>'0200', 
@@ -131,7 +131,7 @@ $TXN = [
         'icon'=>'fa-phone', 
         'c'=>'#8B5CF6', 
         'sub'=>'Offline MOTO',
-        'orig'=>false, 
+        'orig'=>true, 
         'noamt'=>false, 
         'secmode'=>'2D',
         'iso'=>'0200', 
@@ -141,7 +141,8 @@ $TXN = [
         'advice'=>false, 
         'offline'=>true,
         'moto_indicator'=>'M',
-        'requires_original'=>false,
+        'requires_original'=>true,
+        'requires_approval'=>true,
         'settlement_days'=>1
     ],
     
@@ -682,8 +683,12 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--bg);color:
   <!-- ORIG REF (يظهر للأنواع التي تحتاج مرجع أصلي) -->
   <div class="orig-ref-row" id="origRefRow">
     <div class="fld">
-      <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي (RRN / Approval)':'Original Reference (RRN / Approval)'?></label>
+      <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي (RRN)':'Original Reference (RRN)'?></label>
       <input type="text" id="origRef" placeholder="<?=$ar?'رقم العملية السابقة':'Previous transaction reference'?>">
+    </div>
+    <div class="fld" id="approvalCodeWrap" style="display:none">
+      <label><i class="fas fa-check-circle"></i> <?=$ar?'رمز الموافقة':'Approval Code'?></label>
+      <input type="text" id="approvalCode" placeholder="<?=$ar?'أدخل رمز الموافقة':'Enter approval code'?>">
     </div>
   </div>
 
@@ -1036,6 +1041,7 @@ window.selTxn = function(code, el) {
 
   const needOrig = el.dataset.orig === '1';
   document.getElementById('origRefRow').classList.toggle('show', needOrig);
+  document.getElementById('approvalCodeWrap').style.display = code === 'purchase_offline' ? '' : 'none';
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -1097,6 +1103,11 @@ window.runTransaction = async function() {
     toast(AR?'أدخل رقم المرجع الأصلي':'Enter original reference','error');
     return;
   }
+  const approvalVal = document.getElementById('approvalCode')?.value.trim();
+  if (S.txnType === 'purchase_offline' && !approvalVal) {
+    toast(AR?'أدخل رمز الموافقة':'Enter approval code','error');
+    return;
+  }
 
   S.processing = true;
   const btn = document.getElementById('processBtn');
@@ -1121,6 +1132,8 @@ window.runTransaction = async function() {
     phone          : document.getElementById('txnPhone')?.value || '971501234567',
     country        : 'AE',
     orig_ref       : document.getElementById('origRef')?.value || '',
+    original_reference: origVal || '',
+    original_auth_code: approvalVal || '',
     notes          : document.getElementById('txnNotes').value,
     ledger_addr    : S.ledger.address || LDG_ADDR,
     ledger_connected: S.ledger.connected,
@@ -1154,6 +1167,8 @@ window.runTransaction = async function() {
           sec_mode     : S.txnType.includes('3d') ? '3D' : '2D',
           processing_mode: S.txnType.includes('3d') ? '3D' : '2D',
           orig_ref     : payload.orig_ref,
+          original_reference: payload.original_reference,
+          original_auth_code: payload.original_auth_code,
         }
       }),
       signal: controller.signal,
@@ -1173,11 +1188,7 @@ window.runTransaction = async function() {
     resetBtn();
 
     if (data.requires_3ds && data.redirect_url) {
-      toast(AR ? 'جاري فتح صفحة التحقق 3D Secure...' : 'Opening 3D Secure verification...', 'info');
-      sessionStorage.setItem('dp_pending_ref', data.reference || ref);
-      sessionStorage.setItem('dp_pending_ledger', payload.ledger_addr || LDG_ADDR);
-      setTimeout(() => { window.location.href = data.redirect_url; }, 800);
-      return;
+      toast(AR ? 'تمت معالجة التحقق 3D Secure داخل التطبيق.' : '3D Secure verification was handled in-app.', 'info');
     }
 
     showResult(data, ref, payload);
