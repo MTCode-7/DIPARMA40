@@ -81,7 +81,7 @@ foreach ($dailyStats as $day) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DI PARMA | لوحة التحكم</title>
+    <title>DI PARMA | <?= $currentLang==='en'?'Dashboard':'لوحة التحكم' ?></title>
     <meta name="theme-color" content="#0A0F1E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com">
@@ -419,14 +419,14 @@ foreach ($dailyStats as $day) {
             </div>
         </div>
         <div class="nav-links">
-            <a href="index.php" class="nav-link"><i class="fas fa-home"></i> الرئيسية</a>
-            <a href="dashboard.php" class="nav-link active"><i class="fas fa-chart-pie"></i> لوحة التحكم</a>
-            <a href="admin/connection_manager.php" class="nav-link"><i class="fas fa-network-wired"></i> إدارة الاتصال</a>
-            <a href="wallets.php" class="nav-link"><i class="fas fa-wallet"></i> المحفظة</a>
-            <a href="invoices.php" class="nav-link"><i class="fas fa-file-invoice"></i> الفواتير</a>
-            <a href="approvals.php" class="nav-link"><i class="fas fa-check-double"></i> الموافقات</a>
-            <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> تغيير الحساب</a>
-            <a href="transactions.php" class="nav-link"><i class="fas fa-list"></i> المعاملات</a>
+            <a href="index.php" class="nav-link"><i class="fas fa-home"></i> <?= $currentLang==='en'?'Home':'الرئيسية' ?></a>
+            <a href="dashboard.php" class="nav-link active"><i class="fas fa-chart-pie"></i> <?= $currentLang==='en'?'Dashboard':'لوحة التحكم' ?></a>
+            <a href="admin/connection_manager.php" class="nav-link"><i class="fas fa-network-wired"></i> <?= $currentLang==='en'?'Connection':'إدارة الاتصال' ?></a>
+            <a href="wallets.php" class="nav-link"><i class="fas fa-wallet"></i> <?= $currentLang==='en'?'Wallet':'المحفظة' ?></a>
+            <a href="invoices.php" class="nav-link"><i class="fas fa-file-invoice"></i> <?= $currentLang==='en'?'Invoices':'الفواتير' ?></a>
+            <a href="approvals.php" class="nav-link"><i class="fas fa-check-double"></i> <?= $currentLang==='en'?'Approvals':'الموافقات' ?></a>
+            <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> <?= $currentLang==='en'?'Settings':'تغيير الحساب' ?></a>
+            <a href="transactions.php" class="nav-link"><i class="fas fa-list"></i> <?= $currentLang==='en'?'Transactions':'المعاملات' ?></a>
             <a href="crypto.php" class="nav-link"><i class="fas fa-coins"></i> Crypto</a>
             <a href="wallet.php" class="nav-link"><i class="fas fa-wallet"></i> <?= $currentLang==='en'?'My Wallet':'محفظتي' ?></a>
             <a href="ledger/" class="nav-link" style="border-color:rgba(255,215,0,.2);background:rgba(255,215,0,.04)">
@@ -457,49 +457,49 @@ foreach ($dailyStats as $day) {
         <div class="stat-card gold">
             <span class="icon"><i class="fas fa-dollar-sign"></i></span>
             <div class="value"><?= number_format($stats['total_amount'] ?? 0, 2) ?></div>
-            <div class="label">إجمالي المعاملات (آخر 30 يوم)</div>
-            <div class="change"><i class="fas fa-arrow-up"></i> <?= number_format($stats['completed_amount'] ?? 0, 2) ?> مكتمل</div>
+            <div class="label"><?= $currentLang==='en'?'Total Transactions (Last 30D)':'إجمالي المعاملات (آخر 30 يوم)' ?></div>
+            <div class="change"><i class="fas fa-arrow-up"></i> <?= number_format($stats['completed_amount'] ?? 0, 2) ?> <?= $currentLang==='en'?'Completed':'مكتمل' ?></div>
         </div>
         <div class="stat-card green">
             <span class="icon"><i class="fas fa-check-circle"></i></span>
             <div class="value"><?= number_format($stats['completed'] ?? 0) ?></div>
-            <div class="label">معاملات ناجحة</div>
-            <div class="change">نسبة النجاح <?= $successRate ?>%</div>
+            <div class="label"><?= $currentLang==='en'?'Successful Transactions':'معاملات ناجحة' ?></div>
+            <div class="change"><?= $currentLang==='en'?'Success Rate':'نسبة النجاح' ?> <?= $successRate ?>%</div>
         </div>
         <div class="stat-card blue">
             <span class="icon"><i class="fas fa-clock"></i></span>
             <div class="value"><?= number_format($stats['pending'] ?? 0) ?></div>
-            <div class="label">قيد الانتظار</div>
-            <div class="change"><i class="fas fa-hourglass-half"></i> في المعالجة</div>
+            <div class="label"><?= $currentLang==='en'?'Pending':'قيد الانتظار' ?></div>
+            <div class="change"><i class="fas fa-hourglass-half"></i> <?= $currentLang==='en'?'Processing':'جاري المعالجة' ?></div>
         </div>
         <div class="stat-card red">
             <span class="icon"><i class="fas fa-times-circle"></i></span>
             <div class="value"><?= number_format($stats['failed'] ?? 0) ?></div>
-            <div class="label">معاملات فاشلة</div>
-            <div class="change negative"><i class="fas fa-arrow-down"></i> <?= number_format($stats['chargeback'] ?? 0) ?> إلغاء</div>
+            <div class="label"><?= $currentLang==='en'?'Failed':'فاشلة' ?></div>
+            <div class="change negative"><i class="fas fa-arrow-down"></i> <?= number_format($stats['chargeback'] ?? 0) ?> <?= $currentLang==='en'?'Chargebacks':'إلغاء' ?></div>
         </div>
         <div class="stat-card purple">
             <span class="icon"><i class="fas fa-credit-card"></i></span>
             <div class="value"><?= number_format($stats['refunded'] ?? 0) ?></div>
-            <div class="label">مستردة</div>
-            <div class="change">تم الاسترداد</div>
+            <div class="label"><?= $currentLang==='en'?'Refunded':'مستردة' ?></div>
+            <div class="change"><?= $currentLang==='en'?'Refunded':'تم الاسترداد' ?></div>
         </div>
         <div class="stat-card cyan">
             <span class="icon"><i class="fas fa-university"></i></span>
             <div class="value"><?= number_format($activeGatewaysCount) ?></div>
-            <div class="label">بوابات نشطة</div>
-            <div class="change"><i class="fas fa-check"></i> متصلة</div>
+            <div class="label"><?= $currentLang==='en'?'Active Gateways':'بوابات نشطة' ?></div>
+            <div class="change"><i class="fas fa-check"></i> <?= $currentLang==='en'?'Connected':'متصلة' ?></div>
         </div>
     </div>
 
     <!-- ===== المخططات ===== -->
     <div class="charts-grid fade-in">
         <div class="chart-box">
-            <h3><i class="fas fa-chart-bar"></i> المعاملات اليومية (آخر 7 أيام)</h3>
+            <h3><i class="fas fa-chart-bar"></i> <?= $currentLang==='en'?'Daily Transactions (Last 7D)':'المعاملات اليومية (آخر 7 أيام)' ?></h3>
             <canvas id="dailyChart"></canvas>
         </div>
         <div class="chart-box">
-            <h3><i class="fas fa-chart-pie"></i> توزيع البوابات</h3>
+            <h3><i class="fas fa-chart-pie"></i> <?= $currentLang==='en'?'Gateway Distribution':'توزيع البوابات' ?></h3>
             <canvas id="gatewayChart"></canvas>
         </div>
     </div>
@@ -507,21 +507,21 @@ foreach ($dailyStats as $day) {
     <!-- ===== المعاملات الأخيرة ===== -->
     <div class="transactions-section fade-in">
         <div class="header">
-            <h3><i class="fas fa-history"></i> آخر المعاملات</h3>
+            <h3><i class="fas fa-history"></i> <?= $currentLang==='en'?'Recent Transactions':'آخر المعاملات' ?></h3>
             <a href="transactions.php" class="nav-link" style="font-size:0.8rem;">
-                عرض الكل <i class="fas fa-arrow-left"></i>
+                <?= $currentLang==='en'?'View All':'عرض الكل' ?> <i class="fas fa-arrow-left"></i>
             </a>
         </div>
         <div style="overflow-x:auto;">
             <table class="transactions-table">
                 <thead>
                     <tr>
-                        <th>المرجع</th>
-                        <th>العميل</th>
-                        <th>المبلغ</th>
-                        <th>البوابة</th>
-                        <th>الحالة</th>
-                        <th>التاريخ</th>
+                        <th><?= $currentLang==='en'?'Reference':'المرجع' ?></th>
+                        <th><?= $currentLang==='en'?'Customer':'العميل' ?></th>
+                        <th><?= $currentLang==='en'?'Amount':'المبلغ' ?></th>
+                        <th><?= $currentLang==='en'?'Gateway':'البوابة' ?></th>
+                        <th><?= $currentLang==='en'?'Status':'الحالة' ?></th>
+                        <th><?= $currentLang==='en'?'Date':'التاريخ' ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -529,7 +529,7 @@ foreach ($dailyStats as $day) {
                         <tr>
                             <td colspan="6" style="text-align:center;color:#666;padding:30px;">
                                 <i class="fas fa-inbox" style="font-size:2rem;display:block;margin-bottom:10px;"></i>
-                                لا توجد معاملات حديثة
+                                <?= $currentLang==='en'?'No Recent Transactions':'لا توجد معاملات حديثة' ?>
                             </td>
                         </tr>
                     <?php else: ?>
@@ -540,7 +540,7 @@ foreach ($dailyStats as $day) {
                                         <?= htmlspecialchars($tx['reference']) ?>
                                     </a>
                                 </td>
-                                <td><?= htmlspecialchars($tx['customer_name'] ?: 'غير معروف') ?></td>
+                                <td><?= htmlspecialchars($tx['customer_name'] ?: ($currentLang==='en'?'Unknown':'غير معروف')) ?></td>
                                 <td>
                                     <strong>
                                         <?= number_format($tx['amount'], 2) ?>
@@ -551,13 +551,23 @@ foreach ($dailyStats as $day) {
                                 <td>
                                     <span class="status-badge status-<?= $tx['status'] ?>">
                                         <?php
-                                        $statusLabels = [
-                                            'completed' => 'مكتمل',
-                                            'pending' => 'قيد الانتظار',
-                                            'failed' => 'فشل',
-                                            'refunded' => 'مسترد',
-                                            'chargeback' => 'إلغاء'
-                                        ];
+                                        $statusLabels = (
+                                            $currentLang === 'en'
+                                            ? [
+                                                'completed' => 'Completed',
+                                                'pending' => 'Pending',
+                                                'failed' => 'Failed',
+                                                'refunded' => 'Refunded',
+                                                'chargeback' => 'Chargeback'
+                                            ]
+                                            : [
+                                                'completed' => 'مكتمل',
+                                                'pending' => 'قيد الانتظار',
+                                                'failed' => 'فشل',
+                                                'refunded' => 'مسترد',
+                                                'chargeback' => 'إلغاء'
+                                            ]
+                                        );
                                         echo $statusLabels[$tx['status']] ?? $tx['status'];
                                         ?>
                                     </span>
@@ -577,27 +587,27 @@ foreach ($dailyStats as $day) {
     <div class="quick-actions fade-in">
         <a href="admin/connection_manager.php" class="quick-btn">
             <i class="fas fa-plus-circle"></i>
-            إضافة بوابة
+            <?= $currentLang==='en'?'Add Gateway':'إضافة بوابة' ?>
         </a>
         <a href="payment.php" class="quick-btn">
             <i class="fas fa-hand-holding-usd"></i>
-            عملية دفع جديدة
+            <?= $currentLang==='en'?'New Payment':'عملية دفع جديدة' ?>
         </a>
         <a href="reports.php" class="quick-btn">
             <i class="fas fa-file-pdf"></i>
-            تقرير مالي
+            <?= $currentLang==='en'?'Financial Report':'تقرير مالي' ?>
         </a>
         <a href="backup.php" class="quick-btn">
             <i class="fas fa-database"></i>
-            نسخ احتياطي
+            <?= $currentLang==='en'?'Backup':'نسخ احتياطي' ?>
         </a>
         <a href="settings.php" class="quick-btn">
             <i class="fas fa-cogs"></i>
-            إعدادات النظام
+            <?= $currentLang==='en'?'System Settings':'إعدادات النظام' ?>
         </a>
         <a href="security.php" class="quick-btn">
             <i class="fas fa-shield-alt"></i>
-            مراقبة الأمان
+            <?= $currentLang==='en'?'Security Monitor':'مراقبة الأمان' ?>
         </a>
         <a href="ledger/" class="quick-btn" style="border-color:rgba(255,215,0,.2);background:rgba(255,215,0,.03)">
             <i class="fas fa-wallet" style="color:var(--gold)"></i>
@@ -625,6 +635,7 @@ foreach ($dailyStats as $day) {
 document.addEventListener('DOMContentLoaded', function() {
     // ===== رسم بياني يومي =====
     const dailyCtx = document.getElementById('dailyChart').getContext('2d');
+    const currentLang = '<?= htmlspecialchars($currentLang) ?>';
     const dailyData = <?= json_encode([
         'labels' => $chartData['labels'],
         'amounts' => $chartData['amounts'],
@@ -637,7 +648,7 @@ document.addEventListener('DOMContentLoaded', function() {
             labels: dailyData.labels,
             datasets: [
                 {
-                    label: 'المبلغ (USD)',
+                    label: currentLang==='en'?'Amount (USD)':'المبلغ (USD)',
                     data: dailyData.amounts,
                     backgroundColor: 'rgba(255, 215, 0, 0.3)',
                     borderColor: '#FFD700',
@@ -646,7 +657,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     yAxisID: 'y',
                 },
                 {
-                    label: 'عدد المعاملات',
+                    label: currentLang==='en'?'Transaction Count':'عدد المعاملات',
                     data: dailyData.counts,
                     type: 'line',
                     borderColor: '#4CAF50',
@@ -666,7 +677,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 legend: {
                     labels: {
                         color: '#E8F0FF',
-                        font: { family: 'Cairo' }
+                        font: { family: currentLang==='en'?'Arial':'Cairo' }
                     }
                 }
             },
@@ -718,7 +729,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     position: 'bottom',
                     labels: {
                         color: '#E8F0FF',
-                        font: { family: 'Cairo', size: 11 },
+                        font: { family: currentLang==='en'?'Arial':'Cairo', size: 11 },
                         padding: 15
                     }
                 }
