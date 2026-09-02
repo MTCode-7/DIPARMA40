@@ -7,7 +7,7 @@
 if (!defined('DI_PARMA_CHECKOUT')) {
     header('Location: checkout_router.php'); exit;
 }
-$lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en' ? 'en' : 'ar';
+$lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
 $ar   = ($lang === 'ar');
 $dir  = $ar ? 'rtl' : 'ltr';
 $currencyOptions = '';

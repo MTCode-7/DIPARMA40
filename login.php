@@ -19,7 +19,7 @@ if (isset($_GET['lang']) && in_array($_GET['lang'], ['ar', 'en'], true)) {
     exit();
 }
 
-$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en') ? 'en' : 'ar';
+$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
 $pageDir = ($currentLang === 'en') ? 'ltr' : 'rtl';
 $pageTitle = ($currentLang === 'en') ? 'DI PARMA | Login' : 'DI PARMA | تسجيل الدخول';
 $pageSubTitle = ($currentLang === 'en') ? 'Ultimate Financial Gateway' : 'بوابة الدفع المالية الشاملة';

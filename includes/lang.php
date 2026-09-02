@@ -12,7 +12,7 @@
 
 // قراءة اللغة الحالية
 if (!isset($currentLang)) {
-    $currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en') ? 'en' : 'ar';
+    $currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
 }
 if (!isset($pageDir)) {
     $pageDir = $currentLang === 'en' ? 'ltr' : 'rtl';

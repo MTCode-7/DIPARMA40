@@ -6,7 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-$lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en' ? 'en' : 'ar';
+$lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
 if (isset($_GET['lang']) && in_array($_GET['lang'], ['ar', 'en'], true)) {
     setcookie('di_parma_lang', $_GET['lang'], time() + 31536000, '/');
     $lang = $_GET['lang'];

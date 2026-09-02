@@ -362,11 +362,17 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
         </div>
       </div>
 
-      <!-- حقل المرجع الأصلي (يظهر لبعض العمليات) -->
+      <!-- حقول المرجع الأصلي وكود الموافقة (تظهر لبعض العمليات) -->
       <div id="origRefWrap" style="display:none;margin-bottom:16px">
-        <div class="fld">
-          <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي (RRN)':'Original Reference (RRN)'?></label>
-          <input type="text" id="txnOrigRef" placeholder="<?=$ar?'رقم العملية السابقة':'Previous transaction reference'?>">
+        <div class="fld-row" style="margin-bottom:10px">
+          <div class="fld">
+            <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي (RRN)':'Original Reference (RRN)'?></label>
+            <input type="text" id="txnOrigRef" placeholder="<?=$ar?'رقم العملية السابقة':'Previous transaction reference'?>">
+          </div>
+          <div class="fld">
+            <label><i class="fas fa-check-circle"></i> <?=$ar?'كود الموافقة (Approval)':'Approval Code'?></label>
+            <input type="text" id="txnApprovalCode" placeholder="<?=$ar?'رمز الموافقة':'Approval code'?>">
+          </div>
         </div>
       </div>
 
@@ -505,25 +511,8 @@ window.selectTxnTypeRouter = function(type, el) {
   document.getElementById('secModeWrap').style.display  = (type === 'purchase_3d' || type === 'purchase_moto') ? '' : 'none';
   document.getElementById('origRefWrap').style.display  = needsRrn ? '' : 'none';
   if(needsRrn) {
-    document.getElementById('txnOrigRef').placeholder = 'RRN / Approval Code';
-  }
-  updateSummary();
-};
-
-window.selectSecMode = function(mode, el) {
-  STATE_TXN.secMode = mode;
-  ['3D','2D'].forEach(m => {
-    const b = document.getElementById('smode-' + m);
-    if (!b) return;
-    b.style.borderColor = m === mode ? 'var(--gold)' : 'var(--border)';
-    b.style.background  = m === mode ? 'rgba(255,215,0,.06)' : 'rgba(255,255,255,.03)';
-    b.style.color       = m === mode ? 'var(--gold)' : 'var(--muted2)';
-  });
-};
-
-// ── Gateway Selection ──────────────────────────────────────
-window.selectGateway = function(code, el) {
-  STATE.gateway = code;
+    document.getElementById('txnOrigRef').placeholder = 'Previous transaction reference';
+    document.getElementById('txnApprovalCode').placeholder = 'Approval code';
   document.querySelectorAll('.gw-card').forEach(c => c.classList.remove('selected'));
   if (el) el.classList.add('selected');
   document.getElementById('btn-step1').disabled = false;
@@ -625,14 +614,7 @@ window.proceedToCheckout = function() {
     txn_type:    STATE_TXN.type,
     sec_mode:    STATE_TXN.secMode,
     orig_ref:    document.getElementById('txnOrigRef')?.value.trim() || '',
-    wallet:      STATE.walletAddr,
-    notes:       document.getElementById('txnNotes').value.trim(),
-    ref:         'REF' + Date.now(),
-  });
-
-  window.location.href = route + (route.includes('?') ? '&' : '?') + params.toString();
-};
-
+    approval_code: document.getElementById('txnApprovalCode')?.value.trim() || '',
 // ── Toast ──────────────────────────────────────────────────
 function toast(msg, type='info') {
   const t = document.getElementById('toast');

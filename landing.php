@@ -4,7 +4,7 @@ if (isset($_GET['lang']) && in_array($_GET['lang'], ['ar', 'en'], true)) {
   setcookie('di_parma_lang', $_GET['lang'], time() + 31536000, '/');
   $_COOKIE['di_parma_lang'] = $_GET['lang'];
 }
-$lang=isset($_GET['lang'])&&in_array($_GET['lang'],['ar','en'],true)?$_GET['lang']:(isset($_COOKIE['di_parma_lang'])&&$_COOKIE['di_parma_lang']==='en'?'en':'ar');
+$lang=isset($_GET['lang'])&&in_array($_GET['lang'],['ar','en'],true)?$_GET['lang']:(isset($_COOKIE['di_parma_lang'])&&$_COOKIE['di_parma_lang']==='ar'?'ar':'en');
 $ar=$lang==='ar';$dir=$ar?'rtl':'ltr';
 ?><!DOCTYPE html>
 <html lang="<?=$lang?>" dir="<?=$dir?>">

@@ -25,7 +25,7 @@ $db         = db();
 $csrfToken  = generateCsrfToken();
 // ط§ظ„ظ„ط؛ط© ظ…ظ† auth_check.php (ظ…ط­ظ…ظ‘ظ„ ظ…ط³ط¨ظ‚ط§ظ‹)
 if (!isset($currentLang)) {
-    $currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en') ? 'en' : 'ar';
+    $currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
     $pageDir     = $currentLang === 'en' ? 'ltr' : 'rtl';
 }
 
