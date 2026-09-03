@@ -215,8 +215,9 @@ class PayPalService
             $token    = $this->getAccessToken();
             $response = $this->request('POST', "/v2/checkout/orders/$orderId/authorize", $token, []);
             $authorization = $response['purchase_units'][0]['payments']['authorizations'][0] ?? [];
+            $orderStatus = strtoupper((string)($response['status'] ?? ''));
 
-            if (($response['status'] ?? '') === 'COMPLETED' && !empty($authorization['id'])) {
+            if (in_array($orderStatus, ['APPROVED', 'COMPLETED'], true) && !empty($authorization['id'])) {
                 $this->log("✓ Authorized: $orderId | {$authorization['id']}");
                 return [
                     'success'          => true,
@@ -230,7 +231,7 @@ class PayPalService
                 ];
             }
 
-            return ['success' => false, 'status' => $response['status'] ?? '', 'message' => 'PayPal authorization failed'];
+            return ['success' => false, 'status' => $orderStatus ?: ($response['status'] ?? ''), 'message' => 'PayPal authorization failed'];
         } catch (Exception $e) {
             return ['success' => false, 'message' => $e->getMessage()];
         }

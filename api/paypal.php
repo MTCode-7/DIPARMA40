@@ -110,8 +110,9 @@ try {
             $authorization = $order['purchase_units'][0]['payments']['authorizations'][0] ?? [];
             $authorizationId = trim($payload['authorization_id'] ?? ($authorization['id'] ?? ''));
             $resolvedReference = $reference ?: ($order['purchase_units'][0]['reference_id'] ?? '');
+            $orderStatus = strtoupper((string)($order['status'] ?? ''));
 
-            if (($order['status'] ?? '') === 'COMPLETED' && $authorizationId !== '') {
+            if (in_array($orderStatus, ['APPROVED', 'COMPLETED'], true) && $authorizationId !== '') {
                 $txn = $db->find('transactions', ['reference' => $resolvedReference]);
                 $gatewayData = json_decode($txn['gateway_response'] ?? '{}', true) ?: [];
                 $gatewayData['type'] = 'paypal_authorization';
@@ -130,7 +131,7 @@ try {
                     'reference' => $resolvedReference,
                 ];
             } else {
-                $result = ['success' => false, 'message' => 'PayPal authorization could not be verified'];
+                $result = ['success' => false, 'message' => 'PayPal authorization could not be verified (order status: ' . $orderStatus . ')'];
             }
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
             break;
