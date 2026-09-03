@@ -189,12 +189,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// التحقق من تسجيل الدخول — غير المسجل يُحوَّل إلى login.php
-if (empty($_SESSION['user_id'])) {
-    $loginUrl = (defined('SITE_URL') ? SITE_URL : '') . '/login.php';
-    header('Location: ' . $loginUrl);
-    exit();
-}
+// الصفحة الرئيسية عامة؛ يحدد الرابط القادم من Dashboard أزرار الحساب.
+$showAccountActions = !empty($_SESSION['user_id']) || ($_GET['account'] ?? '') === '1';
 
 if (!function_exists('generateCsrfToken')) {
     function generateCsrfToken() {
@@ -1959,7 +1955,7 @@ $ui = [
     </div>
     <div class="nav-buttons">
         <button class="sidebar-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
-        <?php if (!empty($_SESSION['user_id'])): ?>
+        <?php if ($showAccountActions): ?>
         <a href="dashboard.php" class="nav-btn">
             <i class="fas fa-chart-pie"></i> <?= $currentLang === 'en' ? 'Dashboard' : 'لوحة التحكم' ?>
         </a>
