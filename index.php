@@ -1960,6 +1960,9 @@ $ui = [
     <div class="nav-buttons">
         <button class="sidebar-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
         <?php if (!empty($_SESSION['user_id'])): ?>
+        <a href="dashboard.php" class="nav-btn">
+            <i class="fas fa-chart-pie"></i> <?= $currentLang === 'en' ? 'Dashboard' : 'لوحة التحكم' ?>
+        </a>
         <a href="notifications.php" class="nav-btn" style="position:relative;">
             <i class="fas fa-bell"></i> <?= $ui['notifications'] ?>
             <?php if (!empty($unreadCount)): ?>
@@ -1974,7 +1977,9 @@ $ui = [
         <span class="nav-btn" style="cursor:default;background:rgba(76,175,80,0.15);border-color:rgba(76,175,80,0.3);color:#4CAF50;">
             <i class="fas fa-bolt"></i> ⚡ 0.001ms
         </span>
+        <?php if (!empty($_SESSION['user_id'])): ?>
         <a href="logout.php" class="nav-btn logout"><i class="fas fa-sign-out-alt"></i> <?= $ui['logout'] ?></a>
+        <?php endif; ?>
     </div>
 </nav>
 
