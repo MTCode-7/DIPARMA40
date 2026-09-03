@@ -6,6 +6,12 @@ Options -Indexes
 ServerSignature Off
 DirectoryIndex landing.php
 
+# Keep the authentication cookie consistent across every PHP page.
+<IfModule mod_php.c>
+    php_value session.name DIPARMASESSID
+    php_value session.cookie_path /
+</IfModule>
+
 # ── [1] حماية الملفات الحساسة ────────────────────────────────
 <FilesMatch "^(\.env.*|\.git.*|composer\.(json|lock)|package\.json|webpack\.config\.js)$">
     <IfModule mod_authz_core.c>
