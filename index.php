@@ -1973,7 +1973,7 @@ $ui = [
         <span class="nav-btn" style="cursor:default;background:rgba(76,175,80,0.15);border-color:rgba(76,175,80,0.3);color:#4CAF50;">
             <i class="fas fa-bolt"></i> ⚡ 0.001ms
         </span>
-        <?php if (!empty($_SESSION['user_id'])): ?>
+        <?php if ($showAccountActions): ?>
         <a href="logout.php" class="nav-btn logout"><i class="fas fa-sign-out-alt"></i> <?= $ui['logout'] ?></a>
         <?php endif; ?>
     </div>
