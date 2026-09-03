@@ -22,9 +22,11 @@ $pageDir = ($currentLang === 'en') ? 'ltr' : 'rtl';
 // تحميل نظام الترجمة
 require_once __DIR__ . '/lang.php';
 
+$authBaseUrl = preg_replace('#/checkout$#', '', rtrim(SITE_URL, '/'));
+
 if (!isset($_SESSION['user_id']) || empty($_SESSION['user_id'])) {
     $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
-    header('Location: ' . SITE_URL . '/login.php');
+    header('Location: ' . $authBaseUrl . '/login.php');
     exit();
 }
 
@@ -36,34 +38,34 @@ try {
 
     if (!$user) {
         session_destroy();
-        header('Location: ' . SITE_URL . '/login.php');
+        header('Location: ' . $authBaseUrl . '/login.php');
         exit();
     }
 
     // حساب معطّل
     if (($user['status'] ?? 'active') === 'inactive') {
         session_destroy();
-        header('Location: ' . SITE_URL . '/login.php?account_disabled=1');
+        header('Location: ' . $authBaseUrl . '/login.php?account_disabled=1');
         exit();
     }
 
     // حساب في انتظار موافقة الأدمن
     if (($user['status'] ?? 'active') === 'pending') {
         session_destroy();
-        header('Location: ' . SITE_URL . '/login.php?pending=1');
+        header('Location: ' . $authBaseUrl . '/login.php?pending=1');
         exit();
     }
 
     $_SESSION['user_data'] = $user;
 } catch (Exception $e) {
     session_destroy();
-    header('Location: ' . SITE_URL . '/login.php?pending=1');
+    header('Location: ' . $authBaseUrl . '/login.php?pending=1');
     exit();
 }
 
 if (isset($_SESSION['login_time']) && (time() - $_SESSION['login_time'] > SESSION_TIMEOUT)) {
     session_destroy();
-    header('Location: ' . SITE_URL . '/login.php?session_expired=1');
+    header('Location: ' . $authBaseUrl . '/login.php?session_expired=1');
     exit();
 }
 
@@ -78,7 +80,7 @@ function isAdmin() {
 
 function requireAdmin() {
     if (!isAdmin()) {
-        header('Location: ' . SITE_URL . '/dashboard.php');
+        header('Location: ' . $authBaseUrl . '/dashboard.php');
         exit();
     }
 }
