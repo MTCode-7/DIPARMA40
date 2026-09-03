@@ -16,6 +16,9 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/performance.php';
 require_once __DIR__ . '/includes/db_optimized.php';
 
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+
 
 // [3] تعريف المسارات الأساسية
 if (!defined('ROOT_PATH')) {
@@ -190,7 +193,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // الصفحة الرئيسية عامة؛ يحدد الرابط القادم من Dashboard أزرار الحساب.
-$showAccountActions = !empty($_SESSION['user_id']) || ($_GET['account'] ?? '') === '1';
+$showAccountActions = !empty($_SESSION['user_id']) || ($_GET['account_return'] ?? '') === '1';
 
 if (!function_exists('generateCsrfToken')) {
     function generateCsrfToken() {
