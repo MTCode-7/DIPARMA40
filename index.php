@@ -1506,12 +1506,12 @@ if (isset($_GET['lang']) && in_array($_GET['lang'], ['ar', 'en'], true)) {
     $_COOKIE['di_parma_lang'] = $_GET['lang'];
 }
 
-// قراءة اللغة: GET أولاً ثم COOKIE
-$currentLang = 'ar';
+// قراءة اللغة: GET أولاً ثم COOKIE، مع افتراضي إنجليزي
+$currentLang = 'en';
 if (isset($_GET['lang']) && in_array($_GET['lang'], ['ar', 'en'], true)) {
     $currentLang = $_GET['lang'];
-} elseif (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en') {
-    $currentLang = 'en';
+} elseif (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') {
+    $currentLang = 'ar';
 }
 $pageLang = $currentLang;
 $pageDir  = ($currentLang === 'ar') ? 'rtl' : 'ltr';
@@ -1967,7 +1967,7 @@ $ui = [
             <?php endif; ?>
         </a>
         <?php else: ?>
-        <a href="/login.php" class="nav-btn" style="background:linear-gradient(135deg,rgba(255,215,0,0.15),rgba(255,183,0,0.1));border-color:rgba(255,215,0,0.4);color:var(--gold);font-weight:700;">
+        <a href="<?= htmlspecialchars(SITE_URL) ?>/login.php" class="nav-btn" style="background:linear-gradient(135deg,rgba(255,215,0,0.15),rgba(255,183,0,0.1));border-color:rgba(255,215,0,0.4);color:var(--gold);font-weight:700;">
             <i class="fas fa-lock"></i> <?= $currentLang === 'en' ? 'Admin Login' : 'دخول الإدارة' ?>
         </a>
         <?php endif; ?>

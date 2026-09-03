@@ -24,7 +24,7 @@ if (ini_get("session.use_cookies")) {
 // تدمير الجلسة
 session_destroy();
 
-// التوجيه إلى صفحة تسجيل الدخول
-header('Location: /login.php');
+// التوجيه إلى صفحة تسجيل الدخول ضمن مسار التطبيق الحالي
+header('Location: ' . SITE_URL . '/login.php');
 exit();
 ?>

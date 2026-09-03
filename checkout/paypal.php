@@ -45,6 +45,10 @@ $amount      = floatval($_GET['amount'] ?? 0);
 $currency    = strtoupper($_GET['currency'] ?? 'USD');
 $destination = $_GET['destination'] ?? 'gateway';
 $txnTypeInit = $_GET['txn_type'] ?? 'purchase_3d';
+$txnTypeInit = [
+  'auth'          => 'auth_hold',
+  'auth_complete' => 'auth_capture',
+][$txnTypeInit] ?? $txnTypeInit;
 $walletAddr  = $_GET['wallet'] ?? '';
 $ref         = $_GET['ref'] ?? ('PP-' . strtoupper(bin2hex(random_bytes(6))));
 
@@ -270,7 +274,7 @@ $destLabel = $destinations[$destination] ?? $destination;
 // [5] PayPal Client ID
 // ============================================================
 
-$paypalClientId = getenv('PAYPAL_CLIENT_ID') ?: 'AbMYCGnVyvgRlxB31WcB-ZcEu8WmFx3Xs9wqyfroi9W4VfFQxflHQOWhrXpXJHbXKkE-d5CHgtPbmUJh';
+$paypalClientId = getenv('PAYPAL_CLIENT_ID') ?: '';
 
 // ============================================================
 // [6] الحصول على بيانات النوع المحدد
@@ -576,43 +580,53 @@ function formatExpiry(el) {
 // ============================================================
 if (typeof paypal !== 'undefined') {
     paypal.Buttons({
-        createOrder: function(data, actions) {
-            return actions.order.create({
-                purchase_units: [{
-                    amount: {
-                        value: AMOUNT.toFixed(2),
-                        currency_code: CURRENCY
-                    },
-                    reference_id: REF,
-                    description: 'DI PARMA - ' + (AR ? 'شراء' : 'Purchase') + ' #' + REF
-                }],
-                application_context: {
-                    brand_name: 'DI PARMA',
-                    shipping_preference: 'NO_SHIPPING',
-                    user_action: 'PAY_NOW'
-                }
-            });
+    createOrder: async function() {
+      const response = await fetch('../api/paypal.php?action=create_order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: AMOUNT,
+          currency: CURRENCY,
+          reference: REF,
+          intent: TXN_TYPE === 'auth_hold' ? 'AUTHORIZE' : 'CAPTURE',
+          crypto: 'USDT',
+          wallet_address: WALLET,
+          csrf_token: CSRF
+        })
+      });
+      const result = await response.json();
+      if (!result.success || !result.order_id) {
+        throw new Error(result.message || 'PayPal order creation failed');
+      }
+      return result.order_id;
         },
         
         onApprove: async function(data, actions) {
             // Authorize or Capture based on transaction type
             let order;
-            if (TXN_TYPE === 'auth_hold') {
-                order = await actions.order.authorize();
-            } else {
-                order = await actions.order.capture();
-            }
+            order = TXN_TYPE === 'auth_hold'
+              ? await actions.order.authorize()
+              : await actions.order.capture();
             
             // Get original reference if needed
             const origRef = document.getElementById('origRef')?.value || '';
             
-            await sendToServer({
-                paypal_order_id: data.orderID,
+            const action = TXN_TYPE === 'auth_hold' ? 'authorize_order' : 'capture_order';
+            const response = await fetch('../api/paypal.php?action=' + action, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                order_id: data.orderID,
+                reference: REF,
+                csrf_token: CSRF,
                 paypal_txn: JSON.stringify(order),
-                method: 'paypal_button',
-                orig_ref: origRef,
-                txn_type: TXN_TYPE
+                orig_ref: origRef
+              })
             });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.message || 'PayPal transaction failed');
+            toast(AR ? '✅ تمت العملية بنجاح' : '✅ Transaction approved', 'success');
+            setTimeout(() => { window.location.href = '../receipt.php?ref=' + encodeURIComponent(REF); }, 2000);
         },
         
         onError: function(err) {

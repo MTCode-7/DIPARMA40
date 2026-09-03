@@ -452,7 +452,7 @@ try {
                 throw new Exception('Invalid amount');
             }
             
-            $url = $env === 'production' 
+            $url = in_array(strtolower($env), ['live', 'production'], true)
                 ? 'https://api-m.paypal.com/v2/checkout/orders' 
                 : 'https://api-m.sandbox.paypal.com/v2/checkout/orders';
             

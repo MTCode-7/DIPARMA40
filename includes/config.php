@@ -87,11 +87,25 @@ if (!function_exists('_dp_detect_url')) {
             $requestHost = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
             $isLocalEnvUrl = in_array($envHost, ['localhost', '127.0.0.1', '::1'], true);
             $requestHostWithoutPort = preg_replace('/:\d+$/', '', $requestHost);
+            $isLocalRequest = in_array($requestHostWithoutPort, ['localhost', '127.0.0.1', '::1'], true);
             $isExternalRequest = $requestHost !== '' && !in_array(
                 $requestHostWithoutPort,
                 ['localhost', '127.0.0.1', '::1'],
                 true
             );
+
+            if ($isLocalRequest) {
+                $httpsProto = strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '');
+                $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $httpsProto === 'https';
+                $documentRoot = realpath($_SERVER['DOCUMENT_ROOT'] ?? '') ?: '';
+                $rootPath = realpath(ROOT_PATH) ?: '';
+                $basePath = '';
+                if ($documentRoot !== '' && $rootPath !== '' && str_starts_with($rootPath, $documentRoot)) {
+                    $relativeRoot = trim(str_replace('\\', '/', substr($rootPath, strlen($documentRoot))), '/');
+                    $basePath = $relativeRoot !== '' ? '/' . $relativeRoot : '';
+                }
+                return ($isHttps ? 'https://' : 'http://') . $requestHost . $basePath;
+            }
 
             // Keep the session on the host that started the request.
             if ($isExternalRequest && $requestHostWithoutPort !== $envHost) {

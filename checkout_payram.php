@@ -158,6 +158,8 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 /* ORIG REF */
 .orig-wrap{display:none;margin-bottom:12px}
 .orig-wrap.show{display:block}
+.advice-fields{display:none;margin-bottom:12px}
+.advice-fields.show{display:block}
 
 /* PAY BTN */
 .pay-btn{
@@ -308,6 +310,21 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
   </div>
 
+  <div class="advice-fields" id="adviceFields">
+    <div class="fld">
+      <label><i class="fas fa-hashtag"></i> RRN <span style="color:var(--red)">*</span></label>
+      <input type="text" id="adviceRrn" inputmode="numeric" maxlength="12"
+             placeholder="<?=$ar?'رقم التتبع RRN':'Retrieval Reference Number'?>"
+             oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    </div>
+    <div class="fld">
+      <label><i class="fas fa-check-circle"></i> Approval Code <span style="color:var(--red)">*</span></label>
+      <input type="text" id="adviceApprovalCode" inputmode="numeric" maxlength="6"
+             placeholder="<?=$ar?'رمز الموافقة':'Approval Code'?>"
+             oninput="this.value=this.value.replace(/[^0-9A-Za-z]/g,'')">
+    </div>
+  </div>
+
   <div class="fld">
     <label>Email</label>
     <input type="email" id="custEmail" placeholder="customer@example.com" value="client@diparmas.com">
@@ -449,8 +466,9 @@ function selTxn(code, el) {
   S.txn = code;
   document.querySelectorAll('.txn-btn').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
-  const needsOrig = el.dataset.needsOrig === '1';
+  const needsOrig = el.dataset.needsOrig === '1' && code !== 'purchase_advice';
   document.getElementById('origWrap').className = 'orig-wrap' + (needsOrig?' show':'');
+  document.getElementById('adviceFields').className = 'advice-fields' + (code === 'purchase_advice'?' show':'');
 }
 
 /* ── CHAIN ── */
@@ -488,9 +506,16 @@ async function createPayment() {
   const activeBtn = document.querySelector('.txn-btn.active');
   const needsRrn  = activeBtn && activeBtn.dataset.needsOrig === '1';
   const rrn       = document.getElementById('origRef').value.trim();
-  if (needsRrn && !rrn) {
+  const adviceRrn = document.getElementById('adviceRrn').value.trim();
+  const approvalCode = document.getElementById('adviceApprovalCode').value.trim();
+  if (needsRrn && S.txn !== 'purchase_advice' && !rrn) {
     toast(AR?'أدخل رقم المرجع الأصلي (RRN)':'Enter original RRN / reference','error');
     document.getElementById('origRef').focus();
+    return;
+  }
+  if (S.txn === 'purchase_advice' && (!adviceRrn || !approvalCode)) {
+    toast(AR?'أدخل RRN ورمز الموافقة':'Enter RRN and Approval Code','error');
+    (!adviceRrn ? document.getElementById('adviceRrn') : document.getElementById('adviceApprovalCode')).focus();
     return;
   }
 
@@ -516,6 +541,8 @@ async function createPayment() {
         reference       : 'PR-' + Date.now().toString(36).toUpperCase(),
         notes           : document.getElementById('txnNotes').value,
         orig_ref        : document.getElementById('origRef').value.trim(),
+        rrn             : adviceRrn,
+        approval_code   : approvalCode,
         csrf_token      : document.getElementById('csrf').value,
       }),
     });

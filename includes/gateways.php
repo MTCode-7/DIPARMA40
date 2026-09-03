@@ -57,7 +57,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'icon' => 'fab fa-paypal',
         'credentials' => [
             'client_id' => getenv('PAYPAL_CLIENT_ID') ?? '',
-            'secret' => getenv('PAYPAL_SECRET') ?? '',
+            'secret' => getenv('PAYPAL_CLIENT_SECRET') ?: (getenv('PAYPAL_SECRET') ?: ''),
         ],
         'urls' => [
             'success' => getenv('PAYPAL_RETURN_URL') ?: '/payment_success.php',

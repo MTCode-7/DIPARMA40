@@ -155,7 +155,7 @@ if (!in_array($cardProvider, $validCodes, true) && !empty($validCodes)) {
 <?php
 // PayPal â€” ظ†ط­ط³ط¨ ط§ظ„ظ…طھط؛ظٹط±ط§طھ ظ‚ط¨ظ„ ط§ظ„ظ€ script
 $_ppClientId = addslashes(getenv('PAYPAL_CLIENT_ID') ?: '');
-$_ppLocale   = (($currentLang ?? 'ar') === 'en') ? 'en-US' : 'ar-AE';
+$_ppLocale   = (($currentLang ?? 'en') === 'ar') ? 'ar-AE' : 'en-US';
 ?>
 <?php if (!empty($_ppClientId)): ?>
 <script>

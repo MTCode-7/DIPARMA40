@@ -12,7 +12,7 @@ $csrfToken = generateCsrfToken();
 $svc       = HoldCaptureService::getInstance();
 $db        = db();
 
-$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en') ? 'en' : 'ar';
+$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
 $pageDir     = $currentLang === 'en' ? 'ltr' : 'rtl';
 
 // نتيجة حجز جديد
@@ -21,6 +21,11 @@ $newPI  = $_GET['pi']  ?? '';
 $newStatus = $_GET['status'] ?? '';
 
 $holds = $svc->getUserHolds($userId);
+$paypalHolds = $db->select('transactions', ['reference', 'amount', 'currency', 'status', 'gateway_response', 'created_at'], [
+    'user_id' => $userId,
+    'gateway' => 'paypal',
+    'status' => 'authorized',
+], ['created_at' => 'DESC']);
 
 $statusConfig = [
     'pending'    => ['color'=>'#f0ad4e', 'label_ar'=>'قيد الانتظار',   'label_en'=>'Pending'],
@@ -73,6 +78,31 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
 </nav>
 
 <div class="wrap">
+
+<?php if (!empty($paypalHolds)): ?>
+<div style="background:rgba(0,48,135,.08);border:1.5px solid rgba(77,166,255,.35);border-radius:16px;padding:20px 24px;margin-bottom:24px">
+    <h3 style="color:#4da6ff;margin:0 0 14px"><i class="fab fa-paypal"></i> PayPal Authorization Holds</h3>
+    <?php foreach ($paypalHolds as $paypalHold):
+        $paypalMeta = json_decode($paypalHold['gateway_response'] ?? '{}', true) ?: [];
+        $authorizationId = $paypalMeta['authorization_id'] ?? '';
+    ?>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(77,166,255,.2);border-radius:12px;padding:14px;margin-top:10px">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+            <div>
+                <strong style="color:var(--gold)"><?= htmlspecialchars($paypalHold['reference']) ?></strong>
+                <span style="color:var(--text-muted);margin-right:10px"><?= number_format((float)$paypalHold['amount'], 2) ?> <?= htmlspecialchars($paypalHold['currency']) ?></span>
+                <div style="color:var(--text-muted);font-size:.75rem;margin-top:6px">Authorization ID: <span class="pi-code"><?= htmlspecialchars($authorizationId) ?></span></div>
+            </div>
+            <?php if ($authorizationId): ?>
+            <button class="action-btn btn-capture" onclick="capturePayPalHold('<?= addslashes($authorizationId) ?>','<?= addslashes($paypalHold['reference']) ?>')">
+                <i class="fas fa-check-double"></i> Capture PayPal
+            </button>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
 
 <!-- رسالة نجاح الحجز الجديد -->
 <?php if ($newStatus === 'authorized' && $newPI): ?>
@@ -241,6 +271,21 @@ async function captureHold(pi, partial) {
         setTimeout(function(){ location.reload(); }, 2000);
     } else {
         showToast(d.message || 'فشل التحصيل', 'error');
+    }
+}
+
+async function capturePayPalHold(authorizationId, reference) {
+    if (!confirm('تأكيد تحصيل حجز PayPal؟')) return;
+    var r = await fetch('api/paypal.php?action=capture_authorization', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({authorization_id: authorizationId, reference: reference, csrf_token: CSRF})
+    });
+    var d = await r.json();
+    if (d.success) {
+        showToast('تم تحصيل PayPal بنجاح ✓', 'success');
+        setTimeout(function(){ location.reload(); }, 1500);
+    } else {
+        showToast(d.message || 'فشل تحصيل PayPal', 'error');
     }
 }
 

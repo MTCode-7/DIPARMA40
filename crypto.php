@@ -14,7 +14,7 @@ require_once __DIR__ . '/includes/crypto_schema.php';
 
 dp_create_crypto_tables();
 
-$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en') ? 'en' : 'ar';
+$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
 $pageDir     = $currentLang === 'en' ? 'ltr' : 'rtl';
 $userId      = intval($_SESSION['user_id'] ?? 0);
 $db          = db();

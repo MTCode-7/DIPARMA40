@@ -12,7 +12,7 @@ $total = $totalRow[0]['total'] ?? 0;
 $contracts = $db->query('SELECT * FROM ' . DB_PREFIX . 'contracts ORDER BY created_at DESC LIMIT ? OFFSET ?', [$limit, $offset]);
 ?>
 <!DOCTYPE html>
-<html lang="<?= htmlspecialchars($currentLang ?? 'ar') ?>" dir="<?= htmlspecialchars($pageDir ?? 'rtl') ?>">
+<html lang="<?= htmlspecialchars($currentLang ?? 'en') ?>" dir="<?= htmlspecialchars($pageDir ?? 'ltr') ?>">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>قائمة العقود</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
 <style>body{font-family:'Cairo',sans-serif;background:#0b0f17;color:#f7d76b;padding:20px}.card{max-width:1100px;margin:0 auto;background:rgba(10,16,39,0.95);border:1px solid rgba(255,215,0,0.12);padding:18px;border-radius:12px} table{width:100%;border-collapse:collapse} th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.04)} .btn{padding:6px 10px;border-radius:8px;background:#ffd700;color:#000;text-decoration:none}</style>

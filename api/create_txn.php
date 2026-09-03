@@ -163,10 +163,10 @@ switch ($gateway) {
     // ── PayPal ────────────────────────────────────────────
     case 'paypal':
         $clientId = getenv('PAYPAL_CLIENT_ID') ?: '';
-        $secret   = getenv('PAYPAL_SECRET')    ?: '';
+        $secret   = getenv('PAYPAL_CLIENT_SECRET') ?: (getenv('PAYPAL_SECRET') ?: '');
         if (!$clientId || !$secret) { $result['message'] = 'PayPal credentials missing'; break; }
         // Get access token
-        $tokenR = httpPost('https://api.paypal.com/v1/oauth2/token',
+        $tokenR = httpPost('https://api-m.paypal.com/v1/oauth2/token',
             ['Accept: application/json','Content-Type: application/x-www-form-urlencoded',
              'Authorization: Basic '.base64_encode($clientId.':'.$secret)],
             'grant_type=client_credentials');
@@ -181,7 +181,7 @@ switch ($gateway) {
                 'amount' => ['currency_code'=>$currency,'value'=>number_format($amount,2,'.','')],
             ]],
         ]);
-        $r = httpPost('https://api.paypal.com/v2/checkout/orders',
+        $r = httpPost('https://api-m.paypal.com/v2/checkout/orders',
             ['Authorization: Bearer '.$token,'Content-Type: application/json'], $body);
         $d = json_decode($r['body'], true) ?: [];
         if (!empty($d['id'])) {

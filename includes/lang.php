@@ -18,6 +18,12 @@ if (!isset($pageDir)) {
     $pageDir = $currentLang === 'en' ? 'ltr' : 'rtl';
 }
 
+// نقطة الحماية: إذا لم يتم تعيين اللغة صراحةً، فالإفتراضي دائمًا إنجليزي
+if (!isset($currentLang) || $currentLang === '') {
+    $currentLang = 'en';
+    $pageDir = 'ltr';
+}
+
 // ── مصفوفة الترجمات ────────────────────────────────────
 $TRANSLATIONS = [
 
@@ -154,9 +160,9 @@ $TRANSLATIONS = [
  */
 function __(string $key, string $default = ''): string {
     global $TRANSLATIONS, $currentLang;
-    $lang = $currentLang ?? 'ar';
+    $lang = $currentLang ?? 'en';
     return $TRANSLATIONS[$key][$lang]
-        ?? $TRANSLATIONS[$key]['ar']
+        ?? $TRANSLATIONS[$key]['en']
         ?? ($default ?: $key);
 }
 
@@ -193,7 +199,7 @@ function langSwitcher(bool $showLabel = true): string {
 function globalNav(string $activePage = ''): string {
     global $currentLang;
     $username = htmlspecialchars($_SESSION['user_data']['username'] ?? $_SESSION['username'] ?? 'User');
-    $isAr     = ($currentLang ?? 'ar') !== 'en';
+    $isAr     = ($currentLang ?? 'en') !== 'en';
     $langSw   = langSwitcher(false);
 
     $pages = [

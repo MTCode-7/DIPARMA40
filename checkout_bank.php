@@ -5,7 +5,7 @@ require_once __DIR__ . '/includes/functions.php';
 
 $userId    = intval($_SESSION['user_id'] ?? 0);
 $csrfToken = generateCsrfToken();
-$lang      = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en' ? 'en' : 'ar';
+$lang      = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
 $ar        = $lang === 'ar';
 $dir       = $ar ? 'rtl' : 'ltr';
 

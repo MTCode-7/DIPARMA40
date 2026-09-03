@@ -13,7 +13,7 @@ if (!empty($_SESSION['user_id'])) {
 
 $lang  = isset($_GET['lang']) && in_array($_GET['lang'], ['ar', 'en'], true)
   ? $_GET['lang']
-  : (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en' ? 'en' : 'ar');
+  : (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en');
 $ar    = $lang === 'ar';
 $dir   = $ar ? 'rtl' : 'ltr';
 $db    = db();

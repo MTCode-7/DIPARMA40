@@ -44,6 +44,8 @@ try {
             $amount    = floatval($payload['amount']   ?? 0);
             $currency  = trim($payload['currency']     ?? 'USD');
             $reference = trim($payload['reference']    ?? generateReference('PP'));
+            $intent    = strtoupper($payload['intent'] ?? 'CAPTURE');
+            $intent    = in_array($intent, ['CAPTURE', 'AUTHORIZE'], true) ? $intent : 'CAPTURE';
 
             if ($amount <= 0) {
                 echo json_encode(['success' => false, 'message' => 'مبلغ غير صالح']); break;
@@ -75,8 +77,91 @@ try {
 
             $result = $svc->createOrder($amount, $currency, $reference, [
                 'description' => "شراء {$payload['crypto_amount']} {$payload['crypto']}",
+                'intent'      => $intent,
             ]);
 
+            if (!empty($result['order_id'])) {
+                $stored = [
+                    'type'          => 'paypal_order',
+                    'order_id'      => $result['order_id'],
+                    'intent'        => $intent,
+                    'crypto'        => $payload['crypto']         ?? 'USDT',
+                    'network'       => $payload['network']        ?? 'TRC20',
+                    'wallet'        => $payload['wallet_address'] ?? '',
+                    'crypto_amount' => $payload['crypto_amount']  ?? 0,
+                ];
+                $db->update('transactions', ['gateway_response' => json_encode($stored)], ['reference' => $reference]);
+            }
+
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'authorize_order':
+            if (!verifyCsrfToken($payload['csrf_token'] ?? '')) {
+                echo json_encode(['success' => false, 'message' => 'CSRF invalid']); break;
+            }
+            $orderId   = trim($payload['order_id'] ?? '');
+            $reference = trim($payload['reference'] ?? '');
+            if ($orderId === '') {
+                echo json_encode(['success' => false, 'message' => 'order_id مطلوب']); break;
+            }
+
+            $order = $svc->getOrder($orderId);
+            $authorization = $order['purchase_units'][0]['payments']['authorizations'][0] ?? [];
+            $authorizationId = trim($payload['authorization_id'] ?? ($authorization['id'] ?? ''));
+            $resolvedReference = $reference ?: ($order['purchase_units'][0]['reference_id'] ?? '');
+
+            if (($order['status'] ?? '') === 'COMPLETED' && $authorizationId !== '') {
+                $txn = $db->find('transactions', ['reference' => $resolvedReference]);
+                $gatewayData = json_decode($txn['gateway_response'] ?? '{}', true) ?: [];
+                $gatewayData['type'] = 'paypal_authorization';
+                $gatewayData['order_id'] = $orderId;
+                $gatewayData['authorization_id'] = $authorizationId;
+                $db->update('transactions', [
+                    'status' => 'authorized',
+                    'gateway_response' => json_encode($gatewayData),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ], ['reference' => $resolvedReference]);
+                $result = [
+                    'success' => true,
+                    'order_id' => $orderId,
+                    'authorization_id' => $authorizationId,
+                    'status' => 'authorized',
+                    'reference' => $resolvedReference,
+                ];
+            } else {
+                $result = ['success' => false, 'message' => 'PayPal authorization could not be verified'];
+            }
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'capture_authorization':
+            if (!verifyCsrfToken($payload['csrf_token'] ?? '')) {
+                echo json_encode(['success' => false, 'message' => 'CSRF invalid']); break;
+            }
+            $authorizationId = trim($payload['authorization_id'] ?? '');
+            $reference = trim($payload['reference'] ?? '');
+            if ($authorizationId === '') {
+                echo json_encode(['success' => false, 'message' => 'authorization_id مطلوب']); break;
+            }
+
+            $txn = $reference !== '' ? $db->find('transactions', ['reference' => $reference]) : null;
+            if (!$txn || intval($txn['user_id'] ?? 0) !== intval($_SESSION['user_id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'لا تملك صلاحية هذه العملية']); break;
+            }
+
+            $result = $svc->captureAuthorization(
+                $authorizationId,
+                !empty($payload['amount']) ? floatval($payload['amount']) : null,
+                trim($payload['currency'] ?? 'USD')
+            );
+            if ($result['success'] && $reference !== '') {
+                $db->update('transactions', [
+                    'status' => 'completed',
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ], ['reference' => $reference]);
+            }
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
             break;
 
@@ -125,11 +210,23 @@ try {
         case 'webhook':
             $rawBody = file_get_contents('php://input');
             $data    = json_decode($rawBody, true);
+            $headers = function_exists('getallheaders') ? getallheaders() : [];
+            $webhookId = getenv('PAYPAL_WEBHOOK_ID') ?: '';
+
+            if (!$svc->verifyWebhook($headers, $rawBody, $webhookId)) {
+                http_response_code(403);
+                echo json_encode(['status' => 'error', 'message' => 'Invalid PayPal webhook signature']);
+                break;
+            }
+
             $eventType = $data['event_type'] ?? '';
 
             if (str_contains($eventType, 'PAYMENT.CAPTURE.COMPLETED')) {
                 $orderId   = $data['resource']['supplementary_data']['related_ids']['order_id'] ?? '';
-                $reference = $data['resource']['purchase_units'][0]['reference_id'] ?? '';
+                $order = $svc->getOrder($orderId);
+                $reference = $order['purchase_units'][0]['reference_id']
+                    ?? $data['resource']['custom_id']
+                    ?? '';
                 if ($reference) {
                     $db->update('transactions', ['status' => 'completed'], ['reference' => $reference]);
                 }

@@ -31,7 +31,7 @@ $loginButton = ($currentLang === 'en') ? 'Login' : 'تسجيل الدخول';
 
 if (isset($_GET['logout'])) {
     session_destroy();
-    header('Location: /login.php');
+    header('Location: ' . SITE_URL . '/login.php');
     exit();
 }
 
@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 
                 update('users', ['last_login' => date('Y-m-d H:i:s')], ['id' => $user['id']]);
                 
-                header('Location: /dashboard.php');
+                header('Location: ' . SITE_URL . '/dashboard.php');
                 exit();
             } else {
                 $error = 'اسم المستخدم أو كلمة المرور غير صحيحة';

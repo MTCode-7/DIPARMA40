@@ -597,7 +597,7 @@ try {
         
         $clientId = getenv('PAYPAL_CLIENT_ID') ?: '';
         $clientSecret = getenv('PAYPAL_CLIENT_SECRET') ?: '';
-        $env = getenv('PAYPAL_ENVIRONMENT') ?: 'sandbox';
+        $env = strtolower(trim(getenv('PAYPAL_ENVIRONMENT') ?: 'sandbox'));
         
         if (empty($clientId) || empty($clientSecret)) {
             throw new Exception('PayPal credentials not configured');
@@ -605,7 +605,7 @@ try {
         
         // ط§ظ„ط­طµظˆظ„ ط¹ظ„ظ‰ Access Token
         $auth = base64_encode($clientId . ':' . $clientSecret);
-        $url = $env === 'production' 
+        $url = in_array($env, ['live', 'production'], true)
             ? 'https://api-m.paypal.com/v1/oauth2/token'
             : 'https://api-m.sandbox.paypal.com/v1/oauth2/token';
         
@@ -632,7 +632,7 @@ try {
         }
         
         // ط¥ظ†ط´ط§ط، Order
-        $paypalUrl = $env === 'production'
+        $paypalUrl = in_array($env, ['live', 'production'], true)
             ? 'https://api-m.paypal.com/v2/checkout/orders'
             : 'https://api-m.sandbox.paypal.com/v2/checkout/orders';
         

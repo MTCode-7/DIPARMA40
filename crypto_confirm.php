@@ -6,7 +6,7 @@ require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
 
-$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en') ? 'en' : 'ar';
+$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
 $pageDir     = $currentLang === 'en' ? 'ltr' : 'rtl';
 $reference   = trim($_GET['ref'] ?? '');
 $type        = trim($_GET['type'] ?? 'buy');

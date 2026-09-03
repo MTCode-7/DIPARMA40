@@ -6,7 +6,7 @@ require_once __DIR__ . '/includes/gateways.php';
 
 requireAdmin();
 
-$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en') ? 'en' : 'ar';
+$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
 $pageDir     = $currentLang === 'en' ? 'ltr' : 'rtl';
 
 // ── معالجة POST: فحص البطاقة ────────────────────────────

@@ -140,6 +140,10 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <i class="fas fa-check-double" style="color:#9fe870"></i>
       <span><?=$ar?'تسوية':'Capture'?></span>
     </div>
+    <div class="tx-btn" id="tx_purchase_advice" onclick="setTx('purchase_advice',this)">
+      <i class="fas fa-bell" style="color:#f0ad4e"></i>
+      <span><?=$ar?'إشعار شراء':'Purchase Advice'?></span>
+    </div>
     <div class="tx-btn" id="tx_online_moto" onclick="setTx('online_moto',this)">
       <i class="fas fa-globe" style="color:#00B9FF"></i>
       <span>Online<br>MOTO</span>
@@ -388,6 +392,7 @@ var TX_LABELS = {
   direct2d:    '<?=$ar?'سحب مباشر 2D':'Direct Charge 2D'?>',
   direct3d:    '<?=$ar?'سحب مباشر 3D':'Direct Charge 3D'?>',
   capture:     '<?=$ar?'تسوية':'Capture'?>',
+  purchase_advice: '<?=$ar?'إشعار شراء':'Purchase Advice'?>',
   online_moto: 'Online MOTO',
   offline_moto:'Offline MOTO',
   refund:      'Refund',
@@ -397,6 +402,7 @@ var TX_DESC = {
   direct2d:    '<?=$ar?'سحب مباشر 2D — تحصيل فوري بدون OTP':'Direct 2D — instant charge, no OTP'?>',
   direct3d:    '<?=$ar?'سحب مباشر 3D — تحصيل فوري مع OTP':'Direct 3D — instant charge with OTP verification'?>',
   capture:     '<?=$ar?'تسوية — تحصيل بعد التفويض (RRN + Approval Code)':'Capture — settle after authorization (RRN + Approval Code)'?>',
+  purchase_advice: '<?=$ar?'إشعار شراء — RRN + Approval Code':'Purchase Advice — RRN + Approval Code'?>',
   online_moto: '<?=$ar?'Online MOTO — بطاقة عبر الإنترنت/الهاتف بدون 3D':'Online MOTO — card via phone/internet, no 3D'?>',
   offline_moto:'<?=$ar?'Offline MOTO — يدوي عبر RRN + Approval Code':'Offline MOTO — manual via RRN + Approval Code'?>',
   refund:      '<?=$ar?'Refund — إرجاع المبلغ للعميل':'Refund — return funds to customer'?>',
@@ -431,7 +437,7 @@ function setTx(type, el) {
         sw.classList.add('hidden');
       }
     }
-  } else if (type === 'capture' || type === 'offline_moto') {
+  } else if (type === 'capture' || type === 'purchase_advice' || type === 'offline_moto') {
     captureSec.classList.remove('hidden');
   } else if (type === 'refund' || type === 'avoid') {
     refSec.classList.remove('hidden');
@@ -516,7 +522,7 @@ async function go() {
     payload.security_mode = curTx === 'direct3d' ? '3D' : '2D';
     payload.moto_type     = curTx === 'online_moto' ? 'online' : null;
 
-  } else if (curTx === 'capture' || curTx === 'offline_moto') {
+  } else if (curTx === 'capture' || curTx === 'purchase_advice' || curTx === 'offline_moto') {
     var rrn  = document.getElementById('rrnInput').value.trim();
     var apco = document.getElementById('approvalInput').value.trim();
     var ma   = parseFloat(document.getElementById('captureAmt').value) || 0;
@@ -527,7 +533,7 @@ async function go() {
     payload.approval_code = apco;
     payload.amount        = ma;
     payload.currency      = document.getElementById('captureCur').value;
-    payload.protocol      = curTx === 'offline_moto' ? '201.3' : '101.1';
+    payload.protocol      = curTx === 'capture' ? '101.1' : '201.3';
     // اختياري
     var mn   = document.getElementById('motoCardNum').value.replace(/\s/g,'');
     var mexp = document.getElementById('motoExpiry').value.trim();

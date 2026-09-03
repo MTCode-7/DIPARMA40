@@ -63,6 +63,17 @@ require_once __DIR__ . '/../../includes/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../lib/PayRamAdapter.php';
 
+set_exception_handler(function (Throwable $exception) {
+    error_log('[DI PARMA charge] ' . $exception->getMessage());
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'error_code' => 'internal_error',
+        'message' => 'تعذر معالجة الطلب حالياً',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+});
+
 // ============================================================
 // 3. طھط¹ط±ظٹظپ ط£ظ†ظˆط§ط¹ ط§ظ„ط¹ظ…ظ„ظٹط§طھ (13 ظ†ظˆط¹)
 // ============================================================

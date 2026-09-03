@@ -9,7 +9,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 
 define('SITE_URL', 'https://diparmas.com');
 
-$currentLang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en' ? 'en' : 'ar';
+$currentLang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
 $isAr = $currentLang === 'ar';
 $pageDir = $isAr ? 'rtl' : 'ltr';
 

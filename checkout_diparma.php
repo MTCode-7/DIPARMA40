@@ -21,7 +21,7 @@ require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
 
-$lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'en' ? 'en' : 'ar';
+$lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
 $ar   = ($lang === 'ar');
 $dir  = $ar ? 'rtl' : 'ltr';
 $csrf = generateCsrfToken();
@@ -882,6 +882,7 @@ const WH_S    = document.getElementById('webhookSecH').value;
 const WH_URL  = document.getElementById('webhookUrlH').value;
 const EP      = document.getElementById('endpointH').value;
 const LDG_ADDR= document.getElementById('ledgerAddrH').value;
+const IS_PAYRAM = new URLSearchParams(window.location.search).get('gateway')?.toLowerCase() === 'payram';
 
 // ── STATE ──
 const S = {
@@ -1089,6 +1090,64 @@ window.runTransaction = async function() {
 
   const amount = parseFloat(document.getElementById('txnAmount').value) || 0;
   if (amount <= 0) { toast(AR?'أدخل المبلغ':'Enter amount','error'); return; }
+
+  if (IS_PAYRAM) {
+    S.processing = true;
+    const btn = document.getElementById('processBtn');
+    btn.disabled = true; btn.classList.add('loading');
+    document.getElementById('procIco').className = 'fas fa-spinner fa-spin';
+    document.getElementById('procLbl').textContent = AR ? 'جاري إنشاء رابط PayRam...' : 'Creating PayRam payment link...';
+
+    try {
+      const response = await fetch('api/payram_payment.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          action: 'create',
+          amount,
+          email: document.getElementById('txnEmail')?.value || 'client@diparmas.com',
+          customer_id: 'dp_' + Date.now(),
+          reference: 'DP' + Date.now().toString(36).toUpperCase(),
+          csrf_token: CSRF,
+          blockchain_code: 'BASE',
+          currency_code: 'USDC',
+          notes: document.getElementById('txnNotes')?.value || ''
+        })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success || !result.url) {
+        throw new Error(result.message || ('HTTP ' + response.status));
+      }
+      window.location.assign(result.url);
+    } catch (error) {
+      S.processing = false;
+      resetBtn();
+      toast((AR ? 'فشل إنشاء رابط PayRam: ' : 'PayRam link failed: ') + (error.message || 'Unknown error'), 'error');
+    }
+    return;
+  }
+
+  const maxAmounts = {
+    purchase_2d: 25000,
+    purchase_offline: 25000,
+    purchase_online: 25000,
+    crypto_purchase: 25000,
+    gift_card: 5000,
+    recurring: 10000,
+    quasi_cash: 10000,
+    purchase_3d: 50000,
+    purchase_advice: 100000,
+    auth_hold: 100000,
+    auth_capture: 100000,
+    installment: 50000,
+    wire_transfer: 100000
+  };
+  const maxAmount = maxAmounts[S.txnType] || 50000;
+  if (amount > maxAmount) {
+    toast(AR ? `الحد الأقصى للعملية ${maxAmount.toLocaleString()} USD` : `Maximum amount is ${maxAmount.toLocaleString()} USD`, 'error');
+    return;
+  }
 
   const cn = document.getElementById('cardNum').value.replace(/\s/g,'');
   const ce = document.getElementById('cardExp').value;
@@ -1391,16 +1450,25 @@ window.refreshBal = async function() {
   const ico  = document.getElementById('balRefIco');
   ico.className = 'fas fa-spinner fa-spin';
   try {
-    const r = await fetch(`https://apilist.tronscanapi.com/api/accountv2?address=${encodeURIComponent(addr)}`);
-    const d = await r.json();
-    let usdt = 0;
-    (d.trc20token_balances || []).forEach(t => {
-      if (t.tokenAbbr === 'USDT' || t.tokenId === 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t')
-        usdt = (parseFloat(t.balance||0)/1e6).toFixed(2);
+    const r = await fetch('api/wallet.php?action=balance', {
+      method: 'GET',
+      credentials: 'same-origin'
     });
+
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+    const d = await r.json();
+    const crypto = Array.isArray(d.crypto) ? d.crypto : [];
+    const usdtWallet = crypto.find(item =>
+      (item.coin || '').toUpperCase() === 'USDT' &&
+      (item.network || '').toUpperCase() === 'TRC20'
+    );
+
+    const usdt = usdtWallet ? Number(usdtWallet.balance || 0).toFixed(2) : '0.00';
     document.getElementById('ldgBal').textContent = usdt + ' USDT';
   } catch(e) {
     document.getElementById('ldgBal').textContent = '—';
+    console.warn('[Ledger Balance]', e.message);
   }
   ico.className = 'fas fa-sync-alt';
 };
@@ -1410,7 +1478,18 @@ window.refreshBal = async function() {
 // ════════════════════════════════════════════════════════════════
 async function loadRecent() {
   try {
-    const r = await fetch('api/wallet.php?action=recent_ledger&limit=6');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    
+    const r = await fetch('api/wallet.php?action=recent_ledger&limit=6', {
+      signal: controller.signal,
+      credentials: 'include'
+    });
+    
+    clearTimeout(timeout);
+    
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    
     const d = await r.json();
     const c = document.getElementById('recentList');
     if (!d.transactions?.length) {
@@ -1427,7 +1506,11 @@ async function loadRecent() {
         <div class="st-${st}">${t.status||'—'}</div>
       </div>`;
     }).join('');
-  } catch(_) {}
+  } catch(e) {
+    console.warn('[Recent Transactions]', e.message);
+    const c = document.getElementById('recentList');
+    c.innerHTML = `<div style="font-size:.65rem;color:var(--muted2);text-align:center;padding:8px">${AR?'لم يتمكن من التحميل':'Unable to load'}</div>`;
+  }
 }
 
 // ════════════════════════════════════════════════════════════════

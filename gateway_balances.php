@@ -37,10 +37,10 @@ function fetchBalance(string $gw): array {
             // ── PayPal ───────────────────────────────────────
             case 'paypal': {
                 $cid = getenv('PAYPAL_CLIENT_ID') ?: '';
-                $sec = getenv('PAYPAL_SECRET')    ?: '';
+                $sec = getenv('PAYPAL_CLIENT_SECRET') ?: (getenv('PAYPAL_SECRET') ?: '');
                 if (!$cid || !$sec) { $result['message']='Missing credentials'; break; }
                 // Get token
-                $ch = curl_init('https://api.paypal.com/v1/oauth2/token');
+                $ch = curl_init('https://api-m.paypal.com/v1/oauth2/token');
                 curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_POST=>true,
                     CURLOPT_POSTFIELDS=>'grant_type=client_credentials',
                     CURLOPT_USERPWD=>$cid.':'.$sec,
@@ -51,7 +51,7 @@ function fetchBalance(string $gw): array {
                 $token = $td['access_token'] ?? '';
                 if (!$token) { $result['message']='Auth failed'; break; }
                 // Get balance
-                $ch = curl_init('https://api.paypal.com/v1/reporting/balances');
+                $ch = curl_init('https://api-m.paypal.com/v1/reporting/balances');
                 curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,
                     CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$token,'Content-Type: application/json'],
                     CURLOPT_TIMEOUT=>10]);

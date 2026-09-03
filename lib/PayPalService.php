@@ -17,9 +17,9 @@ class PayPalService
     private function __construct()
     {
         $this->clientId  = getenv('PAYPAL_CLIENT_ID') ?: '';
-        $this->secretKey = getenv('PAYPAL_SECRET')    ?: '';
-        $env             = getenv('PAYPAL_ENVIRONMENT') ?: '';
-        $this->baseUrl   = $env === 'live'
+        $this->secretKey = getenv('PAYPAL_CLIENT_SECRET') ?: (getenv('PAYPAL_SECRET') ?: '');
+        $env             = strtolower(trim(getenv('PAYPAL_ENVIRONMENT') ?: 'sandbox'));
+        $this->baseUrl   = in_array($env, ['live', 'production'], true)
             ? 'https://api-m.paypal.com'
             : 'https://api-m.sandbox.paypal.com';
         $this->logFile   = defined('LOGS_PATH') ? LOGS_PATH . '/paypal.log' : __DIR__ . '/../logs/paypal.log';
@@ -120,8 +120,13 @@ class PayPalService
         try {
             $token = $this->getAccessToken();
 
+            $intent = strtoupper($options['intent'] ?? 'CAPTURE');
+            if (!in_array($intent, ['CAPTURE', 'AUTHORIZE'], true)) {
+                $intent = 'CAPTURE';
+            }
+
             $body = [
-                'intent' => 'CAPTURE',
+                'intent' => $intent,
                 'purchase_units' => [[
                     'reference_id'  => $reference,
                     'amount'        => [
@@ -204,12 +209,81 @@ class PayPalService
         }
     }
 
+    public function authorizeOrder(string $orderId): array
+    {
+        try {
+            $token    = $this->getAccessToken();
+            $response = $this->request('POST', "/v2/checkout/orders/$orderId/authorize", $token, []);
+            $authorization = $response['purchase_units'][0]['payments']['authorizations'][0] ?? [];
+
+            if (($response['status'] ?? '') === 'COMPLETED' && !empty($authorization['id'])) {
+                $this->log("✓ Authorized: $orderId | {$authorization['id']}");
+                return [
+                    'success'          => true,
+                    'order_id'         => $orderId,
+                    'authorization_id' => $authorization['id'],
+                    'status'           => 'authorized',
+                    'amount'           => floatval($authorization['amount']['value'] ?? 0),
+                    'currency'         => $authorization['amount']['currency_code'] ?? '',
+                    'reference'        => $response['purchase_units'][0]['reference_id'] ?? '',
+                    'message'          => 'تم تفويض الدفع عبر PayPal بنجاح',
+                ];
+            }
+
+            return ['success' => false, 'status' => $response['status'] ?? '', 'message' => 'PayPal authorization failed'];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    public function captureAuthorization(string $authorizationId, ?float $amount = null, string $currency = 'USD'): array
+    {
+        try {
+            $token = $this->getAccessToken();
+            $body = $amount !== null ? ['amount' => [
+                'currency_code' => strtoupper($currency),
+                'value' => number_format($amount, 2, '.', ''),
+            ]] : [];
+            $response = $this->request('POST', "/v2/payments/authorizations/" . rawurlencode($authorizationId) . '/capture', $token, $body);
+            $capture = !empty($response['id']) ? $response : [];
+
+            if (($response['status'] ?? '') === 'COMPLETED' && !empty($capture['id'])) {
+                return [
+                    'success'    => true,
+                    'capture_id' => $capture['id'],
+                    'status'     => 'completed',
+                    'amount'     => floatval($capture['amount']['value'] ?? 0),
+                    'currency'   => $capture['amount']['currency_code'] ?? '',
+                    'message'    => 'تم تحصيل التفويض عبر PayPal بنجاح',
+                ];
+            }
+
+            return ['success' => false, 'status' => $response['status'] ?? '', 'message' => 'PayPal capture failed'];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    public function getOrder(string $orderId): array
+    {
+        if ($orderId === '') return [];
+
+        try {
+            return $this->request('GET', '/v2/checkout/orders/' . rawurlencode($orderId), $this->getAccessToken());
+        } catch (Exception $e) {
+            $this->log('getOrder failed: ' . $e->getMessage());
+            return [];
+        }
+    }
+
     // ══════════════════════════════════════════════════════════
     // [5] التحقق من Webhook
     // ══════════════════════════════════════════════════════════
 
     public function verifyWebhook(array $headers, string $rawBody, string $webhookId): bool
     {
+        if (empty($webhookId) || empty($rawBody)) return false;
+
         try {
             $token = $this->getAccessToken();
             $body  = [

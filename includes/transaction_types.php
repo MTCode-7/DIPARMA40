@@ -214,7 +214,7 @@ function getTransactionTypesByCategory($category) {
 /**
  * دالة لتنسيق اسم نوع المعاملة
  */
-function formatTransactionType($code, $lang = 'ar') {
+function formatTransactionType($code, $lang = 'en') {
     $type = getTransactionType($code);
     if (!$type) return $code;
     

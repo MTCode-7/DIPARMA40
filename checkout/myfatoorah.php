@@ -1,8 +1,10 @@
 <?php
 require_once __DIR__ . '/../includes/auth_check.php';
 require_once __DIR__ . '/../includes/functions.php';
-$lang=$_COOKIE['di_parma_lang']??'ar'; $ar=$lang==='ar'; $dir=$ar?'rtl':'ltr';
-$csrf=generateCsrfToken();
+$lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
+$ar = $lang === 'ar';
+$dir = $ar ? 'rtl' : 'ltr';
+$csrf = generateCsrfToken();
 $amount=floatval($_GET['amount']??0); $currency=strtoupper($_GET['currency']??'KWD');
 $destination=$_GET['destination']??'gateway'; $ref=$_GET['ref']??('MF-'.strtoupper(substr(uniqid(),0,8)));
 $walletAddr=$_GET['wallet']??'';
