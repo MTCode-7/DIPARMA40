@@ -3827,6 +3827,17 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
+    if (new URLSearchParams(window.location.search).get('account_return') !== '1') return;
+    const navButtons = document.querySelector('.nav-buttons');
+    if (!navButtons) return;
+    navButtons.querySelectorAll('a').forEach(function(link) {
+        if (/login|register/i.test(link.textContent)) link.remove();
+    });
+    navButtons.insertAdjacentHTML('afterbegin', '<a href="dashboard.php" class="nav-btn"><i class="fas fa-chart-pie"></i> Dashboard</a>');
+    navButtons.insertAdjacentHTML('beforeend', '<a href="logout.php" class="nav-btn logout"><i class="fas fa-sign-out-alt"></i> Logout</a>');
+});
+
+document.addEventListener('DOMContentLoaded', function() {
     updatePercent();
     
     // اللغة من PHP مباشرة — لا نعتمد على الـ cookie في JS
