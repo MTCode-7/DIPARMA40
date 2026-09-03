@@ -425,6 +425,7 @@ foreach ($dailyStats as $day) {
             <a href="wallets.php" class="nav-link"><i class="fas fa-wallet"></i> <?= $currentLang==='en'?'Wallet':'المحفظة' ?></a>
             <a href="invoices.php" class="nav-link"><i class="fas fa-file-invoice"></i> <?= $currentLang==='en'?'Invoices':'الفواتير' ?></a>
             <a href="approvals.php" class="nav-link"><i class="fas fa-check-double"></i> <?= $currentLang==='en'?'Approvals':'الموافقات' ?></a>
+            <a href="holds.php" class="nav-link"><i class="fas fa-hand-holding-usd"></i> <?= $currentLang==='en'?'PayPal Holds':'حجوزات PayPal' ?></a>
             <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> <?= $currentLang==='en'?'Settings':'تغيير الحساب' ?></a>
             <a href="transactions.php" class="nav-link"><i class="fas fa-list"></i> <?= $currentLang==='en'?'Transactions':'المعاملات' ?></a>
             <a href="crypto.php" class="nav-link"><i class="fas fa-coins"></i> Crypto</a>
