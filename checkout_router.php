@@ -470,12 +470,14 @@ const GW_ROUTES = {
   payram: 'checkout_diparma.php',
 };
 
-window.selectGateway = function(code, el) {
+function selectGateway(code, el) {
   STATE.gateway = code;
   document.querySelectorAll('.gw-card').forEach(card => card.classList.remove('selected'));
   if (el) el.classList.add('selected');
-  document.getElementById('btn-step1').disabled = false;
-};
+  const btn = document.getElementById('btn-step1');
+  if (btn) btn.disabled = false;
+}
+window.selectGateway = selectGateway;
 
 function goStep(n) {
   if (n === 2 && !STATE.gateway) {
@@ -510,7 +512,7 @@ const STATE_TXN = { type: 'purchase_3d', secMode: '3D' };
 const NEED_ORIG = ['auth_complete', 'refund', 'reversal', 'void', 'offline_purchase', 'online_purchase'];
 const NO_AMOUNT = ['balance', 'settlement'];
 
-window.selectTxnTypeRouter = function(type, el) {
+function selectTxnTypeRouter(type, el) {
   STATE_TXN.type = type;
   document.querySelectorAll('#txnTypeGrid > div').forEach(d => {
     d.style.borderColor = 'var(--border)';
@@ -536,9 +538,10 @@ window.selectTxnTypeRouter = function(type, el) {
     if (orig) orig.placeholder = 'Previous transaction reference';
     if (approval) approval.placeholder = 'Approval code';
   }
-};
+}
+window.selectTxnTypeRouter = selectTxnTypeRouter;
 
-window.selectSecMode = function(mode, el) {
+function selectSecMode(mode, el) {
   STATE_TXN.secMode = mode;
   ['smode-3D', 'smode-2D'].forEach(id => {
     const node = document.getElementById(id);
@@ -548,7 +551,8 @@ window.selectSecMode = function(mode, el) {
     node.style.background = active ? 'rgba(255,215,0,.06)' : 'rgba(255,255,255,.03)';
     node.style.color = active ? 'var(--gold)' : 'var(--muted2)';
   });
-};
+}
+window.selectSecMode = selectSecMode;
 
 window.addEventListener('DOMContentLoaded', function() {
   const preferred = 'payram';
@@ -565,11 +569,12 @@ window.addEventListener('DOMContentLoaded', function() {
   updateSummary();
 });
 
-window.selectDestination = function(code, el) {
+function selectDestination(code, el) {
   STATE.destination = code;
   document.querySelectorAll('.dest-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  document.getElementById('btn-step2').disabled = false;
+  if (el) el.classList.add('selected');
+  const btn = document.getElementById('btn-step2');
+  if (btn) btn.disabled = false;
 
   const customCodes = ['tron_w', 'erc20_w', 'btc_w'];
   const wrap = document.getElementById('customWalletWrap');
@@ -582,7 +587,8 @@ window.selectDestination = function(code, el) {
   };
   const labelEl = document.getElementById('customWalletLabel');
   if (labels[code] && labelEl) labelEl.innerHTML = '<i class="fas fa-wallet"></i> ' + labels[code];
-};
+}
+window.selectDestination = selectDestination;
 
 function updateSummary() {
   const amt = parseFloat(document.getElementById('txnAmount').value) || 0;
