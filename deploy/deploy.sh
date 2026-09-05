@@ -7,8 +7,8 @@
 set -e
 
 # ── الإعدادات ──────────────────────────────────────────────
-APP_DIR="/var/www/diparma"
-REPO_URL="https://github.com/diparma/diparma.git"
+APP_DIR="/var/www/html/DIPARMA40"
+REPO_URL="https://github.com/MTCode-7/DIPARMA40.git"
 BRANCH="main"
 
 GREEN='\033[0;32m'
