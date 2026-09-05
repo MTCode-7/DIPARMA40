@@ -72,6 +72,30 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'card_types' => ['Visa', 'Mastercard', 'Amex', 'Discover'],
         'setup_complete' => false
     ],
+
+    'nuvei' => [
+        'name' => 'Nuvei',
+        'region' => 'UAE / Mashreq',
+        'icon' => 'fas fa-credit-card',
+        'credentials' => [
+            'merchant_id' => getenv('NUVEI_MERCHANT_ID') ?: '',
+            'site_id' => getenv('NUVEI_SITE_ID') ?: '',
+            'secret_key' => getenv('NUVEI_SECRET_KEY') ?: '',
+        ],
+        'urls' => [
+            'api' => 'https://secure.nuvei.com/ppp/api/v1/',
+            'success' => getenv('NUVEI_SUCCESS_URL') ?: '/payment_success.php',
+            'cancel' => getenv('NUVEI_CANCEL_URL') ?: '/payment_cancelled.php',
+            'webhook' => getenv('NUVEI_WEBHOOK_URL') ?: '/api/webhook.php?gateway=nuvei',
+        ],
+        'environment' => getenv('NUVEI_ENVIRONMENT') ?: 'live',
+        'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR'],
+        'fees' => ['percentage' => 0, 'fixed' => 0],
+        'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
+        'features' => ['sale', 'auth', 'settle', 'refund', 'void', '3ds', 'webhooks'],
+        'card_types' => ['Visa', 'Mastercard'],
+        'setup_complete' => true
+    ],
     
     'adyen' => [
         'name' => 'Adyen',
@@ -124,8 +148,8 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Europe',
         'icon' => 'fas fa-exchange-alt',
         'credentials' => [
-            'api_key'    => getenv('WISE_API_KEY') ?: '5497cf6e-ae91-42d2-99b8-e77d3328bf53',
-            'profile_id' => getenv('WISE_PROFILE_ID') ?: '', // ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½
+            'api_key'    => getenv('WISE_API_KEY') ?: '',
+            'profile_id' => getenv('WISE_PROFILE_ID') ?: '',
         ],
         'urls' => [
             'success' => getenv('WISE_SUCCESS_URL') ?: '/payment_success.php?gateway=wise',

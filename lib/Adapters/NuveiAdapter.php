@@ -162,6 +162,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $ccExp    = $payload['cc_expiry'] ?? '';
         $ccCvv    = $payload['cc_cvv'] ?? '';
         $name     = $payload['name'] ?? 'Customer';
+        $nameParts = preg_split('/\s+/', trim($name), 2) ?: ['Customer'];
+        $ipAddress = filter_var($payload['ip_address'] ?? ($_SERVER['REMOTE_ADDR'] ?? ''), FILTER_VALIDATE_IP)
+            ? ($payload['ip_address'] ?? $_SERVER['REMOTE_ADDR'])
+            : '1.1.1.1';
 
         // تحليل تاريخ الانتهاء
         $expParts = explode('/', str_replace('-', '/', $ccExp));
@@ -191,8 +195,17 @@ class NuveiAdapter implements GatewayAdapterInterface {
             ],
             'billingAddress'   => [
                 'email'     => $email,
-                'firstName' => explode(' ', $name)[0] ?? 'Customer',
-                'lastName'  => explode(' ', $name)[1] ?? '',
+                'firstName' => $nameParts[0] ?: 'Customer',
+                'lastName'  => $nameParts[1] ?? 'Client',
+                'country'   => strtoupper(substr($payload['country'] ?? 'AE', 0, 2)),
+                'city'      => trim($payload['city'] ?? 'Dubai') ?: 'Dubai',
+                'address'   => trim($payload['address'] ?? 'Al Barsha 1, Dubai, UAE') ?: 'Al Barsha 1, Dubai, UAE',
+                'zip'       => trim($payload['zip'] ?? '00000') ?: '00000',
+            ],
+            'deviceDetails'    => [
+                'deviceType' => 'DESKTOP',
+                'ipAddress' => $ipAddress,
+                'browserUserAgent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
             ],
             'transactionType'  => strtoupper($payload['processing_mode'] ?? '') === '2D'
                                     ? 'MOTO'   // Mail/Telephone Order — بدون 3DS

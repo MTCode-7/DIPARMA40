@@ -181,7 +181,7 @@ class QuantumCipher {
     }
     
     public static function generateKey() {
-        return hash('sha256', getenv('ENCRYPTION_KEY') ?: 'DI_PARMA_SECURE_KEY_2026', true);
+        return hash('sha256', getenv('ENCRYPTION_KEY') ?: '', true);
     }
 }
 
@@ -218,6 +218,17 @@ require_once ROOT_PATH . '/includes/config.php';
 require_once ROOT_PATH . '/includes/database.php';
 require_once ROOT_PATH . '/includes/functions.php';
 require_once ROOT_PATH . '/includes/gateways.php';
+
+$paymentGatewayCount = 0;
+try {
+    $gatewayDb = db();
+    $gatewayCountRows = $gatewayDb->query(
+        "SELECT COUNT(*) AS total FROM " . DB_PREFIX . "payment_gateways WHERE status <> 'deleted'"
+    );
+    $paymentGatewayCount = (int)($gatewayCountRows[0]['total'] ?? 0);
+} catch (Throwable $e) {
+    $paymentGatewayCount = 0;
+}
 
 require_once ROOT_PATH . '/landing.php';
 exit();
@@ -2147,7 +2158,7 @@ $ui = [
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
             <?php foreach ([
-                ['847', $currentLang === 'en' ? 'Payment Gateways' : 'بوابة دفع'],
+                [(string)$paymentGatewayCount, $currentLang === 'en' ? 'Payment Gateways' : 'بوابة دفع'],
                 ['100', $currentLang === 'en' ? 'Banks' : 'البنوك'],
                 ['196', $currentLang === 'en' ? 'Countries' : 'الدول'],
                 ['50+', $currentLang === 'en' ? 'Digital Currencies' : 'عملات رقمية'],

@@ -30,9 +30,14 @@ $currency = strtoupper(trim($payload['currency'] ?? 'USD'));
 $email    = trim($payload['email'] ?? 'guest@diparmas.com');
 
 // Nuvei credentials
-$merchantId = getenv('NUVEI_MERCHANT_ID') ?: '2761828514943809999';
-$siteId     = getenv('NUVEI_SITE_ID')     ?: '5613117';
-$secretKey  = getenv('NUVEI_SECRET_KEY')  ?: 'aVEmlBFMOyuS7GEhyrpgjHpweAkkobcIO3EMFvUZz8p2SVGxs5kZOP3PnSx3NxQs';
+$merchantId = trim((string)getenv('NUVEI_MERCHANT_ID'));
+$siteId     = trim((string)getenv('NUVEI_SITE_ID'));
+$secretKey  = trim((string)getenv('NUVEI_SECRET_KEY'));
+if ($merchantId === '' || $siteId === '' || $secretKey === '') {
+    http_response_code(503);
+    echo json_encode(['success' => false, 'message' => 'Nuvei credentials are not configured']);
+    exit;
+}
 $baseUrl = 'https://secure.nuvei.com/ppp/api/v1';
 
 $ref  = 'TXN' . strtoupper(bin2hex(random_bytes(5))) . date('Ymd');

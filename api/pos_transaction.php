@@ -148,7 +148,7 @@ if (!empty($ledgerAddr) && !empty($hotWalletAddr) && strcasecmp($ledgerAddr, $ho
 }
 
 // التحقق من بيانات البطاقة (لأنواع البطاقات)
-$cardTypes = ['purchase', 'purchase_2d', 'purchase_advice', 'auth', 'auth_complete', 'cash_advance', 'withdrawal_physical', 'refund', 'void', 'reversal'];
+$cardTypes = ['purchase', 'purchase_2d', 'purchase_advice', 'auth', 'auth_moto', 'auth_complete', 'cash_advance', 'withdrawal_physical', 'refund', 'void', 'reversal'];
 if (in_array($txnType, $cardTypes)) {
     if (empty($cardNumber) || strlen($cardNumber) < 13) {
         $errors[] = 'Invalid card number. Must be 13-19 digits.';
@@ -165,6 +165,10 @@ if (in_array($txnType, $cardTypes)) {
 $origRequired = ['auth_complete', 'refund', 'void', 'reversal'];
 if (in_array($txnType, $origRequired) && empty($origRef)) {
     $errors[] = 'Original reference is required for ' . $txnType . '.';
+}
+
+if ($txnType === 'auth_complete' && empty($data['auth_code'] ?? ($extra['auth_code'] ?? ''))) {
+    $errors[] = 'Authorization code is required for auth_complete.';
 }
 
 // التحقق من رمز الموافقة (للأنواع التي تتطلبه)
@@ -188,6 +192,32 @@ if (!empty($errors)) {
 // ============================================================
 
 $db = db();
+
+// Settlement must be tied to a recorded authorization amount.
+$authorizedAmount = null;
+if ($txnType === 'auth_complete' && !empty($origRef)) {
+    $originalRows = $db->query(
+        "SELECT amount FROM " . DB_PREFIX . "transactions WHERE reference = ? LIMIT 1",
+        [$origRef]
+    );
+    if (empty($originalRows[0]['amount'])) {
+        http_response_code(422);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Original authorization was not found; settlement is blocked.'
+        ]);
+        exit;
+    }
+    $authorizedAmount = (float)$originalRows[0]['amount'];
+    if ($amount > $authorizedAmount) {
+        http_response_code(422);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Settlement amount cannot exceed the original authorized amount.'
+        ]);
+        exit;
+    }
+}
 
 // ============================================================
 // 8. معالجة عبر Nuvei (لأنواع البطاقات)
@@ -227,9 +257,14 @@ if ($useNuvei) {
             'user_token_id' => 'user_' . $userId . '_' . time(),
             'pos_device' => $posDevice,
             'related_transaction_id' => $origRef,
+            'auth_code' => $data['auth_code'] ?? ($extra['auth_code'] ?? ''),
+            'client_unique_id' => $origRef,
+            'authorized_amount' => $authorizedAmount,
             'reference' => $reference,
             'terminal_id' => $terminalId,
             'merchant_id' => $merchantId,
+            'moto_indicator' => $extra['moto_indicator'] ?? null,
+            'is_moto' => !empty($extra['is_moto']),
         ];
 
         // تنفيذ العملية حسب النوع
@@ -248,6 +283,7 @@ if ($useNuvei) {
                 break;
 
             case 'auth':
+            case 'auth_moto':
                 $result = $nuvei->authorize($params);
                 break;
 
@@ -332,6 +368,21 @@ if ($txnType === 'settlement') {
     ];
 }
 
+$displayOperation = in_array($txnType, ['auth_capture', 'purchase', 'purchase_2d', 'purchase_advice', 'purchase_offline', 'purchase_online'], true)
+    ? 'SALE'
+    : 'PURCHASE';
+
+$gatewayDetails = [
+    'operation_name' => $displayOperation,
+    'transaction_type' => $txnType,
+    'transaction_id' => $nuveiTxnId,
+    'auth_code' => $approvalCode,
+    'rrn' => $rrn,
+    'status' => $message,
+    'success' => $success,
+    'response' => $gatewayResponse,
+];
+
 // ============================================================
 // 10. حفظ في قاعدة البيانات
 // ============================================================
@@ -343,7 +394,7 @@ try {
         'gateway' => 'nuvei_pos',
         'gateway_type' => 'card',
         'transaction_type' => $txnType,
-        'transaction_label' => $data['transaction_label'] ?? strtoupper($txnType),
+        'transaction_label' => $displayOperation,
         'amount' => $amount,
         'currency' => $currency,
         'card_last4' => substr($cardNumber, -4),
@@ -365,6 +416,9 @@ try {
             'requires_3ds' => $requires3ds,
             'redirect_url' => $redirectUrl,
             'extra' => $extra,
+            'operation_name' => $displayOperation,
+            'display_type' => $displayOperation,
+            'gateway_details' => $gatewayDetails,
             'raw' => $gatewayResponse,
         ]),
         'ledger_address' => $ledgerAddr,
@@ -423,6 +477,9 @@ echo json_encode([
     'approval_code' => $approvalCode,
     'nuvei_txn_id' => $nuveiTxnId,
     'txn_type' => $txnType,
+    'operation_name' => $displayOperation,
+    'transaction_label' => $displayOperation,
+    'gateway_details' => $gatewayDetails,
     'amount' => $amount,
     'currency' => $currency,
     'status_message' => $message,

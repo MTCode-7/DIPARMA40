@@ -70,7 +70,7 @@ $destinations = [
 
   // نقاط الوصول المعروفة لكل بوابة. نعرضها دائمًا لتجنب صفحة checkout فارغة.
   $gatewayRoutes = [
-    'nuvei'      => 'checkout/nuvei.php',
+    'nuvei'      => 'checkout_nuvei.php',
     'stripe'     => 'checkout/stripe.php',
     'paypal'     => 'checkout/paypal.php',
     'wise'       => 'checkout/wise.php',
@@ -453,178 +453,237 @@ const STATE = {
 };
 
 const GW_ROUTES = {
-  nuvei:        'checkout/nuvei.php',
-  stripe:       'checkout/stripe.php',
-  paypal:       'checkout/paypal.php',
-  wise:         'checkout/wise.php',
-  myfatoorah:   'checkout/myfatoorah.php',
-  binance:      'checkout/binance.php',
-  gate_io:      'checkout/gate_io.php',
-  hsbc_uae:     'checkout/bank_hsbc.php',
-  nbe_egypt:    'checkout/bank_nbe.php',
-  mashreq:      'checkout/bank_mashreq.php',
-  jpmorgan:     'checkout/bank_jpmorgan.php',
-  whop:         'checkout/whop.php',
-  redotpay:     'checkout/redotpay.php',
-  diparma:      'checkout_diparma.php',
-  payram:       'checkout_diparma.php',
+  nuvei: 'checkout/nuvei.php',
+  stripe: 'checkout/stripe.php',
+  paypal: 'checkout/paypal.php',
+  wise: 'checkout/wise.php',
+  myfatoorah: 'checkout/myfatoorah.php',
+  binance: 'checkout/binance.php',
+  gate_io: 'checkout/gate_io.php',
+  hsbc_uae: 'checkout/bank_hsbc.php',
+  nbe_egypt: 'checkout/bank_nbe.php',
+  mashreq: 'checkout/bank_mashreq.php',
+  jpmorgan: 'checkout/bank_jpmorgan.php',
+  whop: 'checkout/whop.php',
+  redotpay: 'checkout/redotpay.php',
+  diparma: 'checkout_diparma.php',
+  payram: 'checkout_diparma.php',
 };
 
-// ── Step Navigation ────────────────────────────────────────
+window.selectGateway = function(code, el) {
+  STATE.gateway = code;
+  document.querySelectorAll('.gw-card').forEach(card => card.classList.remove('selected'));
+  if (el) el.classList.add('selected');
+  document.getElementById('btn-step1').disabled = false;
+};
+
 function goStep(n) {
-  // Validation
-  if(n===2 && !STATE.gateway) { toast(AR?'اختر بوابة الدفع':'Select payment gateway','error'); return; }
-  if(n===3 && !STATE.destination) { toast(AR?'اختر وجهة المبلغ':'Select amount destination','error'); return; }
-  if(n===4) {
-    const amt = parseFloat(document.getElementById('txnAmount').value)||0;
-    if(amt<=0) { toast(AR?'أدخل المبلغ':'Enter amount','error'); return; }
-    STATE.amount   = amt;
+  if (n === 2 && !STATE.gateway) {
+    toast(AR ? 'اختر بوابة الدفع' : 'Select payment gateway', 'error');
+    return;
+  }
+  if (n === 3 && !STATE.destination) {
+    toast(AR ? 'اختر وجهة المبلغ' : 'Select amount destination', 'error');
+    return;
+  }
+  if (n === 4) {
+    const amt = parseFloat(document.getElementById('txnAmount').value) || 0;
+    if (amt <= 0) {
+      toast(AR ? 'أدخل المبلغ' : 'Enter amount', 'error');
+      return;
+    }
+    STATE.amount = amt;
     STATE.currency = document.getElementById('txnCurrency').value;
-    STATE.txnType  = STATE_TXN.type;
+    STATE.txnType = STATE_TXN.type;
     updateConfirmSummary();
   }
 
-  for(let i=1;i<=4;i++) {
-    document.getElementById('sec-step'+i).style.display = i===n?'':'none';
-    const item = document.getElementById('step'+i+'-item');
-    item.className = 'step-item ' + (i<n?'done':i===n?'active':'');
+  for (let i = 1; i <= 4; i++) {
+    const sec = document.getElementById('sec-step' + i);
+    if (sec) sec.style.display = i === n ? '' : 'none';
+    const item = document.getElementById('step' + i + '-item');
+    if (item) item.className = 'step-item ' + (i < n ? 'done' : i === n ? 'active' : '');
   }
 }
 
-// ── Transaction Type (10 أنواع) ────────────────────────────
 const STATE_TXN = { type: 'purchase_3d', secMode: '3D' };
-const NEED_ORIG = ['auth_complete','refund','reversal','void','offline_purchase','online_purchase'];
-const NO_AMOUNT  = ['balance','settlement'];
+const NEED_ORIG = ['auth_complete', 'refund', 'reversal', 'void', 'offline_purchase', 'online_purchase'];
+const NO_AMOUNT = ['balance', 'settlement'];
 
 window.selectTxnTypeRouter = function(type, el) {
   STATE_TXN.type = type;
   document.querySelectorAll('#txnTypeGrid > div').forEach(d => {
     d.style.borderColor = 'var(--border)';
-    d.style.background  = 'rgba(255,255,255,.03)';
-    if(d.querySelector('.rtt-name')) d.querySelector('.rtt-name').style.color = 'var(--muted2)';
+    d.style.background = 'rgba(255,255,255,.03)';
+    const name = d.querySelector('.rtt-name');
+    if (name) name.style.color = 'var(--muted2)';
   });
+
   el.style.borderColor = 'var(--gold)';
-  el.style.background  = 'rgba(255,215,0,.05)';
-  if(el.querySelector('.rtt-name')) el.querySelector('.rtt-name').style.color = 'var(--gold)';
+  el.style.background = 'rgba(255,215,0,.05)';
+  const name = el.querySelector('.rtt-name');
+  if (name) name.style.color = 'var(--gold)';
 
   const needsRrn = el.dataset.needsRrn === '1';
-  document.getElementById('secModeWrap').style.display  = (type === 'purchase_3d' || type === 'purchase_moto') ? '' : 'none';
-  document.getElementById('origRefWrap').style.display  = needsRrn ? '' : 'none';
-  if(needsRrn) {
-    document.getElementById('txnOrigRef').placeholder = 'Previous transaction reference';
-    document.getElementById('txnApprovalCode').placeholder = 'Approval code';
-  document.querySelectorAll('.gw-card').forEach(c => c.classList.remove('selected'));
-  if (el) el.classList.add('selected');
-  document.getElementById('btn-step1').disabled = false;
+  const secWrap = document.getElementById('secModeWrap');
+  const origWrap = document.getElementById('origRefWrap');
+  if (secWrap) secWrap.style.display = (type === 'purchase_3d' || type === 'purchase_moto') ? '' : 'none';
+  if (origWrap) origWrap.style.display = needsRrn ? '' : 'none';
+
+  if (needsRrn) {
+    const orig = document.getElementById('txnOrigRef');
+    const approval = document.getElementById('txnApprovalCode');
+    if (orig) orig.placeholder = 'Previous transaction reference';
+    if (approval) approval.placeholder = 'Approval code';
+  }
+};
+
+window.selectSecMode = function(mode, el) {
+  STATE_TXN.secMode = mode;
+  ['smode-3D', 'smode-2D'].forEach(id => {
+    const node = document.getElementById(id);
+    if (!node) return;
+    const active = id === 'smode-' + mode;
+    node.style.borderColor = active ? 'var(--gold)' : 'var(--border)';
+    node.style.background = active ? 'rgba(255,215,0,.06)' : 'rgba(255,255,255,.03)';
+    node.style.color = active ? 'var(--gold)' : 'var(--muted2)';
+  });
 };
 
 window.addEventListener('DOMContentLoaded', function() {
   const preferred = 'payram';
   const cardEl = document.getElementById('gw-' + preferred);
   if (cardEl) {
-    selectGateway(preferred, cardEl);
+    window.selectGateway(preferred, cardEl);
     document.getElementById('btn-step1').disabled = false;
   }
+
+  const defaultTxn = document.getElementById('rtt-purchase_3d');
+  if (defaultTxn) window.selectTxnTypeRouter('purchase_3d', defaultTxn);
+  if (document.getElementById('smode-3D')) window.selectSecMode('3D', document.getElementById('smode-3D'));
+  document.getElementById('txnAmount').value = '10';
+  updateSummary();
 });
 
-// ── Destination Selection ──────────────────────────────────
 window.selectDestination = function(code, el) {
   STATE.destination = code;
   document.querySelectorAll('.dest-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
   document.getElementById('btn-step2').disabled = false;
 
-  // إظهار حقل محفظة مخصصة
-  const customCodes = ['tron_w','erc20_w','btc_w'];
+  const customCodes = ['tron_w', 'erc20_w', 'btc_w'];
   const wrap = document.getElementById('customWalletWrap');
-  wrap.className = customCodes.includes(code) ? 'wallet-input-wrap show' : 'wallet-input-wrap';
+  if (wrap) wrap.className = customCodes.includes(code) ? 'wallet-input-wrap show' : 'wallet-input-wrap';
 
   const labels = {
-    tron_w:  AR?'عنوان TRC20':'TRC20 Address',
-    erc20_w: AR?'عنوان ERC20':'ERC20 Address',
-    btc_w:   AR?'عنوان Bitcoin':'Bitcoin Address',
+    tron_w: AR ? 'عنوان TRC20' : 'TRC20 Address',
+    erc20_w: AR ? 'عنوان ERC20' : 'ERC20 Address',
+    btc_w: AR ? 'عنوان Bitcoin' : 'Bitcoin Address',
   };
-  if(labels[code]) document.getElementById('customWalletLabel').innerHTML =
-    '<i class="fas fa-wallet"></i> ' + labels[code];
+  const labelEl = document.getElementById('customWalletLabel');
+  if (labels[code] && labelEl) labelEl.innerHTML = '<i class="fas fa-wallet"></i> ' + labels[code];
 };
 
-// ── Amount Update ──────────────────────────────────────────
 function updateSummary() {
-  const amt = parseFloat(document.getElementById('txnAmount').value)||0;
-  document.getElementById('btn-step3').disabled = amt <= 0;
+  const amt = parseFloat(document.getElementById('txnAmount').value) || 0;
+  const step3 = document.getElementById('btn-step3');
+  if (step3) step3.disabled = amt <= 0;
 }
 
-// ── Confirm Summary ────────────────────────────────────────
 function updateConfirmSummary() {
-  const gwNames = <?=json_encode(array_map(fn($g)=>$g['name'],$gateways))?>;
+  const gwNames = <?=json_encode(array_map(fn($g) => $g['name'], $gateways))?>;
   const destNames = {
-    gateway:AR?'نفس البوابة':'Same Gateway',
-    stripe:'Stripe',paypal:'PayPal',nuvei:'Nuvei (Mashreq)',
-    wise:'Wise',myfatoorah:'MyFatoorah',binance_ex:'Binance',gate_io:'Gate.io',whop:'Whop',
-    mashreq:'Mashreq Bank',hsbc:'HSBC UAE',nbe:'NBE Egypt',jpmorgan:'JP Morgan',
-    ledger_trx:'Ledger TRX',tron_w:'Custom TRC20',erc20_w:'Custom ERC20',btc_w:'Bitcoin'
+    gateway: AR ? 'نفس البوابة' : 'Same Gateway',
+    stripe: 'Stripe',
+    paypal: 'PayPal',
+    nuvei: 'Nuvei (Mashreq)',
+    wise: 'Wise',
+    myfatoorah: 'MyFatoorah',
+    binance_ex: 'Binance',
+    gate_io: 'Gate.io',
+    whop: 'Whop',
+    mashreq: 'Mashreq Bank',
+    hsbc: 'HSBC UAE',
+    nbe: 'NBE Egypt',
+    jpmorgan: 'JP Morgan',
+    ledger_trx: 'Ledger TRX',
+    tron_w: 'Custom TRC20',
+    erc20_w: 'Custom ERC20',
+    btc_w: 'Bitcoin'
   };
   const typeNames = {
-    purchase_3d:      AR?'شراء 3D Secure':'Purchase 3D',
-    purchase_moto:    AR?'شراء MOTO / 2D':'Purchase MOTO',
-    auth:             AR?'تفويض':'Authorization',
-    auth_complete:    AR?'إتمام تفويض MOTO':'Auth Completion',
-    purchase_advice:  AR?'إشعار شراء':'Purchase Advice',
-    offline_purchase: AR?'شراء أوفلاين MOTO':'Offline Purchase',
-    online_purchase:  AR?'شراء أونلاين MOTO':'Online Purchase',
-    refund:           AR?'استرداد':'Refund',
-    reversal:         AR?'إلغاء عملية':'Reversal',
-    balance:          AR?'استعلام رصيد':'Balance Inquiry',
-    cash_advance:     AR?'سلفة نقدية':'Cash Advance',
-    void:             AR?'إلغاء':'Void',
-    settlement:       AR?'تسوية':'Settlement',
-    quasi_cash:       AR?'شبه نقدي':'Quasi Cash',
-    transfer:         AR?'تحويل P2P':'Transfer',
-    payment:          AR?'دفع فاتورة':'Bill Payment',
+    purchase_3d: 'Purchase 3D',
+    purchase_moto: 'Purchase MOTO',
+    auth: 'Authorization',
+    auth_complete: 'Auth Completion',
+    purchase_advice: 'Purchase Advice',
+    offline_purchase: 'Offline Purchase',
+    online_purchase: 'Online Purchase',
+    refund: 'Refund',
+    reversal: 'Reversal',
+    balance: 'Balance Inquiry',
+    cash_advance: 'Cash Advance',
+    void: 'Void',
+    settlement: 'Settlement',
+    quasi_cash: 'Quasi Cash',
+    transfer: 'Transfer',
+    payment: 'Bill Payment',
   };
 
-  document.getElementById('sum-gw').textContent     = gwNames[STATE.gateway]    || STATE.gateway;
-  document.getElementById('sum-dest').textContent   = destNames[STATE.destination] || STATE.destination;
-  document.getElementById('sum-amount').textContent = STATE.amount.toFixed(2) + ' ' + STATE.currency;
-  document.getElementById('sum-type').textContent   = typeNames[STATE.txnType] || STATE.txnType;
+  const gwEl = document.getElementById('sum-gw');
+  const destEl = document.getElementById('sum-dest');
+  const amountEl = document.getElementById('sum-amount');
+  const typeEl = document.getElementById('sum-type');
+
+  if (gwEl) gwEl.textContent = gwNames[STATE.gateway] || STATE.gateway;
+  if (destEl) destEl.textContent = destNames[STATE.destination] || STATE.destination;
+  if (amountEl) amountEl.textContent = STATE.amount.toFixed(2) + ' ' + STATE.currency;
+  if (typeEl) typeEl.textContent = typeNames[STATE.txnType] || STATE.txnType;
 
   const walletRow = document.getElementById('sum-wallet-row');
-  const customCodes = ['tron_w','erc20_w','btc_w'];
-  const walletAddr  = document.getElementById('customWalletAddr').value.trim()
-                   || (STATE.destination==='ledger_trx' ? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2' : '');
+  const walletAddr = document.getElementById('customWalletAddr')?.value.trim() || (STATE.destination === 'ledger_trx' ? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2' : '');
   STATE.walletAddr = walletAddr;
-  if(walletAddr) {
-    walletRow.style.display = '';
-    document.getElementById('sum-wallet').textContent = walletAddr;
-  } else {
-    walletRow.style.display = 'none';
-  }
+  const sumWallet = document.getElementById('sum-wallet');
+  if (walletRow) walletRow.style.display = walletAddr ? '' : 'none';
+  if (sumWallet) sumWallet.textContent = walletAddr || '—';
 }
 
-// ── Proceed to Checkout ────────────────────────────────────
 window.proceedToCheckout = function() {
   const route = GW_ROUTES[STATE.gateway];
-  if (!route) { toast(AR?'صفحة البوابة غير متاحة بعد':'Gateway page not available yet','error'); return; }
+  if (!route) {
+    toast(AR ? 'صفحة البوابة غير متاحة بعد' : 'Gateway page not available yet', 'error');
+    return;
+  }
 
   const params = new URLSearchParams({
-    gateway:     STATE.gateway,
+    gateway: STATE.gateway,
     destination: STATE.destination,
-    amount:      STATE.amount,
-    currency:    STATE.currency,
-    txn_type:    STATE_TXN.type,
-    sec_mode:    STATE_TXN.secMode,
-    orig_ref:    document.getElementById('txnOrigRef')?.value.trim() || '',
+    amount: String(STATE.amount || 0),
+    currency: STATE.currency,
+    txn_type: STATE_TXN.type,
+    sec_mode: STATE_TXN.secMode,
+    orig_ref: document.getElementById('txnOrigRef')?.value.trim() || '',
     approval_code: document.getElementById('txnApprovalCode')?.value.trim() || '',
-// ── Toast ──────────────────────────────────────────────────
-function toast(msg, type='info') {
+    notes: document.getElementById('txnNotes')?.value.trim() || '',
+    wallet: STATE.walletAddr || '',
+    csrf_token: CSRF
+  });
+
+  const url = route + '?' + params.toString();
+  window.location.href = url;
+};
+
+function toast(msg, type = 'info') {
   const t = document.getElementById('toast');
-  const c = {success:'var(--green)',error:'var(--red)',info:'var(--gold)'};
-  t.style.borderColor = c[type]||c.info;
-  t.style.color = c[type]||c.info;
+  const c = { success: 'var(--green)', error: 'var(--red)', info: 'var(--gold)' };
+  t.style.borderColor = c[type] || c.info;
+  t.style.color = c[type] || c.info;
   t.textContent = msg;
   t.style.transform = 'translateX(-50%) translateY(0)';
   clearTimeout(t._t);
-  t._t = setTimeout(()=>{ t.style.transform='translateX(-50%) translateY(100px)'; },4000);
+  t._t = setTimeout(() => {
+    t.style.transform = 'translateX(-50%) translateY(100px)';
+  }, 4000);
 }
 </script>
 </body>

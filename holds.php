@@ -120,7 +120,7 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
         <button onclick="captureHold('<?= addslashes($newPI) ?>')"
             class="action-btn btn-capture">
             <i class="fas fa-check-double"></i>
-            <?= $currentLang==='en'?'Capture Now (Send USDT)':'تحصيل الآن (إرسال USDT)' ?>
+            <?= $currentLang==='en'?'Capture Now':'تحصيل الآن' ?>
         </button>
         <button onclick="cancelHold('<?= addslashes($newPI) ?>')"
             class="action-btn btn-cancel">
@@ -141,7 +141,7 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
         <?php foreach ([
             ['fa-lock',         '#5bc0de', $currentLang==='en'?'1. HOLD':'1. الحجز',       $currentLang==='en'?'Reserve amount without charging':'حجز المبلغ بدون خصم'],
-            ['fa-check-double', '#4CAF50', $currentLang==='en'?'2. CAPTURE':'2. التحصيل', $currentLang==='en'?'Charge & send USDT':'الخصم وإرسال USDT'],
+            ['fa-check-double', '#4CAF50', $currentLang==='en'?'2. CAPTURE':'2. التحصيل', $currentLang==='en'?'Charge the authorized amount':'تحصيل المبلغ المحجوز'],
             ['fa-times',        '#ef5350', $currentLang==='en'?'3. CANCEL':'3. الإلغاء',  $currentLang==='en'?'Release without charge':'تحرير بدون خصم'],
         ] as [$ic,$c,$t,$d]): ?>
         <div style="background:rgba(255,255,255,.03);border-radius:10px;padding:12px">
@@ -258,7 +258,7 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
 var CSRF = '<?= $csrfToken ?>';
 
 async function captureHold(pi, partial) {
-    if (!confirm('تأكيد التحصيل وإرسال USDT؟')) return;
+    if (!confirm('تأكيد تحصيل المبلغ المحجوز؟')) return;
     var body = {payment_intent_id: pi, csrf_token: CSRF};
     if (partial) body.partial_amount = partial;
     var r = await fetch('api/hold_capture.php?action=capture', {
@@ -267,7 +267,7 @@ async function captureHold(pi, partial) {
     });
     var d = await r.json();
     if (d.success) {
-        showToast('تم التحصيل بنجاح ✓' + (d.crypto_sent ? ' + USDT أُرسل' : ''), 'success');
+        showToast('تم التحصيل بنجاح ✓', 'success');
         setTimeout(function(){ location.reload(); }, 2000);
     } else {
         showToast(d.message || 'فشل التحصيل', 'error');

@@ -240,7 +240,7 @@ class GatewayConnectionTester
     private function testPayPal(array $creds): array
     {
         $clientId = $creds['client_id'] ?? $creds['api_key'] ?? getenv('PAYPAL_CLIENT_ID') ?: '';
-        $secret   = $creds['secret_key'] ?? $creds['client_secret']
+        $secret   = $creds['secret'] ?? $creds['secret_key'] ?? $creds['client_secret']
             ?? getenv('PAYPAL_CLIENT_SECRET') ?: (getenv('PAYPAL_SECRET') ?: '');
         if (empty($clientId) || empty($secret)) {
             return ['success' => false, 'message' => 'PAYPAL_CLIENT_ID أو PAYPAL_CLIENT_SECRET مفقود'];

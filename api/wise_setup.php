@@ -100,7 +100,7 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
     $credentials = json_encode([
-        'api_key'    => '5497cf6e-ae91-42d2-99b8-e77d3328bf53',
+        'api_key'    => getenv('WISE_API_KEY') ?: '',
         'profile_id' => $profileId ?? '',
     ], JSON_UNESCAPED_UNICODE);
 

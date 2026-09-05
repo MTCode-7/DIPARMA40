@@ -93,15 +93,12 @@ class NuveiAdapter
             'amount'           => $amount,
             'currency'         => $currency,
             'userTokenId'      => $userToken,
+            'transactionType'   => $params['transactionType'] ?? 'Sale',
             'paymentOption'    => $this->buildCardPaymentOption($params),
             'billingAddress'   => $this->buildBillingAddress($params),
             'timeStamp'        => $ts,
             'checksum'         => $checksum,
-            'deviceDetails'    => [
-                'deviceType' => 'DESKTOP',
-                'ipAddress'  => $params['ip_address'] ?? ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '1.1.1.1'),
-                'browser'    => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
-            ],
+            'deviceDetails'    => $this->buildDeviceDetails($params),
             'urlDetails'       => [
                 'successUrl'  => defined('NUVEI_SUCCESS_URL') ? NUVEI_SUCCESS_URL : 'https://diparmas.com/crypto_confirm.php',
                 'failureUrl'  => defined('NUVEI_CANCEL_URL')  ? NUVEI_CANCEL_URL  : 'https://diparmas.com/checkout.php',
@@ -111,6 +108,7 @@ class NuveiAdapter
                 'customField1' => 'TRANSCENDIO_FZ_LLC',
                 'customField2' => 'MASHREQ_AE300330000019101562722',
                 'customField3' => $params['pos_device'] ?? 'BITEL_IC3600',
+                'customField4' => !empty($params['is_moto']) ? 'MOTO' : 'ECOM',
             ],
         ];
 
@@ -171,7 +169,8 @@ class NuveiAdapter
                 'notificationUrl' => $siteUrl . '/api/webhook.php?gateway=nuvei',
                 'backUrl'         => $siteUrl . '/checkout_diparma.php',
             ],
-            'deviceDetails'   => ['deviceType' => 'DESKTOP'],
+            'deviceDetails'   => $this->buildDeviceDetails($params),
+            'threeD'          => $this->buildThreeDSDetails($params, $siteUrl),
             'merchantDetails' => [
                 'customField1' => $reference,
                 'customField2' => $params['ledger_addr'] ?? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2',
@@ -216,14 +215,32 @@ class NuveiAdapter
         $clientReqId = 'POS-CAP-' . strtoupper(substr(uniqid(), 0, 8));
         $amount      = number_format((float)$params['amount'], 2, '.', '');
         $currency    = $params['currency'] ?? 'USD';
+        $clientUniqueId = (string)($params['client_unique_id'] ?? $clientReqId);
+        $authCode    = trim((string)($params['auth_code'] ?? ''));
+        $authorizedAmount = isset($params['authorized_amount'])
+            ? (float)$params['authorized_amount']
+            : null;
+
+        if ($authCode === '') {
+            return ['success' => false, 'message' => 'Nuvei authCode is required for settlement'];
+        }
+
+        if ($authorizedAmount !== null && (float)$amount > $authorizedAmount) {
+            return [
+                'success' => false,
+                'message' => 'Settlement amount cannot exceed the original authorized amount',
+            ];
+        }
 
         $checksum = $this->buildChecksum([
             $this->merchantId,
             $this->siteId,
             $clientReqId,
-            $params['related_transaction_id'],
+            $clientUniqueId,
             $amount,
             $currency,
+            $params['related_transaction_id'],
+            $authCode,
             $this->secretKey,
         ]);
 
@@ -232,10 +249,11 @@ class NuveiAdapter
             'merchantId'            => $this->merchantId,
             'merchantSiteId'        => $this->siteId,
             'clientRequestId'       => $clientReqId,
-            'clientUniqueId'        => $clientReqId,
+            'clientUniqueId'        => $clientUniqueId,
             'amount'                => $amount,
             'currency'              => $currency,
             'relatedTransactionId'  => $params['related_transaction_id'],
+            'authCode'              => $authCode,
             'timeStamp'             => $ts,
             'checksum'              => $checksum,
         ]);
@@ -391,9 +409,40 @@ class NuveiAdapter
                             : 'client@diparmas.com',
             'phone'     => preg_replace('/\D/', '', $p['phone'] ?? '971501234567') ?: '971501234567',
             'country'   => strtoupper(substr($p['country'] ?? 'AE', 0, 2)),
-            'city'      => $p['city']    ?? 'Dubai',
-            'address'   => $p['address'] ?? 'Al Barsha 1, Dubai, UAE',
-            'zip'       => $p['zip']     ?? '00000',
+            'city'      => trim($p['city']    ?? 'Dubai') ?: 'Dubai',
+            'address'   => trim($p['address'] ?? 'Al Barsha 1, Dubai, UAE') ?: 'Al Barsha 1, Dubai, UAE',
+            'zip'       => trim($p['zip']     ?? '00000') ?: '00000',
+        ];
+    }
+
+    private function buildDeviceDetails(array $p): array
+    {
+        $ip = trim((string)($p['ip_address'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? ''));
+        return [
+            'deviceType' => 'DESKTOP',
+            'ipAddress' => filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '1.1.1.1',
+            'browser' => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
+            'browserUserAgent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
+        ];
+    }
+
+    private function buildThreeDSDetails(array $p, string $siteUrl): array
+    {
+        return [
+            'notificationUrl' => rtrim($siteUrl, '/') . '/api/webhook.php?gateway=nuvei',
+            'challengePreference' => '04',
+            'browserDetails' => [
+                'browserAcceptHeader' => $_SERVER['HTTP_ACCEPT'] ?? '*/*',
+                'browserJavaEnabled' => false,
+                'browserLanguage' => substr($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? 'en-US', 0, 8),
+                'browserColorDepth' => 24,
+                'browserScreenHeight' => 1080,
+                'browserScreenWidth' => 1920,
+                'browserTimeZone' => 0,
+                'browserUserAgent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
+                'browserJavaScriptEnabled' => true,
+                'ipAddress' => $this->buildDeviceDetails($p)['ipAddress'],
+            ],
         ];
     }
 

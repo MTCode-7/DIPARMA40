@@ -23,6 +23,9 @@ require_once ROOT_PATH . '/includes/auth_check.php';
 
 requireAdmin();
 
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+
 // ============================================================
 // [2] مدير بوابات الدفع
 // ============================================================
@@ -437,11 +440,19 @@ if (isset($_GET['sync']) && isset($_GET['token'])) {
     if (hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
         try {
             $existing = $db->query("SELECT code FROM " . DB_PREFIX . "payment_gateways");
-            $existingCodes = array_column($existing, 'code');
-            $configured = getGatewaysConfig();
+            $existingCodes = [];
+            foreach ($existing as $existingRow) {
+                $existingCode = strtolower(trim((string)($existingRow['code'] ?? '')));
+                if ($existingCode !== '') {
+                    $existingCodes[$existingCode] = true;
+                }
+            }
+            // استخدم التكوين الثابت هنا حتى لا تعيد سجلات قاعدة البيانات نفسها إلى قائمة المزامنة.
+            $configured = $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] ?? [];
             $added = 0;
             foreach ($configured as $code => $cfg) {
-                if (in_array($code, $existingCodes, true)) {
+                $code = strtolower(trim((string)$code));
+                if ($code === '' || isset($existingCodes[$code])) {
                     continue;
                 }
 
@@ -480,6 +491,7 @@ if (isset($_GET['sync']) && isset($_GET['token'])) {
                     'credentials' => $credentials,
                     'settings' => $settings
                 ]);
+                $existingCodes[$code] = true;
                 $added++;
             }
 
@@ -502,30 +514,84 @@ if (isset($_GET['sync']) && isset($_GET['token'])) {
 // ============================================================
 
 $existing = $db->query("SELECT code FROM " . DB_PREFIX . "payment_gateways");
-$existingCodes = array_column($existing, 'code');
-$configuredGateways = getGatewaysConfig();
-$missingGatewayCodes = array_diff(array_keys($configuredGateways), $existingCodes);
+$existingCodes = [];
+foreach ($existing as $existingRow) {
+    $existingCode = strtolower(trim((string)($existingRow['code'] ?? '')));
+    if ($existingCode !== '') {
+        $existingCodes[$existingCode] = true;
+    }
+}
+
+// ابدأ من الكتالوج الثابت لضمان ظهور كل البوابات المعرفة، ومنها Nuvei.
+$configuredGateways = $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] ?? [];
+$configuredFromDatabase = getGatewaysConfig();
+foreach ($configuredFromDatabase as $code => $config) {
+    $normalizedCode = strtolower(trim((string)$code));
+    if ($normalizedCode !== '') {
+        $configuredGateways[$normalizedCode] = array_replace_recursive(
+            $configuredGateways[$normalizedCode] ?? [],
+            $config
+        );
+    }
+}
+
+$missingGatewayCodes = [];
+foreach ($configuredGateways as $code => $config) {
+    $normalizedCode = strtolower(trim((string)$code));
+    if ($normalizedCode !== '' && !isset($existingCodes[$normalizedCode])) {
+        $missingGatewayCodes[] = $normalizedCode;
+    }
+}
 $missingGatewayCount = count($missingGatewayCodes);
 
-// جمع كل البوابات المعرّفة في التكوين مع بيانات قاعدة البيانات إذا وجدت
+// جمع بوابات التكوين وسجلات قاعدة البيانات، بما فيها البوابات المضافة يدويًا.
+$gatewayRows = $db->query("SELECT * FROM " . DB_PREFIX . "payment_gateways");
+$rowsByCode = [];
+foreach ($gatewayRows as $row) {
+    $rowCode = strtolower(trim((string)($row['code'] ?? '')));
+    if ($rowCode !== '') {
+        $rowsByCode[$rowCode] = $row;
+    }
+}
+
 $gateways = [];
-foreach ($configuredGateways as $code => $cfg) {
-    $row = $db->find('payment_gateways', ['code' => $code]);
-    $status = ($row['status'] ?? null) ?: (($cfg['setup_complete'] ?? false) ? 'active' : 'inactive');
-    $gateways[] = [
+$addGateway = static function ($code, array $config, ?array $row = null) {
+    $code = strtolower(trim($code));
+    $row = $row ?? [];
+    $status = ($row['status'] ?? null) ?: (($config['setup_complete'] ?? false) ? 'active' : 'inactive');
+
+    return array_merge($row, [
         'id' => $row['id'] ?? 0,
-        'code' => strtolower(trim($code)),
-        'name' => $row['name'] ?? ($cfg['name'] ?? ucfirst($code)),
-        'type' => $row['type'] ?? (($cfg['region'] ?? 'Global') === 'Crypto' ? 'crypto' : 'electronic'),
+        'code' => $code,
+        'name' => $row['name'] ?? ($config['name'] ?? ucfirst($code)),
+        'type' => $row['type'] ?? (($config['region'] ?? 'Global') === 'Crypto' ? 'crypto' : 'electronic'),
         'status' => $status,
-        'config' => $row['config'] ?? json_encode($cfg),
-        'credentials' => $row['credentials'] ?? json_encode($cfg['credentials'] ?? []),
-        'settings' => $row['settings'] ?? json_encode($cfg['urls'] ?? []),
+        'config' => $row['config'] ?? json_encode($config),
+        'credentials' => $row['credentials'] ?? json_encode($config['credentials'] ?? []),
+        'settings' => $row['settings'] ?? json_encode($config['urls'] ?? []),
         'created_at' => $row['created_at'] ?? date('Y-m-d H:i:s')
-    ];
+    ]);
+};
+
+foreach ($configuredGateways as $code => $config) {
+    $normalizedCode = strtolower(trim($code));
+    $gateways[] = $addGateway($normalizedCode, $config, $rowsByCode[$normalizedCode] ?? null);
+    unset($rowsByCode[$normalizedCode]);
+}
+
+// لا تخفِ بوابة مخصصة أضافها المدير حتى لو لم تكن في ملف التكوين.
+foreach ($rowsByCode as $code => $row) {
+    $gateways[] = $addGateway($code, [], $row);
 }
 
 usort($gateways, function ($a, $b) {
+    if ($a['code'] === 'nuvei' && $b['code'] !== 'nuvei') {
+        return -1;
+    }
+    if ($b['code'] === 'nuvei' && $a['code'] !== 'nuvei') {
+        return 1;
+    }
+
     $order = ['active' => 0, 'inactive' => 1, 'pending' => 2, 'suspended' => 3];
     $aOrder = $order[strtolower((string)($a['status'] ?? 'inactive'))] ?? 99;
     $bOrder = $order[strtolower((string)($b['status'] ?? 'inactive'))] ?? 99;
@@ -721,6 +787,9 @@ $csrfToken = generateCsrfToken();
 <div class="container">
     <div class="header">
         <h1><i class="fas fa-route"></i> إدارة بوابات الدفع</h1>
+        <div style="color:#5bc0de;font-size:.9rem;font-weight:700;">
+            إجمالي البوابات: <?= count($gateways) ?>
+        </div>
         <div>
             <a href="../index.php" class="btn btn-outline"><i class="fas fa-home"></i> الرئيسية</a>
             <a href="bank_gateways.php" class="btn btn-info" style="background:linear-gradient(135deg,#1a6fb5,#1356a0);color:#fff;border:none"><i class="fas fa-university"></i> بوابات البنوك</a>
@@ -911,6 +980,15 @@ $csrfToken = generateCsrfToken();
                         </div>
                     </div>
                 <?php endforeach; ?>
+                <?php if (($editGateway['code'] ?? '') === 'paypal'): ?>
+                    <div class="form-row">
+                        <div class="form-group" style="width:100%;">
+                            <label><i class="fas fa-fingerprint"></i> Webhook ID</label>
+                            <input type="text" value="<?= htmlspecialchars((string)(getenv('PAYPAL_WEBHOOK_ID') ?: 'غير مضبوط')) ?>" readonly>
+                            <small style="color:#888">يُقرأ من PAYPAL_WEBHOOK_ID في ملف .env ولا يُحفظ من هذه الصفحة.</small>
+                        </div>
+                    </div>
+                <?php endif; ?>
 
                 <!-- ════ حقول Dynamic Gateway Registry ════ -->
                 <hr style="border-color:rgba(255,215,0,.15);margin:20px 0">

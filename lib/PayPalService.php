@@ -137,7 +137,7 @@ class PayPalService
                 ]],
                 'application_context' => [
                     'return_url'          => $siteUrl . '/crypto_confirm.php?ref=' . $reference . '&type=buy&gateway=paypal',
-                    'cancel_url'          => $siteUrl . '/crypto.php?error=paypal_cancelled',
+                    'cancel_url'          => $options['cancel_url'] ?? ($siteUrl . '/checkout_router.php?error=paypal_cancelled'),
                     'brand_name'          => 'DI PARMA',
                     'locale'              => 'en-US',
                     'landing_page'        => 'NO_PREFERENCE',

@@ -34,7 +34,7 @@ class WalletService
     private function __construct()
     {
         $this->db           = db();
-        $this->encryptionKey = defined('ENCRYPTION_KEY') ? ENCRYPTION_KEY : 'DI_PARMA_SECURE_KEY_2026';
+        $this->encryptionKey = defined('ENCRYPTION_KEY') && ENCRYPTION_KEY !== '' ? ENCRYPTION_KEY : '';
     }
 
     public static function getInstance(): self

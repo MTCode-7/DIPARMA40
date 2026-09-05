@@ -378,7 +378,7 @@ class ApiAuth
     {
         $key = getenv('ENCRYPTION_KEY');
         if (empty($key)) {
-            $key = defined('ENCRYPTION_KEY') ? ENCRYPTION_KEY : 'DI_PARMA_SECURE_KEY_2026';
+            $key = defined('ENCRYPTION_KEY') && ENCRYPTION_KEY !== '' ? ENCRYPTION_KEY : '';
         }
         return $key;
     }

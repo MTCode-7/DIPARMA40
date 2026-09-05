@@ -144,6 +144,7 @@ $sql = "
         t.net_amount,
         t.status,
         t.transaction_type,
+        t.transaction_label,
         t.card_type,
         t.card_last4,
         t.customer_name,
@@ -717,7 +718,8 @@ $totalPages = ceil($totalTransactions / $limit);
                             <th>البروتوكول</th>
                             <th>الحالة</th>
                             <th>التاريخ</th>
-                            <th>العقد</th>
+                                <th>العملية</th>
+                                <th>العقد</th>
                                 <th>إجراء</th>
                         </tr>
                     </thead>
@@ -741,7 +743,7 @@ $totalPages = ceil($totalTransactions / $limit);
                                 <td>
                                     <strong><?= number_format($tx['amount'], 2) ?></strong>
                                     <small style="color:#888;"><?= htmlspecialchars($tx['currency']) ?></small>
-                                    <?php if ($tx['amount_usdt']): ?>
+                                    <?php if ((float)$tx['amount_usdt'] > 0): ?>
                                         <span class="amount-usdt">≈ <?= number_format($tx['amount_usdt'], 2) ?> USDT</span>
                                     <?php endif; ?>
                                 </td>
@@ -760,6 +762,11 @@ $totalPages = ceil($totalTransactions / $limit);
                                     <span class="status-badge status-<?= $tx['status'] ?>">
                                         <?= getStatusLabel($tx['status']) ?>
                                     </span>
+                                </td>
+                                <td>
+                                    <strong style="color:var(--gold);">
+                                        <?= htmlspecialchars($tx['transaction_label'] ?: (in_array($tx['transaction_type'] ?? '', ['auth_capture', 'purchase', 'purchase_2d', 'purchase_advice', 'purchase_offline', 'purchase_online'], true) ? 'SALE' : 'PURCHASE')) ?>
+                                    </strong>
                                 </td>
                                 <td style="font-size:0.7rem;color:#888;">
                                     <?= date('d/m/Y', strtotime($tx['created_at'])) ?>
@@ -932,7 +939,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Disposition: attachment; filename="transactions_' . date('Y-m-d') . '.csv"');
     
     $output = fopen('php://output', 'w');
-    fputcsv($output, ['المرجع', 'العميل', 'البريد', 'المبلغ', 'العملة', 'البوابة', 'البروتوكول', 'الحالة', 'التاريخ']);
+    fputcsv($output, ['المرجع', 'العميل', 'البريد', 'المبلغ', 'العملة', 'البوابة', 'العملية', 'البروتوكول', 'الحالة', 'التاريخ']);
     
     foreach ($transactions as $tx) {
         fputcsv($output, [
@@ -942,6 +949,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             $tx['amount'],
             $tx['currency'],
             $tx['gateway'],
+            $tx['transaction_label'] ?? '',
             $tx['protocol'],
             getStatusLabel($tx['status']),
             $tx['created_at']

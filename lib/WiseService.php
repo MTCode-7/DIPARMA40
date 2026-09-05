@@ -35,7 +35,7 @@ class WiseService
             $config = getGatewayConfig('wise') ?? [];
         }
 
-        $apiKey  = $config['credentials']['api_key'] ?? '5497cf6e-ae91-42d2-99b8-e77d3328bf53';
+        $apiKey  = $config['credentials']['api_key'] ?? '';
         $baseUrl = $config['api_base'] ?? 'https://api.wise.com';
 
         $instance = new self($apiKey, $baseUrl);

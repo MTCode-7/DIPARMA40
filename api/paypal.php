@@ -9,7 +9,6 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/auth_check.php';
 require_once __DIR__ . '/../lib/PayPalService.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -18,11 +17,13 @@ $action  = strtolower(trim($_GET['action'] ?? ''));
 $payload = json_decode(file_get_contents('php://input'), true) ?: $_POST;
 $db      = db();
 
-// Webhook لا يحتاج session
-if ($action !== 'webhook' && empty($_SESSION['user_id'])) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'غير مصرّح']);
-    exit();
+$paypalGateway = $db->find('payment_gateways', ['code' => 'paypal']);
+$paypalCredentials = json_decode($paypalGateway['credentials'] ?? '{}', true) ?: [];
+foreach (['client_id' => 'PAYPAL_CLIENT_ID', 'secret' => 'PAYPAL_SECRET', 'environment' => 'PAYPAL_ENVIRONMENT'] as $field => $envKey) {
+    if (!empty($paypalCredentials[$field])) {
+        putenv($envKey . '=' . $paypalCredentials[$field]);
+        $_ENV[$envKey] = $paypalCredentials[$field];
+    }
 }
 
 $svc = PayPalService::getInstance();
@@ -46,52 +47,19 @@ try {
             $reference = trim($payload['reference']    ?? generateReference('PP'));
             $intent    = strtoupper($payload['intent'] ?? 'CAPTURE');
             $intent    = in_array($intent, ['CAPTURE', 'AUTHORIZE'], true) ? $intent : 'CAPTURE';
+            $transactionType = trim($payload['transaction_type'] ?? '')
+                ?: ($intent === 'AUTHORIZE' ? 'PayPal Authorization' : 'PayPal Payment');
+            $destination = trim($payload['destination'] ?? 'gateway');
 
             if ($amount <= 0) {
                 echo json_encode(['success' => false, 'message' => 'مبلغ غير صالح']); break;
             }
 
-            // حفظ في transactions
-            $db->insert('transactions', [
-                'reference'        => $reference,
-                'gateway'          => 'paypal',
-                'amount'           => $amount,
-                'currency'         => $currency,
-                'customer_name'    => $payload['name']  ?? 'Customer',
-                'customer_email'   => $payload['email'] ?? 'guest@diparmas.com',
-                'status'           => 'pending',
-                'transaction_type' => 'PayPal — شراء USDT',
-                'user_id'          => intval($_SESSION['user_id'] ?? 0),
-                'fees'             => round($amount * 0.034 + 0.30, 2),
-                'net_amount'       => round($amount - ($amount * 0.034 + 0.30), 2),
-                'security_mode'    => '3D',
-                'gateway_response' => json_encode([
-                    'type'          => 'paypal_order',
-                    'crypto'        => $payload['crypto']         ?? 'USDT',
-                    'network'       => $payload['network']        ?? 'TRC20',
-                    'wallet'        => $payload['wallet_address'] ?? '',
-                    'crypto_amount' => $payload['crypto_amount']  ?? 0,
-                ]),
-                'created_at' => date('Y-m-d H:i:s'),
-            ]);
-
             $result = $svc->createOrder($amount, $currency, $reference, [
-                'description' => "شراء {$payload['crypto_amount']} {$payload['crypto']}",
+                'description' => $transactionType,
                 'intent'      => $intent,
+                'cancel_url'  => (defined('SITE_URL') ? SITE_URL : 'https://diparmas.com') . '/checkout_router.php?gateway=paypal&destination=gateway&error=paypal_cancelled',
             ]);
-
-            if (!empty($result['order_id'])) {
-                $stored = [
-                    'type'          => 'paypal_order',
-                    'order_id'      => $result['order_id'],
-                    'intent'        => $intent,
-                    'crypto'        => $payload['crypto']         ?? 'USDT',
-                    'network'       => $payload['network']        ?? 'TRC20',
-                    'wallet'        => $payload['wallet_address'] ?? '',
-                    'crypto_amount' => $payload['crypto_amount']  ?? 0,
-                ];
-                $db->update('transactions', ['gateway_response' => json_encode($stored)], ['reference' => $reference]);
-            }
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
             break;
@@ -106,23 +74,46 @@ try {
                 echo json_encode(['success' => false, 'message' => 'order_id مطلوب']); break;
             }
 
-            $order = $svc->getOrder($orderId);
-            $authorization = $order['purchase_units'][0]['payments']['authorizations'][0] ?? [];
+            $paypalTxn = json_decode($payload['paypal_txn'] ?? '', true) ?: [];
+            $authorization = $paypalTxn['purchase_units'][0]['payments']['authorizations'][0] ?? [];
             $authorizationId = trim($payload['authorization_id'] ?? ($authorization['id'] ?? ''));
+            $order = $svc->getOrder($orderId);
+            $orderAuthorization = $order['purchase_units'][0]['payments']['authorizations'][0] ?? [];
+            $authorizationId = $authorizationId ?: trim($orderAuthorization['id'] ?? '');
             $resolvedReference = $reference ?: ($order['purchase_units'][0]['reference_id'] ?? '');
-            $orderStatus = strtoupper((string)($order['status'] ?? ''));
+            $orderStatus = strtoupper((string)($order['status'] ?? ($paypalTxn['status'] ?? '')));
+
+            $txn = $resolvedReference !== '' ? $db->find('transactions', ['reference' => $resolvedReference]) : null;
+            if ($txn && intval($txn['user_id'] ?? 0) !== intval($_SESSION['user_id'])) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'لا تملك صلاحية هذه العملية']); break;
+            }
 
             if (in_array($orderStatus, ['APPROVED', 'COMPLETED'], true) && $authorizationId !== '') {
-                $txn = $db->find('transactions', ['reference' => $resolvedReference]);
                 $gatewayData = json_decode($txn['gateway_response'] ?? '{}', true) ?: [];
                 $gatewayData['type'] = 'paypal_authorization';
                 $gatewayData['order_id'] = $orderId;
                 $gatewayData['authorization_id'] = $authorizationId;
-                $db->update('transactions', [
-                    'status' => 'authorized',
-                    'gateway_response' => json_encode($gatewayData),
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ], ['reference' => $resolvedReference]);
+                if (!$txn) {
+                    $db->insert('transactions', [
+                        'reference' => $resolvedReference,
+                        'gateway' => 'paypal',
+                        'amount' => floatval($authorization['amount']['value'] ?? 0),
+                        'currency' => $authorization['amount']['currency_code'] ?? 'USD',
+                        'customer_name' => 'Customer',
+                        'customer_email' => 'guest@diparmas.com',
+                        'status' => 'authorized',
+                        'transaction_type' => 'PayPal Authorization',
+                        'user_id' => intval($_SESSION['user_id']),
+                        'fees' => 0,
+                        'net_amount' => floatval($authorization['amount']['value'] ?? 0),
+                        'security_mode' => '3D',
+                        'gateway_response' => json_encode($gatewayData),
+                        'created_at' => date('Y-m-d H:i:s'),
+                    ]);
+                } else {
+                    $db->update('transactions', ['status' => 'authorized', 'gateway_response' => json_encode($gatewayData), 'updated_at' => date('Y-m-d H:i:s')], ['reference' => $resolvedReference]);
+                }
                 $result = [
                     'success' => true,
                     'order_id' => $orderId,

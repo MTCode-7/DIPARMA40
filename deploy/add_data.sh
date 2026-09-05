@@ -20,7 +20,7 @@ MYSQL
 
 # 2. تحديث ملف .env
 echo "تحديث ملف .env..."
-sudo sed -i "s/^DB_PASS=.*/DB_PASS=diparma_secure_2024/" /var/www/diparma/.env
+sudo sed -i "s/^DB_PASS=.*/DB_PASS=CHANGE_THIS_DB_PASSWORD_IN_PRODUCTION/" /var/www/diparma/.env
 
 # 3. إضافة البيانات عن طريق MySQL
 echo "إضافة بيانات الاتصالات..."

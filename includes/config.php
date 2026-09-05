@@ -158,14 +158,14 @@ define('DB_HOST',   env('DB_HOST',   'localhost'));
 define('DB_PORT',   env('DB_PORT',   '3306'));
 define('DB_NAME',   env('DB_NAME',   'diparma_gateway'));
 define('DB_USER',   env('DB_USER',   'diparma_user'));
-define('DB_PASS',   array_key_exists('DB_PASS', $_ENV) ? (string)$_ENV['DB_PASS'] : (getenv('DB_PASS') !== false ? (string)getenv('DB_PASS') : 'diparma_secure_2024'));
+define('DB_PASS',   array_key_exists('DB_PASS', $_ENV) ? (string)$_ENV['DB_PASS'] : (getenv('DB_PASS') !== false ? (string)getenv('DB_PASS') : ''));
 define('DB_PREFIX', env('DB_PREFIX', 'dp_'));
 
 // ── [6] إعدادات النظام ───────────────────────────────────────
 define('SITE_URL',          _dp_detect_url());
 define('SITE_NAME',         env('APP_NAME',         'DI PARMA Gateway'));
 define('TIMEZONE',          env('APP_TIMEZONE',      'Asia/Dubai'));
-define('ENCRYPTION_KEY',    env('ENCRYPTION_KEY',    'DI_PARMA_SECURE_KEY_2026'));
+define('ENCRYPTION_KEY',    env('ENCRYPTION_KEY',    ''));
 define('JWT_SECRET',        env('JWT_SECRET',        ''));
 define('GATEWAYS_PATH',     env('GATEWAYS_PATH',     '/gateway/'));
 define('GATEWAYS_CONFIG',   env('GATEWAYS_CONFIG',   '/config/gateways_all.json'));
@@ -182,7 +182,7 @@ if (!defined('PAYRAM_API_KEY')) {
     define('PAYRAM_API_KEY', env('PAYRAM_API_KEY', ''));
 }
 if (!defined('PAYRAM_BASE_URL')) {
-    define('PAYRAM_BASE_URL', env('PAYRAM_BASE_URL', 'http://65.2.184.57:8080'));
+    define('PAYRAM_BASE_URL', env('PAYRAM_BASE_URL', ''));
 }
 if (!defined('PAYRAM_WEBHOOK_SECRET')) {
     define('PAYRAM_WEBHOOK_SECRET', env('PAYRAM_WEBHOOK_SECRET', env('PAYRAM_API_KEY', '')));
@@ -213,10 +213,10 @@ if (!defined('WEBHOOK_DEFAULT_RESPONSE_CODE')) {
     define('WEBHOOK_DEFAULT_RESPONSE_CODE', 200);
 }
 if (!defined('WEBHOOK_HMAC_SECRET')) {
-    define('WEBHOOK_HMAC_SECRET', env('WEBHOOK_HMAC_SECRET', 'y8K4r7Qz9vT2pX1sB6nF0mL3aR5cH2yU'));
+    define('WEBHOOK_HMAC_SECRET', env('WEBHOOK_HMAC_SECRET', ''));
 }
 if (!defined('WEBHOOK_VERIFY_SIGNATURE')) {
-    define('WEBHOOK_VERIFY_SIGNATURE', (bool) env('WEBHOOK_VERIFY_SIGNATURE', true));
+    define('WEBHOOK_VERIFY_SIGNATURE', (bool) env('WEBHOOK_VERIFY_SIGNATURE', false));
 }
 if (!defined('WEBHOOK_USE_ASYNC_PROCESSING')) {
     define('WEBHOOK_USE_ASYNC_PROCESSING', (bool) env('WEBHOOK_USE_ASYNC_PROCESSING', true));

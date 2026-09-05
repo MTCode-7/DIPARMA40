@@ -72,9 +72,13 @@ switch ($gateway) {
 
     // ── Nuvei ─────────────────────────────────────────────
     case 'nuvei':
-        $mId = getenv('NUVEI_MERCHANT_ID') ?: '2761828514943809999';
-        $sId = getenv('NUVEI_SITE_ID')     ?: '5613117';
-        $key = getenv('NUVEI_SECRET_KEY')  ?: 'aVEmlBFMOyuS7GEhyrpgjHpweAkkobcIO3EMFvUZz8p2SVGxs5kZOP3PnSx3NxQs';
+        $mId = trim((string)getenv('NUVEI_MERCHANT_ID'));
+        $sId = trim((string)getenv('NUVEI_SITE_ID'));
+        $key = trim((string)getenv('NUVEI_SECRET_KEY'));
+        if ($mId === '' || $sId === '' || $key === '') {
+            $result['message'] = 'Nuvei credentials are not configured';
+            break;
+        }
         $ts  = date('YmdHis');
         $amt = number_format($amount, 2, '.', '');
 

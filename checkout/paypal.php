@@ -1,4 +1,8 @@
 <?php
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 /**
  * ============================================================
  * DI PARMA | PayPal Checkout - 13 نوع شراء
@@ -24,9 +28,18 @@
  * ============================================================
  */
 
-require_once __DIR__ . '/../includes/auth_check.php';
+require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+
+$paypalGateway = db()->find('payment_gateways', ['code' => 'paypal']);
+$paypalCredentials = json_decode($paypalGateway['credentials'] ?? '{}', true) ?: [];
+foreach (['client_id' => 'PAYPAL_CLIENT_ID', 'secret' => 'PAYPAL_SECRET', 'environment' => 'PAYPAL_ENVIRONMENT'] as $field => $envKey) {
+  if (!empty($paypalCredentials[$field])) {
+    putenv($envKey . '=' . $paypalCredentials[$field]);
+    $_ENV[$envKey] = $paypalCredentials[$field];
+  }
+}
 
 // ============================================================
 // [1] إعدادات اللغة
@@ -46,7 +59,7 @@ $currency    = strtoupper($_GET['currency'] ?? 'USD');
 $destination = $_GET['destination'] ?? 'gateway';
 $txnTypeInit = $_GET['txn_type'] ?? 'purchase_3d';
 $txnTypeInit = [
-  'auth'          => 'auth_hold',
+  'auth'          => 'auth_moto',
   'auth_complete' => 'auth_capture',
 ][$txnTypeInit] ?? $txnTypeInit;
 $walletAddr  = $_GET['wallet'] ?? '';
@@ -140,12 +153,26 @@ $txnTypes = [
         'en' => 'Authorization Hold',
         'icon' => 'fa-lock',
         'color' => '#6366F1',
-        'security' => '3D',
+        'security' => '2D',
         'requires_original' => false,
         'category' => 'auth',
         'iso' => '0100',
+        'moto_indicator' => 'M',
         'description' => 'تجميد المبلغ مؤقتاً لحين تأكيد العملية'
     ],
+
+      'auth_moto' => [
+        'ar' => 'حجز MOTO',
+        'en' => 'MOTO Authorization Hold',
+        'icon' => 'fa-phone',
+        'color' => '#F59E0B',
+        'security' => '2D',
+        'requires_original' => false,
+        'category' => 'auth',
+        'iso' => '0100',
+        'moto_indicator' => 'M',
+        'description' => 'حجز مبلغ عبر الهاتف أو البريد دون 3D Secure'
+      ],
     
     // ════════════════════════════════════════════════════════════
     // 7. AUTH CAPTURE
@@ -204,7 +231,7 @@ $txnTypes = [
         'requires_original' => false,
         'category' => 'crypto',
         'iso' => '0200',
-        'description' => 'شراء USDT/BTC/ETH باستخدام البطاقة'
+        'description' => 'شراء عملات رقمية باستخدام البطاقة'
     ],
     
     // ════════════════════════════════════════════════════════════
@@ -392,7 +419,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 
   <!-- ═══ 13 TYPE SELECTION ═══ -->
   <div class="card">
-    <div class="card-title"><i class="fas fa-list"></i> <?=$ar?'نوع العملية (13)':'Transaction Type (13)'?></div>
+    <div class="card-title"><i class="fas fa-list"></i> <?=$ar?'نوع العملية (14)':'Transaction Type (14)'?></div>
     <div class="txn-grid" id="txnGrid">
       <?php foreach($txnTypes as $code => $txn): ?>
       <div class="txn-btn <?=$code === $txnTypeInit ? 'active' : ''?>" 
@@ -450,12 +477,12 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 
     <!-- Method Tabs -->
     <div class="method-tabs">
-      <div class="method-tab active" onclick="switchMethod('paypal', this)">
+      <button type="button" class="method-tab active" data-method="paypal">
         <i class="fab fa-paypal"></i> PayPal
-      </div>
-      <div class="method-tab" onclick="switchMethod('card', this)">
+      </button>
+      <button type="button" class="method-tab" data-method="card">
         <i class="fas fa-credit-card"></i> <?=$ar?'بطاقة مباشرة':'Direct Card'?>
-      </div>
+      </button>
     </div>
 
     <!-- PayPal Button -->
@@ -490,7 +517,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
         <input type="email" id="ppEmail" placeholder="email@example.com">
       </div>
       <button class="pay-btn" id="ppCardBtn" onclick="payByCard()">
-        <i class="fas fa-lock"></i> <?=$ar?'ادفع عبر PayPal':'Pay via PayPal'?>
+        <i class="fas fa-lock"></i> <?=in_array($txnTypeInit, ['auth_hold', 'auth_moto'], true) ? ($ar?'حجز عبر البطاقة':'Authorize via Card') : ($ar?'ادفع بالبطاقة':'Pay via Card')?>
       </button>
     </div>
   </div>
@@ -501,7 +528,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 <div id="toast"></div>
 
 <!-- ═══ PAYPAL SDK ═══ -->
-<script src="https://www.paypal.com/sdk/js?client-id=<?=htmlspecialchars($paypalClientId)?>&currency=<?=$currency?>&intent=<?=$txnTypeInit === 'auth_hold' ? 'authorize' : 'capture'?>"></script>
+<script src="https://www.paypal.com/sdk/js?client-id=<?=htmlspecialchars($paypalClientId)?>&currency=<?=$currency?>&intent=<?=in_array($txnTypeInit, ['auth_hold', 'auth_moto'], true) ? 'authorize' : 'capture'?>"></script>
 
 <script>
 // ============================================================
@@ -539,6 +566,7 @@ function selectTxnType(type, el) {
     
     // Show/hide original reference field
     document.getElementById('extraOrigRef').className = 'extra-fields' + (STATE.requiresOriginal ? ' show' : '');
+    document.getElementById('approvalCodeWrap').style.display = type === 'auth_capture' ? '' : 'none';
     
     // Update summary
     const name = el.querySelector('.txn-btn-name').textContent;
@@ -558,6 +586,10 @@ function switchMethod(method, el) {
     document.getElementById('paypal-section').style.display = method === 'paypal' ? '' : 'none';
     document.getElementById('card-section').style.display = method === 'card' ? '' : 'none';
 }
+
+  document.querySelectorAll('.method-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchMethod(tab.dataset.method, tab));
+  });
 
 // ============================================================
 // CARD FORMATTING
@@ -588,9 +620,10 @@ if (typeof paypal !== 'undefined') {
           amount: AMOUNT,
           currency: CURRENCY,
           reference: REF,
-          intent: TXN_TYPE === 'auth_hold' ? 'AUTHORIZE' : 'CAPTURE',
-          crypto: 'USDT',
+          destination: DESTINATION,
+          intent: ['auth_hold', 'auth_moto'].includes(TXN_TYPE) ? 'AUTHORIZE' : 'CAPTURE',
           wallet_address: WALLET,
+          transaction_type: ['auth_hold', 'auth_moto'].includes(TXN_TYPE) ? 'PayPal Authorization' : 'PayPal Payment',
           csrf_token: CSRF
         })
       });
@@ -604,14 +637,14 @@ if (typeof paypal !== 'undefined') {
         onApprove: async function(data, actions) {
             // Authorize or Capture based on transaction type
             let order;
-            order = TXN_TYPE === 'auth_hold'
+            order = ['auth_hold', 'auth_moto'].includes(TXN_TYPE)
               ? await actions.order.authorize()
               : await actions.order.capture();
             
             // Get original reference if needed
             const origRef = document.getElementById('origRef')?.value || '';
             
-            const action = TXN_TYPE === 'auth_hold' ? 'authorize_order' : 'capture_order';
+            const action = ['auth_hold', 'auth_moto'].includes(TXN_TYPE) ? 'authorize_order' : 'capture_order';
             const response = await fetch('../api/paypal.php?action=' + action, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -650,6 +683,7 @@ async function payByCard() {
     const name = document.getElementById('ppName').value.trim();
     const email = document.getElementById('ppEmail').value.trim();
     const origRef = document.getElementById('origRef')?.value || '';
+    const authCode = document.getElementById('approvalCode')?.value.trim() || '';
     
     // Validation
     if (num.length < 13) {
@@ -664,6 +698,9 @@ async function payByCard() {
     if (!name) {
         return toast(AR ? 'أدخل اسم حامل البطاقة' : 'Enter cardholder name', 'error');
     }
+    if (TXN_TYPE === 'auth_capture' && !authCode) {
+      return toast(AR ? 'أدخل رمز التفويض الأصلي' : 'Enter the original authorization code', 'error');
+    }
     
     btn.disabled = true;
     btn.innerHTML = '<span class="spin"></span> ' + (AR ? 'جاري المعالجة...' : 'Processing...');
@@ -676,11 +713,15 @@ async function payByCard() {
         email: email || 'client@diparmas.com',
         method: 'direct_card',
         orig_ref: origRef,
-        txn_type: TXN_TYPE
+        auth_code: authCode,
+      txn_type: ['auth_hold', 'auth_moto'].includes(TXN_TYPE) ? 'auth' : (TXN_TYPE === 'auth_capture' ? 'auth_complete' : 'purchase'),
+      extra: ['auth_hold', 'auth_moto'].includes(TXN_TYPE) ? { moto_indicator: 'M', is_moto: 1, transaction_label: 'MOTO Authorization Hold' } : {}
     });
     
     btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-lock"></i> ' + (AR ? 'ادفع عبر PayPal' : 'Pay via PayPal');
+    btn.innerHTML = '<i class="fas fa-lock"></i> ' + (['auth_hold', 'auth_moto'].includes(TXN_TYPE)
+      ? (AR ? 'حجز عبر البطاقة' : 'Authorize via Card')
+      : (AR ? 'ادفع بالبطاقة' : 'Pay via Card'));
 }
 
 // ============================================================

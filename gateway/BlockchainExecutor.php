@@ -273,7 +273,7 @@ class BlockchainExecutor
 
     private function decryptKey(string $encrypted): string
     {
-        $encKey = defined('ENCRYPTION_KEY') ? ENCRYPTION_KEY : (getenv('ENCRYPTION_KEY') ?: 'DI_PARMA_SECURE_KEY_2026');
+        $encKey = defined('ENCRYPTION_KEY') && ENCRYPTION_KEY !== '' ? ENCRYPTION_KEY : (getenv('ENCRYPTION_KEY') ?: '');
         $decoded = base64_decode($encrypted);
         if (strlen($decoded) < 28) return $encrypted;
         $iv = substr($decoded, 0, 12);

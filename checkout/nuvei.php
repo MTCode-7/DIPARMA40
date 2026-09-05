@@ -59,6 +59,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  * ظ‚ط¨ظˆظ„ ط·ظ„ط¨ط§طھ POST ظپظ‚ط·
  * ط¬ظ…ظٹط¹ ط¹ظ…ظ„ظٹط§طھ ط§ظ„ط¯ظپط¹ طھطھظ… ط¹ط¨ط± POST ظ„ط£ط³ط¨ط§ط¨ ط£ظ…ظ†ظٹط©
  */
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $query = http_build_query($_GET);
+    header('Location: ../checkout_nuvei.php' . ($query !== '' ? '?' . $query : ''), true, 302);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode([
