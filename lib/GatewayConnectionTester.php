@@ -431,7 +431,7 @@ class GatewayConnectionTester
 
         $res = $this->curl('GET', rtrim($endpoint, '/'), [], $headers);
 
-        if ($res['http_code'] > 0 && $res['http_code'] < 500) {
+        if ($res['http_code'] >= 200 && $res['http_code'] < 300) {
             return ['success' => true, 'message' => "✅ الاتصال ناجح — HTTP {$res['http_code']}"];
         }
         if ($res['http_code'] === 0) {

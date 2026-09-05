@@ -1233,30 +1233,68 @@ function getGatewayConfig($code) {
     return $gateways[strtolower(trim($code))] ?? null;
 }
 
+function isPlaceholderGatewayValue($value): bool {
+    if (!is_scalar($value)) {
+        return false;
+    }
+
+    $value = strtolower(trim((string)$value));
+    if ($value === '') {
+        return true;
+    }
+
+    $placeholderPrefixes = [
+        'your_', 'placeholder', 'change_this', 'replace_', 'insert_', 'example', 'demo', 'dummy',
+        'sample_', 'test_credential', 'not_set', 'unset', 'undefined', 'todo', 'n/a'
+    ];
+
+    foreach ($placeholderPrefixes as $prefix) {
+        if ($value === $prefix || str_starts_with($value, $prefix)) {
+            return true;
+        }
+    }
+
+    if (preg_match('/^(api|secret|client|merchant|site|public|webhook|access|token|key)[_-]/i', $value)) {
+        return false;
+    }
+
+    if (preg_match('/^(pk|sk)_test_[a-z0-9]+$/i', $value)) {
+        return false;
+    }
+
+    return false;
+}
+
 function hasValidGatewayConfig(array $gw): bool {
-    // 1. setup_complete = true طµط±ظٹط­
-    if (!empty($gw['setup_complete'])) {
-        return true;
-    }
-
-    // 2. config['setup_complete'] = true
-    if (!empty($gw['config']['setup_complete'])) {
-        return true;
-    }
-
-    // 3. ظٹظˆط¬ط¯ API Key ط­ظ‚ظٹظ‚ظٹ
+    $setupComplete = !empty($gw['setup_complete']) || !empty($gw['config']['setup_complete']);
     $creds = $gw['credentials'] ?? [];
-    if (!empty($creds) && is_array($creds)) {
-        $badValues = ['your_api_key','your_secret','your_client_id','','your_merchant_id',
-                      'sk_test_...','pk_test_...','your_secret_key','your_public_key'];
-        foreach ($creds as $val) {
-            if (!empty($val) && is_string($val) && !in_array(strtolower(trim($val)), $badValues)) {
+
+    if (is_array($creds)) {
+        foreach ($creds as $key => $val) {
+            if (!is_scalar($val)) {
+                continue;
+            }
+
+            $trimmed = trim((string)$val);
+            if ($trimmed === '') {
+                continue;
+            }
+
+            if (isPlaceholderGatewayValue($trimmed)) {
+                return false;
+            }
+
+            if (preg_match('/(api[_-]?key|secret|client[_-]?id|merchant[_-]?id|site[_-]?id|public[_-]?key|token|webhook)/i', (string)$key)) {
                 return true;
             }
         }
     }
 
-    return false;
+    if ($setupComplete && (!is_array($creds) || empty($creds))) {
+        return true;
+    }
+
+    return $setupComplete;
 }
 
 function isGatewayConfigured(array $gw): bool {
