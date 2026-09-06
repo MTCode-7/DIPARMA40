@@ -108,32 +108,23 @@ $destinations = [
     }
 
     if (!is_file(__DIR__ . '/' . $routeFile)) {
-      // لا تمنع عرض البوابة إذا كانت الواجهة موجودة لكن ملف الخروج غير موجود.
-      $filteredGateways[$code] = $allGateways[$code];
       continue;
     }
 
     $row = $gatewayState[$code] ?? null;
     if ($row === null) {
-      $filteredGateways[$code] = $allGateways[$code];
       continue;
     }
 
     $status = strtolower((string)($row['status'] ?? ''));
     $connection = strtolower((string)($row['connection_status'] ?? ''));
-    $setupReady = !empty($row['setup_complete']);
-    $approvedStatus = $status === 'active' || $status === 'enabled' || $status === 'live' || $setupReady || in_array($connection, ['verified', 'connected', 'ready', 'success'], true);
+    $manualGateways = ['mashreq', 'hsbc_uae', 'nbe_egypt', 'jpmorgan'];
+    $isManualGateway = in_array($code, $manualGateways, true);
+    $isVerified = in_array($connection, ['verified', 'connected', 'ready', 'success'], true);
 
-    // إذا كان هناك أي تعارض في القيم أو تغيّرات في DB، نحتفظ بالبوابة بشكل آمن.
-    $filteredGateways[$code] = $allGateways[$code];
-    if (!$approvedStatus && strtolower((string)($row['status'] ?? '')) === 'inactive') {
-      // لا نحذف البوابة من الواجهة إذا كانت منطقياً متاحة للتشغيل.
+    if (($status === 'active' || $status === 'enabled' || $status === 'live') && ($isVerified || $isManualGateway)) {
       $filteredGateways[$code] = $allGateways[$code];
     }
-  }
-
-  if (empty($filteredGateways)) {
-    $filteredGateways = $allGateways;
   }
 
   $gateways = $filteredGateways;
