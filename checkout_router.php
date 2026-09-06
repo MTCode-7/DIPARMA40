@@ -90,7 +90,7 @@ $destinations = [
   $filteredGateways = [];
   try {
     if (isset($db) && is_object($db) && method_exists($db, 'query')) {
-      $gatewayRows = $db->query("SELECT code,status,connection_status,setup_complete,config,credentials,settings FROM dp_payment_gateways WHERE status != 'deleted'");
+      $gatewayRows = $db->query("SELECT code,status,connection_status,config,credentials,settings FROM dp_payment_gateways WHERE status != 'deleted'");
       foreach (($gatewayRows ?? []) as $row) {
         $code = strtolower((string)($row['code'] ?? ''));
         if ($code !== '') {
