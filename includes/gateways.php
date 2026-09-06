@@ -1369,7 +1369,7 @@ function gateway_service() {
                 'customer_name' => $payload['customer_name'] ?? 'Customer',
                 'customer_email' => $payload['customer_email'] ?? '',
                 'customer_phone' => $payload['customer_phone'] ?? '',
-                'status' => 'completed',
+                'status' => 'pending',
                 'transaction_type' => $payload['description'] ?? 'Payment via ' . $gateway,
                 'user_id' => $_SESSION['user_id'] ?? 0,
                 'fees' => ($payload['amount'] ?? 0) * 0.025,
@@ -1386,8 +1386,8 @@ function gateway_service() {
                 $payload['security_mode'] = $securityMode;
                 $payload['secure_mode'] = $requestedMode;
                 $gatewayResponse = [
-                    'success' => true,
-                    'message' => 'Payment processed successfully',
+                    'success' => false,
+                    'message' => 'Awaiting response from the configured payment gateway.',
                     'reference' => $reference,
                     'provider' => strtoupper($gateway),
                     'security_mode' => $securityMode,
