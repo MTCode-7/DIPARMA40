@@ -585,6 +585,14 @@ foreach ($rowsByCode as $code => $row) {
 }
 
 usort($gateways, function ($a, $b) {
+    $aConnected = strtolower((string)($a['status'] ?? '')) === 'active'
+        && strtolower((string)($a['connection_status'] ?? '')) === 'verified';
+    $bConnected = strtolower((string)($b['status'] ?? '')) === 'active'
+        && strtolower((string)($b['connection_status'] ?? '')) === 'verified';
+    if ($aConnected !== $bConnected) {
+        return $aConnected ? -1 : 1;
+    }
+
     if ($a['code'] === 'nuvei' && $b['code'] !== 'nuvei') {
         return -1;
     }
@@ -602,6 +610,16 @@ usort($gateways, function ($a, $b) {
 
     return strcmp($a['name'], $b['name']);
 });
+
+$connectedGateways = array_values(array_filter($gateways, static function (array $gateway): bool {
+    return strtolower((string)($gateway['status'] ?? '')) === 'active'
+        && strtolower((string)($gateway['connection_status'] ?? '')) === 'verified';
+}));
+$disconnectedGateways = array_values(array_filter($gateways, static function (array $gateway): bool {
+    return !(strtolower((string)($gateway['status'] ?? '')) === 'active'
+        && strtolower((string)($gateway['connection_status'] ?? '')) === 'verified');
+}));
+$connectedNames = array_map(static fn(array $gateway): string => $gateway['name'], $connectedGateways);
 
 // ============================================================
 // [5] CSRF Token
@@ -696,6 +714,33 @@ $csrfToken = generateCsrfToken();
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
             gap: 20px;
+        }
+        .connection-summary {
+            background: rgba(76,175,80,0.10);
+            border: 1px solid rgba(76,175,80,0.35);
+            border-radius: 16px;
+            padding: 18px 22px;
+            margin-bottom: 24px;
+            color: #d8f5dc;
+        }
+        .connection-summary strong { color: #6ee27b; }
+        .connection-summary .names { color: var(--text-light); margin-top: 7px; }
+        .gateway-section-divider {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin: 10px 0 0;
+            color: var(--text-gold);
+            font-weight: 800;
+            font-size: 1rem;
+        }
+        .gateway-section-divider::before,
+        .gateway-section-divider::after {
+            content: '';
+            height: 1px;
+            flex: 1;
+            background: var(--border-gold);
         }
         .gateway-card {
             background: var(--bg-card);
@@ -817,6 +862,14 @@ $csrfToken = generateCsrfToken();
             <a href="?sync=true&token=<?= $csrfToken ?>" class="btn btn-success btn-sm" style="margin-top:10px; display:inline-flex; align-items:center; gap:8px;"><i class="fas fa-plus-circle"></i> إضافة جميع البوابات المفقودة</a>
         </div>
     <?php endif; ?>
+
+    <div class="connection-summary">
+        <div><i class="fas fa-plug"></i> البوابات المتصلة بالكامل: <strong><?= count($connectedGateways) ?></strong> من <?= count($gateways) ?></div>
+        <div class="names">
+            <strong>الأسماء:</strong>
+            <?= $connectedNames ? htmlspecialchars(implode('، ', $connectedNames)) : 'لا توجد بوابات متصلة حاليًا' ?>
+        </div>
+    </div>
 
     <!-- ===== نموذج تغيير بيانات الحساب ===== -->
     <?php if (isset($_GET['profile']) || $showProfileForm): ?>
@@ -1115,7 +1168,21 @@ $csrfToken = generateCsrfToken();
                 <a href="?add=true" class="btn btn-primary" style="margin-top:15px;"><i class="fas fa-plus"></i> إضافة بوابة جديدة</a>
             </div>
         <?php else: ?>
+            <?php $shownDisconnectedDivider = false; ?>
             <?php foreach ($gateways as $gw): ?>
+                <?php
+                $isConnected = strtolower((string)($gw['status'] ?? '')) === 'active'
+                    && strtolower((string)($gw['connection_status'] ?? '')) === 'verified';
+                if (!$isConnected && !$shownDisconnectedDivider) {
+                    $shownDisconnectedDivider = true;
+                    $renderDisconnectedDivider = true;
+                } else {
+                    $renderDisconnectedDivider = false;
+                }
+                ?>
+                <?php if ($renderDisconnectedDivider): ?>
+                    <div class="gateway-section-divider"><span>البوابات غير المتصلة أو غير الجاهزة</span></div>
+                <?php endif; ?>
                 <div class="gateway-card" id="gw-card-<?= $gw['id'] ?>">
                     <div class="header-card">
                         <div class="info">
