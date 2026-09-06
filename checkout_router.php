@@ -123,6 +123,20 @@ $destinations = [
     }
   }
 
+  if (empty($filteredGateways)) {
+    foreach ($gatewayState as $code => $row) {
+      if (!isset($allGateways[$code])) {
+        continue;
+      }
+      $status = strtolower((string)($row['status'] ?? ''));
+      $connection = strtolower((string)($row['connection_status'] ?? ''));
+      if (($status === 'active' || $status === 'enabled' || $status === 'live')
+        && in_array($connection, ['verified', 'connected', 'ready', 'success'], true)) {
+        $filteredGateways[$code] = $allGateways[$code];
+      }
+    }
+  }
+
   $gateways = $filteredGateways;
 ?><!DOCTYPE html>
 <html lang="<?=$lang?>" dir="<?=$dir?>">
