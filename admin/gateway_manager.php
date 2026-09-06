@@ -725,6 +725,28 @@ $csrfToken = generateCsrfToken();
         }
         .connection-summary strong { color: #6ee27b; }
         .connection-summary .names { color: var(--text-light); margin-top: 7px; }
+        .gateway-search {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-gold);
+            border-radius: 14px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+        }
+        .gateway-search i { color: var(--gold); }
+        .gateway-search input {
+            flex: 1;
+            min-width: 0;
+            border: 0;
+            outline: 0;
+            background: transparent;
+            color: var(--text-light);
+            font: inherit;
+        }
+        .gateway-search input::placeholder { color: #777; }
+        .gateway-search-count { color: #888; font-size: .8rem; white-space: nowrap; }
         .gateway-section-divider {
             grid-column: 1 / -1;
             display: flex;
@@ -869,6 +891,12 @@ $csrfToken = generateCsrfToken();
             <strong>الأسماء:</strong>
             <?= $connectedNames ? htmlspecialchars(implode('، ', $connectedNames)) : 'لا توجد بوابات متصلة حاليًا' ?>
         </div>
+    </div>
+
+    <div class="gateway-search">
+        <i class="fas fa-search" aria-hidden="true"></i>
+        <input type="search" id="gateway-search-input" placeholder="ابحث باسم البوابة أو الكود أو الحالة" aria-label="البحث في بوابات الدفع" autocomplete="off">
+        <span class="gateway-search-count" id="gateway-search-count"><?= count($gateways) ?> نتيجة</span>
     </div>
 
     <!-- ===== نموذج تغيير بيانات الحساب ===== -->
@@ -1282,6 +1310,30 @@ $csrfToken = generateCsrfToken();
 </div>
 
 <script>
+const gatewaySearchInput = document.getElementById('gateway-search-input');
+const gatewaySearchCount = document.getElementById('gateway-search-count');
+
+function filterGatewayCards() {
+    const query = (gatewaySearchInput?.value || '').trim().toLocaleLowerCase();
+    const cards = [...document.querySelectorAll('.gateway-card')];
+    let visible = 0;
+
+    cards.forEach(card => {
+        const matches = query === '' || card.textContent.toLocaleLowerCase().includes(query);
+        card.style.display = matches ? '' : 'none';
+        if (matches) visible++;
+    });
+
+    document.querySelectorAll('.gateway-section-divider').forEach(divider => {
+        divider.style.display = query === '' ? '' : 'none';
+    });
+    if (gatewaySearchCount) {
+        gatewaySearchCount.textContent = `${visible} نتيجة`;
+    }
+}
+
+gatewaySearchInput?.addEventListener('input', filterGatewayCards);
+
 // ══════════════════════════════════════════════════════
 // اختبار اتصال بوابة واحدة
 // ══════════════════════════════════════════════════════
