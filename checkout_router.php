@@ -107,10 +107,6 @@ $destinations = [
       continue;
     }
 
-    if (!is_file(__DIR__ . '/' . $routeFile)) {
-      continue;
-    }
-
     $row = $gatewayState[$code] ?? null;
     if ($row === null) {
       continue;
