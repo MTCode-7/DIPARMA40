@@ -256,6 +256,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_
                         $settings[$field] = trim((string)$_POST[$field]);
                     }
                 }
+                if ($existing['code'] === 'paypal' && array_key_exists('paypal_webhook_id', $_POST)) {
+                    $webhookId = trim((string)$_POST['paypal_webhook_id']);
+                    if ($webhookId !== '') {
+                        $settings['webhook_id'] = $webhookId;
+                    }
+                }
 
                 $db->update('payment_gateways', [
                     'name'             => trim($_POST['name'] ?? $existing['name']),
@@ -1065,8 +1071,9 @@ $csrfToken = generateCsrfToken();
                     <div class="form-row">
                         <div class="form-group" style="width:100%;">
                             <label><i class="fas fa-fingerprint"></i> Webhook ID</label>
-                            <input type="text" value="<?= htmlspecialchars((string)(getenv('PAYPAL_WEBHOOK_ID') ?: 'غير مضبوط')) ?>" readonly>
-                            <small style="color:#888">يُقرأ من PAYPAL_WEBHOOK_ID في ملف .env ولا يُحفظ من هذه الصفحة.</small>
+                            <?php $paypalSettings = json_decode($editGateway['settings'] ?? '{}', true) ?: []; ?>
+                            <input type="password" name="paypal_webhook_id" value="<?= htmlspecialchars((string)($paypalSettings['webhook_id'] ?? getenv('PAYPAL_WEBHOOK_ID') ?? '')) ?>" placeholder="أدخل PayPal Webhook ID">
+                            <small style="color:#888">يُحفظ داخل إعدادات البوابة ويُستخدم للتحقق من Webhook.</small>
                         </div>
                     </div>
                 <?php endif; ?>

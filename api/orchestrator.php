@@ -4,6 +4,24 @@
  */
 header('Content-Type: application/json; charset=utf-8');
 
+ini_set('display_errors', '0');
+ob_start();
+register_shutdown_function(static function (): void {
+    $error = error_get_last();
+    if ($error === null || !in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        return;
+    }
+
+    if (ob_get_level() > 0) {
+        ob_clean();
+    }
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => APP_IS_LOCAL ? $error['message'] : 'خطأ داخلي في الخادم',
+    ], JSON_UNESCAPED_UNICODE);
+});
+
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
@@ -176,7 +194,10 @@ try {
             echo json_encode(['success'=>false,'message'=>'action غير معروف: '.$action]);
     }
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
+    if (ob_get_level() > 0) {
+        ob_clean();
+    }
     http_response_code(500);
     echo json_encode([
         'success' => false,

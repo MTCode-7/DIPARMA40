@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
 
     // Credentials
     $creds = [];
-    foreach (['api_key','secret_key','client_id','merchant_id','access_token',
+    foreach (['api_key','api_secret','secret_key','client_id','merchant_id','access_token',
               'public_key','profile_id','server_key','api_login_id','transaction_key',
               'webhook_secret','private_key'] as $f) {
         if (!empty($_POST[$f])) $creds[$f] = trim($_POST[$f]);
@@ -148,11 +148,11 @@ foreach ($sections as $sec => $info) {
     $counts[$sec] = $row[0] ?? ['c'=>0,'a'=>0,'v'=>0];
 }
 ?><!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DI PARMA | إدارة الاتصال</title>
+<title>DI PARMA | Connection Management</title>
 <link rel="stylesheet" href="../assets/css/style.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
@@ -227,13 +227,13 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;mi
 
 <!-- Header -->
 <div class="header">
-    <h1><i class="fas fa-network-wired"></i> إدارة الاتصال</h1>
+    <h1><i class="fas fa-network-wired"></i> Connection Management</h1>
     <div style="display:flex;gap:10px;align-items:center">
         <a href="gateway_manager.php" class="btn btn-outline btn-sm">
-            <i class="fas fa-cog"></i> الإعدادات المتقدمة
+            <i class="fas fa-cog"></i> Advanced Settings
         </a>
         <a href="../dashboard.php" class="btn btn-outline btn-sm">
-            <i class="fas fa-home"></i> الرئيسية
+            <i class="fas fa-home"></i> Home
         </a>
     </div>
 </div>
@@ -267,15 +267,15 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;mi
 <div class="stats-bar">
     <div class="stat-box">
         <div class="stat-num"><?= intval($cnt['c'] ?? 0) ?></div>
-        <div class="stat-lbl">إجمالي <?= $info['label'] ?></div>
+        <div class="stat-lbl">Total <?= $info['label'] ?></div>
     </div>
     <div class="stat-box">
         <div class="stat-num" style="color:#4CAF50"><?= intval($cnt['a'] ?? 0) ?></div>
-        <div class="stat-lbl">مفعّل (Active)</div>
+        <div class="stat-lbl">Active</div>
     </div>
     <div class="stat-box">
         <div class="stat-num" style="color:#5bc0de"><?= intval($cnt['v'] ?? 0) ?></div>
-        <div class="stat-lbl">متصل (Verified)</div>
+        <div class="stat-lbl">Connected</div>
     </div>
 </div>
 
@@ -283,15 +283,15 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;mi
 <div class="toolbar">
     <div class="toolbar-left">
         <input type="text" class="search-box" id="searchBox"
-               placeholder="🔍 بحث باسم أو كود..."
+               placeholder="🔍 Search by name or code..."
                onkeyup="filterCards(this.value)">
         <button class="btn btn-blue btn-sm" onclick="testAllInSection()">
-            <i class="fas fa-plug"></i> اختبار الكل
+            <i class="fas fa-plug"></i> Test All
         </button>
     </div>
     <div style="display:flex;gap:8px">
         <a href="?section=<?= $activeSection ?>&add=1" class="btn btn-gold btn-sm">
-            <i class="fas fa-plus"></i> إضافة <?= $info['label'] ?>
+            <i class="fas fa-plus"></i> Add <?= $info['label'] ?>
         </a>
     </div>
 </div>
@@ -301,9 +301,9 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;mi
 <?php if (empty($gateways)): ?>
 <div class="empty-state" style="grid-column:1/-1">
     <i class="<?= $info['icon'] ?>" style="color:<?= $info['color'] ?>"></i>
-    <p>لا توجد بيانات في هذا القسم بعد.</p>
+    <p>No data in this section yet.</p>
     <a href="?section=<?= $activeSection ?>&add=1" class="btn btn-gold">
-        <i class="fas fa-plus"></i> إضافة أول <?= $info['label'] ?>
+        <i class="fas fa-plus"></i> Add the first <?= $info['label'] ?>
     </a>
 </div>
 <?php else: ?>
@@ -311,10 +311,10 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;mi
     $creds  = json_decode($gw['credentials'] ?? '{}', true) ?: [];
     $connSt = $gw['connection_status'] ?? 'untested';
     $connBadge = match($connSt) {
-        'verified'  => ['cl'=>'conn-verified', 'icon'=>'check-circle',    'lbl'=>'متصل ✅'],
-        'failed'    => ['cl'=>'conn-failed',   'icon'=>'times-circle',    'lbl'=>'فشل ❌'],
-        'disabled'  => ['cl'=>'conn-disabled', 'icon'=>'ban',             'lbl'=>'معطل'],
-        default     => ['cl'=>'conn-untested', 'icon'=>'question-circle', 'lbl'=>'لم يُختبر'],
+        'verified'  => ['cl'=>'conn-verified', 'icon'=>'check-circle',    'lbl'=>'Connected ✅'],
+        'failed'    => ['cl'=>'conn-failed',   'icon'=>'times-circle',    'lbl'=>'Failed ❌'],
+        'disabled'  => ['cl'=>'conn-disabled', 'icon'=>'ban',             'lbl'=>'Disabled'],
+        default     => ['cl'=>'conn-untested', 'icon'=>'question-circle', 'lbl'=>'Not tested'],
     };
     $hasKey = !empty($creds['api_key']) || !empty($creds['secret_key']) || !empty($creds['client_id'])
            || !empty($creds['server_key']) || !empty($creds['api_login_id']) || !empty($creds['access_token']);
@@ -343,7 +343,7 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;mi
 
     <div class="badges">
         <span class="badge-pill <?= $gw['status']==='active'?'st-active':'st-inactive' ?>">
-            <?= $gw['status']==='active'?'✅ نشط':'⚪ غير نشط' ?>
+            <?= $gw['status']==='active'?'✅ Active':'⚪ Inactive' ?>
         </span>
         <span class="badge-pill <?= $connBadge['cl'] ?>" id="badge-<?= $gw['id'] ?>">
             <i class="fas fa-<?= $connBadge['icon'] ?>"></i>
@@ -352,7 +352,7 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;mi
         </span>
         <?php if ($hasKey): ?>
         <span class="badge-pill" style="background:rgba(91,192,222,.1);color:#5bc0de;border:1px solid #5bc0de40">
-            <i class="fas fa-key"></i> API مُضاف
+            <i class="fas fa-key"></i> API Added
         </span>
         <?php endif; ?>
         <?php if ($gw['supports_2d'] ?? 0): ?><span class="badge-pill" style="background:rgba(91,192,222,.1);color:#5bc0de;border:1px solid #5bc0de40">2D</span><?php endif; ?>
@@ -368,7 +368,7 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;mi
         <div>🏦 SWIFT: <span><?= htmlspecialchars($gw['swift_code']) ?></span></div>
         <?php endif; ?>
         <?php if ($gw['last_tested']): ?>
-        <div>🕐 آخر اختبار: <span><?= date('d/m H:i', strtotime($gw['last_tested'])) ?></span></div>
+        <div>🕐 Last tested: <span><?= date('d/m H:i', strtotime($gw['last_tested'])) ?></span></div>
         <?php endif; ?>
         <?php if ($gw['test_message']): ?>
         <div style="color:<?= $connSt==='verified'?'#4CAF50':'#ef5350' ?>;margin-top:4px">
@@ -380,19 +380,19 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;mi
     <div class="gw-actions">
         <button class="btn btn-blue btn-sm" id="test-btn-<?= $gw['id'] ?>"
                 onclick="testGateway(<?= $gw['id'] ?>, '<?= addslashes($gw['name']) ?>')">
-            <i class="fas fa-plug"></i> اختبار
+            <i class="fas fa-plug"></i> Test
         </button>
         <a href="?section=<?= $activeSection ?>&edit=<?= $gw['id'] ?>" class="btn btn-sm btn-outline">
-            <i class="fas fa-pen"></i> تعديل
+            <i class="fas fa-pen"></i> Edit
         </a>
         <button class="btn btn-sm <?= $gw['status']==='active'?'btn-red':'btn-blue' ?>"
                 onclick="toggleStatus(<?= $gw['id'] ?>, this)">
             <i class="fas fa-<?= $gw['status']==='active'?'pause':'play' ?>"></i>
-            <?= $gw['status']==='active'?'تعطيل':'تفعيل' ?>
+            <?= $gw['status']==='active'?'Disable':'Enable' ?>
         </button>
         <a href="?section=<?= $activeSection ?>&delete=<?= $gw['id'] ?>&token=<?= $csrfToken ?>"
            class="btn btn-sm btn-red"
-           onclick="return confirm('حذف نهائي؟')">
+           onclick="return confirm('Delete permanently?')">
             <i class="fas fa-trash"></i>
         </a>
     </div>
@@ -411,7 +411,7 @@ $isEditGw  = (bool)$editGw;
 <div style="background:#0e0e0e;border:1.5px solid var(--border);border-radius:20px;padding:28px;margin-top:24px">
     <h3 style="color:var(--gold);margin:0 0 22px;font-size:1.1rem">
         <i class="fas fa-<?= $isEditGw?'pen':'plus-circle' ?>" style="margin-left:8px"></i>
-        <?= $isEditGw?'تعديل بيانات: '.htmlspecialchars($editGw['name']):'إضافة '.$info['label'].' جديد' ?>
+        <?= $isEditGw?'Edit: '.htmlspecialchars($editGw['name']):'Add new '.$info['label'] ?>
     </h3>
     <form method="POST">
         <input type="hidden" name="action" value="<?= $isEditGw?'edit_gateway':'add_gateway' ?>">
@@ -420,27 +420,27 @@ $isEditGw  = (bool)$editGw;
 
         <div class="form-grid">
             <div class="form-group">
-                <label>الاسم *</label>
+                <label>Name *</label>
                 <input name="name" value="<?= htmlspecialchars($editGw['name'] ?? '') ?>" placeholder="مثال: Stripe" required>
             </div>
             <div class="form-group">
-                <label>الكود (code) *</label>
+                <label>Code *</label>
                 <input name="code" value="<?= htmlspecialchars($editGw['code'] ?? '') ?>"
                        placeholder="stripe" <?= $isEditGw?'readonly':'' ?> required>
             </div>
             <div class="form-group">
-                <label>النوع (type)</label>
+                <label>Type</label>
                 <select name="type">
-                    <?php foreach (['electronic'=>'إلكترونية','bank'=>'بنكية','crypto'=>'عملات رقمية','wallet'=>'محفظة','social'=>'اجتماعي','game'=>'ألعاب'] as $v=>$l): ?>
+                    <?php foreach (['electronic'=>'Electronic','bank'=>'Bank','crypto'=>'Crypto','wallet'=>'Wallet','social'=>'Social','game'=>'Games'] as $v=>$l): ?>
                     <option value="<?= $v ?>" <?= ($editGw['type']??'')===$v?'selected':'' ?>><?= $l ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div class="form-group">
-                <label>الحالة</label>
+                <label>Status</label>
                 <select name="status">
-                    <option value="inactive" <?= ($editGw['status']??'')==='inactive'?'selected':'' ?>>غير نشط</option>
-                    <option value="active"   <?= ($editGw['status']??'')==='active'  ?'selected':'' ?>>نشط</option>
+                    <option value="inactive" <?= ($editGw['status']??'')==='inactive'?'selected':'' ?>>Inactive</option>
+                    <option value="active"   <?= ($editGw['status']??'')==='active'  ?'selected':'' ?>>Active</option>
                 </select>
             </div>
             <div class="form-group full">
@@ -475,32 +475,32 @@ $isEditGw  = (bool)$editGw;
                 </select>
             </div>
             <div class="form-group">
-                <label>البلد / المنطقة</label>
-                <input name="country" value="<?= htmlspecialchars($editGw['country'] ?? '') ?>" placeholder="السعودية | الإمارات | Global">
+                <label>Country / Region</label>
+                <input name="country" value="<?= htmlspecialchars($editGw['country'] ?? '') ?>" placeholder="Saudi Arabia | UAE | Global">
             </div>
             <div class="form-group">
-                <label>SWIFT / BIC (للبنوك)</label>
+                <label>SWIFT / BIC (for banks)</label>
                 <input name="swift_code" value="<?= htmlspecialchars($editGw['swift_code'] ?? '') ?>" placeholder="RJHISARI">
             </div>
             <div class="form-group">
-                <label>نوع الاتصال</label>
+                <label>Connection Type</label>
                 <select name="connection_type">
                     <option value="rest"    <?= ($editGw['connection_type']??'rest')==='rest'   ?'selected':'' ?>>REST API</option>
                     <option value="soap"    <?= ($editGw['connection_type']??'')==='soap'   ?'selected':'' ?>>SOAP/XML</option>
                     <option value="web3"    <?= ($editGw['connection_type']??'')==='web3'   ?'selected':'' ?>>Web3/Blockchain</option>
-                    <option value="manual"  <?= ($editGw['connection_type']??'')==='manual' ?'selected':'' ?>>يدوي</option>
+                    <option value="manual"  <?= ($editGw['connection_type']??'')==='manual' ?'selected':'' ?>>Manual</option>
                 </select>
             </div>
             <div class="form-group">
-                <label>الترتيب في Checkout</label>
+                <label>Checkout Order</label>
                 <input name="sort_order" type="number" value="<?= intval($editGw['sort_order'] ?? 0) ?>" min="0">
             </div>
             <div class="form-group full">
-                <label>وصف</label>
+                <label>Description</label>
                 <textarea name="description" rows="2"><?= htmlspecialchars($editGw['description'] ?? '') ?></textarea>
             </div>
             <div class="form-group full">
-                <label>الميزات المدعومة</label>
+                <label>Supported Features</label>
                 <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:6px">
                     <?php foreach (['supports_2d'=>'2D','supports_3d'=>'3D Secure','supports_hold'=>'HOLD (101.1)','supports_capture'=>'CAPTURE'] as $f=>$l): ?>
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#ccc;font-size:.88rem">
@@ -514,15 +514,15 @@ $isEditGw  = (bool)$editGw;
 
         <hr class="sep">
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <button type="submit" class="btn btn-gold"><i class="fas fa-save"></i> حفظ</button>
+            <button type="submit" class="btn btn-gold"><i class="fas fa-save"></i> Save</button>
             <?php if ($isEditGw): ?>
             <button type="button" onclick="testGateway(<?= $editGw['id'] ?>, '<?= addslashes($editGw['name'] ?? '') ?>')"
                     id="test-btn-<?= $editGw['id'] ?>"
                     class="btn btn-blue">
-                <i class="fas fa-plug"></i> اختبار الاتصال الآن
+                <i class="fas fa-plug"></i> Test Connection Now
             </button>
             <?php endif; ?>
-            <a href="?section=<?= $activeSection ?>" class="btn btn-outline"><i class="fas fa-times"></i> إلغاء</a>
+            <a href="?section=<?= $activeSection ?>" class="btn btn-outline"><i class="fas fa-times"></i> Cancel</a>
         </div>
     </form>
 </div>
@@ -536,8 +536,8 @@ var ACTIVE_SECTION = '<?= $activeSection ?>';
 async function testGateway(id, name) {
     var btn   = document.getElementById('test-btn-' + id);
     var badge = document.getElementById('badge-' + id);
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner test-spinner"></i> جاري...'; }
-    if (badge) { badge.innerHTML = '<i class="fas fa-spinner test-spinner"></i> جاري الاختبار...'; badge.className = 'badge-pill conn-untested'; }
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner test-spinner"></i> Testing...'; }
+    if (badge) { badge.innerHTML = '<i class="fas fa-spinner test-spinner"></i> Testing...'; badge.className = 'badge-pill conn-untested'; }
     try {
         var fd = new FormData();
         fd.append('action', 'test_connection');
@@ -553,15 +553,15 @@ async function testGateway(id, name) {
         }
         showToast(d.message, ok ? 'success' : 'error');
     } catch(e) {
-        showToast('خطأ في الاتصال: ' + e.message, 'error');
+        showToast('Connection error: ' + e.message, 'error');
     } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> اختبار'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> Test'; }
     }
 }
 
 // ── اختبار كل البوابات في القسم ─────────────────────────
 async function testAllInSection() {
-    showToast('جاري اختبار كل الاتصالات...', 'info');
+    showToast('Testing all connections...', 'info');
     try {
         var fd = new FormData();
         fd.append('action', 'test_all');
@@ -569,10 +569,10 @@ async function testAllInSection() {
         fd.append('csrf_token', CSRF);
         var r = await fetch('connection_manager.php', {method:'POST', body:fd});
         var d = await r.json();
-        showToast('✅ ' + d.verified + ' متصلة | ❌ ' + d.failed + ' فشلت | إجمالي ' + d.total, d.failed === 0 ? 'success' : 'warning');
+        showToast('✅ ' + d.verified + ' connected | ❌ ' + d.failed + ' failed | Total ' + d.total, d.failed === 0 ? 'success' : 'warning');
         setTimeout(() => location.reload(), 2500);
     } catch(e) {
-        showToast('خطأ: ' + e.message, 'error');
+        showToast('Error: ' + e.message, 'error');
     }
 }
 
@@ -588,12 +588,12 @@ async function toggleStatus(id, btn) {
         if (d.success) {
             var isActive = d.new_status === 'active';
             btn.className = 'btn btn-sm ' + (isActive ? 'btn-red' : 'btn-blue');
-            btn.innerHTML = '<i class="fas fa-' + (isActive ? 'pause' : 'play') + '"></i> ' + (isActive ? 'تعطيل' : 'تفعيل');
+            btn.innerHTML = '<i class="fas fa-' + (isActive ? 'pause' : 'play') + '"></i> ' + (isActive ? 'Disable' : 'Enable');
             var card = document.getElementById('card-' + id);
             if (card) card.className = 'gw-card' + (isActive ? ' active-gw' : '');
-            showToast(isActive ? '✅ تم التفعيل' : '⚪ تم التعطيل', 'success');
+            showToast(isActive ? '✅ Enabled' : '⚪ Disabled', 'success');
         }
-    } catch(e) { showToast('خطأ', 'error'); }
+    } catch(e) { showToast('Error', 'error'); }
 }
 
 // ── بحث ─────────────────────────────────────────────────

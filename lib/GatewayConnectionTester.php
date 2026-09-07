@@ -24,6 +24,8 @@ class GatewayConnectionTester
             ? LOGS_PATH . '/gateway_tests.log'
             : __DIR__ . '/../logs/gateway_tests.log';
         if (!is_dir(dirname($this->logFile))) @mkdir(dirname($this->logFile), 0755, true);
+        require_once __DIR__ . '/Adapters/CryptoComExchangeAdapter.php';
+        require_once __DIR__ . '/Adapters/SFOXAdapter.php';
     }
 
     // ══════════════════════════════════════════════════════════
@@ -40,7 +42,9 @@ class GatewayConnectionTester
         $config  = json_decode($gw['config']      ?? '{}', true) ?: [];
         $settings= json_decode($gw['settings']    ?? '{}', true) ?: [];
 
-        $all = array_merge($config, $creds, $settings);
+        $all = array_merge($config, $creds, $settings, [
+            'api_endpoint' => $gw['api_endpoint'] ?? '',
+        ]);
 
         $start  = microtime(true);
         $result = $this->runTest($gw['code'], $gw, $all);
@@ -117,6 +121,9 @@ class GatewayConnectionTester
             'moonpay'      => $this->testMoonPay($creds),
             'gate_io',
             'gateio'       => $this->testGateIO($creds),
+            'crypto_com',
+            'cryptocom'    => $this->testCryptoCom($creds),
+            'sfox'         => $this->testSfox($creds),
             default        => $this->testGenericRest($gw, $creds),
         };
     }
@@ -164,9 +171,11 @@ class GatewayConnectionTester
             'Authorization: Bearer ' . $key,
             'Content-Type: application/json',
         ]);
-        return $res2['http_code'] < 500
-            ? ['success' => true, 'message' => '✅ Checkout.com متصل (HTTP ' . $res2['http_code'] . ')']
-            : ['success' => false, 'message' => '❌ Checkout.com: HTTP ' . $res2['http_code']];
+        if (in_array($res2['http_code'], [200, 201, 204], true)) {
+            return ['success' => true, 'message' => '✅ Checkout.com متصل (HTTP ' . $res2['http_code'] . ')'];
+        }
+
+        return ['success' => false, 'message' => '❌ Checkout.com: HTTP ' . $res2['http_code']];
     }
 
     // ── PayTabs ───────────────────────────────────────────────
@@ -445,6 +454,37 @@ class GatewayConnectionTester
             return ['success' => false, 'message' => '❌ Gate.io: مفتاح API غير صالح أو INVALID_SIGNATURE'];
         }
         return ['success' => false, 'message' => "❌ Gate.io: HTTP {$res['http_code']} — " . ($res['data']['message'] ?? '')];
+    }
+
+    private function testCryptoCom(array $creds): array
+    {
+        $adapter = new CryptoComExchangeAdapter(
+            (string)($creds['api_key'] ?? ''),
+            (string)($creds['secret_key'] ?? $creds['api_secret'] ?? ''),
+            (string)($creds['api_endpoint'] ?? '')
+        );
+        $result = $adapter->testConnection();
+        return [
+            'success' => !empty($result['success']),
+            'message' => !empty($result['success'])
+                ? '✅ Crypto.com connected'
+                : '❌ ' . ($result['message'] ?? 'Crypto.com connection failed'),
+        ];
+    }
+
+    private function testSfox(array $creds): array
+    {
+        $adapter = new SFOXAdapter(
+            (string)($creds['access_token'] ?? $creds['api_key'] ?? $creds['token'] ?? ''),
+            (string)($creds['api_endpoint'] ?? '')
+        );
+        $result = $adapter->testConnection();
+        return [
+            'success' => !empty($result['success']),
+            'message' => !empty($result['success'])
+                ? '✅ SFOX connected'
+                : '❌ ' . ($result['message'] ?? 'SFOX connection failed'),
+        ];
     }
 
     private function testGenericRest(array $gw, array $creds): array

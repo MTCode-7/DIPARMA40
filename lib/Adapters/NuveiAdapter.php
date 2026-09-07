@@ -267,6 +267,38 @@ class NuveiAdapter implements GatewayAdapterInterface {
         ];
     }
 
+    public function settleTransaction(string $transactionId, float $amount, string $currency = 'USD', string $reference = ''): array {
+        if ($this->merchantId === '' || $transactionId === '') {
+            return ['success' => false, 'message' => 'Nuvei settlement requires merchant credentials and transaction ID'];
+        }
+
+        $ref = $reference !== '' ? $reference : 'SETTLE' . time();
+        $ts = date('YmdHis');
+        $body = [
+            'merchantId' => $this->merchantId,
+            'merchantSiteId' => $this->siteId,
+            'clientRequestId' => $ref,
+            'clientUniqueId' => $ref,
+            'amount' => number_format($amount, 2, '.', ''),
+            'currency' => strtoupper($currency),
+            'relatedTransactionId' => $transactionId,
+            'timeStamp' => $ts,
+            'checksum' => $this->checksum($ref, $ts),
+        ];
+
+        $res = $this->post('/settleTransaction.do', $body);
+        $success = in_array(strtoupper((string)($res['transactionStatus'] ?? '')), ['APPROVED', 'SUCCESS'], true)
+            || ($res['status'] ?? '') === 'SUCCESS';
+
+        return [
+            'success' => $success,
+            'status' => $success ? 'completed' : 'failed',
+            'transaction_id' => $res['transactionId'] ?? $transactionId,
+            'message' => $success ? 'Nuvei Purchase Advice settled' : ($res['gwErrorReason'] ?? $res['reason'] ?? 'Nuvei settlement failed'),
+            'raw' => $res,
+        ];
+    }
+
     // ── اختبار الاتصال ────────────────────────────────────
     public function testConnection(): array {
         if(empty($this->merchantId)) return ['success'=>false,'message'=>'NUVEI_MERCHANT_ID missing'];

@@ -1053,6 +1053,45 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'card_types' => ['Bank Transfer'],
         'setup_complete' => false
     ],
+
+    'crypto_com' => [
+        'name' => 'Crypto.com Exchange',
+        'region' => 'Global',
+        'icon' => 'fas fa-coins',
+        'credentials' => [
+            'api_key' => getenv('CRYPTOCOM_API_KEY') ?: '',
+            'secret_key' => getenv('CRYPTOCOM_API_SECRET') ?: '',
+        ],
+        'urls' => [
+            'api' => getenv('CRYPTOCOM_API_URL') ?: 'https://api.crypto.com/exchange/v1',
+        ],
+        'environment' => getenv('CRYPTOCOM_ENVIRONMENT') ?: 'live',
+        'currencies' => ['USD', 'USDT', 'BTC', 'ETH'],
+        'fees' => ['percentage' => 0, 'fixed' => 0.00],
+        'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
+        'features' => ['account_summary', 'spot_balance', 'exchange_api'],
+        'card_types' => [],
+        'setup_complete' => false
+    ],
+
+    'sfox' => [
+        'name' => 'SFOX',
+        'region' => 'Global',
+        'icon' => 'fas fa-chart-line',
+        'credentials' => [
+            'access_token' => getenv('SFOX_API_TOKEN') ?: (getenv('SFOX_API_KEY') ?: ''),
+        ],
+        'urls' => [
+            'api' => getenv('SFOX_API_URL') ?: 'https://api.sfox.com/v1',
+        ],
+        'environment' => getenv('SFOX_ENVIRONMENT') ?: 'live',
+        'currencies' => ['USD', 'BTC', 'ETH', 'USDT'],
+        'fees' => ['percentage' => 0, 'fixed' => 0.00],
+        'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
+        'features' => ['account', 'balances', 'exchange_api'],
+        'card_types' => [],
+        'setup_complete' => false
+    ],
     
     'metamask' => [
         'name' => 'MetaMask',
@@ -1488,6 +1527,22 @@ function gateway_service() {
             } catch (Exception $e) {
                 return ['success' => false, 'message' => 'Payment processing failed: ' . $e->getMessage()];
             }
+        }
+
+        public function settlePreAuthorization($gateway, array $payload): array {
+            $gatewayName = strtolower(trim((string)$gateway));
+            if ($gatewayName !== 'nuvei') {
+                return ['success' => false, 'message' => 'Purchase Advice settlement is not configured for ' . $gateway];
+            }
+
+            require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
+            $adapter = new NuveiAdapter();
+            return $adapter->settleTransaction(
+                (string)($payload['rrn'] ?? ''),
+                (float)($payload['amount'] ?? 0),
+                (string)($payload['currency'] ?? 'USD'),
+                (string)($payload['order_ref'] ?? '')
+            );
         }
 
         private function ensureIntegratedTables() {

@@ -421,6 +421,7 @@ foreach ($dailyStats as $day) {
         <div class="nav-links">
             <a href="index.php?account_return=1" class="nav-link"><i class="fas fa-home"></i> <?= $currentLang==='en'?'Home':'الرئيسية' ?></a>
             <a href="dashboard.php" class="nav-link active"><i class="fas fa-chart-pie"></i> <?= $currentLang==='en'?'Dashboard':'لوحة التحكم' ?></a>
+            <a href="logout.php" class="nav-link logout"><i class="fas fa-sign-out-alt"></i> <?= $currentLang==='en'?'Logout':'تسجيل الخروج' ?></a>
             <a href="admin/connection_manager.php" class="nav-link"><i class="fas fa-network-wired"></i> <?= $currentLang==='en'?'Connection':'إدارة الاتصال' ?></a>
             <a href="wallets.php" class="nav-link"><i class="fas fa-wallet"></i> <?= $currentLang==='en'?'Wallet':'المحفظة' ?></a>
             <a href="invoices.php" class="nav-link"><i class="fas fa-file-invoice"></i> <?= $currentLang==='en'?'Invoices':'الفواتير' ?></a>
@@ -449,7 +450,6 @@ foreach ($dailyStats as $day) {
                 <i class="fas fa-user-circle"></i>
                 <?= htmlspecialchars($_SESSION['user_data']['first_name'] ?? ($currentLang==='en'?'User':'مستخدم')) ?>
             </div>
-            <a href="logout.php" class="nav-link logout"><i class="fas fa-sign-out-alt"></i></a>
         </div>
     </nav>
 

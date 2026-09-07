@@ -203,7 +203,9 @@ try {
             $rawBody = file_get_contents('php://input');
             $data    = json_decode($rawBody, true);
             $headers = function_exists('getallheaders') ? getallheaders() : [];
-            $webhookId = getenv('PAYPAL_WEBHOOK_ID') ?: '';
+            $paypalGateway = $db->find('payment_gateways', ['code' => 'paypal']);
+            $paypalSettings = json_decode($paypalGateway['settings'] ?? '{}', true) ?: [];
+            $webhookId = $paypalSettings['webhook_id'] ?? (getenv('PAYPAL_WEBHOOK_ID') ?: '');
 
             if (!$svc->verifyWebhook($headers, $rawBody, $webhookId)) {
                 http_response_code(403);

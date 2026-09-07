@@ -66,13 +66,19 @@ class PaymentOrchestrator
         $reference    = generateReference('ORD');
 
         // ══ مسار خاص: بروتوكول 201.3 — MOTO ══════════════════
-        if ($protocol === '201.3' || $paymentType === 'MOTO') {
+        if ($protocol === '201.3' || in_array($paymentType, ['MOTO', 'ONLINE_MOTO'], true)) {
             return $this->initiateMOTO($input, $userId, $reference);
         }
 
         // ── [1] التحقق الأساسي ───────────────────────────────
         if ($fiatAmount < 10)    return $this->fail('الحد الأدنى 10 ' . $fiat, $reference);
-        if (empty($walletAddr))  return $this->fail('عنوان المحفظة مطلوب', $reference);
+        $transactionType = strtolower(trim($input['transaction_type'] ?? $input['txn_type'] ?? ''));
+        $destination = strtolower(trim($input['destination'] ?? ''));
+        $requiresWallet = $transactionType === 'crypto_purchase'
+            || in_array($destination, ['crypto', 'wallet', 'ledger'], true);
+        if ($requiresWallet && empty($walletAddr)) {
+            return $this->fail('عنوان المحفظة مطلوب', $reference);
+        }
         if (empty($email))       return $this->fail('البريد الإلكتروني مطلوب', $reference);
 
         // ── [2] فحص المخاطر ──────────────────────────────────
@@ -199,10 +205,28 @@ class PaymentOrchestrator
         $walletAddr   = trim($input['wallet_address']       ?? '');
         $email        = trim($input['email']                ?? '');
         $cardProvider = strtolower($input['card_provider']  ?? getenv('CARD_PROVIDER') ?: 'nuvei');
+        $transactionType = strtolower(trim($input['transaction_type'] ?? $input['txn_type'] ?? $input['payment_type'] ?? ''));
+        $rrn = trim((string)($input['rrn'] ?? $input['orig_ref'] ?? ''));
+        $approvalCode = trim((string)($input['approval_code'] ?? ''));
 
         // ── تحقق أساسي ───────────────────────────────────────
         if ($fiatAmount < 1)   return $this->fail('المبلغ غير صالح', $reference);
-        if (empty($walletAddr)) return $this->fail('عنوان المحفظة مطلوب', $reference);
+
+        if (in_array($transactionType, ['purchase_advice', 'capture', 'auth_capture'], true)
+            && $rrn !== '' && $approvalCode !== '') {
+            $settlement = gateway_service()->settlePreAuthorization($cardProvider, [
+                'order_ref' => $reference,
+                'amount' => $fiatAmount,
+                'currency' => $fiat,
+                'rrn' => $rrn,
+                'approval_code' => $approvalCode,
+                'customer_name' => $input['name'] ?? 'Customer',
+            ]);
+
+            return !empty($settlement['success'])
+                ? array_merge($settlement, ['reference' => $reference, 'transaction_type' => 'purchase_advice'])
+                : $this->fail($settlement['message'] ?? 'Authorization settlement failed', $reference, ['error_code' => 'ADVICE_SETTLEMENT_FAILED']);
+        }
 
         $ccNumber = preg_replace('/\D/', '', $input['cc_number'] ?? '');
         $ccExpiry = trim($input['cc_expiry'] ?? '');
@@ -246,11 +270,32 @@ class PaymentOrchestrator
             'approval_code'   => $input['approval_code'] ?? '',
         ]);
 
-        return $this->fail(
-            'Offline payments are disabled. A real gateway authorization is required.',
-            $reference,
-            ['error_code' => 'REAL_GATEWAY_REQUIRED']
-        );
+        if ($cardProvider !== 'nuvei') {
+            return $this->fail('A real MOTO adapter is not configured for ' . $cardProvider, $reference, ['error_code' => 'MOTO_GATEWAY_UNSUPPORTED']);
+        }
+
+        require_once __DIR__ . '/Adapters/NuveiAdapter.php';
+        $gatewayResult = (new NuveiAdapter())->chargeCard([
+            'amount' => $fiatAmount,
+            'currency' => $fiat,
+            'reference' => $reference,
+            'email' => $email ?: 'guest@diparmas.com',
+            'cc_number' => $ccNumber,
+            'cc_expiry' => $ccExpiry,
+            'cc_cvv' => $ccCvv,
+            'name' => $input['name'] ?? 'Customer',
+            'processing_mode' => '2D',
+        ]);
+
+        if (empty($gatewayResult['success'])) {
+            return $this->fail($gatewayResult['message'] ?? 'Nuvei MOTO authorization failed', $reference, ['error_code' => 'MOTO_AUTHORIZATION_FAILED']);
+        }
+
+        return array_merge($gatewayResult, [
+            'reference' => $reference,
+            'transaction_type' => $transactionType ?: 'moto_purchase',
+            'message' => $gatewayResult['message'] ?? 'Nuvei MOTO payment approved',
+        ]);
 
         // ── حفظ في DB كـ pending ──────────────────────────────
         $this->db->insert('transactions', [
