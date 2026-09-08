@@ -286,6 +286,13 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
     </div>
 
     <div class="fld-row">
+      <div class="fld">
+        <label><?=$ar?'نوع البطاقة':'Card Type'?></label>
+        <select id="cardType" onchange="toggleCloudCard()">
+          <option value="LIVE">LIVE Card</option>
+          <option value="CLOUD">CLOUD Card</option>
+        </select>
+      </div>
       <div class="fld" style="grid-column:span 2">
         <label><i class="fas fa-user"></i> <?=$ar?'اسم حامل البطاقة':'Cardholder Name'?></label>
         <input type="text" id="cardName" placeholder="<?=$ar?'الاسم كما على البطاقة':'Name as on card'?>"
@@ -305,6 +312,10 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
         <label>CVV</label>
         <input type="password" id="cardCVV" maxlength="4" placeholder="•••">
       </div>
+    </div>
+    <div class="fld" id="cloudTokenField" style="display:none">
+      <label><i class="fas fa-cloud"></i> CLOUD Token</label>
+      <input type="text" id="cloudToken" placeholder="Enter CLOUD payment token">
     </div>
 
     <div class="fld-row">
@@ -610,6 +621,14 @@ window.formatExp = function(el) {
   el.value = v;
   document.getElementById('cardExpDisplay').textContent = v || 'MM/YY';
 };
+
+window.toggleCloudCard = function() {
+  const isCloud = document.getElementById('cardType').value === 'CLOUD';
+  document.getElementById('cloudTokenField').style.display = isCloud ? '' : 'none';
+  document.getElementById('cardNumber').required = !isCloud;
+  document.getElementById('cardExpiry').required = !isCloud;
+  document.getElementById('cardCVV').required = !isCloud;
+};
 </script>
 
 <script>
@@ -621,6 +640,8 @@ window.processTransaction = async function() {
   const cardName = document.getElementById('cardName').value.trim();
   const expiry   = document.getElementById('cardExpiry').value;
   const cvv      = document.getElementById('cardCVV').value;
+  const cardType = document.getElementById('cardType').value;
+  const cloudToken = document.getElementById('cloudToken').value.trim();
   const origRef  = document.getElementById('origRef')?.value || '';
   const type     = POS.txnType;
 
@@ -645,7 +666,10 @@ window.processTransaction = async function() {
 
   // Validation
   if (amount <= 0) { toast(AR?'أدخل المبلغ':'Enter amount', 'error'); return; }
-  if (!['balance','settlement'].includes(type)) {
+  if (cardType === 'CLOUD' && !cloudToken) {
+    toast(AR?'أدخل CLOUD Token':'Enter CLOUD Token', 'error'); return;
+  }
+  if (cardType !== 'CLOUD' && !['balance','settlement'].includes(type)) {
     if (cardNum.length < 13) { toast(AR?'رقم البطاقة غير صحيح':'Invalid card number', 'error'); return; }
   }
 
@@ -659,6 +683,7 @@ window.processTransaction = async function() {
     txn_type: type, amount, currency,
     card_number: cardNum, card_name: cardName,
     card_expiry: expiry, card_cvv: cvv,
+    card_type: cardType, cloud_token: cloudToken,
     orig_ref: origRef,
     ledger_address: POS.ledgerAddress,
     auto_transfer: document.getElementById('autoTransfer').checked,

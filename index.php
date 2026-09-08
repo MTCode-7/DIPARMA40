@@ -1274,6 +1274,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['execute_operation']))
             $customer_email = $_POST['customer_email'] ?? '';
             $customer_phone = $_POST['customer_phone'] ?? '';
             $protocol = $_POST['protocol_layer'] ?? '101.1';
+            $cardTypeSelected = strtoupper(trim($_POST['card_type_selected'] ?? $_POST['card_type'] ?? 'LIVE'));
+            $cloudToken = trim((string)($_POST['cloud_token'] ?? $_POST['payment_token'] ?? ''));
             $contractServiceName = trim($_POST['contract_service_name'] ?? '');
             $contractServiceDescription = trim($_POST['contract_service_description'] ?? '');
             $contractDeliveryMethod = trim($_POST['contract_delivery_method'] ?? '');
@@ -1286,6 +1288,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['execute_operation']))
                 $error_msg = t('invalid_amount');
             } elseif (empty($gateway_code)) {
                 $error_msg = t('no_gateway');
+            } elseif ($cardTypeSelected === 'CLOUD' && $cloudToken === '') {
+                $error_msg = '❌ توكن CLOUD مطلوب لتنفيذ الشحنة السحابية';
             } elseif (!in_array($protocol, ['101.0', '101.1', '201.3', 'SIMPLE_WITHDRAWAL'], true)) {
                 $error_msg = '❌ البروتوكول غير مدعوم. البروتوكولات المدعومة: 101.0, 101.1, 201.3, SIMPLE_WITHDRAWAL';
             } else {
@@ -1315,6 +1319,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['execute_operation']))
                         'customer_email' => $customer_email,
                         'customer_phone' => $customer_phone,
                         'payment_method' => 'card',
+                        'card_type' => $cardTypeSelected,
+                        'normalized_card_type' => $cardTypeSelected,
+                        'cloud_token' => $cloudToken,
+                        'payment_token' => $cloudToken,
                         'description' => 'Payment via ' . $gateway_code,
                         'source' => 'web',
                         'order_ref' => $order_ref,
@@ -1334,7 +1342,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['execute_operation']))
                     ];
 
                     $gatewayResult = null;
-                    if (in_array($protocol, ['101.0', '101.1', '201.3'], true)) {
+                    if ($cardTypeSelected === 'CLOUD') {
+                        require_once PROTOCOL_PATH . '/payment_handler.php';
+                        $gatewayResult = (new CloudCardHandler())->process([
+                            'amount' => $amount,
+                            'currency' => $currency,
+                            'gateway_code' => $gateway_code,
+                            'customer_name' => $customer_name,
+                            'customer_email' => $customer_email,
+                            'customer_phone' => $customer_phone,
+                            'cloud_token' => $cloudToken,
+                            'payment_token' => $cloudToken,
+                        ]);
+                    } elseif (in_array($protocol, ['101.0', '101.1', '201.3'], true)) {
                         $protocolFile = PROTOCOL_PATH . '/protocol_' . str_replace('.', '_', $protocol) . '.php';
                         if ($protocol === '101.0') {
                             $protocolFile = PROTOCOL_PATH . '/protocol_101_1.php';

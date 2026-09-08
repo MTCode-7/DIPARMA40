@@ -96,6 +96,9 @@ class CloudCardHandler {
 
         // CLOUD card تعمل عبر Token مُشفَّر (NFC token أو Digital Wallet token)
         $token = $ctx['cloud_token'] ?? $ctx['card_pan'] ?? '';
+        if ($token === '') {
+            return ['success'=>false,'message'=>'❌ توكن CLOUD مطلوب للشحنة السحابية','card_type'=>'CLOUD'];
+        }
 
         $payload = [
             'order_ref'        => $ref,
@@ -112,6 +115,8 @@ class CloudCardHandler {
             'payment_method'   => 'token',
             'source'           => 'cloud',
             'secure_mode'      => 'token',
+            'protocol'         => '201.3',
+            'card_type'        => 'CLOUD',
         ];
 
         try {

@@ -105,6 +105,8 @@ $cardNumber = preg_replace('/\D/', '', $data['card_number'] ?? '');
 $cardName = trim($data['card_name'] ?? '');
 $cardExpiry = $data['card_expiry'] ?? '';
 $cardCVV = $data['card_cvv'] ?? '';
+$cardType = strtoupper(trim((string)($data['card_type'] ?? $data['card_type_selected'] ?? 'LIVE')));
+$cloudToken = trim((string)($data['cloud_token'] ?? $data['payment_token'] ?? ''));
 $origRef = $data['orig_ref'] ?? '';
 $ledgerAddr = trim($data['ledger_address'] ?? LEDGER_TRC20_ADDRESS);
 $hotWalletAddr = trim($data['hot_wallet_address'] ?? HOT_WALLET_TRC20_ADDRESS);
@@ -122,7 +124,9 @@ $manualNotes = $extra['notes'] ?? '';
 $terminalId = $extra['terminal_id'] ?? 'T0000001';
 $merchantId = $extra['merchant_id'] ?? '';
 $posLocation = $extra['pos_location'] ?? '';
-$secMode = strtoupper($extra['sec_mode'] ?? $extra['processing_mode'] ?? '2D');
+$secMode = $cardType === 'CLOUD'
+    ? '2D'
+    : strtoupper($extra['sec_mode'] ?? $extra['processing_mode'] ?? '2D');
 
 // توليد مرجع فريد
 $reference = $data['reference'] ?? 'POS-' . strtoupper(substr($txnType, 0, 4)) . '-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
@@ -150,7 +154,10 @@ if (!empty($ledgerAddr) && !empty($hotWalletAddr) && strcasecmp($ledgerAddr, $ho
 
 // التحقق من بيانات البطاقة (لأنواع البطاقات)
 $cardTypes = ['purchase', 'purchase_2d', 'purchase_advice', 'auth', 'auth_moto', 'auth_complete', 'cash_advance', 'withdrawal_physical', 'refund', 'void', 'reversal'];
-if (in_array($txnType, $cardTypes)) {
+if ($cardType === 'CLOUD' && $cloudToken === '') {
+    $errors[] = 'CLOUD token is required for cloud card withdrawals.';
+}
+if ($cardType !== 'CLOUD' && in_array($txnType, $cardTypes)) {
     if (empty($cardNumber) || strlen($cardNumber) < 13) {
         $errors[] = 'Invalid card number. Must be 13-19 digits.';
     }
@@ -236,7 +243,28 @@ $gatewayResponse = [];
 $requires3ds = false;
 $redirectUrl = null;
 
-if ($useNuvei) {
+if ($useNuvei && $cardType === 'CLOUD') {
+    try {
+        require_once __DIR__ . '/../protocols/payment_handler.php';
+        $result = (new CloudCardHandler())->process([
+            'amount' => $amount,
+            'currency' => $currency,
+            'gateway_code' => $data['gateway_code'] ?? $data['gateway'] ?? 'nuvei',
+            'customer_name' => $cardName ?: 'CARDHOLDER',
+            'customer_email' => $data['email'] ?? '',
+            'customer_phone' => $data['phone'] ?? '',
+            'cloud_token' => $cloudToken,
+            'payment_token' => $cloudToken,
+        ]);
+        $success = !empty($result['success']);
+        $message = $result['message'] ?? ($success ? 'APPROVED' : 'DECLINED');
+        $gatewayResponse = $result['gateway_response'] ?? $result;
+    } catch (Throwable $e) {
+        $success = false;
+        $message = $e->getMessage();
+        $gatewayResponse = ['success' => false, 'message' => $message, 'card_type' => 'CLOUD'];
+    }
+} elseif ($useNuvei) {
     try {
         // تحميل NuveiAdapter
         require_once __DIR__ . '/../lib/NuveiAdapter.php';
@@ -382,6 +410,7 @@ $displayOperation = in_array($txnType, ['auth_capture', 'purchase', 'purchase_2d
 $gatewayDetails = [
     'operation_name' => $displayOperation,
     'transaction_type' => $txnType,
+    'card_type' => $cardType,
     'transaction_id' => $nuveiTxnId,
     'auth_code' => $approvalCode,
     'rrn' => $rrn,
@@ -418,6 +447,8 @@ try {
             'approval_code' => $approvalCode,
             'nuvei_txn_id' => $nuveiTxnId,
             'type' => $txnType,
+            'card_type' => $cardType,
+            'payment_method' => $cardType === 'CLOUD' ? 'cloud_token' : 'card',
             'pos_device' => $posDevice,
             'terminal_id' => $terminalId,
             'acquirer' => 'Mashreq Bank PSC',
