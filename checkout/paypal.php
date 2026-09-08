@@ -61,6 +61,8 @@ $txnTypeInit = $_GET['txn_type'] ?? 'purchase_3d';
 $txnTypeInit = [
   'auth'          => 'auth_moto',
   'auth_complete' => 'auth_capture',
+  'offline_purchase' => 'purchase_offline',
+  'online_purchase'  => 'purchase_online',
 ][$txnTypeInit] ?? $txnTypeInit;
 $walletAddr  = $_GET['wallet'] ?? '';
 $ref         = $_GET['ref'] ?? ('PP-' . strtoupper(bin2hex(random_bytes(6))));
@@ -367,8 +369,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 /* PayPal Button */
 #paypal-button-container{min-height:50px;margin-top:8px}
 
-/* Direct Card */
-#card-section{display:none}
+/* Direct Card: visibility is controlled by the selected method tab */
 .fld{margin-bottom:12px}
 .fld label{display:block;font-size:.72rem;color:var(--muted2);margin-bottom:5px;font-weight:700}
 .fld input{width:100%;background:rgba(255,255,255,.04);border:1.5px solid var(--border);border-radius:11px;padding:11px 14px;color:var(--text);font-family:'Cairo',sans-serif;font-size:.88rem;transition:.2s}
@@ -609,6 +610,14 @@ function switchMethod(method, el) {
   document.querySelectorAll('.method-tab').forEach(tab => {
     tab.addEventListener('click', () => switchMethod(tab.dataset.method, tab));
   });
+
+  const initializeTransactionType = () => {
+    const initialButton = document.querySelector('.txn-btn.active');
+    const typeButton = initialButton || document.querySelector('.txn-btn[onclick*="' + TXN_TYPE + '"]');
+    if (typeButton) selectTxnType(TXN_TYPE, typeButton);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initializeTransactionType);
+  else initializeTransactionType();
 
 // ============================================================
 // CARD FORMATTING
