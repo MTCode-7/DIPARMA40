@@ -925,7 +925,14 @@ window.processStripe = async function(extra = {}) {
         showResult({ success: false, message: error.message }, amount, currency);
         return;
       }
-      showResult({ success: true, reference: REF, rrn: paymentIntent.id, status_message: 'APPROVED' }, amount, currency);
+      const confirmed = paymentIntent && paymentIntent.status === 'succeeded';
+      showResult({
+        success: confirmed,
+        reference: REF,
+        payment_intent_id: paymentIntent && paymentIntent.id,
+        status_message: confirmed ? 'APPROVED' : ('Stripe status: ' + (paymentIntent?.status || 'unknown')),
+        message: confirmed ? '' : 'Payment was not completed; no RRN or approval code is available.',
+      }, amount, currency);
       return;
     }
 
@@ -950,7 +957,9 @@ function showResult(d, amount, currency) {
   document.getElementById('resRef').textContent   = 'REF: ' + (d.reference || REF);
   document.getElementById('resDetails').innerHTML = `
     <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Gateway</span><span style="color:var(--stripe)">Stripe</span></div>
-    ${d.rrn?`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>ID</span><span style="font-family:monospace;font-size:.68rem">${d.rrn}</span></div>`:''}
+    ${d.payment_intent_id?`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>Payment ID</span><span style="font-family:monospace;font-size:.68rem">${d.payment_intent_id}</span></div>`:''}
+    ${d.success && d.rrn?`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>RRN</span><span style="font-family:monospace;font-size:.68rem">${d.rrn}</span></div>`:''}
+    ${d.success && d.approval_code?`<div style="display:flex;justify-content:space-between;padding:4px 0"><span>Approval Code</span><span style="font-family:monospace;font-size:.68rem">${d.approval_code}</span></div>`:''}
     <div style="display:flex;justify-content:space-between;padding:4px 0"><span>${AR?'المبلغ':'Amount'}</span><span>${(amount||0).toFixed(2)} ${currency||''}</span></div>
     <div style="display:flex;justify-content:space-between;padding:4px 0"><span>${AR?'الوجهة':'Destination'}</span><span style="color:var(--stripe)">${STATE.dest}</span></div>
     <div style="display:flex;justify-content:space-between;padding:4px 0"><span>Status</span><span style="color:${d.success?'var(--green)':'var(--red)'}">${d.status_message||'—'}</span></div>

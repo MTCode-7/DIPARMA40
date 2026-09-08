@@ -143,9 +143,18 @@ try {
                 echo json_encode(['success' => false, 'message' => 'لا تملك صلاحية هذه العملية']); break;
             }
 
+            $authorizedAmount = (float)($txn['amount'] ?? 0);
+            $captureAmount = !empty($payload['amount']) ? (float)$payload['amount'] : $authorizedAmount;
+            if ($authorizedAmount <= 0 || $captureAmount <= 0 || $captureAmount > $authorizedAmount) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'مبلغ التحصيل يجب أن يكون أكبر من صفر ولا يتجاوز مبلغ التفويض (' . number_format($authorizedAmount, 2, '.', '') . ')',
+                ], JSON_UNESCAPED_UNICODE); break;
+            }
+
             $result = $svc->captureAuthorization(
                 $authorizationId,
-                !empty($payload['amount']) ? floatval($payload['amount']) : null,
+                $captureAmount,
                 trim($payload['currency'] ?? 'USD')
             );
             if ($result['success'] && $reference !== '') {

@@ -49,7 +49,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 .co-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:22px;margin-bottom:14px}
 .co-title{font-size:.9rem;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px}
 /* ── Transaction Type ── */
-.tx-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:10px}
+.tx-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:10px}
 .tx-btn{background:rgba(255,255,255,.04);border:1.5px solid rgba(255,215,0,.12);border-radius:10px;padding:9px 3px;text-align:center;cursor:pointer;transition:.2s;user-select:none}
 .tx-btn:hover{border-color:rgba(255,215,0,.3)}
 .tx-btn.active{border-color:var(--gw);background:color-mix(in srgb,var(--gw) 10%,transparent)}
@@ -138,7 +138,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
     <div class="tx-btn" id="tx_capture" onclick="setTx('capture',this)">
       <i class="fas fa-check-double" style="color:#9fe870"></i>
-      <span><?=$ar?'تسوية':'Capture'?></span>
+      <span><?=$ar?'إتمام التفويض':'Auth<br>Completion'?></span>
     </div>
     <div class="tx-btn" id="tx_purchase_advice" onclick="setTx('purchase_advice',this)">
       <i class="fas fa-bell" style="color:#f0ad4e"></i>
@@ -146,7 +146,11 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
     <div class="tx-btn" id="tx_online_moto" onclick="setTx('online_moto',this)">
       <i class="fas fa-globe" style="color:#00B9FF"></i>
-      <span>Online<br>MOTO</span>
+      <span><?=$ar?'شراء أونلاين':'Online<br>Purchase'?></span>
+    </div>
+    <div class="tx-btn" id="tx_offline_moto" onclick="setTx('offline_moto',this)">
+      <i class="fas fa-phone" style="color:#F97316"></i>
+      <span><?=$ar?'شراء أوفلاين':'Offline<br>Purchase'?></span>
     </div>
     <div class="tx-btn" id="tx_refund" onclick="setTx('refund',this)">
       <i class="fas fa-undo" style="color:#f0ad4e"></i>
@@ -178,6 +182,34 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="fld">
       <label><?=$ar?'العملة':'Currency'?></label>
       <select id="cardCur" onchange="calcP()"><?=$currencyOptions?></select>
+    </div>
+  </div>
+  <div class="req-box" style="margin-top:4px">
+    <div class="req-box-title">
+      <i class="fas fa-university"></i>
+      <?=$ar?'الأصل والأساس والبيانات الداخلية':'Original Bank and Internal References'?>
+    </div>
+    <div class="fld-row">
+      <div class="fld">
+        <label style="color:#f0ad4e">RRN <?=$ar?'للبنك':'Bank RRN'?> <span class="req">*</span></label>
+        <input type="text" id="cardBankRrn" placeholder="12 digits" maxlength="12"
+               oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+      </div>
+      <div class="fld">
+        <label style="color:#f0ad4e">APPROVAL CODE <?=$ar?'للبنك':'Bank Approval Code'?> <span class="req">*</span></label>
+        <input type="text" id="cardBankApproval" placeholder="4-6 characters" maxlength="6"
+               oninput="this.value=this.value.replace(/[^0-9A-Za-z]/g,'')">
+      </div>
+    </div>
+    <div class="fld-row">
+      <div class="fld">
+        <label><?=$ar?'Payment ID أو Transaction ID':'Payment ID or Transaction ID'?> <span class="req">*</span></label>
+        <input type="text" id="cardPaymentId" placeholder="PAY... / TXN...">
+      </div>
+      <div class="fld">
+        <label><?=$ar?'Approval Code الداخلي':'Internal Approval Code'?> <span class="req">*</span></label>
+        <input type="text" id="cardInternalApproval" placeholder="Internal approval code" maxlength="64">
+      </div>
     </div>
   </div>
   <div class="fld">
@@ -243,6 +275,16 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
         <label style="color:#f0ad4e">Approval Code <span class="req">*</span></label>
         <input type="text" id="approvalInput" placeholder="4–6 digits" maxlength="6"
                oninput="this.value=this.value.replace(/[^0-9A-Za-z]/g,'')" style="font-family:monospace">
+      </div>
+    </div>
+    <div class="fld-row">
+      <div class="fld">
+        <label><?=$ar?'Payment ID أو Transaction ID':'Payment ID or Transaction ID'?> <span class="req">*</span></label>
+        <input type="text" id="paymentIdInput" placeholder="PAY... / TXN...">
+      </div>
+      <div class="fld">
+        <label><?=$ar?'Approval Code الداخلي':'Internal Approval Code'?> <span class="req">*</span></label>
+        <input type="text" id="internalApprovalInput" placeholder="Internal approval code" maxlength="64">
       </div>
     </div>
     <div class="fld-row">
@@ -391,20 +433,20 @@ stripe = Stripe('<?=addslashes($stripeKey)?>');
 var TX_LABELS = {
   direct2d:    '<?=$ar?'سحب مباشر 2D':'Direct Charge 2D'?>',
   direct3d:    '<?=$ar?'سحب مباشر 3D':'Direct Charge 3D'?>',
-  capture:     '<?=$ar?'تسوية':'Capture'?>',
+  capture:     '<?=$ar?'إتمام التفويض':'Auth Completion'?>',
   purchase_advice: '<?=$ar?'إشعار شراء':'Purchase Advice'?>',
-  online_moto: 'Online MOTO',
-  offline_moto:'Offline MOTO',
+  online_moto: '<?=$ar?'شراء أونلاين':'Online Purchase'?>',
+  offline_moto:'<?=$ar?'شراء أوفلاين':'Offline Purchase'?>',
   refund:      'Refund',
   avoid:       'Avoid'
 };
 var TX_DESC = {
   direct2d:    '<?=$ar?'سحب مباشر 2D — تحصيل فوري بدون OTP':'Direct 2D — instant charge, no OTP'?>',
   direct3d:    '<?=$ar?'سحب مباشر 3D — تحصيل فوري مع OTP':'Direct 3D — instant charge with OTP verification'?>',
-  capture:     '<?=$ar?'تسوية — تحصيل بعد التفويض (RRN + Approval Code)':'Capture — settle after authorization (RRN + Approval Code)'?>',
+  capture:     '<?=$ar?'إتمام التفويض — MOTO 2D (RRN + Approval Code)':'Auth Completion — MOTO 2D (RRN + Approval Code)'?>',
   purchase_advice: '<?=$ar?'إشعار شراء — RRN + Approval Code':'Purchase Advice — RRN + Approval Code'?>',
-  online_moto: '<?=$ar?'Online MOTO — بطاقة عبر الإنترنت/الهاتف بدون 3D':'Online MOTO — card via phone/internet, no 3D'?>',
-  offline_moto:'<?=$ar?'Offline MOTO — يدوي عبر RRN + Approval Code':'Offline MOTO — manual via RRN + Approval Code'?>',
+  online_moto: '<?=$ar?'شراء أونلاين — MOTO 2D':'Online Purchase — MOTO 2D'?>',
+  offline_moto:'<?=$ar?'شراء أوفلاين — MOTO 2D (RRN + Approval Code)':'Offline Purchase — MOTO 2D (RRN + Approval Code)'?>',
   refund:      '<?=$ar?'Refund — إرجاع المبلغ للعميل':'Refund — return funds to customer'?>',
   avoid:       '<?=$ar?'Avoid — تجميد المعاملة بدون تنفيذ':'Avoid — freeze transaction without execution'?>'
 };
@@ -426,7 +468,7 @@ function setTx(type, el) {
 
   if (type === 'direct2d' || type === 'direct3d' || type === 'online_moto') {
     cardSec.classList.remove('hidden');
-    modeLabel.textContent = type === 'direct3d' ? '3D Secure' : (type === 'online_moto' ? 'Online MOTO' : '2D');
+    modeLabel.textContent = type === 'online_moto' ? 'MOTO 2D' : (type === 'direct3d' ? '3D Secure' : '2D');
     // Stripe 3D
     var sw = document.getElementById('stripeWrap');
     if (sw) {
@@ -511,6 +553,20 @@ async function go() {
     payload.currency = document.getElementById('cardCur').value;
     payload.email    = document.getElementById('cardEmail').value.trim() || 'guest@diparmas.com';
     payload.cc_number = cc;
+    var bankRrn = document.getElementById('cardBankRrn').value.trim();
+    var bankApproval = document.getElementById('cardBankApproval').value.trim();
+    var paymentId = document.getElementById('cardPaymentId').value.trim();
+    var internalApproval = document.getElementById('cardInternalApproval').value.trim();
+    if (!bankRrn || !bankApproval || !paymentId || !internalApproval) {
+      showToast('Bank and internal references are required','error'); btn.disabled=false; resetBtn(); return;
+    }
+    payload.rrn = bankRrn;
+    payload.bank_rrn = bankRrn;
+    payload.approval_code = bankApproval;
+    payload.bank_approval_code = bankApproval;
+    payload.payment_id = paymentId;
+    payload.transaction_id = paymentId;
+    payload.internal_approval_code = internalApproval;
     var exp  = document.getElementById('ccExpiry').value.trim();
     var cvv  = document.getElementById('ccCvv').value.trim();
     var name = document.getElementById('cardName').value.trim();
@@ -520,7 +576,11 @@ async function go() {
     if (name) payload.name      = name;
     if (ph)   payload.phone     = ph;
     payload.security_mode = curTx === 'direct3d' ? '3D' : '2D';
-    payload.moto_type     = curTx === 'online_moto' ? 'online' : null;
+    payload.moto_type     = curTx === 'online_moto' ? 'MOTO' : null;
+    if (curTx === 'online_moto') {
+      payload.moto_channel = 'online';
+      payload.protocol = '201.3';
+    }
 
   } else if (curTx === 'capture' || curTx === 'purchase_advice' || curTx === 'offline_moto') {
     var rrn  = document.getElementById('rrnInput').value.trim();
@@ -531,9 +591,19 @@ async function go() {
     if (ma < 1){ showToast('<?=$ar?'أدخل مبلغاً صحيحاً':'Enter valid amount'?>','error'); btn.disabled=false; resetBtn(); return; }
     payload.rrn           = rrn;
     payload.approval_code = apco;
+    payload.bank_rrn      = rrn;
+    payload.bank_approval_code = apco;
+    payload.payment_id    = document.getElementById('paymentIdInput').value.trim();
+    payload.transaction_id = payload.payment_id;
+    payload.internal_approval_code = document.getElementById('internalApprovalInput').value.trim();
+    if (!payload.payment_id || !payload.internal_approval_code) {
+      showToast('Payment ID and internal approval code are required','error'); btn.disabled=false; resetBtn(); return;
+    }
     payload.amount        = ma;
     payload.currency      = document.getElementById('captureCur').value;
-    payload.protocol      = curTx === 'capture' ? '101.1' : '201.3';
+    payload.protocol      = '201.3';
+    payload.security_mode = '2D';
+    payload.moto_type     = 'MOTO';
     // اختياري
     var mn   = document.getElementById('motoCardNum').value.replace(/\s/g,'');
     var mexp = document.getElementById('motoExpiry').value.trim();

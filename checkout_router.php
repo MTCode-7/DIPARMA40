@@ -26,6 +26,12 @@ $ar   = ($lang === 'ar');
 $dir  = $ar ? 'rtl' : 'ltr';
 $csrf = generateCsrfToken();
 $db   = db();
+try {
+  $debugGatewayCount = count($db->query("SELECT code FROM dp_payment_gateways WHERE status = 'active'"));
+  echo "<!-- DP_DEBUG_DB=" . htmlspecialchars(DB_NAME, ENT_QUOTES, 'UTF-8') . " COUNT=" . $debugGatewayCount . " -->";
+} catch (Throwable $e) {
+  echo "<!-- DP_DEBUG_DB_ERROR -->";
+}
 
 // ── البوابات المتاحة في الواجهة ───────────────────────────────────────
 $allGateways = [

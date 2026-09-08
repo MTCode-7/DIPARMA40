@@ -115,6 +115,7 @@ $userId = intval($_SESSION['user_id'] ?? 0);
 
 // بيانات إضافية
 $manualApproval = $extra['approval_code'] ?? '';
+$bankApprovalCode = trim((string)($data['approval_code'] ?? $manualApproval ?? ''));
 $manualRRN = $extra['manual_rrn'] ?? '';
 $manualBank = $extra['bank'] ?? 'BOMLAEADXXX';
 $manualNotes = $extra['notes'] ?? '';
@@ -227,6 +228,8 @@ $useNuvei = !in_array($txnType, ['balance', 'settlement']);
 $success = false;
 $message = 'PENDING';
 $rrn = '';
+$originalRrn = $origRef;
+$stan = '';
 $approvalCode = '';
 $nuveiTxnId = null;
 $gatewayResponse = [];
@@ -257,7 +260,7 @@ if ($useNuvei) {
             'user_token_id' => 'user_' . $userId . '_' . time(),
             'pos_device' => $posDevice,
             'related_transaction_id' => $origRef,
-            'auth_code' => $data['auth_code'] ?? ($extra['auth_code'] ?? ''),
+            'auth_code' => $data['auth_code'] ?? ($data['approval_code'] ?? ($extra['auth_code'] ?? $bankApprovalCode)),
             'client_unique_id' => $origRef,
             'authorized_amount' => $authorizedAmount,
             'reference' => $reference,
@@ -322,6 +325,10 @@ if ($useNuvei) {
         $message = $result['message'] ?? ($success ? 'APPROVED' : 'DECLINED');
         $approvalCode = $result['approval_code'] ?? '';
         $rrn = $result['rrn'] ?? '';
+        if ($txnType === 'auth_complete' && $rrn === '') {
+            $rrn = $originalRrn;
+        }
+        $stan = $result['stan'] ?? '';
         $nuveiTxnId = $result['nuvei_txn_id'] ?? null;
         $requires3ds = $result['requires_3ds'] ?? false;
         $redirectUrl = $result['redirect_url'] ?? null;
@@ -378,6 +385,8 @@ $gatewayDetails = [
     'transaction_id' => $nuveiTxnId,
     'auth_code' => $approvalCode,
     'rrn' => $rrn,
+    'stan' => $stan,
+    'original_rrn' => $originalRrn,
     'status' => $message,
     'success' => $success,
     'response' => $gatewayResponse,
@@ -403,6 +412,9 @@ try {
         'status' => $success ? 'completed' : 'failed',
         'gateway_response' => json_encode([
             'rrn' => $rrn,
+            'stan' => $stan,
+            'original_rrn' => $originalRrn,
+            'bank_approval_code' => $bankApprovalCode,
             'approval_code' => $approvalCode,
             'nuvei_txn_id' => $nuveiTxnId,
             'type' => $txnType,
@@ -424,6 +436,8 @@ try {
         'ledger_address' => $ledgerAddr,
         'auth_code' => $approvalCode,
         'rrn' => $rrn,
+        'stan' => $stan,
+        'bank_approval_code' => $bankApprovalCode,
         'acquirer' => 'Mashreq Bank PSC',
         'created_at' => date('Y-m-d H:i:s'),
     ]);
@@ -474,7 +488,10 @@ echo json_encode([
     'success' => $success,
     'reference' => $reference,
     'rrn' => $rrn,
+    'stan' => $stan,
+    'original_rrn' => $originalRrn,
     'approval_code' => $approvalCode,
+    'bank_approval_code' => $bankApprovalCode,
     'nuvei_txn_id' => $nuveiTxnId,
     'txn_type' => $txnType,
     'operation_name' => $displayOperation,

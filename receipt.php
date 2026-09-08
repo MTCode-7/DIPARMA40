@@ -102,6 +102,31 @@ if (!$txn) {
 // 6. استخراج جميع تفاصيل المعاملة الحقيقية
 // ============================================================
 
+function receiptMask(string $value, int $start = 2, int $end = 2): string
+{
+    $value = trim($value);
+    if ($value === '' || $value === '—') return $value;
+    $length = strlen($value);
+    if ($length <= $start + $end) return str_repeat('*', $length);
+    return substr($value, 0, $start) . str_repeat('*', $length - $start - $end) . substr($value, -$end);
+}
+
+function receiptMaskName(string $value): string
+{
+    $parts = preg_split('/\s+/', trim($value), -1, PREG_SPLIT_NO_EMPTY);
+    if (!$parts) return '—';
+    return implode(' ', array_map(static function (string $part): string {
+        return strlen($part) > 1 ? substr($part, 0, 1) . str_repeat('*', max(2, strlen($part) - 1)) : '*';
+    }, $parts));
+}
+
+function receiptMaskEmail(string $value): string
+{
+    $parts = explode('@', trim($value), 2);
+    if (count($parts) !== 2 || $parts[0] === '') return receiptMask($value, 2, 2);
+    return receiptMask($parts[0], 1, 1) . '@' . $parts[1];
+}
+
 // 6.1 تفاصيل عامة
 $amount = number_format((float)($txn['amount'] ?? 0), 2);
 $currency = $txn['currency'] ?? 'USD';
@@ -120,12 +145,18 @@ $cardLast4 = $txn['card_last4'] ?? ($gwResp['card_last4'] ?? ($gwResp['payment_m
 $cardBrand = $txn['card_brand'] ?? ($gwResp['card_brand'] ?? ($gwResp['payment_method_details']['card']['brand'] ?? 'Visa'));
 $cardType = $txn['card_type'] ?? ($gwResp['card_type'] ?? ($gwResp['payment_method_details']['card']['funding'] ?? 'Credit'));
 $cardholderName = $txn['cardholder_name'] ?? ($gwResp['cardholder_name'] ?? ($gwResp['payment_method_details']['card']['holder_name'] ?? '—'));
+$cardExpiry = $txn['card_expiry'] ?? ($gwResp['card_expiry'] ?? ($gwResp['payment_method_details']['card']['exp'] ?? '—'));
+$customerEmail = $txn['customer_email'] ?? ($gwResp['email'] ?? '—');
+$customerPhone = $txn['customer_phone'] ?? ($gwResp['phone'] ?? '—');
 
 // 6.4 رموز الموافقة والتحقق
-$authCode = $gwResp['approval_code'] ?? $gwResp['auth_code'] ?? $gwResp['authorization_code'] ?? $gwResp['stage_1_card']['auth_code'] ?? '—';
+$authCode = $gwResp['gateway_approval_code'] ?? $gwResp['approval_code'] ?? $gwResp['auth_code'] ?? $gwResp['authorization_code'] ?? $gwResp['stage_1_card']['auth_code'] ?? '—';
+$bankApprovalCode = $gwResp['bank_approval_code'] ?? $gwResp['original_approval_code'] ?? '—';
 $rrn = $gwResp['rrn'] ?? $gwResp['retrieval_reference_number'] ?? $gwResp['stage_1_card']['rrn'] ?? '—';
 $stan = $gwResp['stan'] ?? $gwResp['system_trace_audit_number'] ?? $gwResp['stage_1_card']['stan'] ?? '—';
 $transactionId = $gwResp['transaction_id'] ?? $gwResp['nuvei_txn_id'] ?? $gwResp['stage_1_card']['nuvei_txn'] ?? $gwResp['id'] ?? '—';
+$paymentId = $gwResp['payment_id'] ?? $gwResp['paymentId'] ?? $transactionId;
+$internalApprovalCode = $gwResp['internal_approval_code'] ?? $gwResp['internalApprovalCode'] ?? '—';
 
 // 6.5 تفاصيل الأمان
 $secMode = $txn['security_mode'] ?? $gwResp['security_mode'] ?? $gwResp['stage_1_card']['sec_mode'] ?? '3D SECURE';
@@ -152,6 +183,20 @@ $accountName = $txn['account_name'] ?? $gwResp['account_name'] ?? 'TRANSCENDIO F
 $ledgerAddr = $gwResp['ledger_addr'] ?? $gwResp['stage_2_ledger']['address'] ?? $gwResp['ledger_target'] ?? '—';
 $ledgerTxid = $gwResp['ledger_txid'] ?? $gwResp['stage_2_ledger']['txid'] ?? null;
 $usdtAmt = number_format((float)($txn['ledger_amount'] ?? $gwResp['stage_2_ledger']['usdt_amount'] ?? 0), 6);
+
+$maskedCardholderName = receiptMaskName((string)$cardholderName);
+$maskedCardExpiry = $cardExpiry !== '—' ? receiptMask((string)$cardExpiry, 0, 2) : '—';
+$maskedEmail = $customerEmail !== '—' ? receiptMaskEmail((string)$customerEmail) : '—';
+$maskedPhone = $customerPhone !== '—' ? receiptMask((string)$customerPhone, 3, 2) : '—';
+$maskedAuthCode = receiptMask((string)$authCode, 1, 1);
+$maskedBankApprovalCode = receiptMask((string)$bankApprovalCode, 1, 1);
+$maskedRrn = receiptMask((string)$rrn, 2, 2);
+$maskedStan = receiptMask((string)$stan, 2, 2);
+$maskedPaymentId = receiptMask((string)$paymentId, 4, 4);
+$maskedInternalApproval = receiptMask((string)$internalApprovalCode, 2, 2);
+$maskedIban = receiptMask((string)$iban, 4, 4);
+$maskedSwift = receiptMask((string)$swift, 2, 3);
+$maskedLedgerAddr = receiptMask((string)$ledgerAddr, 6, 4);
 
 // 6.10 تحديد الحالة النهائية
 $isApproved = in_array(strtolower($txn['status'] ?? ''), ['completed', 'captured', 'authorized', 'settled', 'approved']);
@@ -666,11 +711,11 @@ $txnType = strtoupper(str_replace('_', ' ', $txn['transaction_type'] ?? $txn['pr
             </div>
             <div class="row">
                 <span class="label">STAN</span>
-                <span class="value small"><?=htmlspecialchars($stan)?></span>
+                <span class="value small"><?=htmlspecialchars($maskedStan)?></span>
             </div>
             <div class="row">
                 <span class="label">RRN</span>
-                <span class="value small"><?=htmlspecialchars($rrn)?></span>
+                <span class="value small"><?=htmlspecialchars($maskedRrn)?></span>
             </div>
         </div>
 
@@ -697,25 +742,65 @@ $txnType = strtoupper(str_replace('_', ' ', $txn['transaction_type'] ?? $txn['pr
                 <?php if ($cardholderName && $cardholderName !== '—'): ?>
                 <div class="row">
                     <span class="label">CARDHOLDER</span>
-                    <span class="value"><?=htmlspecialchars(strtoupper($cardholderName))?></span>
+                    <span class="value"><?=htmlspecialchars(strtoupper($maskedCardholderName))?></span>
+                </div>
+                <?php endif; ?>
+                <?php if ($cardExpiry !== '—'): ?>
+                <div class="row">
+                    <span class="label">EXPIRY</span>
+                    <span class="value"><?=htmlspecialchars($maskedCardExpiry)?></span>
                 </div>
                 <?php endif; ?>
                 <div class="row">
-                    <span class="label">AUTH CODE</span>
-                    <span class="value highlight"><?=htmlspecialchars($authCode)?></span>
+                    <span class="label">CVV / CVC</span>
+                    <span class="value small">NOT DISPLAYED</span>
                 </div>
+                <div class="row">
+                    <span class="label">AUTH CODE</span>
+                    <span class="value highlight"><?=htmlspecialchars($maskedAuthCode)?></span>
+                </div>
+                <?php if ($bankApprovalCode !== '—'): ?>
+                <div class="row">
+                    <span class="label">BANK APPROVAL CODE</span>
+                    <span class="value highlight"><?=htmlspecialchars($maskedBankApprovalCode)?></span>
+                </div>
+                <?php endif; ?>
+                <?php if ($paymentId && $paymentId !== '—'): ?>
+                <div class="row">
+                    <span class="label">PAYMENT / TXN ID</span>
+                    <span class="value small"><?=htmlspecialchars($maskedPaymentId)?></span>
+                </div>
+                <?php endif; ?>
+                <?php if ($internalApprovalCode !== '—'): ?>
+                <div class="row">
+                    <span class="label">INTERNAL APPROVAL</span>
+                    <span class="value small"><?=htmlspecialchars($maskedInternalApproval)?></span>
+                </div>
+                <?php endif; ?>
                 <div class="row">
                     <span class="label">AUTH TYPE</span>
                     <span class="value"><?=htmlspecialchars($authType)?></span>
                 </div>
-                <?php if ($transactionId && $transactionId !== '—'): ?>
-                <div class="row">
-                    <span class="label">TXN ID</span>
-                    <span class="value small"><?=htmlspecialchars(substr($transactionId, 0, 16))?>…</span>
-                </div>
-                <?php endif; ?>
             </div>
         </div>
+
+        <?php if ($customerEmail !== '—' || $customerPhone !== '—'): ?>
+        <div class="section">
+            <div class="divider">— CUSTOMER CONTACT —</div>
+            <?php if ($customerEmail !== '—'): ?>
+            <div class="row">
+                <span class="label">EMAIL</span>
+                <span class="value small"><?=htmlspecialchars($maskedEmail)?></span>
+            </div>
+            <?php endif; ?>
+            <?php if ($customerPhone !== '—'): ?>
+            <div class="row">
+                <span class="label">PHONE</span>
+                <span class="value small"><?=htmlspecialchars($maskedPhone)?></span>
+            </div>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
 
         <!-- تفاصيل المستحوذ والتاجر -->
         <div class="section">
@@ -756,15 +841,15 @@ $txnType = strtoupper(str_replace('_', ' ', $txn['transaction_type'] ?? $txn['pr
                 </div>
                 <div class="bank-row">
                     <span class="bank-label">ACCOUNT NAME</span>
-                    <span class="bank-value"><?=$accountName?></span>
+                    <span class="bank-value"><?=htmlspecialchars(receiptMaskName((string)$accountName))?></span>
                 </div>
                 <div class="bank-row">
                     <span class="bank-label">IBAN</span>
-                    <span class="bank-value" style="font-size:10px;font-family:monospace"><?=$iban?></span>
+                    <span class="bank-value" style="font-size:10px;font-family:monospace"><?=htmlspecialchars($maskedIban)?></span>
                 </div>
                 <div class="bank-row">
                     <span class="bank-label">SWIFT</span>
-                    <span class="bank-value"><?=$swift?></span>
+                    <span class="bank-value"><?=htmlspecialchars($maskedSwift)?></span>
                 </div>
             </div>
         </div>
@@ -775,7 +860,7 @@ $txnType = strtoupper(str_replace('_', ' ', $txn['transaction_type'] ?? $txn['pr
             <div class="divider">— CRYPTO LEDGER —</div>
             <div class="crypto-details">
                 <div class="crypto-label">⬡ USDT TRC20 DESTINATION</div>
-                <div class="crypto-addr"><?=htmlspecialchars($ledgerAddr)?></div>
+                <div class="crypto-addr"><?=htmlspecialchars($maskedLedgerAddr)?></div>
                 <?php if ((float)$usdtAmt > 0): ?>
                 <div class="row" style="margin-top:4px">
                     <span class="label">AMOUNT</span>

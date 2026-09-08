@@ -429,27 +429,6 @@ if ($amount <= 0) {
     $errors[] = 'ط§ظ„ظ…ط¨ظ„ط؛ ظٹط¬ط¨ ط£ظ† ظٹظƒظˆظ† ط£ظƒط¨ط± ظ…ظ† طµظپط±';
 }
 
-// ط§ظ„ط­ط¯ ط§ظ„ط£ظ‚طµظ‰ ظ„ظ„ظ…ط¨ظ„ط؛ ط­ط³ط¨ ظ†ظˆط¹ ط§ظ„ط¹ظ…ظ„ظٹط©
-$maxAmounts = [
-    'purchase_3d' => 50000,
-    'purchase_2d' => 25000,
-    'purchase_advice' => 100000,
-    'purchase_offline' => 25000,
-    'purchase_online' => 25000,
-    'auth_hold' => 100000,
-    'auth_capture' => 100000,
-    'recurring' => 10000,
-    'installment' => 50000,
-    'crypto_purchase' => 25000,
-    'gift_card' => 5000,
-    'wire_transfer' => 100000,
-    'quasi_cash' => 10000,
-];
-
-if ($amount > ($maxAmounts[$transactionType] ?? 50000)) {
-    $errors[] = 'ط§ظ„ظ…ط¨ظ„ط؛ ظٹطھط¬ط§ظˆط² ط§ظ„ط­ط¯ ط§ظ„ط£ظ‚طµظ‰ ط§ظ„ظ…ط³ظ…ظˆط­ ط¨ظ‡ (' . number_format($maxAmounts[$transactionType] ?? 50000, 2) . ' USD)';
-}
-
 // ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† Ledger Address
 if (empty($ledgerAddress)) {
     $errors[] = 'ط¹ظ†ظˆط§ظ† Ledger ظ…ط·ظ„ظˆط¨';

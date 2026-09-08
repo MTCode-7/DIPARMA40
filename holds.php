@@ -94,7 +94,7 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
                 <div style="color:var(--text-muted);font-size:.75rem;margin-top:6px">Authorization ID: <span class="pi-code"><?= htmlspecialchars($authorizationId) ?></span></div>
             </div>
             <?php if ($authorizationId): ?>
-            <button class="action-btn btn-capture" onclick="capturePayPalHold('<?= addslashes($authorizationId) ?>','<?= addslashes($paypalHold['reference']) ?>')">
+            <button class="action-btn btn-capture" onclick="capturePayPalHold('<?= addslashes($authorizationId) ?>','<?= addslashes($paypalHold['reference']) ?>',<?= number_format((float)$paypalHold['amount'], 2, '.', '') ?>)">
                 <i class="fas fa-check-double"></i> Capture PayPal
             </button>
             <?php endif; ?>
@@ -274,11 +274,18 @@ async function captureHold(pi, partial) {
     }
 }
 
-async function capturePayPalHold(authorizationId, reference) {
-    if (!confirm('تأكيد تحصيل حجز PayPal؟')) return;
+async function capturePayPalHold(authorizationId, reference, authorizedAmount) {
+    var requested = window.prompt('أدخل مبلغ التحصيل، بحد أقصى ' + Number(authorizedAmount).toFixed(2), Number(authorizedAmount).toFixed(2));
+    if (requested === null) return;
+    var amount = Number(requested);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > Number(authorizedAmount)) {
+        showToast('المبلغ يجب أن يكون أكبر من صفر ولا يتجاوز مبلغ التفويض', 'error');
+        return;
+    }
+    if (!confirm('تأكيد تحصيل ' + amount.toFixed(2) + ' من حجز PayPal؟')) return;
     var r = await fetch('api/paypal.php?action=capture_authorization', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({authorization_id: authorizationId, reference: reference, csrf_token: CSRF})
+        body: JSON.stringify({authorization_id: authorizationId, reference: reference, amount: amount.toFixed(2), csrf_token: CSRF})
     });
     var d = await r.json();
     if (d.success) {

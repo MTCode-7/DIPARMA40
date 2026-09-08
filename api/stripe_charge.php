@@ -64,9 +64,6 @@ try {
             'transaction_type' => trim((string)($payload['txn_type'] ?? 'purchase')),
             'destination' => trim((string)($payload['destination'] ?? 'gateway')),
             'payment_method_id' => trim((string)($payload['payment_method_id'] ?? '')),
-            'card_number' => trim((string)($payload['card_number'] ?? '')),
-            'card_expiry' => trim((string)($payload['card_expiry'] ?? '')),
-            'card_cvv' => trim((string)($payload['card_cvv'] ?? '')),
             'name' => trim((string)($payload['card_name'] ?? 'Customer')),
         ],
     ]);

@@ -460,7 +460,7 @@ class NuveiAdapter
             'reference'        => $clientReqId,
             'nuvei_txn_id'     => $raw['transactionId']      ?? $raw['internalRequestId'] ?? null,
             'approval_code'    => $raw['authCode']           ?? $raw['approvalCode']      ?? null,
-            'rrn'              => $raw['rrn']                 ?? $raw['externalTransactionId'] ?? substr(md5(uniqid()), 0, 12),
+            'rrn'              => $raw['rrn']                 ?? $raw['retrievalReferenceNumber'] ?? $raw['externalTransactionId'] ?? null,
             'status'           => $status,
             'txn_status'       => $txnStatus,
             'amount'           => $raw['totalAmount']        ?? null,

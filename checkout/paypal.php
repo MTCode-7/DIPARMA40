@@ -182,7 +182,7 @@ $txnTypes = [
         'en' => 'Auth Capture',
         'icon' => 'fa-check-double',
         'color' => '#8B5CF6',
-        'security' => '3D',
+        'security' => '2D',
         'requires_original' => true,
         'category' => 'auth',
         'iso' => '0200',
@@ -440,9 +440,17 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
         <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي (RRN)':'Original Reference (RRN)'?></label>
         <input type="text" id="origRef" placeholder="<?=$ar?'رقم العملية السابقة':'Previous transaction reference'?>">
       </div>
-      <div class="fld" id="approvalCodeWrap" style="display:none">
-        <label><i class="fas fa-check-circle"></i> <?=$ar?'رمز الموافقة':'Approval Code'?></label>
-        <input type="text" id="approvalCode" placeholder="<?=$ar?'أدخل رمز الموافقة':'Enter approval code'?>">
+      <div class="fld" id="bankApprovalCodeWrap" style="display:none">
+        <label><i class="fas fa-check-circle"></i> <?=$ar?'رمز موافقة البنك':'Bank Approval Code'?></label>
+        <input type="text" id="approvalCode" placeholder="<?=$ar?'رمز الموافقة من البنك':'Bank approval code'?>">
+      </div>
+      <div class="fld" id="gatewayPaymentIdWrap" style="display:none">
+        <label><i class="fas fa-fingerprint"></i> <?=$ar?'Payment ID للبوابة':'Gateway Payment ID'?></label>
+        <input type="text" id="gatewayPaymentId" readonly placeholder="<?=$ar?'يظهر بعد تنفيذ العملية':'Provided after gateway processing'?>">
+      </div>
+      <div class="fld" id="gatewayApprovalCodeWrap" style="display:none">
+        <label><i class="fas fa-key"></i> <?=$ar?'رمز موافقة البوابة':'Gateway Approval Code'?></label>
+        <input type="text" id="gatewayApprovalCode" readonly placeholder="<?=$ar?'يظهر إذا أصدرته البوابة':'Provided if returned by gateway'?>">
       </div>
     </div>
   </div>
@@ -477,23 +485,23 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 
     <!-- Method Tabs -->
     <div class="method-tabs">
-      <button type="button" class="method-tab active" data-method="paypal">
+      <button type="button" class="method-tab <?=in_array($txnTypeInit, ['purchase_2d', 'auth_hold', 'auth_moto', 'auth_capture', 'purchase_advice', 'purchase_offline', 'purchase_online'], true) ? '' : 'active'?>" data-method="paypal">
         <i class="fab fa-paypal"></i> PayPal
       </button>
-      <button type="button" class="method-tab" data-method="card">
-        <i class="fas fa-credit-card"></i> <?=$ar?'بطاقة مباشرة':'Direct Card'?>
+      <button type="button" class="method-tab <?=in_array($txnTypeInit, ['purchase_2d', 'auth_hold', 'auth_moto', 'auth_capture', 'purchase_advice', 'purchase_offline', 'purchase_online'], true) ? 'active' : ''?>" data-method="card">
+        <i class="fas fa-phone"></i> <?=$ar?'بطاقة عبر MOTO':'MOTO 2D Card'?>
       </button>
     </div>
 
     <!-- PayPal Button -->
-    <div id="paypal-section">
+    <div id="paypal-section" style="display:<?=in_array($txnTypeInit, ['purchase_2d', 'auth_hold', 'auth_moto', 'auth_capture', 'purchase_advice', 'purchase_offline', 'purchase_online'], true) ? 'none' : ''?>">
       <div id="paypal-button-container"></div>
     </div>
 
     <!-- Direct Card -->
-    <div id="card-section">
+    <div id="card-section" style="display:<?=in_array($txnTypeInit, ['purchase_2d', 'auth_hold', 'auth_moto', 'auth_capture', 'purchase_advice', 'auth_moto', 'purchase_offline', 'purchase_online'], true) ? '' : 'none'?>">
       <div class="fld">
-        <label><?=$ar?'رقم البطاقة':'Card Number'?></label>
+        <label><?=$ar?'رقم البطاقة عبر MOTO':'MOTO Card Number'?></label>
         <input type="text" id="ppCardNum" maxlength="19" 
                placeholder="0000 0000 0000 0000" 
                oninput="formatCard(this)">
@@ -544,12 +552,22 @@ const TXN_TYPE = '<?=$txnTypeInit?>';
 const REF = '<?=$ref?>';
 const SECURITY = '<?=$txnDef['security']?>';
 
+const MOTO_2D_TYPES = [
+  'purchase_2d',
+  'auth_hold',
+  'auth_moto',
+  'auth_capture',
+  'purchase_advice',
+  'purchase_offline',
+  'purchase_online'
+];
+
 // ============================================================
 // STATE
 // ============================================================
 const STATE = {
     txnType: TXN_TYPE,
-    method: 'paypal',
+    method: MOTO_2D_TYPES.includes(TXN_TYPE) ? 'card' : 'paypal',
     security: SECURITY,
     requiresOriginal: <?=$txnDef['requires_original'] ? 'true' : 'false'?>
 };
@@ -562,11 +580,12 @@ function selectTxnType(type, el) {
     document.querySelectorAll('.txn-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
     STATE.txnType = type;
-    STATE.requiresOriginal = el.dataset.orig === '1';
+    STATE.requiresOriginal = MOTO_2D_TYPES.includes(type);
     
     // Show/hide original reference field
     document.getElementById('extraOrigRef').className = 'extra-fields' + (STATE.requiresOriginal ? ' show' : '');
-    document.getElementById('approvalCodeWrap').style.display = type === 'auth_capture' ? '' : 'none';
+    document.getElementById('bankApprovalCodeWrap').style.display = STATE.requiresOriginal ? '' : 'none';
+    switchMethod(MOTO_2D_TYPES.includes(type) ? 'card' : 'paypal', document.querySelector('.method-tab[data-method="' + (MOTO_2D_TYPES.includes(type) ? 'card' : 'paypal') + '"]'));
     
     // Update summary
     const name = el.querySelector('.txn-btn-name').textContent;
@@ -653,7 +672,8 @@ if (typeof paypal !== 'undefined') {
                 reference: REF,
                 csrf_token: CSRF,
                 paypal_txn: JSON.stringify(order),
-                orig_ref: origRef
+                orig_ref: origRef,
+                approval_code: document.getElementById('approvalCode')?.value.trim() || ''
               })
             });
             const result = await response.json();
@@ -698,8 +718,8 @@ async function payByCard() {
     if (!name) {
         return toast(AR ? 'أدخل اسم حامل البطاقة' : 'Enter cardholder name', 'error');
     }
-    if (TXN_TYPE === 'auth_capture' && !authCode) {
-      return toast(AR ? 'أدخل رمز التفويض الأصلي' : 'Enter the original authorization code', 'error');
+    if (MOTO_2D_TYPES.includes(TXN_TYPE) && (!origRef || !authCode)) {
+      return toast(AR ? 'أدخل RRN ورمز موافقة البنك' : 'Enter the bank RRN and approval code', 'error');
     }
     
     btn.disabled = true;
@@ -713,7 +733,8 @@ async function payByCard() {
         email: email || 'client@diparmas.com',
         method: 'direct_card',
         orig_ref: origRef,
-        auth_code: authCode,
+        approval_code: authCode,
+        approval_code: authCode,
       txn_type: ['auth_hold', 'auth_moto'].includes(TXN_TYPE) ? 'auth' : (TXN_TYPE === 'auth_capture' ? 'auth_complete' : 'purchase'),
       extra: ['auth_hold', 'auth_moto'].includes(TXN_TYPE) ? { moto_indicator: 'M', is_moto: 1, transaction_label: 'MOTO Authorization Hold' } : {}
     });
@@ -759,6 +780,10 @@ async function sendToServer(extra) {
         if (d.success) {
             toast(AR ? '✅ تمت العملية بنجاح' : '✅ Transaction approved', 'success');
             setTimeout(() => {
+                document.getElementById('gatewayPaymentId').value = d.payment_id || d.payment_intent_id || d.transaction_id || '';
+                document.getElementById('gatewayApprovalCode').value = d.gateway_approval_code || d.approval_code || '';
+                document.getElementById('gatewayPaymentIdWrap').style.display = '';
+                document.getElementById('gatewayApprovalCodeWrap').style.display = '';
                 window.location.href = '../receipt.php?ref=' + encodeURIComponent(REF);
             }, 2000);
         } else {
@@ -794,8 +819,10 @@ function toast(msg, type = 'info') {
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
     // Show/hide original reference if needed
+    STATE.requiresOriginal = MOTO_2D_TYPES.includes(STATE.txnType);
     if (STATE.requiresOriginal) {
         document.getElementById('extraOrigRef').className = 'extra-fields show';
+      document.getElementById('bankApprovalCodeWrap').style.display = '';
     }
 });
 </script>

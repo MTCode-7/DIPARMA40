@@ -181,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'direc
                         'executed_at' => date('Y-m-d H:i:s'),
                     ]),
                     'auth_code' => $approval,
-                    'rrn' => 'OFFLINE_' . substr($reference, -8),
+                    'rrn' => null,
                     'acquirer' => 'Offline Manual',
                     'created_at' => date('Y-m-d H:i:s'),
                 ]);

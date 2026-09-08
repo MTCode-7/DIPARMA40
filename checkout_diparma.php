@@ -350,6 +350,14 @@ $TXN = [
 
 // تقسيم الأنواع إلى صفوف (4 أعمدة)
 $txnChunks = array_chunk($TXN, 4, true);
+$txnTypeInit = $_GET['txn_type'] ?? 'purchase_3d';
+$txnTypeInit = [
+  'purchase_moto'    => 'purchase_2d',
+  'auth_complete'    => 'auth_capture',
+  'offline_purchase' => 'purchase_offline',
+  'online_purchase'  => 'purchase_online',
+][$txnTypeInit] ?? $txnTypeInit;
+if (!isset($TXN[$txnTypeInit])) $txnTypeInit = 'purchase_3d';
 ?>
 <!DOCTYPE html>
 <html lang="<?=$lang?>" dir="<?=$dir?>">
@@ -668,7 +676,7 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--bg);color:
   <?php foreach($txnChunks as $chunk): ?>
   <div class="txn-grid">
   <?php foreach($chunk as $code => $t): ?>
-    <div class="txn-card" id="tc-<?=$code?>"
+    <div class="txn-card <?=$code === $txnTypeInit ? 'active' : ''?>" id="tc-<?=$code?>"
          onclick="selTxn('<?=$code?>',this)"
          data-orig="<?=$t['orig']?'1':'0'?>"
          data-noamt="<?=$t['noamt']?'1':'0'?>">
@@ -744,12 +752,12 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--bg);color:
 
   <!-- Notes -->
   <div class="fld">
-    <label><i class="fas fa-envelope"></i> Email</label>
+    <label><i class="fas fa-envelope"></i> Email <span style="opacity:.5">(<?=$ar?'اختياري':'optional'?>)</span></label>
     <input type="email" id="txnEmail" placeholder="client@example.com">
   </div>
   <div class="fld">
-    <label><i class="fas fa-phone"></i> <?=$ar?'رقم الهاتف':'Phone'?></label>
-    <input type="tel" id="txnPhone" placeholder="971501234567" value="971501234567">
+    <label><i class="fas fa-phone"></i> <?=$ar?'رقم الهاتف':'Phone'?> <span style="opacity:.5">(<?=$ar?'اختياري':'optional'?>)</span></label>
+    <input type="tel" id="txnPhone" placeholder="971501234567">
   </div>
   <div class="fld" style="margin-bottom:14px">
     <label><i class="fas fa-sticky-note"></i> <?=$ar?'ملاحظات':'Notes'?> <span style="opacity:.5">(<?=$ar?'اختياري':'optional'?>)</span></label>
@@ -886,7 +894,7 @@ const IS_PAYRAM = new URLSearchParams(window.location.search).get('gateway')?.to
 
 // ── STATE ──
 const S = {
-  txnType : 'purchase_3d',
+  txnType : <?=json_encode($txnTypeInit)?>,
   secMode : '3D',
   processing: false,
   ledger: { connected:false, dmk:null, sessionId:null, address:null },
@@ -1045,6 +1053,11 @@ window.selTxn = function(code, el) {
   document.getElementById('approvalCodeWrap').style.display = code === 'purchase_offline' ? '' : 'none';
 };
 
+window.addEventListener('DOMContentLoaded', function() {
+  const initial = document.getElementById('tc-' + S.txnType);
+  if (initial) window.selTxn(S.txnType, initial);
+});
+
 // ════════════════════════════════════════════════════════════════
 // AMOUNT
 // ════════════════════════════════════════════════════════════════
@@ -1128,27 +1141,6 @@ window.runTransaction = async function() {
     return;
   }
 
-  const maxAmounts = {
-    purchase_2d: 25000,
-    purchase_offline: 25000,
-    purchase_online: 25000,
-    crypto_purchase: 25000,
-    gift_card: 5000,
-    recurring: 10000,
-    quasi_cash: 10000,
-    purchase_3d: 50000,
-    purchase_advice: 100000,
-    auth_hold: 100000,
-    auth_capture: 100000,
-    installment: 50000,
-    wire_transfer: 100000
-  };
-  const maxAmount = maxAmounts[S.txnType] || 50000;
-  if (amount > maxAmount) {
-    toast(AR ? `الحد الأقصى للعملية ${maxAmount.toLocaleString()} USD` : `Maximum amount is ${maxAmount.toLocaleString()} USD`, 'error');
-    return;
-  }
-
   const cn = document.getElementById('cardNum').value.replace(/\s/g,'');
   const ce = document.getElementById('cardExp').value;
   const cv = document.getElementById('cardCvv').value;
@@ -1187,8 +1179,8 @@ window.runTransaction = async function() {
     card_expiry    : document.getElementById('cardExp').value,
     card_cvv       : document.getElementById('cardCvv').value,
     card_name      : document.getElementById('cardName').value,
-    email          : document.getElementById('txnEmail')?.value || 'client@diparmas.com',
-    phone          : document.getElementById('txnPhone')?.value || '971501234567',
+    email          : document.getElementById('txnEmail')?.value.trim() || '',
+    phone          : document.getElementById('txnPhone')?.value.trim() || '',
     country        : 'AE',
     orig_ref       : document.getElementById('origRef')?.value || '',
     original_reference: origVal || '',
