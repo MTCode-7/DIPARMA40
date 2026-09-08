@@ -298,14 +298,16 @@ if ($useNuvei && $cardType === 'CLOUD') {
             'reference' => $reference,
             'terminal_id' => $terminalId,
             'merchant_id' => $merchantId,
-            'moto_indicator' => $extra['moto_indicator'] ?? null,
-            'is_moto' => !empty($extra['is_moto']),
+            'moto_indicator' => $extra['moto_indicator'] ?? (in_array($txnType, ['purchase_advice', 'purchase_offline', 'purchase_online'], true) ? 'M' : null),
+            'is_moto' => !empty($extra['is_moto']) || in_array($txnType, ['purchase_advice', 'purchase_offline', 'purchase_online'], true),
         ];
 
         // تنفيذ العملية حسب النوع
         switch ($txnType) {
             case 'purchase':
             case 'purchase_advice':
+            case 'purchase_offline':
+            case 'purchase_online':
                 if ($secMode === '3D') {
                     $result = $nuvei->purchase3D($params);
                 } else {

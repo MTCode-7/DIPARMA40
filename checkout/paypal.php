@@ -745,7 +745,11 @@ async function payByCard() {
         approval_code: authCode,
         approval_code: authCode,
       txn_type: ['auth_hold', 'auth_moto'].includes(TXN_TYPE) ? 'auth' : (TXN_TYPE === 'auth_capture' ? 'auth_complete' : 'purchase'),
-      extra: ['auth_hold', 'auth_moto'].includes(TXN_TYPE) ? { moto_indicator: 'M', is_moto: 1, transaction_label: 'MOTO Authorization Hold' } : {}
+      extra: ['auth_hold', 'auth_moto'].includes(TXN_TYPE)
+        ? { moto_indicator: 'M', is_moto: 1, transaction_label: 'MOTO Authorization Hold' }
+        : (MOTO_2D_TYPES.includes(TXN_TYPE)
+          ? { moto_indicator: 'M', is_moto: 1, transaction_label: 'MOTO 2D Purchase' }
+          : {})
     });
     
     btn.disabled = false;
