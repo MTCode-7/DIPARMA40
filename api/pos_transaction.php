@@ -153,7 +153,7 @@ if (!empty($ledgerAddr) && !empty($hotWalletAddr) && strcasecmp($ledgerAddr, $ho
 }
 
 // التحقق من بيانات البطاقة (لأنواع البطاقات)
-$cardTypes = ['purchase', 'purchase_2d', 'purchase_advice', 'auth', 'auth_moto', 'auth_complete', 'cash_advance', 'withdrawal_physical', 'refund', 'void', 'reversal'];
+$cardTypes = ['purchase', 'purchase_2d', 'purchase_advice', 'purchase_offline', 'purchase_online', 'auth', 'auth_moto', 'auth_complete', 'cash_advance', 'withdrawal_physical', 'refund', 'void', 'reversal'];
 if ($cardType === 'CLOUD' && $cloudToken === '') {
     $errors[] = 'CLOUD token is required for cloud card withdrawals.';
 }
@@ -170,9 +170,13 @@ if ($cardType !== 'CLOUD' && in_array($txnType, $cardTypes)) {
 }
 
 // التحقق من المرجع الأصلي (للأنواع التي تتطلبه)
-$origRequired = ['auth_complete', 'refund', 'void', 'reversal'];
+$origRequired = ['auth_complete', 'purchase_advice', 'purchase_offline', 'purchase_online', 'refund', 'void', 'reversal'];
 if (in_array($txnType, $origRequired) && empty($origRef)) {
     $errors[] = 'Original reference is required for ' . $txnType . '.';
+}
+
+if (in_array($txnType, ['purchase_advice', 'purchase_offline', 'purchase_online'], true) && empty($bankApprovalCode)) {
+    $errors[] = 'Bank approval code is required for ' . $txnType . '.';
 }
 
 if ($txnType === 'auth_complete' && empty($data['auth_code'] ?? ($extra['auth_code'] ?? ''))) {

