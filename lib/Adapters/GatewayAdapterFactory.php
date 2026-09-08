@@ -77,11 +77,11 @@ class GatewayAdapterFactory
 
         $adapter = self::build($gateway);
 
-        // Fallback: إذا البوابة لا تدعم الوضع → Nuvei (العمل الفعلي المفضل في المشروع)
+        // لا نبدل البوابة بصمت؛ العملية يجب أن تنفذ عبر البوابة التي اختارها المستخدم.
         if (!$adapter->supports($mode)) {
             GatewayLogger::quick('factory', 'fallback',
-                '', true, "$gateway لا تدعم $mode — fallback لـ Nuvei");
-            return new NuveiAdapter();
+                '', false, "$gateway لا تدعم $mode");
+            throw new InvalidArgumentException("Gateway {$gateway} does not support {$mode}");
         }
 
         return $adapter;
@@ -228,8 +228,8 @@ class GatewayAdapterFactory
         $class = self::$map[$gateway] ?? null;
         if ($class === null) {
             GatewayLogger::quick('factory', 'build', '', false,
-                "بوابة غير معروفة: $gateway — fallback لـ Nuvei");
-            return new NuveiAdapter();
+                "بوابة غير معروفة: $gateway");
+            throw new InvalidArgumentException("Unknown gateway: {$gateway}");
         }
         return new $class();
     }

@@ -735,10 +735,17 @@ async function payByCard() {
     btn.innerHTML = '<span class="spin"></span> ' + (AR ? 'جاري المعالجة...' : 'Processing...');
     
     await sendToServer({
+      card_provider: 'paypal',
+      payment_type: 'MOTO',
+      protocol: '201.3',
         card_number: num,
         card_expiry: exp,
         card_cvv: cvv,
+      cc_number: num,
+      cc_expiry: exp,
+      cc_cvv: cvv,
         card_name: name,
+      name: name,
         email: email || 'client@diparmas.com',
         method: 'direct_card',
         orig_ref: origRef,
@@ -782,7 +789,10 @@ async function sendToServer(extra) {
             if (payload[key] === undefined) delete payload[key];
         });
         
-        const r = await fetch('../api/pos_transaction.php', {
+        const endpoint = extra.method === 'direct_card'
+          ? '../api/orchestrator.php?action=initiate'
+          : '../api/pos_transaction.php';
+        const r = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

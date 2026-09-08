@@ -270,25 +270,10 @@ class PaymentOrchestrator
             'approval_code'   => $input['approval_code'] ?? '',
         ]);
 
-        if ($cardProvider !== 'nuvei') {
-            return $this->fail('A real MOTO adapter is not configured for ' . $cardProvider, $reference, ['error_code' => 'MOTO_GATEWAY_UNSUPPORTED']);
-        }
-
-        require_once __DIR__ . '/Adapters/NuveiAdapter.php';
-        $gatewayResult = (new NuveiAdapter())->chargeCard([
-            'amount' => $fiatAmount,
-            'currency' => $fiat,
-            'reference' => $reference,
-            'email' => $email ?: 'guest@diparmas.com',
-            'cc_number' => $ccNumber,
-            'cc_expiry' => $ccExpiry,
-            'cc_cvv' => $ccCvv,
-            'name' => $input['name'] ?? 'Customer',
-            'processing_mode' => '2D',
-        ]);
+        $gatewayResult = GatewayAdapterFactory::process($payload, 'charge', $cardProvider);
 
         if (empty($gatewayResult['success'])) {
-            return $this->fail($gatewayResult['message'] ?? 'Nuvei MOTO authorization failed', $reference, ['error_code' => 'MOTO_AUTHORIZATION_FAILED']);
+            return $this->fail($gatewayResult['message'] ?? 'MOTO authorization failed', $reference, ['error_code' => 'MOTO_AUTHORIZATION_FAILED']);
         }
 
         return array_merge($gatewayResult, [
