@@ -429,6 +429,7 @@ foreach ($dailyStats as $day) {
             <a href="holds.php" class="nav-link"><i class="fas fa-hand-holding-usd"></i> <?= $currentLang==='en'?'PayPal Holds':'حجوزات PayPal' ?></a>
             <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> <?= $currentLang==='en'?'Settings':'تغيير الحساب' ?></a>
             <a href="transactions.php" class="nav-link"><i class="fas fa-list"></i> <?= $currentLang==='en'?'Transactions':'المعاملات' ?></a>
+            <a href="withdrawal_database.php" class="nav-link"><i class="fas fa-database"></i> <?= $currentLang==='en'?'Withdrawal Database':'قاعدة بيانات السحب' ?></a>
             <a href="crypto.php" class="nav-link"><i class="fas fa-coins"></i> Crypto</a>
             <a href="wallet.php" class="nav-link"><i class="fas fa-wallet"></i> <?= $currentLang==='en'?'My Wallet':'محفظتي' ?></a>
             <a href="ledger/" class="nav-link" style="border-color:rgba(255,215,0,.2);background:rgba(255,215,0,.04)">
