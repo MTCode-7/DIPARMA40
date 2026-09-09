@@ -204,7 +204,18 @@ class PaymentOrchestrator
         $network      = strtoupper(trim($input['network']   ?? 'TRC20'));
         $walletAddr   = trim($input['wallet_address']       ?? '');
         $email        = trim($input['email']                ?? '');
-        $cardProvider = strtolower($input['card_provider']  ?? getenv('CARD_PROVIDER') ?: 'nuvei');
+
+        // ── تحديد البوابة الفعلية للمعالجة ───────────────────
+        // إذا كان card_provider = 'paypal' فهذا يعني نوع الشراء وليس البوابة التقنية.
+        // نستخدم CARD_PROVIDER من .env كبوابة المعالجة الفعلية.
+        $requestedProvider = strtolower(trim($input['card_provider'] ?? ''));
+        $envProvider       = strtolower(trim(getenv('CARD_PROVIDER') ?: 'nuvei'));
+        $processingGateways = ['nuvei', 'stripe', 'checkout', 'checkout.com', 'paytabs',
+                                'authorizenet', 'authnet', 'authorize_net', 'myfatoorah', 'diparma'];
+        $cardProvider = in_array($requestedProvider, $processingGateways, true)
+            ? $requestedProvider
+            : $envProvider;   // paypal / braintree / unknown → fallback لـ env provider
+
         $transactionType = strtolower(trim($input['transaction_type'] ?? $input['txn_type'] ?? $input['payment_type'] ?? ''));
         $rrn = trim((string)($input['rrn'] ?? $input['orig_ref'] ?? ''));
         $approvalCode = trim((string)($input['approval_code'] ?? ''));
@@ -214,6 +225,10 @@ class PaymentOrchestrator
 
         if (in_array($transactionType, ['purchase_advice', 'capture', 'auth_capture'], true)
             && $rrn !== '' && $approvalCode !== '') {
+            // تأكد من تحميل gateway_service إذا لم تكن محمّلة بعد
+            if (!function_exists('gateway_service')) {
+                require_once __DIR__ . '/../includes/gateways.php';
+            }
             $settlement = gateway_service()->settlePreAuthorization($cardProvider, [
                 'order_ref' => $reference,
                 'amount' => $fiatAmount,
@@ -276,102 +291,35 @@ class PaymentOrchestrator
             return $this->fail($gatewayResult['message'] ?? 'MOTO authorization failed', $reference, ['error_code' => 'MOTO_AUTHORIZATION_FAILED']);
         }
 
-        return array_merge($gatewayResult, [
-            'reference' => $reference,
-            'transaction_type' => $transactionType ?: 'moto_purchase',
-            'message' => $gatewayResult['message'] ?? 'Nuvei MOTO payment approved',
-        ]);
-
-        // ── حفظ في DB كـ pending ──────────────────────────────
+        // ── حفظ في DB ─────────────────────────────────────────
+        $txnStatus = 'completed';
         $this->db->insert('transactions', [
             'reference'        => $reference,
-            'gateway'          => 'offline',
-            'protocol'         => '201.3',
+            'gateway'          => $cardProvider,
             'amount'           => $fiatAmount,
             'currency'         => $fiat,
             'customer_name'    => $input['name']  ?? '',
             'customer_email'   => $email ?: 'guest@diparmas.com',
-            'status'           => 'pending',
-            'transaction_type' => "Offline Sale — {$calc['crypto_amount']} {$coin}/{$network}",
+            'status'           => $txnStatus,
+            'transaction_type' => $transactionType ?: 'moto_purchase',
             'user_id'          => $userId,
-            'fees'             => $calc['fee_fiat'],
-            'net_amount'       => $calc['net_fiat'],
+            'fees'             => 0,
+            'net_amount'       => $fiatAmount,
             'security_mode'    => '2D',
-            'gateway_response' => json_encode([
-                'protocol'      => '201.3',
-                'payment_type'  => 'MOTO_OFFLINE',
-                'coin'          => $coin,
-                'network'       => $network,
-                'crypto_amount' => $calc['crypto_amount'],
-                'to_address'    => $walletAddr,
+            'gateway_response' => json_encode(array_merge($gatewayResult, [
                 'card_last4'    => substr($ccNumber, -4),
                 'card_expiry'   => $ccExpiry,
-            ]),
+                'wallet'        => $walletAddr,
+                'network'       => $network,
+            ])),
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
-        if (!$gwResult['success']) {
-            return $this->fail(
-                $gwResult['message'] ?? 'فشل الدفع عبر ' . $cardProvider,
-                $reference,
-                ['error_code' => $gwResult['error_code'] ?? '', 'decline_code' => $gwResult['decline_code'] ?? '']
-            );
-        }
-
-        // ── 100% للإدارة — الإدارة تحول للعميل يدوياً ─────────
-        $totalCrypto = $calc['crypto_amount'];
-        $adminUserId = 1; // ID الإدارة
-        $unlockAt    = date('Y-m-d H:i:s', strtotime('+24 hours'));
-
-        // إضافة 100% لمحفظة الإدارة الداخلية
-        $existingAdmin = $this->db->query(
-            "SELECT id FROM user_crypto_wallets WHERE user_id=? AND coin=? AND network=?",
-            [$adminUserId, $coin, $network]
-        );
-        if (!empty($existingAdmin)) {
-            $this->db->execute(
-                "UPDATE user_crypto_wallets SET balance=balance+? WHERE user_id=? AND coin=? AND network=?",
-                [$totalCrypto, $adminUserId, $coin, $network]
-            );
-        } else {
-            $this->db->execute(
-                "INSERT INTO user_crypto_wallets (user_id,coin,network,balance,locked,status) VALUES (?,?,?,?,0,'active')",
-                [$adminUserId, $coin, $network, $totalCrypto]
-            );
-        }
-
-        // سجل الحركة
-        try {
-            $this->db->execute(
-                "INSERT INTO wallet_transactions (reference,user_id,type,wallet_type,coin,network,amount,fee,net_amount,status,note,created_at)
-                 VALUES (?,?,'deposit','crypto',?,?,?,0,?,'completed',?,NOW())",
-                [$reference.'_ADMIN', $adminUserId, $coin, $network,
-                 $totalCrypto, $totalCrypto,
-                 "100% Offline Sale — من العميل #{$userId} | المرجع: {$reference}"]
-            );
-        } catch (\Exception $e) {}
-
-        // تحديث حالة المعاملة
-        $this->db->update('transactions', [
-            'status'     => 'pending',
-            'updated_at' => date('Y-m-d H:i:s'),
-        ], ['reference' => $reference]);
-
-        return [
-            'success'      => true,
-            'reference'    => $reference,
-            'protocol'     => '201.3',
-            'payment_type' => 'MOTO_OFFLINE',
-            'status'       => 'pending',
-            'message'      => '✅ تم استلام الطلب — سيتم التحويل من قِبل الإدارة',
-            'order'        => [
-                'fiat_amount'   => $fiatAmount,
-                'fiat_currency' => $fiat,
-                'total_crypto'  => $totalCrypto,
-                'coin'          => $coin,
-                'network'       => $network,
-            ],
-        ];
+        return array_merge($gatewayResult, [
+            'reference'        => $reference,
+            'transaction_type' => $transactionType ?: 'moto_purchase',
+            'message'          => $gatewayResult['message'] ?? 'MOTO payment approved',
+        ]);
     }
 
     // ══════════════════════════════════════════════════════════

@@ -23,7 +23,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     public function supports(string $mode): bool {
         $mode = strtoupper(trim($mode));
-        return in_array($mode, ['2D', '3D'], true);
+        return in_array($mode, ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL'], true);
     }
 
     public function normalizeError(array $rawResponse): string {
@@ -69,30 +69,207 @@ class NuveiAdapter implements GatewayAdapterInterface {
     }
 
     public function hold(array $payload): array {
-        // Auth (Pre-Authorization) عبر Nuvei
-        $payload['processing_mode'] = '3D';
-        $payload['tx_type']         = 'Auth';
-        return $this->chargeCard($payload);
+        // Auth (Pre-Authorization) — يحجز المبلغ بدون تحصيل فعلي
+        if (empty($this->merchantId)) {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '');
+        }
+
+        $ts       = date('YmdHis');
+        $amount   = number_format(floatval($payload['amount'] ?? 0), 2, '.', '');
+        $currency = strtoupper($payload['currency'] ?? 'USD');
+        $ref      = $payload['reference'] ?? 'HOLD' . time();
+        $email    = $payload['email'] ?? 'guest@diparmas.com';
+        $ccNum    = $payload['card_number'] ?? $payload['cc_number'] ?? '';
+        $ccExp    = $payload['card_expiry'] ?? $payload['cc_expiry'] ?? '';
+        $ccCvv    = $payload['cvv2'] ?? $payload['card_cvv'] ?? $payload['cc_cvv'] ?? '';
+        $name     = $payload['name'] ?? 'Customer';
+        $nameParts = preg_split('/\s+/', trim($name), 2) ?: ['Customer'];
+
+        if ($ccNum === '' || $ccExp === '' || $ccCvv === '') {
+            return GatewayErrorMapper::buildErrorResponse('INVALID_CARD', $ref, (float)$amount, $currency, 'بيانات البطاقة غير مكتملة');
+        }
+
+        $expParts = explode('/', str_replace('-', '/', $ccExp));
+        $expMonth = str_pad($expParts[0] ?? '01', 2, '0', STR_PAD_LEFT);
+        $expYear  = strlen($expParts[1] ?? '25') == 2 ? '20' . ($expParts[1]) : ($expParts[1] ?? '2025');
+
+        $checksum = $this->checksum($ref, $ts);
+
+        $body = [
+            'merchantId'      => $this->merchantId,
+            'merchantSiteId'  => $this->siteId,
+            'clientRequestId' => $ref,
+            'clientUniqueId'  => $ref,
+            'amount'          => $amount,
+            'currency'        => $currency,
+            'timeStamp'       => $ts,
+            'checksum'        => $checksum,
+            'userTokenId'     => $email,
+            'transactionType' => 'Auth',   // ← حجز فقط بدون تحصيل
+            'paymentOption'   => [
+                'card' => [
+                    'cardNumber'      => $ccNum,
+                    'cardHolderName'  => $name,
+                    'expirationMonth' => $expMonth,
+                    'expirationYear'  => $expYear,
+                    'CVV'             => $ccCvv,
+                ]
+            ],
+            'billingAddress'  => [
+                'email'     => $email,
+                'firstName' => $nameParts[0] ?: 'Customer',
+                'lastName'  => $nameParts[1] ?? 'Client',
+                'country'   => strtoupper(substr($payload['country'] ?? 'AE', 0, 2)),
+                'city'      => trim($payload['city'] ?? 'Dubai') ?: 'Dubai',
+                'address'   => trim($payload['address'] ?? 'Al Barsha 1, Dubai, UAE') ?: 'Al Barsha 1, Dubai, UAE',
+                'zip'       => trim($payload['zip'] ?? '00000') ?: '00000',
+            ],
+            'deviceDetails'   => [
+                'deviceType'       => 'DESKTOP',
+                'ipAddress'        => filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP) ? $_SERVER['REMOTE_ADDR'] : null,
+                'browserUserAgent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
+            ],
+        ];
+
+        $res = $this->post('/paymentcc.do', $body);
+
+        if (in_array($res['transactionStatus'] ?? '', ['APPROVED', 'SUCCESS']) ||
+            ($res['status'] ?? '') === 'SUCCESS') {
+            $this->log("✓ Hold/Auth: {$ref} | txId: " . ($res['transactionId'] ?? ''));
+            return [
+                'success'        => true,
+                'status'         => 'authorized',
+                'transaction_id' => $res['transactionId'] ?? $res['gwTransactionId'] ?? '',
+                'approval_code'  => $res['authCode'] ?? '',
+                'rrn'            => $res['rrn'] ?? '',
+                'reference'      => $ref,
+                'amount'         => floatval($amount),
+                'currency'       => $currency,
+                'message'        => '✅ تم حجز المبلغ عبر Nuvei (Auth)',
+                'error_code'     => '',
+                'requires_3ds'   => false,
+                'client_secret'  => '',
+                'redirect_url'   => '',
+                'decline_code'   => '',
+                'retryable'      => false,
+                'hard_block'     => false,
+            ];
+        }
+
+        $errCode = $this->normalizeError($res);
+        $this->log("✗ Hold failed: " . json_encode($res));
+        return GatewayErrorMapper::buildErrorResponse($errCode, $ref, (float)$amount, $currency,
+            $res['gwErrorReason'] ?? $res['reason'] ?? $res['errCode'] ?? 'Nuvei auth failed');
     }
 
     public function capture(string $transactionId, ?float $amount = null): array {
-        // Settle — تحصيل حجز سابق
+        // Settle — تحصيل حجز سابق مباشرة عبر settleTransaction
         if (empty($transactionId)) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', '', 0, '', 'transactionId مطلوب للـ Capture');
         }
-        require_once __DIR__ . '/../../lib/NuveiAdapter.php';
-        $nuvei = new \NuveiAdapter();
-        return $nuvei->capture(['related_transaction_id' => $transactionId, 'amount' => $amount ?? 0, 'currency' => 'USD']);
+        if (empty($this->merchantId)) {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', '', 0, '', 'NUVEI credentials missing');
+        }
+
+        $ts  = date('YmdHis');
+        $ref = 'CAP' . time();
+        $amt = number_format(floatval($amount ?? 0), 2, '.', '');
+
+        $body = [
+            'merchantId'           => $this->merchantId,
+            'merchantSiteId'       => $this->siteId,
+            'clientRequestId'      => $ref,
+            'clientUniqueId'       => $ref,
+            'amount'               => $amt,
+            'currency'             => 'USD',
+            'relatedTransactionId' => $transactionId,
+            'timeStamp'            => $ts,
+            'checksum'             => $this->checksum($ref, $ts),
+        ];
+
+        $res      = $this->post('/settleTransaction.do', $body);
+        $success  = in_array(strtoupper((string)($res['transactionStatus'] ?? '')), ['APPROVED', 'SUCCESS'], true)
+                    || ($res['status'] ?? '') === 'SUCCESS';
+
+        if ($success) {
+            $this->log("✓ Capture: {$transactionId} | ref={$ref}");
+            return [
+                'success'        => true,
+                'status'         => 'captured',
+                'transaction_id' => $res['transactionId'] ?? $transactionId,
+                'reference'      => $res['clientUniqueId'] ?? $ref,
+                'amount'         => floatval($amount ?? 0),
+                'currency'       => 'USD',
+                'message'        => '✅ تم تحصيل المبلغ عبر Nuvei',
+                'approval_code'  => $res['authCode'] ?? '',
+                'error_code'     => '',
+                'requires_3ds'   => false,
+                'client_secret'  => '',
+                'redirect_url'   => '',
+                'decline_code'   => '',
+                'retryable'      => false,
+                'hard_block'     => false,
+            ];
+        }
+
+        $errCode = $this->normalizeError($res);
+        $this->log("✗ Capture failed: " . json_encode($res));
+        return GatewayErrorMapper::buildErrorResponse($errCode, $transactionId, floatval($amount ?? 0), 'USD',
+            $res['gwErrorReason'] ?? $res['reason'] ?? $res['errCode'] ?? 'Nuvei capture failed');
     }
 
     public function cancel(string $transactionId, string $reason = 'requested_by_customer'): array {
-        // Void — إلغاء عملية
+        // Void — إلغاء عملية مباشرة
         if (empty($transactionId)) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', '', 0, '', 'transactionId مطلوب للـ Void');
         }
-        require_once __DIR__ . '/../../lib/NuveiAdapter.php';
-        $nuvei = new \NuveiAdapter();
-        return $nuvei->void(['related_transaction_id' => $transactionId, 'amount' => 0, 'currency' => 'USD']);
+        if (empty($this->merchantId)) {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', '', 0, '', 'NUVEI credentials missing');
+        }
+
+        $ts  = date('YmdHis');
+        $ref = 'VOD' . time();
+
+        $body = [
+            'merchantId'           => $this->merchantId,
+            'merchantSiteId'       => $this->siteId,
+            'clientRequestId'      => $ref,
+            'clientUniqueId'       => $ref,
+            'amount'               => '0.00',
+            'currency'             => 'USD',
+            'relatedTransactionId' => $transactionId,
+            'timeStamp'            => $ts,
+            'checksum'             => $this->checksum($ref, $ts),
+        ];
+
+        $res     = $this->post('/voidTransaction.do', $body);
+        $success = in_array(strtoupper((string)($res['transactionStatus'] ?? '')), ['APPROVED', 'SUCCESS'], true)
+                   || ($res['status'] ?? '') === 'SUCCESS';
+
+        if ($success) {
+            $this->log("✓ Void: {$transactionId}");
+            return [
+                'success'        => true,
+                'status'         => 'cancelled',
+                'transaction_id' => $transactionId,
+                'reference'      => $ref,
+                'amount'         => 0,
+                'currency'       => 'USD',
+                'message'        => '✅ تم إلغاء العملية عبر Nuvei',
+                'error_code'     => '',
+                'requires_3ds'   => false,
+                'client_secret'  => '',
+                'redirect_url'   => '',
+                'decline_code'   => '',
+                'retryable'      => false,
+                'hard_block'     => false,
+            ];
+        }
+
+        $errCode = $this->normalizeError($res);
+        $this->log("✗ Void failed: " . json_encode($res));
+        return GatewayErrorMapper::buildErrorResponse($errCode, $transactionId, 0, '',
+            $res['gwErrorReason'] ?? $res['reason'] ?? $res['errCode'] ?? 'Nuvei void failed');
     }
 
     // ── توليد checksum (الترتيب الصحيح الموثّق من Nuvei) ──
@@ -165,7 +342,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $nameParts = preg_split('/\s+/', trim($name), 2) ?: ['Customer'];
         $ipAddress = filter_var($payload['ip_address'] ?? ($_SERVER['REMOTE_ADDR'] ?? ''), FILTER_VALIDATE_IP)
             ? ($payload['ip_address'] ?? $_SERVER['REMOTE_ADDR'])
-            : '1.1.1.1';
+            : null;
 
         // تحليل تاريخ الانتهاء
         $expParts = explode('/', str_replace('-', '/', $ccExp));
@@ -238,11 +415,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     // ── استرداد (Refund) ──────────────────────────────────
     public function refund(string $transactionId, float $amount, string $currency='USD'): array {
-        $ts  = date('YmdHis');
-        $amt = number_format($amount, 2, '.', '');
-        $refId = 'REF'.time();
-        $checksum = $this->checksum($refId, $ts);
-
+        $ts    = date('YmdHis');
+        $amt   = number_format($amount, 2, '.', '');
         $refId = 'REF'.time();
         $checksum = $this->checksum($refId, $ts);
 
@@ -261,8 +435,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $res = $this->post('/refundTransaction.do', $body);
 
         return [
-            'success' => ($res['transactionStatus'] ?? '') === 'APPROVED',
-            'message' => $res['gwErrorReason'] ?? $res['reason'] ?? 'Refund processed',
+            'success'   => ($res['transactionStatus'] ?? '') === 'APPROVED',
+            'message'   => $res['gwErrorReason'] ?? $res['reason'] ?? 'Refund processed',
             'refund_id' => $res['transactionId'] ?? '',
         ];
     }

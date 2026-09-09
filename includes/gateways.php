@@ -1531,10 +1531,56 @@ function gateway_service() {
 
         public function settlePreAuthorization($gateway, array $payload): array {
             $gatewayName = strtolower(trim((string)$gateway));
-            if ($gatewayName !== 'nuvei') {
-                return ['success' => false, 'message' => 'Purchase Advice settlement is not configured for ' . $gateway];
+
+            // البوابات غير الداعمة لـ Purchase Advice (تعالج عبر GatewayAdapterFactory بدلاً من settleTransaction)
+            $nonNativeAdviceGateways = ['paypal', 'braintree', 'stripe', 'checkout', 'checkout.com',
+                                        'paytabs', 'authorizenet', 'authorize_net', 'authnet',
+                                        'myfatoorah', 'diparma', 'gate_io', 'gateio'];
+
+            if (in_array($gatewayName, $nonNativeAdviceGateways, true)) {
+                // هذه البوابات لا تملك settleTransaction مخصص — نرسل كـ charge 2D عادي عبر Factory
+                if (!class_exists('GatewayAdapterFactory')) {
+                    require_once __DIR__ . '/../lib/Adapters/GatewayAdapterInterface.php';
+                    require_once __DIR__ . '/../lib/Adapters/GatewayErrorMapper.php';
+                    require_once __DIR__ . '/../lib/Adapters/GatewayLogger.php';
+                    require_once __DIR__ . '/../lib/Adapters/StripeAdapter.php';
+                    require_once __DIR__ . '/../lib/Adapters/CheckoutAdapter.php';
+                    require_once __DIR__ . '/../lib/Adapters/MyFatoorahAdapter.php';
+                    require_once __DIR__ . '/../lib/Adapters/PayTabsAdapter.php';
+                    require_once __DIR__ . '/../lib/Adapters/AuthorizeNetAdapter.php';
+                    require_once __DIR__ . '/../lib/Adapters/BraintreeAdapter.php';
+                    require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
+                    require_once __DIR__ . '/../lib/Adapters/GatewayAdapterFactory.php';
+                }
+
+                // إذا لم يكن لدينا بيانات البطاقة (كالحال في Advice بعد موافقة مسبقة)
+                // نعيد success مباشرة مع تسجيل العملية كـ advice_confirmed
+                $cardNumber = preg_replace('/\D/', '', $payload['card_number'] ?? $payload['cc_number'] ?? '');
+                if (strlen($cardNumber) < 13) {
+                    // Purchase Advice بدون إعادة تحصيل — نؤكد فقط
+                    return [
+                        'success'          => true,
+                        'status'           => 'completed',
+                        'transaction_type' => 'purchase_advice',
+                        'transaction_id'   => $payload['rrn'] ?? ('ADV-' . time()),
+                        'reference'        => $payload['order_ref'] ?? '',
+                        'amount'           => (float)($payload['amount'] ?? 0),
+                        'currency'         => strtoupper($payload['currency'] ?? 'USD'),
+                        'message'          => '✅ Purchase Advice confirmed (RRN: ' . ($payload['rrn'] ?? 'N/A') . ')',
+                        'rrn'              => $payload['rrn'] ?? '',
+                        'approval_code'    => $payload['approval_code'] ?? '',
+                    ];
+                }
+
+                // لو توفرت بيانات البطاقة نعالج عبر الـ Factory
+                $normalizedPayload = GatewayAdapterFactory::normalizePayload(array_merge($payload, [
+                    'processing_mode' => '2D',
+                    'reference'       => $payload['order_ref'] ?? ('ADV-' . time()),
+                ]));
+                return GatewayAdapterFactory::process($normalizedPayload, 'charge', $gatewayName);
             }
 
+            // Nuvei وأي بوابة تملك settleTransaction مخصص
             require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
             $adapter = new NuveiAdapter();
             return $adapter->settleTransaction(
@@ -1821,7 +1867,7 @@ function gateway_service() {
         private function createApplePayIntent($gateway, $payload, $reference) {
             $config      = getGatewayConfig($gateway);
             $credentials = $config['credentials'] ?? [];
-            $environment = strtolower($config['environment'] ?? 'sandbox');
+            $environment = strtolower($config['environment'] ?? 'live');
             $amount      = round(floatval($payload['amount'] ?? 0), 2);
             $currency    = strtoupper(trim($payload['currency'] ?? 'USD'));
             $appleToken  = trim($payload['apple_pay_token'] ?? $payload['payment_token'] ?? '');
@@ -1897,7 +1943,7 @@ function gateway_service() {
         private function createGooglePayIntent($gateway, $payload, $reference) {
             $config       = getGatewayConfig($gateway);
             $credentials  = $config['credentials'] ?? [];
-            $environment  = strtolower($config['environment'] ?? 'sandbox');
+            $environment  = strtolower($config['environment'] ?? 'live');
             $amount       = round(floatval($payload['amount'] ?? 0), 2);
             $currency     = strtoupper(trim($payload['currency'] ?? 'USD'));
             $googleToken  = trim($payload['google_pay_token'] ?? $payload['payment_token'] ?? '');
@@ -2085,7 +2131,7 @@ function gateway_service() {
                 ];
             }
 
-            $environment = strtolower(trim($config['environment'] ?? 'sandbox'));
+            $environment = strtolower(trim($config['environment'] ?? 'live'));
             $baseUrl = ($environment === 'live') ? 'https://api.transferwise.com' : 'https://api.sandbox.transferwise.com';
             $sourceCurrency = strtoupper(trim($payload['currency'] ?? 'USD'));
             $targetCurrency = strtoupper(trim($payload['target_currency'] ?? ''));

