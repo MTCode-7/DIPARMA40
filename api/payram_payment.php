@@ -57,7 +57,7 @@ switch ($action) {
     /* ── إنشاء دفعة ── */
     case 'create':
         $amount    = (float)($body['amount'] ?? 0);
-        $email     = trim($body['email']   ?? 'client@diparmas.com');
+        $email     = trim($body['email']   ?? '');
         $custId    = trim($body['customer_id'] ?? 'dp_'.time());
         // Card onramp is handled by the PayRam payment page and currently requires Base.
         $chainCode = strtoupper(trim($body['blockchain_code'] ?? 'BASE'));
@@ -160,7 +160,7 @@ switch ($action) {
     /* ── إنشاء payout ── */
     case 'payout':
         $result = $payram->createPayout([
-            'email'          => $body['email']          ?? 'client@diparmas.com',
+            'email'          => $body['email']          ?? '',
             'blockchain_code'=> $body['blockchain_code'] ?? 'TRX',
             'currency_code'  => $body['currency_code']   ?? 'USDT',
             'amount'         => (string)($body['amount'] ?? 0),

@@ -294,6 +294,19 @@ class GatewayErrorMapper
     }
 
     /**
+     * إرجاع رسالة للمستخدم: السبب الحقيقي إن وجد، وإلا الرسالة العامة العربية.
+     */
+    public static function toUserMessage(string $unifiedCode, string $rawMessage = ''): string
+    {
+        $cleanMessage = trim(strip_tags($rawMessage));
+        if ($cleanMessage !== '') {
+            return preg_replace('/\s+/', ' ', $cleanMessage) ?? $cleanMessage;
+        }
+
+        return self::toArabic($unifiedCode);
+    }
+
+    /**
      * هل الخطأ قابل للمحاولة مجدداً؟
      */
     public static function isRetryable(string $unifiedCode): bool
@@ -319,6 +332,8 @@ class GatewayErrorMapper
         string $currency     = '',
         string $rawMessage   = ''
     ): array {
+        $displayMessage = self::toUserMessage($unifiedCode, $rawMessage);
+
         return [
             'success'        => false,
             'status'         => 'declined',
@@ -326,7 +341,7 @@ class GatewayErrorMapper
             'reference'      => $reference,
             'amount'         => $amount,
             'currency'       => $currency,
-            'message'        => self::toArabic($unifiedCode),
+            'message'        => $displayMessage,
             'error_code'     => $unifiedCode,
             'raw_message'    => $rawMessage,
             'requires_3ds'   => false,

@@ -35,9 +35,15 @@
 // ============================================================
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-Api-Key, X-Timestamp, X-Signature');
+
+$requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowedOrigins = array_filter(array_map('trim', explode(',', (string) env('CORS_ALLOWED_ORIGINS', ''))));
+if ($requestOrigin !== '' && in_array($requestOrigin, $allowedOrigins, true)) {
+    header('Access-Control-Allow-Origin: ' . $requestOrigin);
+    header('Vary: Origin');
+}
 
 // ظ…ط¹ط§ظ„ط¬ط© ط·ظ„ط¨ط§طھ OPTIONS (CORS Preflight)
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -121,7 +127,7 @@ if (!$userId) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $csrfToken = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '';
-    if (!empty($csrfToken) && !verifyCsrfToken($csrfToken)) {
+    if ($authMethod === 'session' && !verifyCsrfToken($csrfToken)) {
         http_response_code(403);
         echo json_encode([
             'success' => false,
@@ -438,7 +444,7 @@ try {
         case 'init_paypal':
             $clientId = getenv('PAYPAL_CLIENT_ID') ?: '';
             $clientSecret = getenv('PAYPAL_CLIENT_SECRET') ?: '';
-            $env = getenv('PAYPAL_ENVIRONMENT') ?: 'sandbox';
+            $env = getenv('PAYPAL_ENVIRONMENT') ?: 'live';
             
             if (empty($clientId) || empty($clientSecret)) {
                 throw new Exception('PayPal credentials not configured');
@@ -658,7 +664,7 @@ try {
                 'success' => true,
                 'stripe_public_key' => getenv('STRIPE_PUBLIC_KEY') ?: '',
                 'checkout_public_key' => getenv('CHECKOUT_PUBLIC_KEY') ?: '',
-                'myfatoorah_env' => getenv('MYFATOORAH_ENVIRONMENT') ?: 'sandbox',
+                'myfatoorah_env' => getenv('MYFATOORAH_ENVIRONMENT') ?: 'live',
                 'paypal_client_id' => getenv('PAYPAL_CLIENT_ID') ?: '',
                 'timestamp' => date('c'),
             ];

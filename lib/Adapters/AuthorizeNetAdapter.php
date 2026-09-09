@@ -16,6 +16,7 @@ require_once __DIR__ . '/GatewayAdapterInterface.php';
 require_once __DIR__ . '/GatewayErrorMapper.php';
 require_once __DIR__ . '/GatewayLogger.php';
 
+
 final class AuthorizeNetAdapter implements GatewayAdapterInterface
 {
     private string $apiLoginId;

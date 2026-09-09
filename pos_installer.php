@@ -340,7 +340,7 @@ body{display:flex;flex-direction:column;align-items:center;justify-content:flex-
         <div><?=$ar?'البنك:':'Bank:'?> <span style="color:var(--gold);font-weight:700">Mashreq — TRANSCENDIO</span></div>
         <div>IBAN: <span style="color:var(--gold);font-family:'Share Tech Mono',monospace;font-size:.68rem">AE300330000019101562722</span></div>
         <div><?=$ar?'العملة:':'Currency:'?> <span style="color:var(--text)" id="sumCur">AED</span></div>
-        <div>Ledger: <span style="color:var(--green);font-family:'Share Tech Mono',monospace;font-size:.65rem">TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2</span></div>
+        <div>Ledger: <span style="color:var(--green);font-family:'Share Tech Mono',monospace;font-size:.65rem"><?=htmlspecialchars(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '', ENT_QUOTES, 'UTF-8')?></span></div>
       </div>
     </div>
 
@@ -484,7 +484,7 @@ async function runSetup() {
     bank: 'Mashreq',
     iban: 'AE300330000019101562722',
     merchant: 'TRANSCENDIO FZ-LLC',
-    ledger: 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2',
+    ledger: <?=json_encode(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '')?>,
     site: SITE,
     installedAt: new Date().toISOString(),
     version: '1.0.0',
@@ -520,12 +520,14 @@ async function testNuvei() {
       signal: AbortSignal.timeout(10000),
     });
     const d = await r.json();
+    if (!d.success) throw new Error(d.message || 'POS authentication or gateway check failed');
 
     setDot('nuvei-session', 'ok', 'Nuvei Session ✓');
     await delay(400);
     setDot('nuvei-mashreq', 'ok', 'Mashreq Bank — BOMLAEADXXX ✓');
     await delay(400);
-    setDot('nuvei-tron', 'ok', 'Ledger TRX — TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2 ✓');
+    const savedConfig = JSON.parse(localStorage.getItem('diparma_pos_config') || '{}');
+    setDot('nuvei-tron', savedConfig.ledger ? 'ok' : 'error', savedConfig.ledger ? 'Ledger TRX — ' + savedConfig.ledger : 'Ledger غير مهيأ');
     await delay(400);
 
     markDone(3);

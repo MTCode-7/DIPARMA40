@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database.php';
+require_once __DIR__ . '/includes/functions.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -28,6 +29,7 @@ $passwordLabel = ($currentLang === 'en') ? 'Password' : 'كلمة المرور';
 $usernamePlaceholder = ($currentLang === 'en') ? 'Enter username' : 'أدخل اسم المستخدم';
 $passwordPlaceholder = ($currentLang === 'en') ? 'Enter password' : 'أدخل كلمة المرور';
 $loginButton = ($currentLang === 'en') ? 'Login' : 'تسجيل الدخول';
+$csrfToken = generateCsrfToken();
 
 if (isset($_GET['logout'])) {
     session_destroy();
@@ -38,12 +40,16 @@ if (isset($_GET['logout'])) {
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $error = 'Invalid security token. Please try again.';
+    }
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
     
-    if (empty($username) || empty($password)) {
+        if ($error === '') {
+            if (empty($username) || empty($password)) {
         $error = 'يرجى إدخال اسم المستخدم وكلمة المرور';
-    } else {
+            } else {
         try {
             $db = db();
 
@@ -60,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                     ? 'Your account is pending admin approval. Please wait.'
                     : 'حسابك قيد المراجعة — في انتظار موافقة الإدارة';
             } elseif ($user && password_verify($password, $user['password_hash'])) {
+                session_regenerate_id(true);
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['role']    = $user['role'] ?? 'user';
                 $_SESSION['username']= $user['username'];
@@ -84,7 +91,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         } catch (Exception $e) {
             $error = 'حدث خطأ في النظام';
         }
-    }
+            }
+        }
 }
 ?>
 <!DOCTYPE html>
@@ -219,6 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <?php endif; ?>
 
     <form method="POST" action="">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
         <div class="form-group">
             <label><i class="fas fa-user"></i> <?= htmlspecialchars($usernameLabel) ?></label>
             <input type="text" name="username" placeholder="<?= htmlspecialchars($usernamePlaceholder) ?>" required>

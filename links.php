@@ -740,7 +740,7 @@ $csrfToken = generateCsrfToken();
                 </div>
                 <div class="form-group">
                     <label><i class="fas fa-envelope"></i> بريد العميل <span style="color:#888;font-size:0.8rem;font-weight:400;">(اختياري)</span></label>
-                    <input type="email" name="customer_email" placeholder="customer@example.com">
+                    <input type="email" name="customer_email" placeholder="أدخل البريد الإلكتروني">
                 </div>
                 <div class="form-group">
                     <label><i class="fas fa-phone"></i> جوال العميل <span style="color:#888;font-size:0.8rem;font-weight:400;">(اختياري)</span></label>

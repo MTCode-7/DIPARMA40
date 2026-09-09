@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
     // ── إنشاء عميل جديد ─────────────────────────────────────
     if ($action === 'create') {
         $name        = trim($_POST['name']         ?? '');
-        $ledgerAddr  = trim($_POST['ledger_address'] ?? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2');
+        $ledgerAddr  = trim($_POST['ledger_address'] ?? '');
         $webhookUrl  = trim($_POST['webhook_url']  ?? '');
         $dailyLimit  = floatval($_POST['daily_limit']   ?? 50000);
         $monthlyLim  = floatval($_POST['monthly_limit'] ?? 500000);
@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
                     'webhook_secret' => $creds['whs_enc'],
                     'mid'            => $creds['mid'],
                     'tid'            => $creds['tid'],
-                    'ledger_address' => $ledgerAddr ?: 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2',
+                    'ledger_address' => $ledgerAddr,
                     'webhook_url'    => $webhookUrl,
                     'daily_limit'    => $dailyLimit,
                     'monthly_limit'  => $monthlyLim,
@@ -436,7 +436,7 @@ CODE);
         </div>
         <div class="fld">
           <label><i class="fas fa-wallet"></i> Ledger TRX Address</label>
-          <input type="text" name="ledger_address" value="TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2"
+          <input type="text" name="ledger_address" value="<?=htmlspecialchars(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '', ENT_QUOTES, 'UTF-8')?>"
             style="font-family:'Share Tech Mono',monospace;font-size:.82rem">
         </div>
         <div class="fld">
@@ -532,7 +532,7 @@ Content-Type: application/json</div>
   "card_cvv":       "123",
   "txn_type":       "purchase",
   "sec_mode":       "3D",
-  "ledger_address": "TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2",
+  "ledger_address": "",
   "reference":      "ORDER-001"
 }
 

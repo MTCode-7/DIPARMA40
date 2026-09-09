@@ -34,9 +34,8 @@
 // ============================================================
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-Api-Key, X-Timestamp, X-Signature, X-Transaction-Type');
+header('Access-Control-Allow-Headers: Content-Type, X-CSRF-Token, X-Transaction-Type');
 
 // ظ…ط¹ط§ظ„ط¬ط© ط·ظ„ط¨ط§طھ OPTIONS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -62,6 +61,24 @@ require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/../../includes/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../lib/PayRamAdapter.php';
+
+$rawInput = file_get_contents('php://input') ?: '';
+$requestData = json_decode($rawInput, true);
+if (!is_array($requestData)) {
+    $requestData = $_POST;
+}
+
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Authentication required']);
+    exit;
+}
+
+if (!verifyCsrfToken($requestData['csrf_token'] ?? $_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Invalid CSRF token']);
+    exit;
+}
 
 set_exception_handler(function (Throwable $exception) {
     error_log('[DI PARMA charge] ' . $exception->getMessage());
@@ -322,12 +339,10 @@ $TRANSACTION_TYPES = [
 // 4. ظ‚ط±ط§ط،ط© ط¨ظٹط§ظ†ط§طھ ط§ظ„ط·ظ„ط¨
 // ============================================================
 
-$rawInput = file_get_contents('php://input');
-if ($rawInput === false || trim((string) $rawInput) === '') {
-    $rawInput = $_POST['payload'] ?? json_encode($_POST);
+$data = $requestData;
+if (empty($data) && !empty($_POST['payload'])) {
+    $data = json_decode((string) $_POST['payload'], true);
 }
-
-$data = json_decode((string) $rawInput, true);
 if (!is_array($data) && !empty($_POST)) {
     $data = $_POST;
 }
@@ -524,11 +539,16 @@ $usdtAmount = round($amount * ($exchangeRates[$currency] ?? 1.0), 6);
 // ============================================================
 
 $diparmaConfig = [
-    'merchant_id' => getenv('DIPARMA_MERCHANT_ID') ?: 'DP_0001',
-    'merchant_secret' => getenv('DIPARMA_MERCHANT_SECRET') ?? '',
+    'merchant_id' => trim((string) (getenv('DIPARMA_MERCHANT_ID') ?: env('DIPARMA_MERCHANT_ID', ''))),
+    'merchant_secret' => trim((string) (getenv('DIPARMA_MERCHANT_SECRET') ?: env('DIPARMA_MERCHANT_SECRET', ''))),
     'environment' => getenv('DIPARMA_ENVIRONMENT') ?: 'live',
     'acquirer' => $data['acquirer'] ?? 'Mashreq',
 ];
+if ($diparmaConfig['merchant_id'] === '' || $diparmaConfig['merchant_secret'] === '') {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'DIPARMA merchant credentials are not configured.']);
+    exit;
+}
 
 /**
  * ط¨ظ†ط§ط، ط·ظ„ط¨ DI PARMA ط­ط³ط¨ ظ†ظˆط¹ ط§ظ„ط¹ظ…ظ„ظٹط©
@@ -562,8 +582,8 @@ if (in_array($txnDef['type'], ['card', 'crypto'])) {
 
 // ط¥ط¶ط§ظپط© ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¹ظ…ظٹظ„
 $diparmaRequest['customer'] = [
-    'email' => $email ?: 'customer@diparmas.com',
-    'phone' => $phone ?: '+971501234567',
+    'email' => $email !== '' ? $email : null,
+    'phone' => $phone !== '' ? $phone : null,
     'name' => $cardHolder,
     'ip' => $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0',
     'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
@@ -1141,7 +1161,7 @@ function sendUSDTToLedger($toAddress, $amount, $config) {
 
         $reference = 'DP-' . strtoupper(bin2hex(random_bytes(8)));
         $payout = (new PayRamAdapter())->createPayout([
-            'email' => 'client@diparmas.com',
+            'email' => '',
             'blockchain_code' => 'TRX',
             'currency_code' => 'USDT',
             'amount' => (float)$amount,
@@ -1255,14 +1275,39 @@ function getExchangeRates() {
 
 function sendAsyncWebhook($url, $data) {
     if (empty($url)) return;
+
+    $parts = parse_url($url);
+    $host = strtolower((string)($parts['host'] ?? ''));
+    $scheme = strtolower((string)($parts['scheme'] ?? ''));
+    if (!in_array($scheme, ['http', 'https'], true) || $host === '') return;
+
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        if (!filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return;
+    } else {
+        $addresses = gethostbynamel($host) ?: [];
+        if (function_exists('dns_get_record')) {
+            foreach (dns_get_record($host, DNS_AAAA) ?: [] as $record) {
+                if (!empty($record['ipv6'])) $addresses[] = $record['ipv6'];
+            }
+        }
+        if (empty($addresses)) return;
+        foreach ($addresses as $address) {
+            if (!filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) return;
+        }
+    }
+
+    $secret = trim((string)(getenv('WEBHOOK_SECRET') ?: getenv('WEBHOOK_HMAC_SECRET') ?: ''));
+    if ($secret === '') return;
+    $encodedData = json_encode($data);
+    if ($encodedData === false) return;
     
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => json_encode($data),
+        CURLOPT_POSTFIELDS => $encodedData,
         CURLOPT_HTTPHEADER => [
             'Content-Type: application/json',
-            'X-DI-PARMA-Signature: ' . hash_hmac('sha256', json_encode($data), getenv('WEBHOOK_SECRET') ?: 'default-secret'),
+            'X-DI-PARMA-Signature: ' . hash_hmac('sha256', $encodedData, $secret),
             'X-DI-PARMA-Event: charge.completed',
         ],
         CURLOPT_RETURNTRANSFER => true,

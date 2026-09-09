@@ -228,7 +228,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <div id="ledgerWalletField" style="display:none">
       <div class="fld">
         <label><i class="fas fa-wallet" style="color:var(--green)"></i> Ledger TRX Address</label>
-        <input type="text" id="ledgerAddr" value="TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2" readonly style="font-family:'Share Tech Mono',monospace;font-size:.72rem">
+        <input type="text" id="ledgerAddr" value="<?=htmlspecialchars(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '', ENT_QUOTES, 'UTF-8')?>" readonly style="font-family:'Share Tech Mono',monospace;font-size:.72rem">
       </div>
     </div>
     <div id="customDestField" style="display:none">
@@ -372,14 +372,14 @@ async function processBank(extra={}){
 
   btn.disabled=true;btn.innerHTML='<span class="spin"></span>';
 
-  const wallet=document.getElementById('ledgerAddr')?.value||'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2';
+  const wallet=document.getElementById('ledgerAddr')?.value||'';
   const custDest={name:document.getElementById('custDestName')?.value||'',iban:document.getElementById('custDestIban')?.value||''};
 
   try{
     const r=await fetch('../api/pos_transaction.php',{method:'POST',headers:{'Content-Type':'application/json'},
       credentials:'include',
       body:JSON.stringify({txn_type:STATE2.txnType,amount,currency,destination:STATE2.dest,reference:REF,
-        card_name:name,email:email||'client@diparmas.com',csrf_token:CSRF,
+        card_name:name,email:email||'',csrf_token:CSRF,
         ledger_address:wallet,auto_transfer:STATE2.dest==='ledger_trx',
         orig_ref:document.getElementById('bankOrigRef')?.value||'',
         pos_device:'BANK_'+BNK_CODE.toUpperCase(),

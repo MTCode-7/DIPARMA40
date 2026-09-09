@@ -35,7 +35,7 @@ foreach ($gateways as $gw) {
         'name' => $gw['name'],
         'status' => $gw['status'],
         'has_credentials' => $hasToken,
-        'environment' => $config['environment'] ?? 'sandbox',
+        'environment' => $config['environment'] ?? 'live',
     ];
 }
 
@@ -48,7 +48,7 @@ if (isset($gatewayStatus['wise']) && $gatewayStatus['wise']['has_credentials']) 
     $wiseCreds = $wiseConfig['credentials'] ?? [];
     $token = trim($wiseCreds['access_token'] ?? $wiseCreds['api_key'] ?? '');
     $profId = trim($wiseCreds['profile_id'] ?? '');
-    $env = $wiseConfig['environment'] ?? 'sandbox';
+    $env = $wiseConfig['environment'] ?? 'live';
     $baseUrl = ($env === 'live') ? 'https://api.transferwise.com' : 'https://api.sandbox.transferwise.com';
     
     $ch = curl_init($baseUrl . '/v1/profiles');

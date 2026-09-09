@@ -54,7 +54,7 @@ foreach ($gateways as $gw) {
         $apiKey ?: '(ظپط§ط±ط؛)',
         $secretKey ?: '(ظپط§ط±ط؛)',
         $settings['webhook_url'] ?? '-',
-        $settings['environment'] ?? $config['environment'] ?? 'sandbox',
+        $settings['environment'] ?? $config['environment'] ?? 'live',
         implode(' | ', $config['features']   ?? []),
         implode(' | ', $config['card_types'] ?? []),
     ]);

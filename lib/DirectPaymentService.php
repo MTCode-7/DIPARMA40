@@ -173,7 +173,7 @@ class DirectPaymentService
     public function myfatoorahCreateSession(float $amount, string $currency, string $reference): array
     {
         $apiKey  = getenv('MYFAOORAH_API_KEY');
-        $env     = getenv('MYFAOORAH_ENVIRONMENT') ?: 'sandbox';
+        $env     = getenv('MYFAOORAH_ENVIRONMENT') ?: 'live';
         $baseUrl = $env === 'live'
             ? 'https://api.myfatoorah.com'
             : 'https://apitest.myfatoorah.com';
@@ -225,7 +225,7 @@ class DirectPaymentService
     public function myfatoorahExecutePayment(string $sessionId, float $amount, string $currency, string $reference, array $customer = []): array
     {
         $apiKey  = getenv('MYFAOORAH_API_KEY');
-        $env     = getenv('MYFAOORAH_ENVIRONMENT') ?: 'sandbox';
+        $env     = getenv('MYFAOORAH_ENVIRONMENT') ?: 'live';
         $baseUrl = $env === 'live'
             ? 'https://api.myfatoorah.com'
             : 'https://apitest.myfatoorah.com';

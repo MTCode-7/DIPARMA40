@@ -7,7 +7,7 @@ $dir = $ar ? 'rtl' : 'ltr';
 $csrf = generateCsrfToken();
 $amount=floatval($_GET['amount']??0); $currency=strtoupper($_GET['currency']??'USDT');
 $destination=$_GET['destination']??'gateway'; $ref=$_GET['ref']??('BNB-'.strtoupper(substr(uniqid(),0,8)));
-$walletAddr=$_GET['wallet']??'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2';
+$walletAddr=$_GET['wallet']??(defined('LEDGER_TRC20_ADDRESS')?LEDGER_TRC20_ADDRESS:'');
 ?><!DOCTYPE html>
 <html lang="<?=$lang?>" dir="<?=$dir?>">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">

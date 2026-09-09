@@ -70,7 +70,7 @@ function gatewayCompletionBadge(array $gateway) {
 
     $ready = isGatewayReady($gw);
     return [
-        'label' => $ready ? 'جاهز للعمل ✅' : 'غير جاهز ⚠️',
+        'label' => $ready ? 'Ready ✅' : 'Not Ready ⚠️',
         'icon' => $ready ? 'check-circle' : 'exclamation-circle',
         'class' => $ready ? 'badge-complete' : 'badge-incomplete'
     ];
@@ -642,7 +642,7 @@ $csrfToken = generateCsrfToken();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DI PARMA | إدارة البوابات</title>
+    <title>DI PARMA | Gateway Manager</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -859,22 +859,23 @@ $csrfToken = generateCsrfToken();
 
 <div class="container">
     <div class="header">
-        <h1><i class="fas fa-route"></i> إدارة بوابات الدفع</h1>
+        <h1><i class="fas fa-route"></i> Payment Gateway Manager</h1>
         <div style="color:#5bc0de;font-size:.9rem;font-weight:700;">
-            إجمالي البوابات: <?= count($gateways) ?>
+            Total gateways: <?= count($gateways) ?>
         </div>
         <div>
-            <a href="../index.php" class="btn btn-outline"><i class="fas fa-home"></i> الرئيسية</a>
-            <a href="bank_gateways.php" class="btn btn-info" style="background:linear-gradient(135deg,#1a6fb5,#1356a0);color:#fff;border:none"><i class="fas fa-university"></i> بوابات البنوك</a>
-            <a href="performance_monitor.php" class="btn btn-outline" style="border-color:rgba(76,175,80,.5);color:#4CAF50"><i class="fas fa-tachometer-alt"></i> مراقبة الأداء</a>
-            <a href="../dashboard.php" class="btn btn-outline"><i class="fas fa-chart-pie"></i> لوحة التحكم</a>
-            <a href="?profile=true" class="btn btn-info"><i class="fas fa-user-cog"></i> تغيير اسم المستخدم / كلمة المرور</a>
-            <a href="?sync=true&token=<?= $csrfToken ?>" class="btn btn-success" onclick="return confirm('هل تريد إضافة جميع بوابات الدفع المفقودة من التكوين؟')"><i class="fas fa-plus-circle"></i> إضافة جميع البوابات</a>
-            <a href="?add=true" class="btn btn-primary" onclick="toggleAddForm()"><i class="fas fa-plus"></i> إضافة بوابة</a>
+            <a href="../index.php" class="btn btn-outline"><i class="fas fa-home"></i> Home</a>
+            <a href="bank_gateways.php" class="btn btn-info" style="background:linear-gradient(135deg,#1a6fb5,#1356a0);color:#fff;border:none"><i class="fas fa-university"></i> Bank Gateways</a>
+            <a href="performance_monitor.php" class="btn btn-outline" style="border-color:rgba(76,175,80,.5);color:#4CAF50"><i class="fas fa-tachometer-alt"></i> Performance</a>
+            <a href="../dashboard.php" class="btn btn-outline"><i class="fas fa-chart-pie"></i> Dashboard</a>
+            <a href="../gateways.php" class="btn btn-success"><i class="fas fa-route"></i> Payment Gateways &amp; Details</a>
+            <a href="?profile=true" class="btn btn-info"><i class="fas fa-user-cog"></i> Account Settings</a>
+            <a href="?sync=true&token=<?= $csrfToken ?>" class="btn btn-success" onclick="return confirm('Add all missing payment gateways from configuration?')"><i class="fas fa-plus-circle"></i> Add All Gateways</a>
+            <a href="?add=true" class="btn btn-primary" onclick="toggleAddForm()"><i class="fas fa-plus"></i> Add Gateway</a>
             <button type="button" id="btn-test-all" onclick="testAllConnections()"
                 style="background:rgba(91,192,222,.15);border:1px solid #5bc0de;color:#5bc0de;
                        padding:10px 20px;border-radius:10px;cursor:pointer;font-family:Cairo,sans-serif;font-weight:600;font-size:.9rem">
-                <i class="fas fa-plug"></i> اختبار الكل
+                <i class="fas fa-plug"></i> Test All
             </button>
         </div>
     </div>
@@ -885,24 +886,24 @@ $csrfToken = generateCsrfToken();
 
     <?php if ($missingGatewayCount > 0): ?>
         <div class="alert alert-info">
-            هناك <?= $missingGatewayCount ?> بوابة دفع غير مضافة بعد: <?= htmlspecialchars(implode(', ', $missingGatewayCodes)) ?>
+            <?= $missingGatewayCount ?> payment gateways are not added yet: <?= htmlspecialchars(implode(', ', $missingGatewayCodes)) ?>
             <br>
-            <a href="?sync=true&token=<?= $csrfToken ?>" class="btn btn-success btn-sm" style="margin-top:10px; display:inline-flex; align-items:center; gap:8px;"><i class="fas fa-plus-circle"></i> إضافة جميع البوابات المفقودة</a>
+            <a href="?sync=true&token=<?= $csrfToken ?>" class="btn btn-success btn-sm" style="margin-top:10px; display:inline-flex; align-items:center; gap:8px;"><i class="fas fa-plus-circle"></i> Add All Missing Gateways</a>
         </div>
     <?php endif; ?>
 
     <div class="connection-summary">
-        <div><i class="fas fa-plug"></i> البوابات المتصلة بالكامل: <strong><?= count($connectedGateways) ?></strong> من <?= count($gateways) ?></div>
+        <div><i class="fas fa-plug"></i> Fully connected gateways: <strong><?= count($connectedGateways) ?></strong> of <?= count($gateways) ?></div>
         <div class="names">
-            <strong>الأسماء:</strong>
-            <?= $connectedNames ? htmlspecialchars(implode('، ', $connectedNames)) : 'لا توجد بوابات متصلة حاليًا' ?>
+            <strong>Names:</strong>
+            <?= $connectedNames ? htmlspecialchars(implode(', ', $connectedNames)) : 'No gateways are currently connected' ?>
         </div>
     </div>
 
     <div class="gateway-search">
         <i class="fas fa-search" aria-hidden="true"></i>
-        <input type="search" id="gateway-search-input" placeholder="ابحث باسم البوابة أو الكود أو الحالة" aria-label="البحث في بوابات الدفع" autocomplete="off">
-        <span class="gateway-search-count" id="gateway-search-count"><?= count($gateways) ?> نتيجة</span>
+        <input type="search" id="gateway-search-input" placeholder="Search by gateway name, code, or status" aria-label="Search payment gateways" autocomplete="off">
+        <span class="gateway-search-count" id="gateway-search-count"><?= count($gateways) ?> results</span>
     </div>
 
     <!-- ===== نموذج تغيير بيانات الحساب ===== -->
@@ -1216,7 +1217,7 @@ $csrfToken = generateCsrfToken();
                 }
                 ?>
                 <?php if ($renderDisconnectedDivider): ?>
-                    <div class="gateway-section-divider"><span>البوابات غير المتصلة أو غير الجاهزة</span></div>
+                    <div class="gateway-section-divider"><span>Disconnected or Not Ready Gateways</span></div>
                 <?php endif; ?>
                 <div class="gateway-card" id="gw-card-<?= $gw['id'] ?>">
                     <div class="header-card">
@@ -1226,16 +1227,16 @@ $csrfToken = generateCsrfToken();
                         </div>
                         <div style="text-align:right;">
                             <span class="status status-<?= $gw['status'] ?>">
-                                <?= $gw['status'] === 'active' ? '✅ نشط' : '❌ غير نشط' ?>
+                                <?= $gw['status'] === 'active' ? '✅ Active' : '❌ Inactive' ?>
                             </span>
                             <?php
                             // حالة الاتصال
                             $connStatus = $gw['connection_status'] ?? 'untested';
                             $connBadge  = match($connStatus) {
-                                'verified'  => ['icon'=>'check-circle',     'color'=>'#4CAF50', 'label'=>'متصل ✅'],
-                                'failed'    => ['icon'=>'times-circle',     'color'=>'#ef5350', 'label'=>'فشل ❌'],
-                                'disabled'  => ['icon'=>'ban',              'color'=>'#888',    'label'=>'معطل'],
-                                default     => ['icon'=>'question-circle',  'color'=>'#f0ad4e', 'label'=>'لم يُختبر'],
+                                'verified'  => ['icon'=>'check-circle',     'color'=>'#4CAF50', 'label'=>'Connected ✅'],
+                                'failed'    => ['icon'=>'times-circle',     'color'=>'#ef5350', 'label'=>'Failed ❌'],
+                                'disabled'  => ['icon'=>'ban',              'color'=>'#888',    'label'=>'Disabled'],
+                                default     => ['icon'=>'question-circle',  'color'=>'#f0ad4e', 'label'=>'Not Tested'],
                             };
                             $lastTested = $gw['last_tested'] ?? null;
                             $respMs     = $gw['test_response_ms'] ?? null;
@@ -1250,7 +1251,7 @@ $csrfToken = generateCsrfToken();
                             </div>
                             <?php if ($lastTested): ?>
                             <div style="font-size:.7rem;color:#666;margin-top:2px">
-                                آخر اختبار: <?= date('Y-m-d H:i', strtotime($lastTested)) ?>
+                                Last tested: <?= date('Y-m-d H:i', strtotime($lastTested)) ?>
                             </div>
                             <?php endif; ?>
                             <?php $completion = gatewayCompletionBadge($gw); ?>
@@ -1266,15 +1267,15 @@ $csrfToken = generateCsrfToken();
                     $credentials = json_decode($gw['credentials']  ?? '{}', true);
                     ?>
                     <div class="details">
-                        <div><span class="label">النوع:</span> <span class="value"><?= htmlspecialchars($gw['type']) ?></span></div>
-                        <div><span class="label">نوع الاتصال:</span> <span class="value"><?= strtoupper($gw['connection_type'] ?? 'REST') ?></span></div>
+                        <div><span class="label">Type:</span> <span class="value"><?= htmlspecialchars($gw['type']) ?></span></div>
+                        <div><span class="label">Connection Type:</span> <span class="value"><?= strtoupper($gw['connection_type'] ?? 'REST') ?></span></div>
                         <div><span class="label">API Endpoint:</span>
                             <span class="value" style="word-break:break-all;font-size:.8rem">
-                                <?= htmlspecialchars($gw['api_endpoint'] ?? $credentials['api_url'] ?? 'غير محدد') ?>
+                                <?= htmlspecialchars($gw['api_endpoint'] ?? $credentials['api_url'] ?? 'Not specified') ?>
                             </span>
                         </div>
-                        <div><span class="label">API Key:</span> <span class="value"><?= !empty($credentials['api_key']) ? '••••••••' : 'غير محدد' ?></span></div>
-                        <div><span class="label">يدعم:</span>
+                        <div><span class="label">API Key:</span> <span class="value"><?= !empty($credentials['api_key']) ? '••••••••' : 'Not specified' ?></span></div>
+                        <div><span class="label">Supports:</span>
                             <span class="value">
                                 <?= ($gw['supports_2d'] ?? 1) ? '<span style="color:#5bc0de">2D</span> ' : '' ?>
                                 <?= ($gw['supports_3d'] ?? 1) ? '<span style="color:var(--gold)">3D</span> ' : '' ?>
@@ -1282,7 +1283,7 @@ $csrfToken = generateCsrfToken();
                                 <?= ($gw['supports_capture'] ?? 0) ? '<span style="color:#f0ad4e">CAPTURE</span>' : '' ?>
                             </span>
                         </div>
-                        <div><span class="label">العملات:</span> <span class="value"><?= implode(', ', array_slice($config['currencies'] ?? ['USD'], 0, 4)) ?></span></div>
+                        <div><span class="label">Currencies:</span> <span class="value"><?= implode(', ', array_slice($config['currencies'] ?? ['USD'], 0, 4)) ?></span></div>
                         <?php if (!empty($gw['test_message'])): ?>
                         <div style="margin-top:6px;font-size:.8rem;color:<?= $connBadge['color'] ?>">
                             <i class="fas fa-info-circle"></i> <?= htmlspecialchars($gw['test_message']) ?>
@@ -1297,17 +1298,20 @@ $csrfToken = generateCsrfToken();
                             class="btn btn-sm"
                             id="test-btn-<?= $gw['id'] ?>"
                             style="background:rgba(91,192,222,.15);border:1px solid #5bc0de;color:#5bc0de">
-                            <i class="fas fa-plug"></i> اختبار الاتصال
+                            <i class="fas fa-plug"></i> Test Connection
                         </button>
+                        <a href="gateway_details.php?code=<?= urlencode((string)$gw['code']) ?>" class="btn btn-success btn-sm">
+                            <i class="fas fa-chart-line"></i> Gateway Details
+                        </a>
                         <a href="?edit=<?= $gw['id'] ?>" class="btn btn-info btn-sm">
-                            <i class="fas fa-pen"></i> إضافة بيانات
+                            <i class="fas fa-pen"></i> Add Details
                         </a>
                         <a href="?toggle=<?= $gw['id'] ?>&token=<?= $csrfToken ?>" class="btn btn-warning btn-sm" onclick="return confirm('هل تريد تغيير حالة البوابة؟')">
                             <i class="fas fa-<?= $gw['status'] === 'active' ? 'pause' : 'play' ?>"></i>
-                            <?= $gw['status'] === 'active' ? 'تعطيل' : 'تفعيل' ?>
+                            <?= $gw['status'] === 'active' ? 'Disable' : 'Enable' ?>
                         </a>
                         <a href="?delete=<?= $gw['id'] ?>&token=<?= $csrfToken ?>" class="btn btn-danger btn-sm" onclick="return confirm('⚠️ هل أنت متأكد من حذف هذه البوابة؟')">
-                            <i class="fas fa-trash"></i> حذف
+                            <i class="fas fa-trash"></i> Delete
                         </a>
                     </div>
                 </div>

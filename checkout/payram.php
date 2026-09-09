@@ -179,7 +179,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="card-title"><i class="fas fa-user"></i> <?=$ar?'بيانات العميل':'Customer Details'?></div>
     <div class="fld">
       <label>Email</label>
-      <input type="email" id="custEmail" placeholder="customer@example.com">
+      <input type="email" id="custEmail" placeholder="أدخل البريد الإلكتروني">
     </div>
     <div class="fld">
       <label><?=$ar?'رقم العميل (اختياري)':'Customer ID (optional)'?></label>

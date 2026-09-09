@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS `dp_api_clients` (
     `webhook_secret`  VARCHAR(255) NOT NULL COMMENT 'WEBHOOK_S — لتوقيع الـ webhooks',
     `mid`             VARCHAR(32)  NOT NULL UNIQUE COMMENT 'Merchant ID',
     `tid`             VARCHAR(32)  NOT NULL COMMENT 'Terminal ID',
-    `ledger_address`  VARCHAR(100) NOT NULL DEFAULT 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2',
+    `ledger_address`  VARCHAR(100) NOT NULL DEFAULT '',
     `webhook_url`     VARCHAR(500) DEFAULT NULL,
     `status`          ENUM('active','suspended','revoked') NOT NULL DEFAULT 'active',
     `permissions`     JSON DEFAULT NULL COMMENT '["charge","refund","balance","void"]',

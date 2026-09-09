@@ -41,13 +41,20 @@ class RedotPayAdapter
     ══════════════════════════════════════════ */
     public function createOrder(array $params): array
     {
+        if ((defined('APP_IS_PROD') && APP_IS_PROD) && (!$this->isLive || $this->appKey === '' || $this->privateKey === '')) {
+            return [
+                'success' => false,
+                'message' => 'RedotPay live credentials are not configured',
+            ];
+        }
+
         $orderId    = $params['order_id']    ?? ('DP-'.strtoupper(bin2hex(random_bytes(6))));
         $amount     = number_format((float)($params['amount'] ?? 0), 2, '.', '');
         $currency   = strtoupper($params['currency'] ?? 'USD');
         $returnUrl  = $params['return_url']  ?? (defined('SITE_URL') ? SITE_URL.'/payment_success.php' : '');
         $webhookUrl = $params['webhook_url'] ?? (defined('SITE_URL') ? SITE_URL.'/api/webhook.php?gateway=redotpay' : '');
         $subject    = $params['subject']     ?? 'DI PARMA Payment';
-        $ledgerAddr = $params['ledger_addr'] ?? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2';
+        $ledgerAddr = $params['ledger_addr'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '');
 
         $body = [
             'orderId'     => $orderId,

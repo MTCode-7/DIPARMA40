@@ -17,12 +17,16 @@ $lang  = isset($_GET['lang']) && in_array($_GET['lang'], ['ar', 'en'], true)
 $ar    = $lang === 'ar';
 $dir   = $ar ? 'rtl' : 'ltr';
 $db    = db();
+$csrfToken = generateCsrfToken();
 $error = '';
 $success = '';
 $approved_brands = ['Louis Vuitton', 'Armani', 'Gucci', 'Chanel', 'Dior', 'Prada', 'Hermes', 'Rolex', 'Nike', 'Apple', 'Microsoft', 'Amazon'];
 
 // ── معالجة POST ──────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+    $error = $ar ? 'رمز الأمان غير صالح، يرجى إعادة المحاولة' : 'Invalid security token. Please try again';
+  }
     $username   = trim($_POST['username']   ?? '');
     $email      = trim($_POST['email']      ?? '');
     $password   = trim($_POST['password']   ?? '');
@@ -44,7 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $allowed_market_roles = ['seller', 'buyer'];
 
     // التحقق
-    if (empty($username) || empty($email) || empty($password)
+    if ($error !== '') {
+      // Keep the submitted values visible while reporting the CSRF failure.
+    } elseif (empty($username) || empty($email) || empty($password)
       || !in_array($subscription_plan, $allowed_plans, true)
       || !in_array($account_type, $allowed_account_types, true)
       || ($account_type === 'business' && ($brand_name === '' || !in_array($brand_name, $approved_brands, true) || !in_array($annual_revenue, $allowed_revenues, true) || $brand_description === '' || empty($_FILES['brand_logo']['name']) || !in_array($market_role, $allowed_market_roles, true)))) {
@@ -214,6 +220,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <?php endif; ?>
 
     <form method="POST" autocomplete="off" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8')?>">
 
       <div class="section-label"><i class="fas fa-user"></i> <?=$ar?'معلومات الحساب':'Account Information'?></div>
 

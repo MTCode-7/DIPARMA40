@@ -132,6 +132,10 @@ class CryptoGateway
             return ['success' => false, 'message' => 'المعاملة غير موجودة'];
         }
 
+        if ((int)($txn['user_id'] ?? 0) !== (int)($_SESSION['user_id'] ?? 0)) {
+            return ['success' => false, 'message' => 'لا تملك صلاحية هذه المعاملة'];
+        }
+
         if ($txn['status'] === 'completed') {
             return ['success' => true, 'message' => 'مكتملة مسبقاً'];
         }

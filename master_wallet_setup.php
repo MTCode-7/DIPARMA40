@@ -120,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                 $ref = 'TXN-' . strtoupper(bin2hex(random_bytes(8)));
                 $payout = $payram->createPayout([
-                  'email' => $_SESSION['user_email'] ?? $_SESSION['email'] ?? 'client@diparmas.com',
+                  'email' => $_SESSION['user_email'] ?? $_SESSION['email'] ?? '',
                   'blockchain_code' => 'TRX',
                   'currency_code' => 'USDT',
                   'amount' => $amount,

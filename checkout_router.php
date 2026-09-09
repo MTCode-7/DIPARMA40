@@ -39,7 +39,7 @@ $allGateways = [
     'nuvei'      => ['name'=>'Nuvei',        'icon'=>'fas fa-credit-card',   'color'=>'#F97316','type'=>'card',   'desc_ar'=>'بطاقة Visa/Mastercard عبر Mashreq','desc_en'=>'Visa/Mastercard via Mashreq'],
     'stripe'     => ['name'=>'Stripe',       'icon'=>'fab fa-stripe-s',       'color'=>'#6772e5','type'=>'card',   'desc_ar'=>'بطاقة Visa/Mastercard — مستقل','desc_en'=>'Visa/Mastercard — Independent'],
     'paypal'     => ['name'=>'PayPal',        'icon'=>'fab fa-paypal',         'color'=>'#003087','type'=>'card',   'desc_ar'=>'PayPal مباشر','desc_en'=>'Direct PayPal'],
-    'wise'       => ['name'=>'Wise',          'icon'=>'fas fa-exchange-alt',   'color'=>'#9fe870','type'=>'bank',   'desc_ar'=>'تحويل بنكي دولي + API Live','desc_en'=>'International bank transfer API'],
+    'wise'       => ['name'=>'Wise',          'icon'=>'fas fa-exchange-alt',   'color'=>'#9fe870','type'=>'digital','desc_ar'=>'بوابة دفع Wise عبر API Live','desc_en'=>'Wise payment gateway via Live API'],
     'myfatoorah' => ['name'=>'MyFatoorah',    'icon'=>'fas fa-money-bill-wave','color'=>'#00b09b','type'=>'card',   'desc_ar'=>'بوابة الشرق الأوسط','desc_en'=>'Middle East gateway'],
     'binance'    => ['name'=>'Binance',       'icon'=>'fas fa-coins',          'color'=>'#F3BA2F','type'=>'crypto', 'desc_ar'=>'دفع بالكريبتو','desc_en'=>'Crypto payment'],
     'gate_io'    => ['name'=>'Gate.io',       'icon'=>'fas fa-coins',          'color'=>'#E8112D','type'=>'crypto', 'desc_ar'=>'دفع بالكريبتو','desc_en'=>'Crypto payment'],
@@ -658,7 +658,7 @@ function updateConfirmSummary() {
   if (typeEl) typeEl.textContent = typeNames[STATE.txnType] || STATE.txnType;
 
   const walletRow = document.getElementById('sum-wallet-row');
-  const walletAddr = document.getElementById('customWalletAddr')?.value.trim() || (STATE.destination === 'ledger_trx' ? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2' : '');
+  const walletAddr = document.getElementById('customWalletAddr')?.value.trim() || (STATE.destination === 'ledger_trx' ? <?=json_encode(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '')?> : '');
   STATE.walletAddr = walletAddr;
   const sumWallet = document.getElementById('sum-wallet');
   if (walletRow) walletRow.style.display = walletAddr ? '' : 'none';

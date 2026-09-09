@@ -26,7 +26,7 @@ class FXConversionEngine
 
     public function __construct()
     {
-        $this->hotWalletAddr = getenv('HOT_WALLET_TRC20_ADDRESS') ?: 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2';
+        $this->hotWalletAddr = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
         $this->tronGridKey   = getenv('TRONGRID_API_KEY')         ?: '';
         $this->binanceKey    = getenv('BINANCE_OTC_API_KEY')      ?: getenv('EXCHANGE_API_KEY') ?: '';
         $this->binanceSecret = getenv('BINANCE_OTC_SECRET_KEY')   ?: getenv('EXCHANGE_SECRET_KEY') ?: '';

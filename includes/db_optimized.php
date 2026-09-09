@@ -57,11 +57,12 @@ function dp_get_dashboard_stats(int $days = 30): array {
 
         $rows = $db->query("
             SELECT
-                COUNT(*) AS total,
+                COUNT(*) AS total_transactions,
                 SUM(CASE WHEN status='completed'  THEN 1 ELSE 0 END) AS completed,
                 SUM(CASE WHEN status='pending'    THEN 1 ELSE 0 END) AS pending,
                 SUM(CASE WHEN status='failed'     THEN 1 ELSE 0 END) AS failed,
                 SUM(CASE WHEN status='refunded'   THEN 1 ELSE 0 END) AS refunded,
+                SUM(CASE WHEN status='chargeback' THEN 1 ELSE 0 END) AS chargeback,
                 COALESCE(SUM(amount),0)                               AS total_amount,
                 COALESCE(SUM(CASE WHEN status='completed' THEN amount ELSE 0 END),0) AS completed_amount,
                 COALESCE(AVG(amount),0)                               AS avg_amount

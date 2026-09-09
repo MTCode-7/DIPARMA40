@@ -38,6 +38,12 @@ if (!function_exists('_dp_load_env')) {
 }
 _dp_load_env(ROOT_PATH . '/.env');
 
+// Keep the application language consistent: English is the canonical UI language.
+$_COOKIE['di_parma_lang'] = 'en';
+if (!headers_sent()) {
+    setcookie('di_parma_lang', 'en', time() + (365 * 24 * 3600), '/', '', false, true);
+}
+
 // دالة مساعدة لقراءة قيمة من .env أو getenv
 if (!function_exists('env')) {
     function env(string $key, $default = null) {
@@ -190,7 +196,7 @@ if (!defined('PAYRAM_WEBHOOK_SECRET')) {
 
 // عنوان Ledger للاستلام فقط؛ لا تستخدمه كمحفظة Hot Wallet للإرسال.
 if (!defined('LEDGER_TRC20_ADDRESS')) {
-    define('LEDGER_TRC20_ADDRESS', env('LEDGER_TRC20_ADDRESS', 'TFyAQPrTRdP7zp46RPmE1iiCac1Lh6Bu58'));
+    define('LEDGER_TRC20_ADDRESS', (string) env('LEDGER_TRC20_ADDRESS', ''));
 }
 
 // المحفظة الباردة: Ledger فقط، ولا تُستخدم للإرسال الآلي.
@@ -200,7 +206,7 @@ if (!defined('COLD_WALLET_TRC20_ADDRESS')) {
 
 // عنوان Hot Wallet للإرسال
 if (!defined('HOT_WALLET_TRC20_ADDRESS')) {
-    define('HOT_WALLET_TRC20_ADDRESS', env('HOT_WALLET_TRC20_ADDRESS', 'TKST5Ug2UtAq6iQ8wVzy7tTah1FRgWaWYn'));
+    define('HOT_WALLET_TRC20_ADDRESS', (string) env('HOT_WALLET_TRC20_ADDRESS', ''));
 }
 
 // المفتاح الخاص للمحفظة الساخنة
@@ -216,7 +222,7 @@ if (!defined('WEBHOOK_HMAC_SECRET')) {
     define('WEBHOOK_HMAC_SECRET', env('WEBHOOK_HMAC_SECRET', ''));
 }
 if (!defined('WEBHOOK_VERIFY_SIGNATURE')) {
-    define('WEBHOOK_VERIFY_SIGNATURE', (bool) env('WEBHOOK_VERIFY_SIGNATURE', false));
+    define('WEBHOOK_VERIFY_SIGNATURE', (bool) env('WEBHOOK_VERIFY_SIGNATURE', APP_IS_PROD));
 }
 if (!defined('WEBHOOK_USE_ASYNC_PROCESSING')) {
     define('WEBHOOK_USE_ASYNC_PROCESSING', (bool) env('WEBHOOK_USE_ASYNC_PROCESSING', true));

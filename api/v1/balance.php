@@ -10,7 +10,7 @@ require_once __DIR__ . '/ApiAuth.php';
 header('Content-Type: application/json');
 $client = ApiAuth::verify();
 
-$ledgerAddr = $client['ledger_address'] ?? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2';
+$ledgerAddr = $client['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '');
 
 // جلب رصيد TronScan
 $trxBal = 0; $usdtBal = 0;

@@ -5,8 +5,6 @@
 SERVER_PATH="/var/www/html/DIPARMA40"
 
 FILES=(
-  ".env"
-  ".env.production"
   ".htaccess"
   "includes/config.php"
   "includes/auth_check.php"

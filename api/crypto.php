@@ -32,6 +32,13 @@ $action  = strtolower(trim($_GET['action'] ?? $_POST['action'] ?? ''));
 $userId  = intval($_SESSION['user_id']);
 $gateway = CryptoGateway::getInstance();
 
+$csrfToken = trim((string)($_POST['csrf_token'] ?? $_GET['csrf_token'] ?? ''));
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['action']) && !verifyCsrfToken($csrfToken)) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Invalid CSRF token']);
+    exit();
+}
+
 try {
     switch ($action) {
 
@@ -69,6 +76,11 @@ try {
                 echo json_encode(['success' => false, 'message' => 'POST مطلوب']);
                 break;
             }
+            if (!verifyCsrfToken($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'رمز CSRF غير صالح']);
+                break;
+            }
             $payload = json_decode(file_get_contents('php://input'), true) ?: $_POST;
             echo json_encode($gateway->initBuyCrypto($payload), JSON_UNESCAPED_UNICODE);
             break;
@@ -80,12 +92,27 @@ try {
                 echo json_encode(['success' => false, 'message' => 'POST مطلوب']);
                 break;
             }
+            if (!verifyCsrfToken($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'رمز CSRF غير صالح']);
+                break;
+            }
             $payload = json_decode(file_get_contents('php://input'), true) ?: $_POST;
             echo json_encode($gateway->initSellCrypto($payload), JSON_UNESCAPED_UNICODE);
             break;
 
         // ── تأكيد الدفع الفيات (يُستدعى من Webhook) ─────────
         case 'fiat_confirmed':
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                http_response_code(405);
+                echo json_encode(['success' => false, 'message' => 'POST مطلوب']);
+                break;
+            }
+            if (!verifyCsrfToken($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'رمز CSRF غير صالح']);
+                break;
+            }
             $reference = trim($_GET['reference'] ?? $_POST['reference'] ?? '');
             if (empty($reference)) {
                 echo json_encode(['success' => false, 'message' => 'reference مطلوب']);

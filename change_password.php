@@ -2,6 +2,7 @@
 // change_password.php - أداة إعادة تعيين كلمة المرور (للمدير فقط)
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database.php';
+require_once __DIR__ . '/includes/functions.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -22,13 +23,19 @@ if (!$user || strtolower($user['role'] ?? '') !== 'admin') {
 
 $message = '';
 $messageType = '';
+$csrfToken = generateCsrfToken();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_password'])) {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $message = 'رمز CSRF غير صالح';
+        $messageType = 'error';
+    }
     $targetUsername = trim($_POST['username'] ?? 'admin');
     $newPassword    = $_POST['new_password'] ?? '';
     $confirmPassword = $_POST['confirm_password'] ?? '';
 
-    if (strlen($newPassword) < 8) {
+    if ($messageType === 'error') {
+    } elseif (strlen($newPassword) < 8) {
         $message = '❌ كلمة المرور يجب أن تكون 8 أحرف على الأقل';
         $messageType = 'error';
     } elseif ($newPassword !== $confirmPassword) {
@@ -158,6 +165,7 @@ $users = $db->query('SELECT username FROM ' . DB_PREFIX . 'users ORDER BY userna
     <?php endif; ?>
 
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
         <div class="form-group">
             <label>المستخدم</label>
             <select name="username">

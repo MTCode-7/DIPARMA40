@@ -327,7 +327,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 
   <div class="fld">
     <label>Email</label>
-    <input type="email" id="custEmail" placeholder="customer@example.com" value="client@diparmas.com">
+    <input type="email" id="custEmail" placeholder="أدخل البريد الإلكتروني" value="">
   </div>
   <div class="fld">
     <label><?=$ar?'ملاحظات':'Notes'?> <span style="opacity:.4">(<?=$ar?'اختياري':'optional'?>)</span></label>

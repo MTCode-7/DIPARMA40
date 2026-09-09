@@ -243,7 +243,7 @@ if (in_array($currentStatus, ['pending', 'processing'], true)) {
             $clientSecret = getenv('PAYPAL_CLIENT_SECRET') ?: 
                           ($gatewayConfig['credentials']['client_secret'] ?? '');
             $env = getenv('PAYPAL_ENVIRONMENT') ?: 
-                  ($gatewayConfig['settings']['environment'] ?? 'sandbox');
+                  ($gatewayConfig['settings']['environment'] ?? 'live');
             
             if (!empty($clientId) && !empty($clientSecret)) {
                 $auth = base64_encode($clientId . ':' . $clientSecret);
@@ -315,7 +315,7 @@ if (in_array($currentStatus, ['pending', 'processing'], true)) {
             $apiKey = getenv('MYFATOORAH_API_KEY') ?: 
                      ($gatewayConfig['credentials']['api_key'] ?? '');
             $env = getenv('MYFATOORAH_ENVIRONMENT') ?: 
-                  ($gatewayConfig['settings']['environment'] ?? 'sandbox');
+                  ($gatewayConfig['settings']['environment'] ?? 'live');
             
             if (!empty($apiKey)) {
                 $url = $env === 'production'

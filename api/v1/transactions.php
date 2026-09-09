@@ -119,11 +119,17 @@ $sql = "SELECT
 
 $params = [];
 
-// 5.2 تصفية حسب العميل (إذا كان هناك user_id)
-if (!empty($client['user_id'])) {
-    $sql .= " AND user_id = ?";
-    $params[] = $client['user_id'];
+// 5.2 يجب أن يكون كل API client مربوطاً بحساب واحد قبل كشف المعاملات
+if (empty($client['user_id'])) {
+    http_response_code(403);
+    echo json_encode([
+        'success' => false,
+        'message' => 'API client is not assigned to a user account'
+    ]);
+    exit;
 }
+$sql .= " AND user_id = ?";
+$params[] = (int)$client['user_id'];
 
 // 5.3 تصفية حسب البوابة (جميع البوابات)
 // نأخذ جميع المعاملات من جميع البوابات لأن العميل يستخدم API Key واحد

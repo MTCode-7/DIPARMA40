@@ -150,7 +150,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
   </div>
   <div style="display:flex;align-items:center;gap:10px">
     <span style="font-size:.7rem;color:var(--muted2)">Auto-refresh 30s</span>
-    <a href="https://tronscan.org/#/address/TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2" target="_blank" class="btn btn-green" style="font-size:.72rem">
+    <a href="<?=defined('LEDGER_TRC20_ADDRESS') && LEDGER_TRC20_ADDRESS !== '' ? 'https://tronscan.org/#/address/' . rawurlencode(LEDGER_TRC20_ADDRESS) : '#'?>" target="_blank" class="btn btn-green" style="font-size:.72rem">
       <i class="fas fa-external-link-alt"></i> TronScan
     </a>
     <a href="../dashboard.php" class="btn btn-dark" style="font-size:.72rem">
@@ -227,13 +227,13 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <!-- Ledger Status -->
     <div class="ledger-box">
       <div class="ledger-title"><i class="fas fa-wallet"></i> Ledger TRX Wallet</div>
-      <div class="ledger-addr" onclick="copyText('TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2')" title="Click to copy">
-        TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2
+      <div class="ledger-addr" onclick="copyText(<?=json_encode(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '')?>)" title="Click to copy">
+        <?=htmlspecialchars(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : 'غير مهيأ', ENT_QUOTES, 'UTF-8')?>
       </div>
       <div class="ledger-bal"><?=number_format($usdtBal,2)?> USDT</div>
       <div class="ledger-sub"><?=number_format($trxBal,4)?> TRX (gas)</div>
       <div style="margin-top:12px;display:flex;gap:8px">
-        <a href="https://tronscan.org/#/address/TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2" target="_blank" class="btn btn-green btn-sm" style="font-size:.7rem">
+        <a href="<?=defined('LEDGER_TRC20_ADDRESS') && LEDGER_TRC20_ADDRESS !== '' ? 'https://tronscan.org/#/address/' . rawurlencode(LEDGER_TRC20_ADDRESS) : '#'?>" target="_blank" class="btn btn-green btn-sm" style="font-size:.7rem">
           <i class="fas fa-external-link-alt"></i> TronScan
         </a>
       </div>

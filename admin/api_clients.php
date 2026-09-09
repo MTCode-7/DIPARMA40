@@ -4,6 +4,7 @@ require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireAdmin();
 $db = db();
+$csrfToken = generateCsrfToken();
 
 // ensure table
 try {
@@ -23,11 +24,18 @@ $created = null;
 
 // create client
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_client'])) {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $message = '❌ رمز CSRF غير صالح.';
+    }
+
     $name = trim($_POST['name'] ?? '');
     $webhook = trim($_POST['webhook_url'] ?? '');
-    if ($name === '') {
+
+    if ($message === '' && $name === '') {
         $message = '❌ يرجى إدخال اسم العميل.';
-    } else {
+    }
+
+    if ($message === '') {
         $apiKey = strtoupper(bin2hex(random_bytes(8)));
         $apiSecret = bin2hex(random_bytes(24));
         $db->insert(DB_PREFIX . 'api_clients', [
@@ -38,21 +46,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_client'])) {
             'status'      => 'active',
             'created_at'  => date('Y-m-d H:i:s')
         ]);
-        // persist plain secret in server-side storage for webhook verification (secure file)
+
         try {
-          $secretsFile = __DIR__ . '/../storage/api_secrets.json';
-          $storageDir  = dirname($secretsFile);
-          if (!is_dir($storageDir)) {
-              mkdir($storageDir, 0700, true);
-          }
-          $secrets = [];
-          if (file_exists($secretsFile)) $secrets = json_decode(file_get_contents($secretsFile), true) ?: [];
-          $secrets[$apiKey] = $apiSecret;
-          file_put_contents($secretsFile, json_encode($secrets, JSON_PRETTY_PRINT));
-          @chmod($secretsFile, 0600);
+            $secretsFile = __DIR__ . '/../storage/api_secrets.json';
+            $storageDir  = dirname($secretsFile);
+            if (!is_dir($storageDir)) {
+                mkdir($storageDir, 0700, true);
+            }
+            $secrets = [];
+            if (file_exists($secretsFile)) {
+                $secrets = json_decode(file_get_contents($secretsFile), true) ?: [];
+            }
+            $secrets[$apiKey] = $apiSecret;
+            file_put_contents($secretsFile, json_encode($secrets, JSON_PRETTY_PRINT));
+            @chmod($secretsFile, 0600);
         } catch (Exception $e) {
-          error_log('[api_clients] storage write failed: ' . $e->getMessage());
+            error_log('[api_clients] storage write failed: ' . $e->getMessage());
         }
+
         $message = '✅ تم إنشاء العميل. احتفظ بمفتاح السر المقدم الآن لأنه لن يعرض مرة أخرى.';
         $created = ['api_key' => $apiKey, 'api_secret' => $apiSecret];
     }
@@ -83,6 +94,7 @@ $clients = $db->query('SELECT id,name,api_key,webhook_url,status,created_at FROM
   <?php endif; ?>
 
   <form method="POST" style="margin-bottom:12px;">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
     <label>اسم العميل</label>
     <input name="name" placeholder="مثال: myfatoorah_integration">
     <label style="margin-top:8px">Webhook URL (اختياري)</label>

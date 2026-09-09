@@ -173,7 +173,7 @@ class NuveiAdapter
             'threeD'          => $this->buildThreeDSDetails($params, $siteUrl),
             'merchantDetails' => [
                 'customField1' => $reference,
-                'customField2' => $params['ledger_addr'] ?? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2',
+                'customField2' => $params['ledger_addr'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
             ],
         ];
 
@@ -406,7 +406,7 @@ class NuveiAdapter
             'lastName'  => $nameParts[1] ?? 'CLIENT',
             'email'     => filter_var($p['email'] ?? '', FILTER_VALIDATE_EMAIL)
                             ? $p['email']
-                            : 'client@diparmas.com',
+                            : '',
             'phone'     => preg_replace('/\D/', '', $p['phone'] ?? '971501234567') ?: '971501234567',
             'country'   => strtoupper(substr($p['country'] ?? 'AE', 0, 2)),
             'city'      => trim($p['city']    ?? 'Dubai') ?: 'Dubai',
@@ -420,7 +420,7 @@ class NuveiAdapter
         $ip = trim((string)($p['ip_address'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? ''));
         return [
             'deviceType' => 'DESKTOP',
-            'ipAddress' => filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '1.1.1.1',
+            'ipAddress' => filter_var($ip, FILTER_VALIDATE_IP) ? $ip : null,
             'browser' => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
             'browserUserAgent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
         ];

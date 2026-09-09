@@ -26,6 +26,7 @@ class GatewayConnectionTester
         if (!is_dir(dirname($this->logFile))) @mkdir(dirname($this->logFile), 0755, true);
         require_once __DIR__ . '/Adapters/CryptoComExchangeAdapter.php';
         require_once __DIR__ . '/Adapters/SFOXAdapter.php';
+        require_once __DIR__ . '/PayRamAdapter.php';
     }
 
     // ══════════════════════════════════════════════════════════
@@ -118,6 +119,9 @@ class GatewayConnectionTester
             'paypal'       => $this->testPayPal($creds),
             'braintree'    => $this->testBraintree($creds),
             'wise'         => $this->testWise($creds),
+            'payram'       => $this->testPayRam(),
+            'whop'         => $this->testWhop($creds),
+            'binance'      => $this->testBinance($creds),
             'moonpay'      => $this->testMoonPay($creds),
             'gate_io',
             'gateio'       => $this->testGateIO($creds),
@@ -424,8 +428,8 @@ class GatewayConnectionTester
     // ── Gate.io ──────────────────────────────────────────────
     private function testGateIO(array $creds): array
     {
-        $key    = $creds['api_key']    ?? getenv('GATEIO_API_KEY')    ?: '';
-        $secret = $creds['api_secret'] ?? getenv('GATEIO_API_SECRET') ?: '';
+        $key    = $creds['api_key']    ?? getenv('GATE_IO_API_KEY')    ?: getenv('GATEIO_API_KEY')    ?: '';
+        $secret = $creds['api_secret'] ?? getenv('GATE_IO_SECRET_KEY') ?: getenv('GATEIO_API_SECRET') ?: '';
 
         if (empty($key))    return ['success' => false, 'message' => '❌ Gate.io API Key مفقود'];
         if (empty($secret)) return ['success' => false, 'message' => '❌ Gate.io API Secret مفقود'];
@@ -454,6 +458,40 @@ class GatewayConnectionTester
             return ['success' => false, 'message' => '❌ Gate.io: مفتاح API غير صالح أو INVALID_SIGNATURE'];
         }
         return ['success' => false, 'message' => "❌ Gate.io: HTTP {$res['http_code']} — " . ($res['data']['message'] ?? '')];
+    }
+
+    private function testPayRam(): array
+    {
+        $adapter = new PayRamAdapter();
+        if ($adapter->checkConnection()) {
+            return ['success' => true, 'message' => 'PayRam connected - live ticker API verified'];
+        }
+        return ['success' => false, 'message' => 'PayRam live API check failed'];
+    }
+
+    private function testWhop(array $creds): array
+    {
+        $key = $creds['api_key'] ?? getenv('WHOP_API_KEY') ?: '';
+        if ($key === '') return ['success' => false, 'message' => 'WHOP_API_KEY missing'];
+        $res = $this->curl('GET', 'https://api.whop.com/v5/me', [], ['Authorization: Bearer ' . $key]);
+        if ($res['http_code'] === 200 && !empty($res['data']['id'])) {
+            return ['success' => true, 'message' => 'Whop connected - live API verified'];
+        }
+        return ['success' => false, 'message' => 'Whop live API failed (HTTP ' . $res['http_code'] . ')'];
+    }
+
+    private function testBinance(array $creds): array
+    {
+        $key = $creds['api_key'] ?? getenv('EXCHANGE_API_KEY') ?: getenv('BINANCE_OTC_API_KEY') ?: '';
+        $secret = $creds['secret_key'] ?? getenv('EXCHANGE_SECRET_KEY') ?: getenv('BINANCE_OTC_SECRET_KEY') ?: '';
+        if ($key === '' || $secret === '') return ['success' => false, 'message' => 'Binance live credentials missing'];
+        $query = 'timestamp=' . round(microtime(true) * 1000);
+        $signature = hash_hmac('sha256', $query, $secret);
+        $res = $this->curl('GET', 'https://api.binance.com/api/v3/account?' . $query . '&signature=' . $signature, [], ['X-MBX-APIKEY: ' . $key]);
+        if ($res['http_code'] === 200 && array_key_exists('balances', $res['data'])) {
+            return ['success' => true, 'message' => 'Binance connected - live account API verified'];
+        }
+        return ['success' => false, 'message' => 'Binance live API failed (HTTP ' . $res['http_code'] . ')'];
     }
 
     private function testCryptoCom(array $creds): array

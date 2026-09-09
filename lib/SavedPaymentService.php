@@ -185,7 +185,7 @@ class SavedPaymentService
     public function myfatoorahSaveRecurring(int $userId, string $invoiceId): array
     {
         $apiKey  = getenv('MYFAOORAH_API_KEY');
-        $env     = getenv('MYFAOORAH_ENVIRONMENT') ?: 'sandbox';
+        $env     = getenv('MYFAOORAH_ENVIRONMENT') ?: 'live';
         $baseUrl = $env === 'live' ? 'https://api.myfatoorah.com' : 'https://apitest.myfatoorah.com';
 
         // جلب تفاصيل الفاتورة للحصول على RecurringId
@@ -237,7 +237,7 @@ class SavedPaymentService
         if (!$card) return ['success' => false, 'message' => 'البطاقة غير موجودة'];
 
         $apiKey  = getenv('MYFAOORAH_API_KEY');
-        $env     = getenv('MYFAOORAH_ENVIRONMENT') ?: 'sandbox';
+        $env     = getenv('MYFAOORAH_ENVIRONMENT') ?: 'live';
         $baseUrl = $env === 'live' ? 'https://api.myfatoorah.com' : 'https://apitest.myfatoorah.com';
         $siteUrl = defined('SITE_URL') ? SITE_URL : 'https://diparmas.com';
 

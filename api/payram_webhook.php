@@ -23,32 +23,12 @@ foreach (['HTTP_X_PAYRAM_SIGNATURE','HTTP_X_PAYRAM_WEBHOOK_SIGNATURE','HTTP_X_WE
         break;
     }
 }
-$apiKeyH = $_SERVER['HTTP_API_KEY'] ?? $_SERVER['HTTP_X_API_KEY'] ?? '';
-
 /* ── التحقق من التوقيع ── */
 $payram = new PayRamAdapter();
 
-if ($sigHeader) {
-    if (!$payram->verifyWebhook($rawBody, $sigHeader)) {
-        http_response_code(401);
-        echo json_encode(['error' => 'Invalid signature']);
-        exit;
-    }
-} elseif ($apiKeyH) {
-    $expectedKeys = array_values(array_filter([
-        defined('PAYRAM_WEBHOOK_SECRET') ? PAYRAM_WEBHOOK_SECRET : '',
-        defined('PAYRAM_API_KEY') ? PAYRAM_API_KEY : '',
-        getenv('PAYRAM_WEBHOOK_SECRET') ?: '',
-        getenv('PAYRAM_API_KEY') ?: '',
-    ], static fn($v) => $v !== ''));
-    if (!in_array($apiKeyH, $expectedKeys, true)) {
-        http_response_code(401);
-        echo json_encode(['error' => 'Invalid API key']);
-        exit;
-    }
-} else {
+if (!$sigHeader || !$payram->verifyWebhook($rawBody, $sigHeader)) {
     http_response_code(401);
-    echo json_encode(['error' => 'Webhook authentication required']);
+    echo json_encode(['error' => 'Valid webhook signature required']);
     exit;
 }
 

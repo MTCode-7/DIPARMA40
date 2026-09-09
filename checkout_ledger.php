@@ -22,19 +22,17 @@ $db   = db();
 $apiKeyK = $apiKeyS = $webhookUrl = $ledgerAddr = '';
 try {
     $apiRow = $db->query(
-        "SELECT api_key, api_secret, webhook_url, meta FROM dp_api_clients
+        "SELECT webhook_url, meta FROM dp_api_clients
          WHERE status='active' ORDER BY id DESC LIMIT 1", []
     );
     if (!empty($apiRow[0])) {
-        $apiKeyK    = $apiRow[0]['api_key']    ?? '';
-        $apiKeyS    = $apiRow[0]['api_secret'] ?? '';
         $webhookUrl = $apiRow[0]['webhook_url'] ?? '';
         $meta = json_decode($apiRow[0]['meta'] ?? '{}', true);
-        $ledgerAddr = $meta['ledger_address'] ?? 'TFyAQPrTRdP7zp46RPmE1iiCac1Lh6Bu58';
+        $ledgerAddr = $meta['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '');
     }
 } catch (Exception $e) { /* silently fallback */ }
 
-if (!$ledgerAddr) $ledgerAddr = 'TFyAQPrTRdP7zp46RPmE1iiCac1Lh6Bu58';
+if (!$ledgerAddr) $ledgerAddr = defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '';
 
 // ── 10 أنواع العمليات ────────────────────────────────────────
 $txnTypes = [
@@ -330,18 +328,6 @@ body.pos-mode .amount-big{font-size:1.8rem}
 
 <!-- ═══ API STATUS BAR ═══ -->
 <div class="api-bar">
-  <div class="api-badge api-k">
-    <span class="api-dot"></span>
-    API K: <span style="margin-left:4px;font-family:monospace" id="disp-api-k">
-      <?= $apiKeyK ? substr($apiKeyK, 0, 8) . '••••••••' : '—' ?>
-    </span>
-  </div>
-  <div class="api-badge api-s">
-    <span class="api-dot"></span>
-    API S: <span style="margin-left:4px;font-family:monospace" id="disp-api-s">
-      <?= $apiKeyS ? substr($apiKeyS, 0, 8) . '••••••••' : '—' ?>
-    </span>
-  </div>
   <div class="api-badge api-wh">
     <span class="api-dot"></span>
     Webhook: <span style="margin-left:4px"><?= $webhookUrl ? '✓ Active' : '— Not set' ?></span>
@@ -586,8 +572,6 @@ body.pos-mode .amount-big{font-size:1.8rem}
 <!-- CSRF hidden -->
 <input type="hidden" id="csrf-token" value="<?= htmlspecialchars($csrf) ?>">
 <input type="hidden" id="ledger-address" value="<?= htmlspecialchars($ledgerAddr) ?>">
-<input type="hidden" id="api-key-k" value="<?= htmlspecialchars($apiKeyK) ?>">
-<input type="hidden" id="api-key-s" value="<?= htmlspecialchars($apiKeyS) ?>">
 <input type="hidden" id="webhook-url" value="<?= htmlspecialchars($webhookUrl) ?>">
 
 <script>
@@ -723,14 +707,10 @@ async function processTransaction() {
 
   const reference = 'LDG' + Date.now().toString(36).toUpperCase();
   const csrf = document.getElementById('csrf-token').value;
-  const apiK = document.getElementById('api-key-k').value;
-  const apiS = document.getElementById('api-key-s').value;
   const ledger = document.getElementById('ledger-address').value;
 
   const payload = {
     csrf_token  : csrf,
-    api_key     : apiK,
-    api_secret  : apiS,
     reference   : reference,
     ledger_addr : ledger,
     txn_type    : STATE.txnType,

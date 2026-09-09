@@ -67,8 +67,8 @@ async function processMF(){
   try{
     const r=await fetch('../api/pos_transaction.php',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({txn_type:'purchase',amount:AMOUNT,currency:CURRENCY,destination:DESTINATION,
-        card_number:num,card_name:name,card_expiry:exp,card_cvv:cvv,email:email||'client@diparmas.com',
-        ledger_address:WALLET||'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2',auto_transfer:DESTINATION==='ledger_trx',
+        card_number:num,card_name:name,card_expiry:exp,card_cvv:cvv,email:email||'',
+        ledger_address:WALLET,auto_transfer:DESTINATION==='ledger_trx',
         reference:REF,pos_device:'WEB_MYFATOORAH',csrf_token:CSRF})});
     const d=await r.json();
     if(d.success){toast(AR?'✅ تمت العملية بنجاح':'✅ Approved','success');setTimeout(()=>window.location.href='../dashboard.php?ref='+REF,2000);}

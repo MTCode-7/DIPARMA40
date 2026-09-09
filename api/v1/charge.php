@@ -67,7 +67,7 @@ $cardExpiry  = trim($data['card_expiry'] ?? '');
 $cardCVV     = trim($data['card_cvv']    ?? '');
 $txnType     = strtolower(trim($data['txn_type']  ?? 'purchase'));
 $secMode     = strtoupper(trim($data['sec_mode']  ?? '3D'));
-$ledgerAddr  = trim($data['ledger_address'] ?? $client['ledger_address'] ?? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2');
+$ledgerAddr  = trim($data['ledger_address'] ?? $client['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''));
 $reference   = trim($data['reference'] ?? '') ?: ('API-' . strtoupper(substr(uniqid(), 0, 8)));
 $metadata    = $data['metadata'] ?? [];
 

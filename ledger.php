@@ -243,7 +243,7 @@ async function connectViaDMK() {
     });
 
     // جلب عنوان TRX عبر APDU مباشر (بديل device-signer-kit-tron)
-    const LEDGER_TRX_ADDR = 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2';
+    const LEDGER_TRX_ADDR = <?=json_encode(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '')?>;
     selectedAddress = LEDGER_TRX_ADDR;
     await loadTronAccount(selectedAddress);
     updateStatus(true, 'Ledger Connected — Tron');

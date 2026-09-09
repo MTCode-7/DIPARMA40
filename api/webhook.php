@@ -18,6 +18,7 @@ $logFile = $logDir . '/webhook.log';
 
 $rawPayload = file_get_contents('php://input');
 $headers    = function_exists('getallheaders') ? getallheaders() : [];
+$gateway    = strtolower(trim($_GET['gateway'] ?? ''));
 
 // تسوية أسماء الهيدرات (case-insensitive)
 $normalizedHeaders = [];
@@ -89,41 +90,47 @@ if ($gateway === 'moonpay') {
             "[" . date('Y-m-d H:i:s') . "] MOONPAY: Signature verified OK\n",
             FILE_APPEND
         );
+    } else {
+        http_response_code(503);
+        echo json_encode(['status' => 'error', 'message' => 'MoonPay webhook is not configured']);
+        exit();
     }
 }
 
 // ── التحقق من التوقيع (HMAC أو Stripe signature) إذا كان مفعّلاً ─────
-if ($gateway !== 'moonpay' && defined('WEBHOOK_VERIFY_SIGNATURE') && WEBHOOK_VERIFY_SIGNATURE === true) {
+if ($gateway !== 'moonpay' && (APP_IS_PROD || (defined('WEBHOOK_VERIFY_SIGNATURE') && WEBHOOK_VERIFY_SIGNATURE === true))) {
     $secret = defined('WEBHOOK_HMAC_SECRET') ? WEBHOOK_HMAC_SECRET : '';
-    if (!empty($secret)) {
-        $signatureHeader = $normalizedHeaders['stripe-signature']
-            ?? $normalizedHeaders['x-signature']
-            ?? $normalizedHeaders['x-wise-signature']
-            ?? $normalizedHeaders['x-hub-signature-256']
-            ?? '';
+    $signatureHeader = $normalizedHeaders['stripe-signature']
+        ?? $normalizedHeaders['x-signature']
+        ?? $normalizedHeaders['x-wise-signature']
+        ?? $normalizedHeaders['x-hub-signature-256']
+        ?? '';
 
-        if (!empty($signatureHeader)) {
-            $valid = false;
-            if (!empty($normalizedHeaders['stripe-signature'])) {
-                require_once __DIR__ . '/../lib/Adapters/GatewayWebhookVerifier.php';
-                $valid = GatewayWebhookVerifier::verifyStripeSignature($rawPayload, $signatureHeader, $secret);
-            } else {
-                require_once __DIR__ . '/../lib/Adapters/GatewayWebhookVerifier.php';
-                $valid = GatewayWebhookVerifier::verifyGenericSignature($rawPayload, $signatureHeader, $secret, 'sha256');
-            }
+    if (empty($secret) || empty($signatureHeader)) {
+        file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] SECURITY: Missing webhook verification configuration or signature\n", FILE_APPEND);
+        http_response_code(403);
+        echo json_encode(['status' => 'error', 'message' => 'Webhook signature required']);
+        exit();
+    }
 
-            if (!$valid) {
-                file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] SECURITY: Invalid webhook signature from " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . "\n", FILE_APPEND);
-                http_response_code(403);
-                echo json_encode(['status' => 'error', 'message' => 'Invalid signature']);
-                exit();
-            }
-        }
+    $valid = false;
+    if (!empty($normalizedHeaders['stripe-signature'])) {
+        require_once __DIR__ . '/../lib/Adapters/GatewayWebhookVerifier.php';
+        $valid = GatewayWebhookVerifier::verifyStripeSignature($rawPayload, $signatureHeader, $secret);
+    } else {
+        require_once __DIR__ . '/../lib/Adapters/GatewayWebhookVerifier.php';
+        $valid = GatewayWebhookVerifier::verifyGenericSignature($rawPayload, $signatureHeader, $secret, 'sha256');
+    }
+
+    if (!$valid) {
+        file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] SECURITY: Invalid webhook signature from " . ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . "\n", FILE_APPEND);
+        http_response_code(403);
+        echo json_encode(['status' => 'error', 'message' => 'Invalid signature']);
+        exit();
     }
 }
 
 // ── استخراج المرجع والحالة من هياكل بيانات متعددة ──────────
-$gateway = strtolower(trim($_GET['gateway'] ?? ''));
 
 $reference = null;
 $rawStatus = null;
@@ -196,6 +203,19 @@ switch ($gateway) {
             : (str_contains($eventType, 'DENIED') || str_contains($eventType, 'FAILED') ? 'failed' : 'pending');
         break;
 
+    case 'nuvei':
+        $reference = $data['clientUniqueId']
+            ?? $data['clientRequestId']
+            ?? $data['merchantUniqueId']
+            ?? $data['orderId']
+            ?? $data['transactionId']
+            ?? null;
+        $rawStatus = $data['transactionStatus']
+            ?? $data['status']
+            ?? $data['transaction']['status']
+            ?? null;
+        break;
+
     case 'whop':
         // Whop webhook — معالجة مباشرة عبر WhopAdapter
         require_once __DIR__ . '/../lib/Adapters/WhopAdapter.php';
@@ -256,6 +276,20 @@ try {
     if (!$transaction) {
         http_response_code(404);
         echo json_encode(['status' => 'error', 'message' => 'Transaction not found', 'reference' => $reference]);
+        exit();
+    }
+
+    $payloadAmount = $data['amount'] ?? ($data['data']['amount'] ?? null);
+    $payloadCurrency = $data['currency'] ?? ($data['data']['currency'] ?? null);
+    if ($payloadAmount !== null && is_numeric($payloadAmount)
+        && abs((float)$payloadAmount - (float)($transaction['amount'] ?? 0)) > 0.01) {
+        http_response_code(422);
+        echo json_encode(['status' => 'error', 'message' => 'Webhook amount mismatch']);
+        exit();
+    }
+    if ($payloadCurrency !== null && strtoupper((string)$payloadCurrency) !== strtoupper((string)($transaction['currency'] ?? ''))) {
+        http_response_code(422);
+        echo json_encode(['status' => 'error', 'message' => 'Webhook currency mismatch']);
         exit();
     }
 

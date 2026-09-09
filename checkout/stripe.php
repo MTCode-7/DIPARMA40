@@ -793,7 +793,7 @@ window.selectDest = function(code, el) {
   const wrap = document.getElementById('walletInputWrap');
   wrap.className = 'wallet-input' + (customCodes.includes(code) || isLedger ? ' show' : '');
   if (isLedger) {
-    document.getElementById('walletInputAddr').value = 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2';
+    document.getElementById('walletInputAddr').value = '';
     document.getElementById('walletInputAddr').readOnly = true;
   } else {
     document.getElementById('walletInputAddr').readOnly = false;
@@ -853,7 +853,7 @@ window.processStripe = async function(extra = {}) {
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span> ' + (AR ? 'جاري المعالجة...' : 'Processing...');
 
-  const walletAddr = document.getElementById('walletInputAddr')?.value.trim() || 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2';
+  const walletAddr = document.getElementById('walletInputAddr')?.value.trim() || '';
 
   try {
     let paymentMethodId = null;
@@ -896,7 +896,7 @@ window.processStripe = async function(extra = {}) {
       gateway:           'stripe',
       amount,
       currency,
-      email:             email || 'client@diparmas.com',
+      email:             email || '',
       security_mode:     STATE.secMode,
       payment_method_id: paymentMethodId,
       orig_ref:          origRef,

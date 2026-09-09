@@ -191,23 +191,23 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
     <div class="fld-row">
       <div class="fld">
-        <label style="color:#f0ad4e">RRN <?=$ar?'للبنك':'Bank RRN'?> <span class="req">*</span></label>
+        <label style="color:#f0ad4e">RRN <?=$ar?'للبنك':'Bank RRN'?> <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
         <input type="text" id="cardBankRrn" placeholder="12 digits" maxlength="12"
                oninput="this.value=this.value.replace(/[^0-9]/g,'')">
       </div>
       <div class="fld">
-        <label style="color:#f0ad4e">APPROVAL CODE <?=$ar?'للبنك':'Bank Approval Code'?> <span class="req">*</span></label>
+        <label style="color:#f0ad4e">APPROVAL CODE <?=$ar?'للبنك':'Bank Approval Code'?> <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
         <input type="text" id="cardBankApproval" placeholder="4-6 characters" maxlength="6"
                oninput="this.value=this.value.replace(/[^0-9A-Za-z]/g,'')">
       </div>
     </div>
     <div class="fld-row">
       <div class="fld">
-        <label><?=$ar?'Payment ID أو Transaction ID':'Payment ID or Transaction ID'?> <span class="req">*</span></label>
+        <label><?=$ar?'Payment ID أو Transaction ID':'Payment ID or Transaction ID'?> <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
         <input type="text" id="cardPaymentId" placeholder="PAY... / TXN...">
       </div>
       <div class="fld">
-        <label><?=$ar?'Approval Code الداخلي':'Internal Approval Code'?> <span class="req">*</span></label>
+        <label><?=$ar?'Approval Code الداخلي':'Internal Approval Code'?> <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
         <input type="text" id="cardInternalApproval" placeholder="Internal approval code" maxlength="64">
       </div>
     </div>
@@ -279,11 +279,11 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
     <div class="fld-row">
       <div class="fld">
-        <label><?=$ar?'Payment ID أو Transaction ID':'Payment ID or Transaction ID'?> <span class="req">*</span></label>
+        <label><?=$ar?'Payment ID أو Transaction ID':'Payment ID or Transaction ID'?> <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
         <input type="text" id="paymentIdInput" placeholder="PAY... / TXN...">
       </div>
       <div class="fld">
-        <label><?=$ar?'Approval Code الداخلي':'Internal Approval Code'?> <span class="req">*</span></label>
+        <label><?=$ar?'Approval Code الداخلي':'Internal Approval Code'?> <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
         <input type="text" id="internalApprovalInput" placeholder="Internal approval code" maxlength="64">
       </div>
     </div>
@@ -557,16 +557,13 @@ async function go() {
     var bankApproval = document.getElementById('cardBankApproval').value.trim();
     var paymentId = document.getElementById('cardPaymentId').value.trim();
     var internalApproval = document.getElementById('cardInternalApproval').value.trim();
-    if (!bankRrn || !bankApproval || !paymentId || !internalApproval) {
-      showToast('Bank and internal references are required','error'); btn.disabled=false; resetBtn(); return;
+    if (bankRrn) payload.bank_rrn = bankRrn;
+    if (bankApproval) payload.bank_approval_code = bankApproval;
+    if (paymentId) {
+      payload.payment_id = paymentId;
+      payload.transaction_id = paymentId;
     }
-    payload.rrn = bankRrn;
-    payload.bank_rrn = bankRrn;
-    payload.approval_code = bankApproval;
-    payload.bank_approval_code = bankApproval;
-    payload.payment_id = paymentId;
-    payload.transaction_id = paymentId;
-    payload.internal_approval_code = internalApproval;
+    if (internalApproval) payload.internal_approval_code = internalApproval;
     var exp  = document.getElementById('ccExpiry').value.trim();
     var cvv  = document.getElementById('ccCvv').value.trim();
     var name = document.getElementById('cardName').value.trim();
@@ -593,12 +590,9 @@ async function go() {
     payload.approval_code = apco;
     payload.bank_rrn      = rrn;
     payload.bank_approval_code = apco;
-    payload.payment_id    = document.getElementById('paymentIdInput').value.trim();
+    payload.payment_id = document.getElementById('paymentIdInput').value.trim();
     payload.transaction_id = payload.payment_id;
     payload.internal_approval_code = document.getElementById('internalApprovalInput').value.trim();
-    if (!payload.payment_id || !payload.internal_approval_code) {
-      showToast('Payment ID and internal approval code are required','error'); btn.disabled=false; resetBtn(); return;
-    }
     payload.amount        = ma;
     payload.currency      = document.getElementById('captureCur').value;
     payload.protocol      = '201.3';

@@ -20,7 +20,7 @@ if (empty($moonpayKey) || str_contains($moonpayKey, 'REPLACE')) {
 }
 
 // عنوان Ledger TRX من .env
-$ledgerTRXAddress = 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2';
+$ledgerTRXAddress = defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '';
 
 $t = [
     'title'        => $ar ? 'Ledger — قسم المحفظة' : 'Ledger — Wallet Section',

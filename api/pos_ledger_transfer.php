@@ -35,7 +35,7 @@ if (empty($data['csrf_token']) || !verifyCsrfToken($data['csrf_token'])) {
 }
 
 $reference    = $data['reference']     ?? '';
-$ledgerAddr   = $data['ledger_address'] ?? $data['ledger_addr'] ?? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2';
+$ledgerAddr   = $data['ledger_address'] ?? $data['ledger_addr'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '');
 $usdtAmount   = floatval($data['usdt_amount'] ?? $data['amount'] ?? 0);
 $currency     = strtoupper($data['currency'] ?? 'USD');
 $txnType      = $data['txn_type']   ?? 'purchase';

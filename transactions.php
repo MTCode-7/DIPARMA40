@@ -14,8 +14,10 @@ require_once __DIR__ . '/includes/db_optimized.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/gateways.php';
+requireAdmin();
 
 $db = db();
+$csrfToken = generateCsrfToken();
 dp_ensure_indexes();
 
 $refundMessage = '';
@@ -219,7 +221,7 @@ $totalPages = ceil($totalTransactions / $limit);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DI PARMA | المعاملات المالية</title>
+    <title>DI PARMA | Financial Transactions</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -578,13 +580,13 @@ $totalPages = ceil($totalTransactions / $limit);
             </div>
         </div>
         <div class="nav-links">
-            <a href="index.php" class="nav-link"><i class="fas fa-home"></i> الرئيسية</a>
-            <a href="dashboard.php" class="nav-link"><i class="fas fa-chart-pie"></i> لوحة التحكم</a>
-            <a href="transactions.php" class="nav-link active"><i class="fas fa-list"></i> المعاملات</a>
+            <a href="index.php" class="nav-link"><i class="fas fa-home"></i> Home</a>
+            <a href="dashboard.php" class="nav-link"><i class="fas fa-chart-pie"></i> Dashboard</a>
+            <a href="transactions.php" class="nav-link active"><i class="fas fa-list"></i> Transactions</a>
             <a href="crypto.php" class="nav-link"><i class="fas fa-coins"></i> Crypto</a>
-            <a href="links.php" class="nav-link"><i class="fas fa-link"></i> روابط الدفع</a>
-            <a href="admin/gateway_manager.php" class="nav-link"><i class="fas fa-route"></i> البوابات</a>
-            <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> تغيير الحساب</a>
+            <a href="links.php" class="nav-link"><i class="fas fa-link"></i> Payment Links</a>
+            <a href="admin/gateway_manager.php" class="nav-link"><i class="fas fa-route"></i> Gateways</a>
+            <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> Account Settings</a>
             <a href="logout.php" class="nav-link logout"><i class="fas fa-sign-out-alt"></i></a>
         </div>
     </nav>
@@ -599,35 +601,35 @@ $totalPages = ceil($totalTransactions / $limit);
     <div class="stats-grid fade-in">
         <div class="stat-card">
             <div class="number"><?= number_format($transactionStats['total'] ?? 0) ?></div>
-            <div class="label">إجمالي المعاملات</div>
+            <div class="label">Total Transactions</div>
         </div>
         <div class="stat-card">
             <div class="number green"><?= number_format($transactionStats['completed'] ?? 0) ?></div>
-            <div class="label">مكتملة</div>
+            <div class="label">Completed</div>
         </div>
         <div class="stat-card">
             <div class="number yellow"><?= number_format($transactionStats['pending'] ?? 0) ?></div>
-            <div class="label">قيد الانتظار</div>
+            <div class="label">Pending</div>
         </div>
         <div class="stat-card">
             <div class="number red"><?= number_format($transactionStats['failed'] ?? 0) ?></div>
-            <div class="label">فاشلة</div>
+            <div class="label">Failed</div>
         </div>
         <div class="stat-card">
             <div class="number blue"><?= number_format($transactionStats['refunded'] ?? 0) ?></div>
-            <div class="label">مستردة</div>
+            <div class="label">Refunded</div>
         </div>
         <div class="stat-card">
             <div class="number purple"><?= number_format($transactionStats['chargeback'] ?? 0) ?></div>
-            <div class="label">إلغاء</div>
+            <div class="label">Chargebacks</div>
         </div>
         <div class="stat-card">
             <div class="number"><?= number_format($transactionStats['total_amount'] ?? 0, 2) ?></div>
-            <div class="label">إجمالي المبلغ</div>
+            <div class="label">Total Amount</div>
         </div>
         <div class="stat-card">
             <div class="number" style="color:var(--success);"><?= number_format($transactionStats['completed_amount'] ?? 0, 2) ?></div>
-            <div class="label">مبلغ المكتمل</div>
+            <div class="label">Completed Amount</div>
         </div>
     </div>
 
@@ -636,27 +638,27 @@ $totalPages = ceil($totalTransactions / $limit);
         <form method="GET" action="">
             <div class="filter-grid">
                 <div class="filter-group">
-                    <label><i class="fas fa-search"></i> بحث</label>
-                    <input type="text" name="search" placeholder="المرجع، العميل، البوابة..." value="<?= htmlspecialchars($search) ?>">
+                    <label><i class="fas fa-search"></i> Search</label>
+                    <input type="text" name="search" placeholder="Reference, customer, gateway..." value="<?= htmlspecialchars($search) ?>">
                 </div>
                 <div class="filter-group">
-                    <label><i class="fas fa-circle"></i> الحالة</label>
+                    <label><i class="fas fa-circle"></i> Status</label>
                     <select name="status">
-                        <option value="">الكل</option>
-                        <option value="pending" <?= $status === 'pending' ? 'selected' : '' ?>>قيد الانتظار</option>
-                        <option value="authorized" <?= $status === 'authorized' ? 'selected' : '' ?>>تم التفويض</option>
-                        <option value="captured" <?= $status === 'captured' ? 'selected' : '' ?>>تم الخصم</option>
-                        <option value="settled" <?= $status === 'settled' ? 'selected' : '' ?>>تم التسوية</option>
-                        <option value="completed" <?= $status === 'completed' ? 'selected' : '' ?>>مكتمل</option>
-                        <option value="failed" <?= $status === 'failed' ? 'selected' : '' ?>>فشل</option>
-                        <option value="refunded" <?= $status === 'refunded' ? 'selected' : '' ?>>مسترد</option>
-                        <option value="chargeback" <?= $status === 'chargeback' ? 'selected' : '' ?>>إلغاء</option>
+                        <option value="">All</option>
+                        <option value="pending" <?= $status === 'pending' ? 'selected' : '' ?>>Pending</option>
+                        <option value="authorized" <?= $status === 'authorized' ? 'selected' : '' ?>>Authorized</option>
+                        <option value="captured" <?= $status === 'captured' ? 'selected' : '' ?>>Captured</option>
+                        <option value="settled" <?= $status === 'settled' ? 'selected' : '' ?>>Settled</option>
+                        <option value="completed" <?= $status === 'completed' ? 'selected' : '' ?>>Completed</option>
+                        <option value="failed" <?= $status === 'failed' ? 'selected' : '' ?>>Failed</option>
+                        <option value="refunded" <?= $status === 'refunded' ? 'selected' : '' ?>>Refunded</option>
+                        <option value="chargeback" <?= $status === 'chargeback' ? 'selected' : '' ?>>Chargeback</option>
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label><i class="fas fa-credit-card"></i> البوابة</label>
+                    <label><i class="fas fa-credit-card"></i> Gateway</label>
                     <select name="gateway">
-                        <option value="">الكل</option>
+                        <option value="">All</option>
                         <?php foreach ($gatewaysList as $g): ?>
                             <option value="<?= htmlspecialchars($g['gateway']) ?>" <?= $gateway === $g['gateway'] ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($g['gateway']) ?>
@@ -665,23 +667,23 @@ $totalPages = ceil($totalTransactions / $limit);
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label><i class="fas fa-calendar"></i> من تاريخ</label>
+                    <label><i class="fas fa-calendar"></i> From Date</label>
                     <input type="date" name="date_from" value="<?= htmlspecialchars($date_from) ?>">
                 </div>
                 <div class="filter-group">
-                    <label><i class="fas fa-calendar"></i> إلى تاريخ</label>
+                    <label><i class="fas fa-calendar"></i> To Date</label>
                     <input type="date" name="date_to" value="<?= htmlspecialchars($date_to) ?>">
                 </div>
                 <div class="filter-group">
-                    <label><i class="fas fa-sort"></i> الترتيب</label>
+                    <label><i class="fas fa-sort"></i> Sort Order</label>
                     <select name="sort">
-                        <option value="desc" <?= $sort === 'desc' ? 'selected' : '' ?>>الأحدث أولاً</option>
-                        <option value="asc" <?= $sort === 'asc' ? 'selected' : '' ?>>الأقدم أولاً</option>
+                        <option value="desc" <?= $sort === 'desc' ? 'selected' : '' ?>>Newest First</option>
+                        <option value="asc" <?= $sort === 'asc' ? 'selected' : '' ?>>Oldest First</option>
                     </select>
                 </div>
                 <div class="filter-group" style="display:flex;gap:8px;align-items:end;">
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> تصفية</button>
-                    <a href="transactions.php" class="btn btn-outline"><i class="fas fa-undo"></i> إعادة تعيين</a>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Filter</button>
+                    <a href="transactions.php" class="btn btn-outline"><i class="fas fa-undo"></i> Reset</a>
                 </div>
             </div>
         </form>
@@ -690,13 +692,13 @@ $totalPages = ceil($totalTransactions / $limit);
     <!-- ===== جدول المعاملات ===== -->
     <div class="transactions-section fade-in">
         <div class="header">
-            <h3><i class="fas fa-list"></i> المعاملات (<?= number_format($totalTransactions) ?>)</h3>
+            <h3><i class="fas fa-list"></i> Transactions (<?= number_format($totalTransactions) ?>)</h3>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <span style="font-size:0.7rem;color:#888;">
-                    عرض <?= count($transactions) ?> من <?= number_format($totalTransactions) ?>
+                    Showing <?= count($transactions) ?> of <?= number_format($totalTransactions) ?>
                 </span>
                 <a href="?export=csv&<?= http_build_query($_GET) ?>" class="btn btn-success btn-sm">
-                    <i class="fas fa-file-csv"></i> تصدير
+                    <i class="fas fa-file-csv"></i> Export
                 </a>
             </div>
         </div>
@@ -704,23 +706,23 @@ $totalPages = ceil($totalTransactions / $limit);
         <?php if (empty($transactions)): ?>
             <div class="empty-state">
                 <i class="fas fa-inbox"></i>
-                <p>لا توجد معاملات مطابقة للبحث</p>
+                <p>No transactions match your search.</p>
             </div>
         <?php else: ?>
             <div style="overflow-x:auto;">
                 <table class="transactions-table">
                     <thead>
                         <tr>
-                            <th>المرجع</th>
-                            <th>العميل</th>
-                            <th>المبلغ</th>
-                            <th>البوابة</th>
-                            <th>البروتوكول</th>
-                            <th>الحالة</th>
-                            <th>التاريخ</th>
-                                <th>العملية</th>
-                                <th>العقد</th>
-                                <th>إجراء</th>
+                            <th>Reference</th>
+                            <th>Customer</th>
+                            <th>Amount</th>
+                            <th>Gateway</th>
+                            <th>Protocol</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                                <th>Operation</th>
+                                <th>Contract</th>
+                                <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -733,7 +735,7 @@ $totalPages = ceil($totalTransactions / $limit);
                                 </td>
                                 <td>
                                     <div class="customer-info">
-                                        <div class="name"><?= htmlspecialchars($tx['customer_name'] ?? 'غير معروف') ?></div>
+                                        <div class="name"><?= htmlspecialchars($tx['customer_name'] ?? 'Unknown') ?></div>
                                         <div style="font-size:0.6rem;"><?= htmlspecialchars($tx['customer_email'] ?? '') ?></div>
                                         <?php if ($tx['card_last4']): ?>
                                             <div style="font-size:0.6rem;color:#666;">•••• <?= htmlspecialchars($tx['card_last4']) ?></div>
@@ -888,7 +890,7 @@ function processRefund(reference, amount) {
     fetch('api/refund_transaction.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'reference=' + encodeURIComponent(reference) + '&amount=' + encodeURIComponent(amount) + '&reason=' + encodeURIComponent('Refund requested from transactions page')
+        body: 'csrf_token=' + encodeURIComponent('<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>') + '&reference=' + encodeURIComponent(reference) + '&amount=' + encodeURIComponent(amount) + '&reason=' + encodeURIComponent('Refund requested from transactions page')
     })
     .then(response => response.json())
     .then(data => {

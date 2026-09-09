@@ -13,9 +13,15 @@
 // ============================================================
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-Api-Key, X-Timestamp, X-Signature');
+
+$requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowedOrigins = array_filter(array_map('trim', explode(',', (string) env('CORS_ALLOWED_ORIGINS', ''))));
+if ($requestOrigin !== '' && in_array($requestOrigin, $allowedOrigins, true)) {
+    header('Access-Control-Allow-Origin: ' . $requestOrigin);
+    header('Vary: Origin');
+}
 
 // ظ…ط¹ط§ظ„ط¬ط© ط·ظ„ط¨ط§طھ OPTIONS (CORS Preflight)
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -597,7 +603,7 @@ try {
         
         $clientId = getenv('PAYPAL_CLIENT_ID') ?: '';
         $clientSecret = getenv('PAYPAL_CLIENT_SECRET') ?: '';
-        $env = strtolower(trim(getenv('PAYPAL_ENVIRONMENT') ?: 'sandbox'));
+        $env = strtolower(trim(getenv('PAYPAL_ENVIRONMENT') ?: 'live'));
         
         if (empty($clientId) || empty($clientSecret)) {
             throw new Exception('PayPal credentials not configured');
@@ -691,7 +697,7 @@ try {
         secureLog('Processing MyFatoorah payment: ' . $reference, 'INFO');
         
         $apiKey = getenv('MYFATOORAH_API_KEY') ?: '';
-        $env = getenv('MYFATOORAH_ENVIRONMENT') ?: 'sandbox';
+        $env = getenv('MYFATOORAH_ENVIRONMENT') ?: 'live';
         
         if (empty($apiKey)) {
             throw new Exception('MyFatoorah API key not configured');

@@ -22,7 +22,7 @@ if (!verifyCsrfToken($body['csrf_token'] ?? '')) {
 
 $amount     = (float)($body['amount']     ?? 0);
 $currency   = strtoupper($body['currency'] ?? 'USD');
-$ledgerAddr = trim($body['ledger_addr']   ?? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2');
+$ledgerAddr = trim($body['ledger_addr']   ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''));
 $notes      = trim($body['notes']         ?? '');
 
 if ($amount <= 0) {

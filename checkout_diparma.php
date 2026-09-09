@@ -39,16 +39,13 @@ try {
         $webhookSecret = $rows[0]['webhook_secret'] ?? $rows[0]['api_secret'] ?? '';
         $webhookUrl    = $rows[0]['webhook_url']    ?? '';
         $meta          = json_decode($rows[0]['meta'] ?? '{}', true);
-        $ledgerAddr    = $meta['ledger_address']    ?? 'TFyAQPrTRdP7zp46RPmE1iiCac1Lh6Bu58';
+        $ledgerAddr    = $meta['ledger_address']    ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '');
     }
 } catch (Exception $e) {
     error_log('[checkout_diparma] DB: ' . $e->getMessage());
 }
-if (!$ledgerAddr) $ledgerAddr = 'TFyAQPrTRdP7zp46RPmE1iiCac1Lh6Bu58';
+if (!$ledgerAddr) $ledgerAddr = defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '';
 
-if (!$apiKey) $apiKey = 'CD82DFFE2E4DDB6A';
-if (!$apiSecret) $apiSecret = '1e0ec4b703138796f11cf93673e8762e5dbb04112eb851b1';
-if (!$webhookSecret) $webhookSecret = 'y8K4r7Qz9vT2pX1sB6nF0mL3aR5cH2yU';
 if (!$webhookUrl) $webhookUrl = 'https://diparmas.com/api/webhook.php';
 
 $siteUrl  = defined('SITE_URL') ? rtrim(SITE_URL, '/') : '';
@@ -815,9 +812,6 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--bg);color:
     <div class="panel-title"><i class="fas fa-key" style="color:var(--gold)"></i> DI PARMA API</div>
     <?php
     $apiItems = [
-      ['API K',      $apiKey,        'var(--gold)'],
-      ['API S',      $apiSecret,     'var(--blue)'],
-      ['Webhook S',  $webhookSecret, 'var(--purple)'],
       ['Endpoint',   $endpoint,      'var(--green)'],
     ];
     foreach($apiItems as [$lbl,$val,$clr]):
@@ -859,9 +853,6 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--bg);color:
 
 <!-- HIDDEN DATA -->
 <input type="hidden" id="csrfToken"     value="<?=htmlspecialchars($csrf)?>">
-<input type="hidden" id="apiKeyH"       value="<?=htmlspecialchars($apiKey)?>">
-<input type="hidden" id="apiSecretH"    value="<?=htmlspecialchars($apiSecret)?>">
-<input type="hidden" id="webhookSecH"   value="<?=htmlspecialchars($webhookSecret)?>">
 <input type="hidden" id="webhookUrlH"   value="<?=htmlspecialchars($webhookUrl)?>">
 <input type="hidden" id="endpointH"     value="<?=htmlspecialchars($endpoint)?>">
 <input type="hidden" id="ledgerAddrH"   value="<?=htmlspecialchars($ledgerAddr)?>">
@@ -884,9 +875,6 @@ html,body{height:100%;font-family:'Cairo',sans-serif;background:var(--bg);color:
 // ════════════════════════════════════════════════════════════════
 const AR      = <?=$ar?'true':'false'?>;
 const CSRF    = document.getElementById('csrfToken').value;
-const API_K   = document.getElementById('apiKeyH').value;
-const API_S   = document.getElementById('apiSecretH').value;
-const WH_S    = document.getElementById('webhookSecH').value;
 const WH_URL  = document.getElementById('webhookUrlH').value;
 const EP      = document.getElementById('endpointH').value;
 const LDG_ADDR= document.getElementById('ledgerAddrH').value;
@@ -1119,7 +1107,7 @@ window.runTransaction = async function() {
         body: JSON.stringify({
           action: 'create',
           amount,
-          email: document.getElementById('txnEmail')?.value || 'client@diparmas.com',
+          email: document.getElementById('txnEmail')?.value || '',
           customer_id: 'dp_' + Date.now(),
           reference: 'DP' + Date.now().toString(36).toUpperCase(),
           csrf_token: CSRF,
@@ -1192,9 +1180,6 @@ window.runTransaction = async function() {
     csrf_token     : CSRF,
   };
 
-  const sigStr  = ts + '.' + ref + '.' + amount.toFixed(2);
-  const sig     = await hmacSHA256(API_S, sigStr);
-
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
@@ -1203,9 +1188,7 @@ window.runTransaction = async function() {
       method : 'POST',
       headers: {
         'Content-Type' : 'application/json',
-        'X-Api-Key'    : API_K,
-        'X-Timestamp'  : ts,
-        'X-Signature'  : sig,
+        'X-CSRF-Token' : CSRF,
         'X-Gateway'    : 'diparma-ledger',
       },
       body: JSON.stringify({
@@ -1247,7 +1230,6 @@ window.runTransaction = async function() {
 
     if (data.success) {
       logWh('POST', ref, 'ok');
-      if (WH_URL) fireWebhook(data, ref, ts, payload);
     } else {
       logWh('POST', ref, 'err');
     }
@@ -1272,22 +1254,6 @@ function resetBtn() {
   btn.disabled = false; btn.classList.remove('loading');
   document.getElementById('procIco').className = 'fas fa-lock';
   document.getElementById('procLbl').textContent = AR ? 'تنفيذ عبر DI PARMA' : 'Process via DI PARMA';
-}
-
-// ════════════════════════════════════════════════════════════════
-// WEBHOOK
-// ════════════════════════════════════════════════════════════════
-async function fireWebhook(data, ref, ts, payload) {
-  try {
-    const body = JSON.stringify({ event:'charge.completed', reference:ref, data, timestamp:ts });
-    const sig  = await hmacSHA256(WH_S || API_S, ts + '.' + body);
-    await fetch(WH_URL, {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json', 'X-Signature':sig, 'X-Timestamp':ts },
-      body,
-    });
-    logWh('WEBHOOK', ref, 'ok');
-  } catch(e) { logWh('WEBHOOK', ref, 'err'); }
 }
 
 // ════════════════════════════════════════════════════════════════

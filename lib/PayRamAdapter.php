@@ -3,7 +3,7 @@
  * ============================================================
  * DI PARMA | PayRam Adapter
  * Self-hosted crypto payment gateway
- * BASE_URL: http://65.2.184.57:8080
+ * BASE_URL: configured by PAYRAM_BASE_URL
  * ============================================================
  * APIs:
  *   POST /api/v1/payment              → Create payment
@@ -30,7 +30,7 @@ class PayRamAdapter
             ? PAYRAM_WEBHOOK_SECRET
             : (getenv('PAYRAM_WEBHOOK_SECRET') ?: $this->apiKey);
         $this->baseUrl = rtrim(
-            defined('PAYRAM_BASE_URL') ? PAYRAM_BASE_URL : (getenv('PAYRAM_BASE_URL') ?: 'http://65.2.184.57:8080'),
+            defined('PAYRAM_BASE_URL') ? PAYRAM_BASE_URL : (getenv('PAYRAM_BASE_URL') ?: ''),
             '/'
         );
         $this->timeout = 30;
@@ -46,7 +46,7 @@ class PayRamAdapter
     public function createPayment(array $params): array
     {
         $body = [
-            'customerEmail' => $params['email']       ?? 'client@diparmas.com',
+            'customerEmail' => $params['email']       ?? '',
             'customerId'    => $params['customer_id'] ?? 'user_' . time(),
             'amountInUSD'   => (float)($params['amount'] ?? 0),
         ];
@@ -169,7 +169,7 @@ class PayRamAdapter
         $idempotencyKey = $params['idempotency_key'] ?? ('dp-' . strtoupper(bin2hex(random_bytes(8))));
 
         $body = [
-            'email'          => $params['email']            ?? 'client@diparmas.com',
+            'email'          => $params['email']            ?? '',
             'blockchainCode' => strtoupper($params['blockchain_code'] ?? 'TRX'),
             'currencyCode'   => strtoupper($params['currency_code']   ?? 'USDT'),
             'amount'         => (string)($params['amount']),

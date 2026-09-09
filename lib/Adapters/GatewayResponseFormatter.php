@@ -75,9 +75,14 @@ final class GatewayResponseFormatter
         $authCode    = $rawResponse['auth_code']      ?? '';
 
         if (empty($message)) {
-            $message = $success
-                ? self::successMessage($action, $gateway)
-                : ($rawResponse['message'] ?? '❌ فشلت العملية');
+            if ($success) {
+                $message = self::successMessage($action, $gateway);
+            } else {
+                $message = GatewayErrorMapper::toUserMessage(
+                    $errorCode,
+                    (string)($rawResponse['message'] ?? $rawResponse['raw_message'] ?? '')
+                );
+            }
         }
 
         return [

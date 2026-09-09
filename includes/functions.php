@@ -131,9 +131,22 @@ function storeUploadedDocument(array $file, string $destinationFolder, array $al
     if ($file['error'] !== UPLOAD_ERR_OK) {
         throw new RuntimeException('Upload error code: ' . $file['error']);
     }
+    if (($file['size'] ?? 0) <= 0 || $file['size'] > 10 * 1024 * 1024) {
+        throw new RuntimeException('Uploaded file is too large or empty.');
+    }
     $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($extension, $allowedExtensions, true)) {
         throw new RuntimeException('File type not supported.');
+    }
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
+    $allowedMimeTypes = [
+        'jpg' => 'image/jpeg',
+        'jpeg' => 'image/jpeg',
+        'png' => 'image/png',
+        'pdf' => 'application/pdf',
+    ];
+    if (($allowedMimeTypes[$extension] ?? null) !== $mime) {
+        throw new RuntimeException('Uploaded file content does not match its extension.');
     }
 
     ensureDirectoryExists($destinationFolder);

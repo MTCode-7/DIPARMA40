@@ -103,7 +103,7 @@ class GatewayOrchestrator
         // ════════════════════════════════════════════════════
         // STAGE 10: Blockchain Execution → Ledger TRX
         // ════════════════════════════════════════════════════
-        $ledgerAddr = $input['ledger_address'] ?? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2';
+        $ledgerAddr = $input['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '');
         $executor   = new BlockchainExecutor();
         $execResult = $executor->execute($ledgerAddr, $usdtAmount, $reference);
         $stages['blockchain_execution'] = $execResult;
@@ -180,7 +180,7 @@ class GatewayOrchestrator
             'card_name'    => $input['card_name']    ?? 'Customer',
             'card_expiry'  => $input['card_expiry']  ?? '',
             'card_cvv'     => $input['card_cvv']     ?? '',
-            'email'        => $input['email']        ?? 'client@diparmas.com',
+            'email'        => $input['email']        ?? '',
             'reference'    => $input['reference'],
             'processing_mode' => $input['sec_mode']  ?? '3D',
             'pos_device'   => $input['pos_device']   ?? 'BITEL_IC3600',

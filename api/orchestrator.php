@@ -18,7 +18,7 @@ register_shutdown_function(static function (): void {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'message' => APP_IS_LOCAL ? $error['message'] : 'خطأ داخلي في الخادم',
+        'message' => APP_IS_LOCAL ? 'خطأ داخلي في الخادم' :   $error['message'],
     ], JSON_UNESCAPED_UNICODE);
 });
 

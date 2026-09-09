@@ -124,9 +124,9 @@ class DIPARMAOrchestrator
             'card_name'    => $input['card_name']    ?? '',
             'card_expiry'  => $input['card_expiry']  ?? '',
             'card_cvv'     => $input['card_cvv']     ?? '',
-            'email'        => $input['email']        ?? 'client@diparmas.com',
+            'email'        => $input['email']        ?? '',
             'orig_ref'     => $input['orig_ref']     ?? '',
-            'ledger_addr'  => $input['ledger_addr']  ?? 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2',
+            'ledger_addr'  => $input['ledger_addr']  ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
             'processing_mode' => $secMode,
             'pos_device'   => $posId ? ($this->POS_TERMINALS[$posId]['type'] ?? 'BITEL_IC3600') : 'WEB',
             'pos_id'       => $posId,
@@ -311,7 +311,7 @@ class DIPARMAOrchestrator
                 'NotificationOption' => 'LNK',
                 'InvoiceValue'       => $p['amount'],
                 'CurrencyIso'        => $p['currency'],
-                'CustomerEmail'      => $p['email'] ?? 'client@diparmas.com',
+                'CustomerEmail'      => $p['email'] ?? '',
                 'CallBackUrl'        => $siteUrl . '/payment_success.php?ref=' . $p['reference'],
                 'ErrorUrl'           => $siteUrl . '/checkout_router.php?error=1',
                 'CustomerReference'  => $p['reference'],
@@ -348,7 +348,7 @@ class DIPARMAOrchestrator
                 'target_currency'  => 'USD',
                 'reference'        => $p['reference'],
                 'recipient_name'   => $p['card_name'] ?? 'DI PARMA',
-                'recipient_email'  => $p['email']     ?? 'client@diparmas.com',
+                'recipient_email'  => $p['email']     ?? '',
             ]);
         } catch (Exception $e) {
             return ['success'=>false,'message'=>'Wise: '.$e->getMessage()];

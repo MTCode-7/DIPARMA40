@@ -348,7 +348,7 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
   <!-- Ledger Status -->
   <div class="ledger-card">
     <div class="ledger-title"><i class="fas fa-wallet"></i> Ledger TRX</div>
-    <div class="ledger-addr" id="ledgerAddr">TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2</div>
+    <div class="ledger-addr" id="ledgerAddr"><?=htmlspecialchars(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '', ENT_QUOTES, 'UTF-8')?></div>
     <div class="ledger-bal" id="ledgerBal">— USDT</div>
     <div style="font-size:.7rem;color:var(--muted2);margin-top:4px" id="ledgerTRX">— TRX</div>
     <button class="btn btn-dark btn-sm btn-full" style="margin-top:10px;font-size:.72rem"
@@ -426,7 +426,7 @@ const POS = {
   amount: '',
   currency: 'USD',
   ledgerConnected: false,
-  ledgerAddress: 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2',
+  ledgerAddress: <?=json_encode(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '')?>,
   lastTxn: null,
 };
 
@@ -866,7 +866,7 @@ function toast(msg, type='info') {
 }
 
 // Init
-loadLedgerBalance('TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2');
+loadLedgerBalance(POS_CONFIG.ledgerAddress);
 </script>
 </body>
 </html>

@@ -100,7 +100,7 @@ foreach ($gateways as $gw) {
     <td>" . (empty($merchantId) ? '-' : $merchantId) . "</td>
     <td>" . ($settings['webhook_url'] ?? $settings['webhook'] ?? '-') . "</td>
     <td>" . ($settings['success_url'] ?? $config['urls']['success'] ?? '-') . "</td>
-    <td>" . ($settings['environment'] ?? $config['environment'] ?? 'sandbox') . "</td>
+    <td>" . ($settings['environment'] ?? $config['environment'] ?? 'live') . "</td>
     <td>" . implode(', ', $config['features'] ?? []) . "</td>
     <td>" . implode(', ', $config['card_types'] ?? []) . "</td>
     <td>" . implode(', ', array_slice($config['currencies'] ?? [], 0, 5)) . "</td>

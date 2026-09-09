@@ -33,7 +33,6 @@
 // ============================================================
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-Api-Key, X-Timestamp, X-Signature, X-POS-Device');
 
@@ -60,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/v1/ApiAuth.php';
 
 // بدء الجلسة (إذا لم تكن مبدوءة)
 if (session_status() === PHP_SESSION_NONE) {
@@ -71,7 +71,7 @@ if (session_status() === PHP_SESSION_NONE) {
 // ============================================================
 
 if (!defined('LEDGER_TRC20_ADDRESS')) {
-    define('LEDGER_TRC20_ADDRESS', getenv('LEDGER_TRC20_ADDRESS') ?: 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2');
+    define('LEDGER_TRC20_ADDRESS', getenv('LEDGER_TRC20_ADDRESS') ?: '');
 }
 
 if (!defined('HOT_WALLET_TRC20_ADDRESS')) {
@@ -114,6 +114,28 @@ $autoTransfer = (bool)($data['auto_transfer'] ?? false);
 $posDevice = $data['pos_device'] ?? 'BITEL_IC3600';
 $extra = $data['extra'] ?? [];
 $userId = intval($_SESSION['user_id'] ?? 0);
+
+if ($userId > 0) {
+    if (!verifyCsrfToken($data['csrf_token'] ?? '')) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Invalid CSRF token']);
+        exit;
+    }
+} else {
+    try {
+        $apiClient = ApiAuth::verify();
+        $userId = (int)($apiClient['user_id'] ?? 0);
+        if ($userId <= 0) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'API client is not assigned to a user account']);
+            exit;
+        }
+    } catch (Throwable $e) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Authentication required']);
+        exit;
+    }
+}
 
 // بيانات إضافية
 $manualApproval = $extra['approval_code'] ?? '';
@@ -288,7 +310,7 @@ if ($useNuvei && $cardType === 'CLOUD') {
             'city' => $data['city'] ?? 'Dubai',
             'address' => $data['address'] ?? 'Al Barsha 1, Dubai, UAE',
             'zip' => $data['zip'] ?? '00000',
-            'ip_address' => $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '1.1.1.1',
+            'ip_address' => $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? null,
             'user_token_id' => 'user_' . $userId . '_' . time(),
             'pos_device' => $posDevice,
             'related_transaction_id' => $origRef,

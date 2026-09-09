@@ -379,7 +379,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
         <div id="ledgerField" style="display:none;margin-top:8px">
           <div class="fld">
             <label><i class="fas fa-wallet" style="color:var(--green)"></i> <?=$ar?'عنوان Ledger TRX':'Ledger TRX Address'?></label>
-            <input type="text" id="ledgerAddr" value="TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2" readonly style="font-family:'Share Tech Mono',monospace;font-size:.75rem">
+            <input type="text" id="ledgerAddr" value="<?=htmlspecialchars(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '', ENT_QUOTES, 'UTF-8')?>" readonly style="font-family:'Share Tech Mono',monospace;font-size:.75rem">
           </div>
           <div style="font-size:.68rem;color:var(--muted2);margin-top:3px"><?=$ar?'USDT يُرسَل تلقائياً بعد وصول التحويل':'USDT auto-sent after transfer received'?></div>
         </div>
@@ -762,7 +762,7 @@ window.processTransfer = async function(extra = {}) {
     destData.swift = 'BOMLAEADXXX';
     destData.country = 'AE';
     destData.auto_to_ledger = true;
-    destData.ledger_address = document.getElementById('ledgerAddr')?.value || 'TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2';
+    destData.ledger_address = document.getElementById('ledgerAddr')?.value || '';
   }
 
   btn.disabled = true;
@@ -774,7 +774,7 @@ window.processTransfer = async function(extra = {}) {
     source_currency: src,
     target_currency: tgt,
     recipient_name:  destData.recipient_name || name,
-    recipient_email: email || 'client@diparmas.com',
+    recipient_email: email || '',
     reference:       REF,
     destination:     dest,
     method:          STATE.method,

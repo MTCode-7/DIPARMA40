@@ -306,7 +306,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
     <div class="fld">
       <label><?=$ar?'وجهة Ledger (TRX)':'Ledger Address (TRX)'?></label>
-      <input type="text" id="ledgerAddr" value="TEwLFWlwK55b7PuFfzgH1H2f3xs3pLgLn2">
+      <input type="text" id="ledgerAddr" value="<?=htmlspecialchars(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '', ENT_QUOTES, 'UTF-8')?>">
     </div>
 
     <button class="proc-btn" id="procBtn" onclick="runTransaction()">
@@ -376,7 +376,7 @@ async function runTransaction() {
     card_name   : document.getElementById('cardName').value,
     card_expiry : document.getElementById('cardExp').value,
     card_cvv    : document.getElementById('cardCvv').value,
-    email       : document.getElementById('email').value || 'client@diparmas.com',
+    email       : document.getElementById('email').value || '',
     orig_ref    : document.getElementById('origRef').value,
     ledger_addr : document.getElementById('ledgerAddr').value,
     pos_id      : S.pos || null,
