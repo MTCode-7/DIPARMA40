@@ -819,7 +819,7 @@ async function sendToServer(extra) {
                 document.getElementById('gatewayApprovalCode').value = d.gateway_approval_code || d.approval_code || '';
                 document.getElementById('gatewayPaymentIdWrap').style.display = '';
                 document.getElementById('gatewayApprovalCodeWrap').style.display = '';
-                window.location.href = '../receipt.php?ref=' + encodeURIComponent(REF);
+                window.location.href = '../receipt.php?ref=' + encodeURIComponent(d.reference || REF);
             }, 2000);
         } else {
             toast(d.message || (AR ? 'فشلت العملية' : 'Transaction failed'), 'error');

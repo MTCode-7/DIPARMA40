@@ -63,7 +63,7 @@ class PaymentOrchestrator
         $cardProvider = strtolower($input['card_provider']      ?? getenv('CARD_PROVIDER') ?: 'nuvei');
         $protocol     = trim($input['protocol']                 ?? '');
         $paymentType  = strtoupper(trim($input['payment_type']  ?? ''));
-        $reference    = generateReference('ORD');
+        $reference    = $this->resolveReference($input);
 
         // ══ مسار خاص: بروتوكول 201.3 — MOTO ══════════════════
         if ($protocol === '201.3' || in_array($paymentType, ['MOTO', 'ONLINE_MOTO'], true)) {
@@ -404,6 +404,25 @@ class PaymentOrchestrator
     }
 
     // ── مساعد ───────────────────────────────────────────────
+
+    /**
+     * يستخدم المرجع المعروض في صفحة الدفع حتى تجده صفحة الإيصال.
+     * العمود UNIQUE بطول 100، فأي مرجع غير صالح أو مستخدم مسبقاً يُستبدل بمرجع مُولَّد.
+     */
+    private function resolveReference(array $input): string
+    {
+        $requested = trim((string)($input['reference'] ?? ''));
+
+        if (!preg_match('/^[A-Za-z0-9_-]{6,100}$/', $requested)) {
+            return generateReference('ORD');
+        }
+
+        if ($this->db->find('transactions', ['reference' => $requested])) {
+            return generateReference('ORD');
+        }
+
+        return $requested;
+    }
 
     private function fail(string $message, string $reference, array $extra = []): array
     {
