@@ -205,16 +205,14 @@ class PaymentOrchestrator
         $walletAddr   = trim($input['wallet_address']       ?? '');
         $email        = trim($input['email']                ?? '');
 
-        // ── تحديد البوابة الفعلية للمعالجة ───────────────────
-        // إذا كان card_provider = 'paypal' فهذا يعني نوع الشراء وليس البوابة التقنية.
-        // نستخدم CARD_PROVIDER من .env كبوابة المعالجة الفعلية.
-        $requestedProvider = strtolower(trim($input['card_provider'] ?? ''));
+        $requestedProvider = strtolower(trim($input['card_provider'] ?? $input['gateway'] ?? ''));
         $envProvider       = strtolower(trim(getenv('CARD_PROVIDER') ?: 'nuvei'));
         $processingGateways = ['nuvei', 'stripe', 'checkout', 'checkout.com', 'paytabs',
-                                'authorizenet', 'authnet', 'authorize_net', 'myfatoorah', 'diparma'];
+                                'authorizenet', 'authnet', 'authorize_net', 'myfatoorah', 'diparma',
+                                'paypal', 'braintree'];
         $cardProvider = in_array($requestedProvider, $processingGateways, true)
             ? $requestedProvider
-            : $envProvider;   // paypal / braintree / unknown → fallback لـ env provider
+            : $envProvider;
 
         $transactionType = strtolower(trim($input['transaction_type'] ?? $input['txn_type'] ?? $input['payment_type'] ?? ''));
         $rrn = trim((string)($input['rrn'] ?? $input['orig_ref'] ?? ''));
@@ -251,11 +249,16 @@ class PaymentOrchestrator
         if (empty($ccExpiry))       return $this->fail('تاريخ انتهاء البطاقة مطلوب', $reference);
         if (!preg_match('/^\d{3,4}$/', $ccCvv)) return $this->fail('CVV غير صالح', $reference);
 
-        // ── حساب السعر ───────────────────────────────────────
-        try {
-            $calc = ExchangeRateService::getInstance()->calculate($fiatAmount, $fiat, $coin);
-        } catch (RuntimeException $e) {
-            return $this->fail('فشل جلب سعر الصرف: ' . $e->getMessage(), $reference);
+        $destination = strtolower(trim((string)($input['destination'] ?? 'gateway')));
+        $needsCrypto = in_array($destination, ['crypto', 'wallet', 'ledger', 'ledger_trx', 'tron_w', 'erc20_w'], true)
+            || $transactionType === 'crypto_purchase';
+        $calc = ['fee_fiat' => 0, 'net_fiat' => $fiatAmount, 'crypto_amount' => 0, 'final_rate' => 0];
+        if ($needsCrypto) {
+            try {
+                $calc = ExchangeRateService::getInstance()->calculate($fiatAmount, $fiat, $coin);
+            } catch (RuntimeException $e) {
+                return $this->fail('فشل جلب سعر الصرف: ' . $e->getMessage(), $reference);
+            }
         }
 
         // ── تحميل Adapters ────────────────────────────────────
@@ -278,21 +281,35 @@ class PaymentOrchestrator
             'card_number'     => $ccNumber,
             'card_expiry'     => $ccExpiry,
             'cvv2'            => $ccCvv,
-            'processing_mode' => '2D',  // 201.3 = 2D دائماً
+            'processing_mode' => '2D',
             'reference'       => $reference,
             'name'            => $input['name']  ?? 'Customer',
             'email'           => $email ?: 'guest@diparmas.com',
             'approval_code'   => $input['approval_code'] ?? '',
         ]);
+        $payload['transaction_label'] = $input['extra']['transaction_label'] ?? $input['transaction_label'] ?? $transactionType;
+        $payload['is_moto'] = !empty($input['extra']['is_moto']) || !empty($input['is_moto']) || in_array($transactionType, ['purchase_offline', 'purchase_online', 'purchase_2d', 'auth_moto'], true);
+        $payload['is_offline'] = $transactionType === 'purchase_offline' || !empty($input['extra']['is_offline']);
 
-        $gatewayResult = GatewayAdapterFactory::process($payload, 'charge', $cardProvider);
+        $authTypes = ['auth', 'auth_hold', 'auth_moto', 'hold'];
+        $captureTypes = ['auth_complete', 'auth_capture', 'capture'];
+        if (in_array($transactionType, $captureTypes, true) && $rrn !== '') {
+            $gatewayResult = GatewayAdapterFactory::process(array_merge($payload, [
+                'transaction_id' => $rrn,
+                'partial_amount' => $fiatAmount,
+            ]), 'capture', $cardProvider);
+        } elseif (in_array($transactionType, $authTypes, true)) {
+            $gatewayResult = GatewayAdapterFactory::process($payload, 'hold', $cardProvider);
+        } else {
+            $gatewayResult = GatewayAdapterFactory::process($payload, 'charge', $cardProvider);
+        }
 
         if (empty($gatewayResult['success'])) {
             return $this->fail($gatewayResult['message'] ?? 'MOTO authorization failed', $reference, ['error_code' => 'MOTO_AUTHORIZATION_FAILED']);
         }
 
         // ── حفظ في DB ─────────────────────────────────────────
-        $txnStatus = 'completed';
+        $txnStatus = in_array($transactionType, $authTypes, true) ? 'authorized' : 'completed';
         $this->db->insert('transactions', [
             'reference'        => $reference,
             'gateway'          => $cardProvider,
@@ -303,8 +320,8 @@ class PaymentOrchestrator
             'status'           => $txnStatus,
             'transaction_type' => $transactionType ?: 'moto_purchase',
             'user_id'          => $userId,
-            'fees'             => 0,
-            'net_amount'       => $fiatAmount,
+            'fees'             => $calc['fee_fiat'] ?? 0,
+            'net_amount'       => $calc['net_fiat'] ?? $fiatAmount,
             'security_mode'    => '2D',
             'gateway_response' => json_encode(array_merge($gatewayResult, [
                 'card_last4'    => substr($ccNumber, -4),

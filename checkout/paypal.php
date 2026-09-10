@@ -426,6 +426,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <div class="txn-btn <?=$code === $txnTypeInit ? 'active' : ''?>" 
            onclick="selectTxnType('<?=$code?>', this)"
            data-type="<?=$code?>"
+           data-security="<?=htmlspecialchars($txn['security'])?>"
            data-orig="<?=$txn['requires_original'] ? '1' : '0'?>">
         <span class="txn-btn-icon" style="color:<?=$txn['color']?>">
           <i class="fas <?=$txn['icon']?>"></i>
@@ -581,7 +582,7 @@ function selectTxnType(type, el) {
     document.querySelectorAll('.txn-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
     STATE.txnType = type;
-    STATE.requiresOriginal = MOTO_2D_TYPES.includes(type);
+    STATE.requiresOriginal = el.dataset.orig === '1';
     
     // Show/hide original reference field
     document.getElementById('extraOrigRef').className = 'extra-fields' + (STATE.requiresOriginal ? ' show' : '');
@@ -698,7 +699,9 @@ if (typeof paypal !== 'undefined') {
         onCancel: function() {
             toast(AR ? 'تم إلغاء الدفع' : 'Payment cancelled', 'info');
         }
-    }).render('#paypal-button-container');
+    }).render('#paypal-button-container').catch(function(err) {
+        console.warn('PayPal buttons failed to render', err);
+    });
 }
 
 // ============================================================
@@ -713,6 +716,9 @@ async function payByCard() {
     const email = document.getElementById('ppEmail').value.trim();
     const origRef = document.getElementById('origRef')?.value || '';
     const authCode = document.getElementById('approvalCode')?.value.trim() || '';
+    const txnType = STATE.txnType || TXN_TYPE;
+    const isAuth = ['auth_hold', 'auth_moto'].includes(txnType);
+    const isCapture = txnType === 'auth_capture';
     
     // Validation
     if (num.length < 13) {
@@ -727,7 +733,7 @@ async function payByCard() {
     if (!name) {
         return toast(AR ? 'أدخل اسم حامل البطاقة' : 'Enter cardholder name', 'error');
     }
-    if (MOTO_2D_TYPES.includes(TXN_TYPE) && TXN_TYPE === 'purchase_advice' && (!origRef || !authCode)) {
+    if (txnType === 'purchase_advice' && (!origRef || !authCode)) {
       return toast(AR ? 'أدخل RRN ورمز موافقة البنك' : 'Enter the bank RRN and approval code', 'error');
     }
     
@@ -737,6 +743,8 @@ async function payByCard() {
     await sendToServer({
       payment_type: 'MOTO',
       protocol: '201.3',
+      card_provider: 'paypal',
+      gateway: 'paypal',
         card_number: num,
         card_expiry: exp,
         card_cvv: cvv,
@@ -749,16 +757,16 @@ async function payByCard() {
         method: 'direct_card',
         orig_ref: origRef,
         approval_code: authCode,
-      txn_type: ['auth_hold', 'auth_moto'].includes(TXN_TYPE) ? 'auth' : (TXN_TYPE === 'auth_capture' ? 'auth_complete' : 'purchase'),
-      extra: ['auth_hold', 'auth_moto'].includes(TXN_TYPE)
+      txn_type: isAuth ? 'auth' : (isCapture ? 'auth_complete' : txnType),
+      extra: isAuth
         ? { moto_indicator: 'M', is_moto: 1, transaction_label: 'MOTO Authorization Hold' }
-        : (MOTO_2D_TYPES.includes(TXN_TYPE)
-          ? { moto_indicator: 'M', is_moto: 1, transaction_label: 'MOTO 2D Purchase' }
+        : (MOTO_2D_TYPES.includes(txnType)
+          ? { moto_indicator: 'M', is_moto: 1, is_offline: txnType === 'purchase_offline' ? 1 : 0, transaction_label: txnType === 'purchase_offline' ? 'Offline MOTO Purchase' : 'MOTO 2D Purchase' }
           : {})
     });
     
     btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-lock"></i> ' + (['auth_hold', 'auth_moto'].includes(TXN_TYPE)
+    btn.innerHTML = '<i class="fas fa-lock"></i> ' + (isAuth
       ? (AR ? 'حجز عبر البطاقة' : 'Authorize via Card')
       : (AR ? 'ادفع بالبطاقة' : 'Pay via Card'));
 }
@@ -769,7 +777,8 @@ async function payByCard() {
 async function sendToServer(extra) {
     try {
         const payload = {
-            txn_type: extra.txn_type || TXN_TYPE,
+            txn_type: extra.txn_type || STATE.txnType || TXN_TYPE,
+            card_provider: extra.card_provider || 'paypal',
             amount: AMOUNT,
             currency: CURRENCY,
             destination: DESTINATION,
@@ -796,7 +805,12 @@ async function sendToServer(extra) {
             body: JSON.stringify(payload)
         });
         
-        const d = await r.json();
+        const raw = await r.text();
+        let d = {};
+        try { d = JSON.parse(raw); } catch (parseErr) {
+            toast(AR ? 'رد غير صالح من الخادم' : 'Invalid server response', 'error');
+            return;
+        }
         
         if (d.success) {
             toast(AR ? '✅ تمت العملية بنجاح' : '✅ Transaction approved', 'success');

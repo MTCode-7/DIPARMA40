@@ -23,6 +23,7 @@ require_once __DIR__ . '/CheckoutAdapter.php';
 require_once __DIR__ . '/PayTabsAdapter.php';
 require_once __DIR__ . '/AuthorizeNetAdapter.php';
 require_once __DIR__ . '/BraintreeAdapter.php';
+require_once __DIR__ . '/PayPalAdapter.php';
 require_once __DIR__ . '/GateIOAdapter.php';
 require_once __DIR__ . '/NuveiAdapter.php';
 require_once __DIR__ . '/../gateways/DIPARMAGateway.php';
@@ -41,7 +42,7 @@ class GatewayAdapterFactory
         'authorize_net' => AuthorizeNetAdapter::class,
         'authnet'       => AuthorizeNetAdapter::class,
         'braintree'     => BraintreeAdapter::class,
-        'paypal'        => BraintreeAdapter::class,
+        'paypal'        => PayPalAdapter::class,
         'gate_io'       => GateIOAdapter::class,
         'gateio'        => GateIOAdapter::class,
         'nuvei'         => NuveiAdapter::class,

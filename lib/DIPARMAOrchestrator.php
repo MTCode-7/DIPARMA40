@@ -291,8 +291,17 @@ class DIPARMAOrchestrator
     {
         try {
             require_once __DIR__ . '/PayPalService.php';
-            $paypal = new PayPalService();
-            return $paypal->createOrder($p);
+            $paypal = PayPalService::getInstance();
+            if (!empty($p['card_number']) || !empty($p['cc_number'])) {
+                $intent = in_array((string)($p['txn_type'] ?? ''), ['auth', 'auth_hold', 'auth_moto'], true) ? 'AUTHORIZE' : 'CAPTURE';
+                return $paypal->processCard($p, $intent);
+            }
+            return $paypal->createOrder(
+                floatval($p['amount'] ?? 0),
+                (string)($p['currency'] ?? 'USD'),
+                (string)($p['reference'] ?? ''),
+                is_array($p) ? $p : []
+            );
         } catch (Exception $e) {
             return ['success'=>false,'message'=>'PayPal: '.$e->getMessage()];
         }

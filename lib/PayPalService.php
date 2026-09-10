@@ -277,6 +277,91 @@ class PayPalService
         }
     }
 
+    /**
+     * Direct card charge/authorize (Advanced Card Processing / MOTO).
+     * $intent: CAPTURE | AUTHORIZE
+     */
+    public function processCard(array $payload, string $intent = 'CAPTURE'): array
+    {
+        if (empty($this->clientId) || empty($this->secretKey)) {
+            return ['success' => false, 'message' => 'PayPal credentials غير مضبوطة', 'error_code' => 'GATEWAY_ERROR'];
+        }
+
+        $intent = strtoupper($intent) === 'AUTHORIZE' ? 'AUTHORIZE' : 'CAPTURE';
+        $amount = round(floatval($payload['amount'] ?? 0), 2);
+        $currency = strtoupper(trim((string)($payload['currency'] ?? 'USD')));
+        $reference = trim((string)($payload['reference'] ?? ''));
+        $cardNumber = preg_replace('/\D/', '', (string)($payload['card_number'] ?? $payload['cc_number'] ?? ''));
+        $cvv = trim((string)($payload['cvv2'] ?? $payload['card_cvv'] ?? $payload['cc_cvv'] ?? ''));
+        $expiry = $this->normalizeCardExpiry((string)($payload['card_expiry'] ?? $payload['cc_expiry'] ?? ''));
+        $name = trim((string)($payload['name'] ?? $payload['card_name'] ?? 'Customer'));
+
+        if ($amount <= 0) {
+            return ['success' => false, 'message' => 'المبلغ غير صالح', 'error_code' => 'GATEWAY_ERROR'];
+        }
+        if (strlen($cardNumber) < 13 || $expiry === '' || !preg_match('/^\d{3,4}$/', $cvv)) {
+            return ['success' => false, 'message' => 'بيانات البطاقة غير مكتملة', 'error_code' => 'INVALID_CARD'];
+        }
+
+        try {
+            $token = $this->getAccessToken();
+            $body = [
+                'intent' => $intent,
+                'payment_source' => [
+                    'card' => [
+                        'name' => $name !== '' ? $name : 'Customer',
+                        'number' => $cardNumber,
+                        'expiry' => $expiry,
+                        'security_code' => $cvv,
+                    ],
+                ],
+                'purchase_units' => [[
+                    'reference_id' => $reference !== '' ? $reference : ('PP-' . strtoupper(bin2hex(random_bytes(6)))),
+                    'custom_id' => $reference,
+                    'description' => $payload['transaction_label'] ?? ($payload['description'] ?? 'DI PARMA Payment'),
+                    'amount' => [
+                        'currency_code' => $currency,
+                        'value' => number_format($amount, 2, '.', ''),
+                    ],
+                ]],
+            ];
+
+            $response = $this->request('POST', '/v2/checkout/orders', $token, $body, [
+                'PayPal-Request-Id: ' . ($reference !== '' ? $reference : uniqid('ppcard_', true)),
+            ]);
+
+            return $this->formatCardOrderResponse($response, $intent, $reference, $amount, $currency);
+        } catch (Exception $e) {
+            $this->log('✗ processCard failed: ' . $e->getMessage());
+            return ['success' => false, 'message' => $e->getMessage(), 'error_code' => 'NETWORK_ERROR'];
+        }
+    }
+
+    public function voidAuthorization(string $authorizationId): array
+    {
+        try {
+            $token = $this->getAccessToken();
+            $response = $this->request(
+                'POST',
+                '/v2/payments/authorizations/' . rawurlencode($authorizationId) . '/void',
+                $token,
+                []
+            );
+            $status = strtoupper((string)($response['status'] ?? ''));
+            if (in_array($status, ['VOIDED', 'COMPLETED'], true) || ($response['_http_code'] ?? 0) === 204) {
+                return [
+                    'success' => true,
+                    'status' => 'cancelled',
+                    'transaction_id' => $authorizationId,
+                    'message' => 'تم إلغاء تفويض PayPal',
+                ];
+            }
+            return ['success' => false, 'message' => $response['message'] ?? 'PayPal void failed', 'raw' => $response];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
     // ══════════════════════════════════════════════════════════
     // [5] التحقق من Webhook
     // ══════════════════════════════════════════════════════════
@@ -306,14 +391,24 @@ class PayPalService
 
     // ── HTTP Helper ──────────────────────────────────────────
 
-    private function request(string $method, string $path, string $token, array $body = []): array
+    private function request(string $method, string $path, string $token, array $body = [], array $extraHeaders = []): array
     {
         $ch = curl_init($this->baseUrl . $path);
+        $hasRequestId = false;
+        foreach ($extraHeaders as $header) {
+            if (stripos((string)$header, 'PayPal-Request-Id:') === 0) {
+                $hasRequestId = true;
+                break;
+            }
+        }
         $headers = [
             'Authorization: Bearer ' . $token,
             'Content-Type: application/json',
-            'PayPal-Request-Id: ' . uniqid('diparma_', true),
         ];
+        if (!$hasRequestId) {
+            $headers[] = 'PayPal-Request-Id: ' . uniqid('diparma_', true);
+        }
+        $headers = array_merge($headers, $extraHeaders);
 
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -323,7 +418,7 @@ class PayPalService
             CURLOPT_CUSTOMREQUEST  => $method,
         ]);
 
-        if (!empty($body)) {
+        if (!empty($body) || in_array($method, ['POST', 'PUT', 'PATCH'], true)) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
         }
 
@@ -331,7 +426,97 @@ class PayPalService
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        return json_decode($res ?: '{}', true) ?: [];
+        $decoded = json_decode($res ?: '{}', true);
+        if (!is_array($decoded)) {
+            $decoded = [];
+        }
+        $decoded['_http_code'] = (int)$code;
+        if ($res !== false && $res !== '' && $decoded === ['_http_code' => (int)$code] && trim($res) !== '' && trim($res) !== '{}') {
+            $decoded['raw_body'] = $res;
+        }
+        return $decoded;
+    }
+
+    private function normalizeCardExpiry(string $expiry): string
+    {
+        $expiry = trim(str_replace([' ', '-'], '/', $expiry));
+        if (preg_match('/^(20\d{2})\/(0[1-9]|1[0-2])$/', $expiry, $m)) {
+            return $m[1] . '-' . $m[2];
+        }
+        if (preg_match('/^(0[1-9]|1[0-2])\/(\d{2}|\d{4})$/', $expiry, $m)) {
+            $year = strlen($m[2]) === 2 ? ('20' . $m[2]) : $m[2];
+            return $year . '-' . $m[1];
+        }
+        return '';
+    }
+
+    private function formatCardOrderResponse(array $response, string $intent, string $reference, float $amount, string $currency): array
+    {
+        $status = strtoupper((string)($response['status'] ?? ''));
+        $orderId = (string)($response['id'] ?? '');
+        $payments = $response['purchase_units'][0]['payments'] ?? [];
+        $capture = $payments['captures'][0] ?? [];
+        $authorization = $payments['authorizations'][0] ?? [];
+        $paymentId = (string)($capture['id'] ?? $authorization['id'] ?? $orderId);
+        $processor = $capture['processor_response'] ?? $authorization['processor_response'] ?? [];
+        $approvalCode = (string)($processor['avs_code'] ?? $capture['id'] ?? $authorization['id'] ?? '');
+
+        if (in_array($status, ['COMPLETED', 'APPROVED'], true) && $paymentId !== '') {
+            $this->log("✓ Card {$intent}: {$orderId} | {$amount} {$currency}");
+            return [
+                'success' => true,
+                'status' => $intent === 'AUTHORIZE' ? 'authorized' : 'completed',
+                'transaction_id' => $paymentId,
+                'payment_id' => $paymentId,
+                'order_id' => $orderId,
+                'authorization_id' => $authorization['id'] ?? '',
+                'approval_code' => $approvalCode,
+                'gateway_approval_code' => $approvalCode,
+                'reference' => $reference,
+                'amount' => $amount,
+                'currency' => $currency,
+                'message' => $intent === 'AUTHORIZE' ? 'تم تفويض البطاقة عبر PayPal' : 'تم الدفع عبر PayPal بنجاح',
+                'raw' => $response,
+            ];
+        }
+
+        $actionLink = '';
+        foreach ($response['links'] ?? [] as $link) {
+            if (($link['rel'] ?? '') === 'payer-action') {
+                $actionLink = $link['href'] ?? '';
+                break;
+            }
+        }
+        if ($status === 'PAYER_ACTION_REQUIRED' && $actionLink !== '') {
+            return [
+                'success' => false,
+                'status' => 'requires_3ds',
+                'requires_3ds' => true,
+                'redirect_url' => $actionLink,
+                'order_id' => $orderId,
+                'reference' => $reference,
+                'amount' => $amount,
+                'currency' => $currency,
+                'message' => 'PayPal requires additional card verification',
+                'raw' => $response,
+            ];
+        }
+
+        $issue = strtoupper((string)($response['details'][0]['issue'] ?? $response['name'] ?? ''));
+        $description = (string)($response['details'][0]['description'] ?? $response['message'] ?? 'PayPal card payment failed');
+        $this->log('✗ processCard: ' . json_encode($response));
+
+        return [
+            'success' => false,
+            'status' => 'declined',
+            'message' => $description,
+            'error_code' => $issue !== '' ? $issue : 'CARD_DECLINED',
+            'order_id' => $orderId,
+            'reference' => $reference,
+            'amount' => $amount,
+            'currency' => $currency,
+            'raw' => $response,
+        ];
     }
 
     private function log(string $msg): void
