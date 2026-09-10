@@ -15,6 +15,7 @@ FILES=(
   "lib/PayRamAdapter.php"
   "lib/PaymentOrchestrator.php"
   "lib/Adapters/GatewayAdapterFactory.php"
+  "lib/Adapters/PayPalAdapter.php"
   "lib/ISO8583/FieldDefinitions.php"
   "lib/ISO8583/Message.php"
   "lib/ISO8583/Processor.php"
