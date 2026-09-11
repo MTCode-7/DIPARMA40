@@ -12,7 +12,7 @@ require_once __DIR__ . '/FXConversionEngine.php';
 require_once __DIR__ . '/BlockchainExecutor.php';
 require_once __DIR__ . '/OnChainMonitor.php';
 require_once __DIR__ . '/SettlementEngine.php';
-require_once __DIR__ . '/../lib/NuveiAdapter.php';
+require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
 
 class GatewayOrchestrator
 {

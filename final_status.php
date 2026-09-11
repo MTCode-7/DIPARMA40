@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/require_admin_web.php';
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';

@@ -46,6 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/api_guard.php';
+require_once __DIR__ . '/v1/ApiAuth.php';
 
 // طھط­ظ…ظٹظ„ ظ…ظƒطھط¨ط§طھ ط§ظ„ط¨ظˆط§ط¨ط§طھ
 if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
@@ -108,6 +110,8 @@ if (!$data) {
     ]);
     exit;
 }
+
+$data['user_id'] = dp_require_payment_auth(is_array($data) ? $data : []);
 
 // ============================================================
 // 5. ط§ط³طھط®ط±ط§ط¬ ظˆطھظ†ط¸ظٹظپ ط§ظ„ط¨ظٹط§ظ†ط§طھ

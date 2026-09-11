@@ -212,7 +212,10 @@ class PaymentOrchestrator
                                 'paypal', 'braintree'];
         $cardProvider = in_array($requestedProvider, $processingGateways, true)
             ? $requestedProvider
-            : $envProvider;
+            : (in_array($envProvider, $processingGateways, true) ? $envProvider : '');
+        if ($cardProvider === '') {
+            return $this->fail('بوابة الدفع غير محددة', $reference);
+        }
 
         $transactionType = strtolower(trim($input['transaction_type'] ?? $input['txn_type'] ?? $input['payment_type'] ?? ''));
         $rrn = trim((string)($input['rrn'] ?? $input['orig_ref'] ?? ''));
@@ -234,6 +237,11 @@ class PaymentOrchestrator
                 'rrn' => $rrn,
                 'approval_code' => $approvalCode,
                 'customer_name' => $input['name'] ?? 'Customer',
+                'card_number' => $input['cc_number'] ?? $input['card_number'] ?? '',
+                'cc_number' => $input['cc_number'] ?? $input['card_number'] ?? '',
+                'card_expiry' => $input['cc_expiry'] ?? $input['card_expiry'] ?? '',
+                'cvv2' => $input['cc_cvv'] ?? $input['cvv2'] ?? '',
+                'transaction_id' => $rrn,
             ]);
 
             return !empty($settlement['success'])

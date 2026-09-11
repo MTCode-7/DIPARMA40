@@ -384,6 +384,35 @@ class ApiAuth
     }
 
     /**
+     * تسجيل طلب API (واجهة عامة)
+     */
+    public static function log(
+        $clientId,
+        string $apiKey,
+        string $endpoint,
+        string $method,
+        string $requestBody = '',
+        $httpCode = null,
+        $responseBody = null,
+        $reference = null,
+        $durationMs = null
+    ): void {
+        $scrub = static function (string $body): string {
+            $decoded = json_decode($body, true);
+            if (!is_array($decoded)) {
+                return mb_substr($body, 0, 4000);
+            }
+            foreach (['card_number', 'cc_number', 'card_cvv', 'cc_cvv', 'cvv', 'cvv2', 'security_code'] as $key) {
+                if (isset($decoded[$key])) {
+                    $decoded[$key] = '[redacted]';
+                }
+            }
+            return mb_substr((string) json_encode($decoded, JSON_UNESCAPED_UNICODE), 0, 4000);
+        };
+        self::logRequest((int) $clientId, $apiKey, $endpoint, $method, $scrub((string) $requestBody));
+    }
+
+    /**
      * تسجيل طلب API
      */
     private static function logRequest(int $clientId, string $apiKey, string $endpoint, string $method, string $body): void

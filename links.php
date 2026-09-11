@@ -14,9 +14,10 @@ require_once __DIR__ . '/includes/db_optimized.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
 
-// ============================================================
-// [1] معالجة الطلبات
-// ============================================================
+$csrfToken = generateCsrfToken();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 $db = db();
 dp_ensure_indexes();
@@ -25,6 +26,10 @@ $messageType = '';
 
 // إنشاء رابط دفع جديد
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $message = 'رمز الأمان غير صالح';
+        $messageType = 'error';
+    } else {
     $linkData = [
         'title' => trim($_POST['title'] ?? ''),
         'amount' => floatval($_POST['amount'] ?? 0),
@@ -101,6 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
             $message = '❌ خطأ: ' . $e->getMessage();
             $messageType = 'error';
         }
+    }
     }
 }
 

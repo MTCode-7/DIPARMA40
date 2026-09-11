@@ -1,10 +1,13 @@
 <?php
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database.php';
+require_once __DIR__ . '/includes/functions.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
+$csrfToken = generateCsrfToken();
 
 $lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
 if (isset($_GET['lang']) && in_array($_GET['lang'], ['ar', 'en'], true)) {
@@ -46,6 +49,9 @@ try {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === '') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $error = $ar ? 'رمز الأمان غير صالح.' : 'Invalid security token.';
+    } else {
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $subject = trim($_POST['subject'] ?? '');
@@ -100,6 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === '') {
             $error = $e->getMessage();
         }
     }
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -118,6 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $error === '') {
 <?php if ($message): ?><div class="notice ok"><?= htmlspecialchars($message) ?></div><?php endif; ?>
 <?php if ($error): ?><div class="notice bad"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 <form method="POST" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
 <label><?= $ar ? 'الاسم' : 'Name' ?></label><input name="name" required value="<?= htmlspecialchars($_POST['name'] ?? '') ?>">
 <label><?= $ar ? 'البريد الإلكتروني' : 'Email' ?></label><input type="email" name="email" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
 <label><?= $ar ? 'موضوع الطلب' : 'Subject' ?></label><input name="subject" required value="<?= htmlspecialchars($_POST['subject'] ?? '') ?>">

@@ -59,6 +59,13 @@ if (!function_exists('verifyCsrfToken')) {
     }
 }
 
+if (!function_exists('validateCsrfToken')) {
+    function validateCsrfToken($token): bool
+    {
+        return verifyCsrfToken($token);
+    }
+}
+
 /**
  * تنسيق المبلغ
  */

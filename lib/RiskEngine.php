@@ -15,9 +15,9 @@ class RiskEngine
     const SCORE_BLOCK  = 90;
 
     // حدود Velocity (عدد العمليات)
-    const VELOCITY_PER_HOUR   = PHP_INT_MAX;
-    const VELOCITY_PER_DAY    = PHP_INT_MAX;
-    const VELOCITY_AMOUNT_DAY = PHP_INT_MAX; // بلا حدود
+    const VELOCITY_PER_HOUR   = 20;
+    const VELOCITY_PER_DAY    = 80;
+    const VELOCITY_AMOUNT_DAY = 50000;
 
     // دول مقيّدة (OFAC + FATF High Risk)
     const BLOCKED_COUNTRIES = [

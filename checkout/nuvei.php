@@ -95,9 +95,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // [2] ط§ط³طھظٹط±ط§ط¯ ط§ظ„ظ…ظ„ظپط§طھ ط§ظ„ظ…ط·ظ„ظˆط¨ط©
 // ============================================================
 
-require_once __DIR__ . '/../includes/config.php';      // ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ظ†ط¸ط§ظ…
-require_once __DIR__ . '/../includes/database.php';    // ط§ظ„ط§طھطµط§ظ„ ط¨ظ‚ط§ط¹ط¯ط© ط§ظ„ط¨ظٹط§ظ†ط§طھ
-require_once __DIR__ . '/../includes/functions.php';   // ط¯ظˆط§ظ„ ظ…ط³ط§ط¹ط¯ط© ط¹ط§ظ…ط©
+require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/api_guard.php';
 
 // ============================================================
 // [3] طھط¹ط±ظٹظپ ط£ظ†ظˆط§ط¹ ط§ظ„ط¹ظ…ظ„ظٹط§طھ ط§ظ„ظ€ 13
@@ -431,6 +432,8 @@ if (!is_array($data) || empty($data)) {
     ]);
     exit;
 }
+
+$data['user_id'] = dp_require_payment_auth($data);
 
 // ============================================================
 // [5] ط§ط³طھط®ط±ط§ط¬ ظ†ظˆط¹ ط§ظ„ط¹ظ…ظ„ظٹط© ظˆط§ظ„ط¨ظٹط§ظ†ط§طھ

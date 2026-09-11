@@ -38,6 +38,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/api_guard.php';
 require_once __DIR__ . '/../lib/DIPARMAOrchestrator.php';
 
 $raw  = file_get_contents('php://input');
@@ -47,6 +48,8 @@ if (!is_array($body)) {
     echo json_encode(['success'=>false,'message'=>'Invalid JSON']);
     exit;
 }
+
+$body['user_id'] = dp_require_payment_auth($body);
 
 /* ── action خاصة ── */
 $action = $body['action'] ?? 'process';

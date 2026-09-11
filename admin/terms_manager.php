@@ -4,14 +4,19 @@ require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 requireAdmin();
+$csrfToken = generateCsrfToken();
 $db = db();
 $message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['terms_text'])) {
-    $text = trim($_POST['terms_text']);
-    if (saveSiteTerms($text)) {
-        $message = '✅ تم حفظ نص الشروط بنجاح.';
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $message = 'رمز الأمان غير صالح.';
     } else {
-        $message = '❌ حدث خطأ عند حفظ الشروط.';
+        $text = trim($_POST['terms_text']);
+        if (saveSiteTerms($text)) {
+            $message = 'تم حفظ نص الشروط بنجاح.';
+        } else {
+            $message = 'حدث خطأ عند حفظ الشروط.';
+        }
     }
 }
 $current = getSiteTerms();
@@ -30,6 +35,7 @@ $current = getSiteTerms();
   <h2>إدارة الشروط والأحكام الافتراضية</h2>
   <?php if ($message): ?><div style="margin:10px 0;padding:8px;background:rgba(255,255,255,0.03);border-radius:8px;"><?= htmlspecialchars($message) ?></div><?php endif; ?>
   <form method="POST">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
     <label>نص الشروط والأحكام:</label>
     <textarea name="terms_text"><?= htmlspecialchars($current) ?></textarea>
     <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">

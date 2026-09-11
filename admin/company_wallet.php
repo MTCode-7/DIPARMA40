@@ -3,12 +3,15 @@ require_once __DIR__ . '/../includes/auth_check.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireAdmin();
-
+$csrfToken = generateCsrfToken();
 $db  = db();
 $msg = '';
 
 // ── تحويل للمحفظة الخارجية ───────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'withdraw') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $msg = ['type'=>'error','text'=>'رمز الأمان غير صالح'];
+    } else {
     $coin    = strtoupper(trim($_POST['coin']    ?? 'USDT'));
     $network = strtoupper(trim($_POST['network'] ?? 'TRC20'));
     $amount  = floatval($_POST['amount'] ?? 0);
@@ -46,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'withd
                 $msg = ['type'=>'error','text'=>'❌ خطأ: ' . $e->getMessage()];
             }
         }
+    }
     }
 }
 
@@ -287,6 +291,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button class="close-x" onclick="document.getElementById('wdModal').classList.remove('open')"><i class="fas fa-times"></i></button>
     <h3><i class="fas fa-paper-plane" style="color:var(--blue)"></i> سحب من محفظة الشركة</h3>
     <form method="POST">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
       <input type="hidden" name="action" value="withdraw">
       <div class="fld">
         <label>العملة والشبكة</label>

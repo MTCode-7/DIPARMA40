@@ -1,6 +1,7 @@
 ﻿<?php
+require_once __DIR__ . '/includes/require_admin_web.php';
 /**
- * DI PARMA | طھطµط¯ظٹط± ط¨ظٹط§ظ†ط§طھ ط§ظ„ط¨ظˆط§ط¨ط§طھ ط¥ظ„ظ‰ CSV
+ * DI PARMA | تصدير بيانات البوابات إلى CSV
  */
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database.php';

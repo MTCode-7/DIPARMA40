@@ -18,7 +18,7 @@
  * ============================================================
  */
 
-require_once __DIR__ . '/NuveiAdapter.php';
+require_once __DIR__ . '/Adapters/NuveiAdapter.php';
 require_once __DIR__ . '/WiseService.php';
 require_once __DIR__ . '/Adapters/GatewayAdapterFactory.php';
 
@@ -70,10 +70,16 @@ class DIPARMAOrchestrator
 
     /* ── أنواع العمليات ───────────────────────────────── */
     private array $TXN_TYPES = [
-        'purchase'        => ['method'=>'purchase',  'needs_orig'=>false],
-        'auth'            => ['method'=>'authorize', 'needs_orig'=>false],
-        'auth_complete'   => ['method'=>'capture',   'needs_orig'=>true ],
-        'purchase_advice' => ['method'=>'purchase',  'needs_orig'=>false],
+        'purchase'          => ['method'=>'purchase',  'needs_orig'=>false],
+        'purchase_2d'       => ['method'=>'purchase',  'needs_orig'=>false],
+        'purchase_offline'  => ['method'=>'purchase',  'needs_orig'=>false],
+        'purchase_online'   => ['method'=>'purchase',  'needs_orig'=>false],
+        'auth'              => ['method'=>'authorize', 'needs_orig'=>false],
+        'auth_hold'         => ['method'=>'authorize', 'needs_orig'=>false],
+        'auth_moto'         => ['method'=>'authorize', 'needs_orig'=>false],
+        'auth_complete'     => ['method'=>'capture',   'needs_orig'=>true ],
+        'auth_capture'      => ['method'=>'capture',   'needs_orig'=>true ],
+        'purchase_advice'   => ['method'=>'purchase',  'needs_orig'=>false],
         'refund'          => ['method'=>'refund',    'needs_orig'=>true ],
         'reversal'        => ['method'=>'void',      'needs_orig'=>true ],
         'balance'         => ['method'=>'balance',   'needs_orig'=>false],

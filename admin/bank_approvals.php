@@ -3,37 +3,44 @@ require_once __DIR__ . '/../includes/auth_check.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 
-$db   = db();
+requireAdmin();
+$csrfToken = generateCsrfToken();
 $lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
 $ar   = ($lang === 'ar');
 $dir  = $ar ? 'rtl' : 'ltr';
 $msg  = '';
 $msgType = '';
+$db   = db();
 
 // معالجة الموافقة / الرفض
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action   = $_POST['action']   ?? '';
-    $id       = intval($_POST['id'] ?? 0);
-    $note     = trim($_POST['admin_note'] ?? '');
-    $adminId  = intval($_SESSION['user_id'] ?? 1);
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $msg = $ar ? 'رمز الأمان غير صالح' : 'Invalid CSRF token';
+        $msgType = 'error';
+    } else {
+        $action   = $_POST['action']   ?? '';
+        $id       = intval($_POST['id'] ?? 0);
+        $note     = trim($_POST['admin_note'] ?? '');
+        $adminId  = intval($_SESSION['user_id'] ?? 1);
 
-    if ($id > 0 && in_array($action, ['approve','reject','complete'])) {
-        $statusMap = ['approve' => 'approved', 'reject' => 'rejected', 'complete' => 'completed'];
-        $newStatus = $statusMap[$action];
-        try {
-            $db->execute(
-                "UPDATE dp_bank_transfers SET status=?, admin_note=?, approved_by=?, approved_at=NOW() WHERE id=?",
-                [$newStatus, $note, $adminId, $id]
-            );
-            $msg = match($action) {
-                'approve'  => $ar ? '✅ تمت الموافقة' : '✅ Approved',
-                'reject'   => $ar ? '❌ تم الرفض' : '❌ Rejected',
-                'complete' => $ar ? '✅ تم الإكمال' : '✅ Completed',
-            };
-            $msgType = $action === 'reject' ? 'error' : 'success';
-        } catch (Exception $e) {
-            $msg = 'Error: ' . $e->getMessage();
-            $msgType = 'error';
+        if ($id > 0 && in_array($action, ['approve','reject','complete'])) {
+            $statusMap = ['approve' => 'approved', 'reject' => 'rejected', 'complete' => 'completed'];
+            $newStatus = $statusMap[$action];
+            try {
+                $db->execute(
+                    "UPDATE dp_bank_transfers SET status=?, admin_note=?, approved_by=?, approved_at=NOW() WHERE id=?",
+                    [$newStatus, $note, $adminId, $id]
+                );
+                $msg = match($action) {
+                    'approve'  => $ar ? 'تمت الموافقة' : 'Approved',
+                    'reject'   => $ar ? 'تم الرفض' : 'Rejected',
+                    'complete' => $ar ? 'تم الإكمال' : 'Completed',
+                };
+                $msgType = $action === 'reject' ? 'error' : 'success';
+            } catch (Exception $e) {
+                $msg = 'Error: ' . $e->getMessage();
+                $msgType = 'error';
+            }
         }
     }
 }
@@ -254,6 +261,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div class="modal-box">
     <div class="modal-title" id="modalTitle"><i class="fas fa-check-circle" style="color:var(--green)"></i> Action</div>
     <form method="POST" id="actionForm">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
       <input type="hidden" name="id" id="modalId">
       <input type="hidden" name="action" id="modalAction">
       <textarea class="modal-note" name="admin_note" id="modalNote"

@@ -2,7 +2,7 @@
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
-
+requireAdmin();
 $csrfToken = generateCsrfToken();
 $lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
 $ar = ($lang === 'ar'); $dir = $ar ? 'rtl' : 'ltr';
@@ -11,7 +11,10 @@ $msg = ''; $msgType = '';
 
 // معالجة الإرسال
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    validateCsrfToken($_POST['csrf_token'] ?? '');
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+        $msg = 'رمز الأمان غير صالح';
+        $msgType = 'error';
+    } else {
 
     $gateway    = trim($_POST['gateway']     ?? '');
     $txType     = trim($_POST['tx_type']     ?? 'capture');
@@ -59,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Exception $e) {
             $msg = 'Error: ' . $e->getMessage(); $msgType = 'error';
         }
+    }
     }
 }
 

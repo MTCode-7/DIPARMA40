@@ -293,8 +293,8 @@ if ($useNuvei && $cardType === 'CLOUD') {
 } elseif ($useNuvei) {
     try {
         // تحميل NuveiAdapter
-        require_once __DIR__ . '/../lib/NuveiAdapter.php';
-        
+        require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
+
         $nuvei = new NuveiAdapter();
         
         $params = [
@@ -407,7 +407,7 @@ if ($useNuvei && $cardType === 'CLOUD') {
 
 if ($txnType === 'balance') {
     try {
-        require_once __DIR__ . '/../lib/NuveiAdapter.php';
+        require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
         $nuvei = new NuveiAdapter();
         $result = $nuvei->balanceInquiry([]);
         $success = $result['success'] ?? true;

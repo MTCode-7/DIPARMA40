@@ -32,7 +32,7 @@ require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/../../includes/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/ApiAuth.php';
-require_once __DIR__ . '/../../lib/NuveiAdapter.php';
+require_once __DIR__ . '/../../lib/Adapters/NuveiAdapter.php';
 
 header('Content-Type: application/json');
 header('X-Content-Type-Options: nosniff');

@@ -3,98 +3,9 @@
  * DI PARMA | NuveiAdapter (SafeCharge)
  * API: https://secure.safecharge.com/ppp/api/v1/
  */
-// ─── تعريف GatewayErrorMapper ────────────────────────────
-if (!class_exists('GatewayErrorMapper')) {
-    class GatewayErrorMapper {
-        public static function buildErrorResponse(
-            string $errorCode, 
-            string $reference, 
-            float $amount = 0, 
-            string $currency = 'USD', 
-            string $message = ''
-        ): array {
-            $errorMessages = [
-                'INVALID_CARD' => 'رقم البطاقة غير صحيح',
-                'EXPIRED_CARD' => 'البطاقة منتهية الصلاحية',
-                'INVALID_CVV' => 'رمز CVV غير صحيح',
-                'INSUFFICIENT_FUNDS' => 'الرصيد غير كافٍ',
-                'DUPLICATE_TXN' => 'عملية مكررة',
-                'LIMIT_EXCEEDED' => 'تم تجاوز الحد المسموح',
-                'CARD_DECLINED' => 'تم رفض البطاقة',
-                'GATEWAY_ERROR' => 'خطأ في بوابة الدفع',
-                'INVALID_AMOUNT' => 'المبلغ غير صالح',
-                'AUTH_FAILED' => 'فشل التحقق من البطاقة',
-                'CAPTURE_FAILED' => 'فشل تحصيل المبلغ',
-                'CANCEL_FAILED' => 'فشل إلغاء العملية',
-                'REFUND_FAILED' => 'فشل استرداد المبلغ',
-            ];
-
-            return [
-                'success' => false,
-                'status' => 'failed',
-                'reference' => $reference,
-                'amount' => $amount,
-                'currency' => $currency,
-                'error_code' => $errorCode,
-                'message' => $message ?: ($errorMessages[$errorCode] ?? 'حدث خطأ في الدفع'),
-                'retryable' => in_array($errorCode, ['INSUFFICIENT_FUNDS', 'LIMIT_EXCEEDED']),
-                'hard_block' => in_array($errorCode, ['INVALID_CARD', 'EXPIRED_CARD', 'CARD_DECLINED']),
-                'requires_3ds' => false,
-                'client_secret' => '',
-                'redirect_url' => '',
-                'decline_code' => $errorCode,
-            ];
-        }
-    }
-}
-// ─── نهاية GatewayErrorMapper ────────────────────────────
-
-// ─── تحميل ملف .env يدوياً ──────────────────────────────
-function loadEnvFile($path) {
-    if (!file_exists($path)) {
-        return;
-    }
-    
-    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        // تخطي التعليقات
-        if (strpos(trim($line), '#') === 0) {
-            continue;
-        }
-        
-        // البحث عن علامة =
-        if (strpos($line, '=') !== false) {
-            list($key, $value) = explode('=', $line, 2);
-            $key = trim($key);
-            $value = trim($value);
-            
-            // إزالة علامات التنصيص إن وجدت
-            if (strpos($value, '"') === 0 || strpos($value, "'") === 0) {
-                $value = substr($value, 1, -1);
-            }
-            
-            // تعيين المتغير عبر putenv و $_ENV و $_SERVER
-            putenv("$key=$value");
-            $_ENV[$key] = $value;
-            $_SERVER[$key] = $value;
-        }
-    }
-}
-
-// تحميل .env من المسار الصحيح
-$envPaths = [
-    __DIR__ . '/../.env',          // إذا كان NuveiAdapter في مجلد فرعي
-    __DIR__ . '/.env',              // إذا كان في نفس المجلد
-    dirname(__DIR__) . '/.env',     // مجلد الأب
-];
-
-foreach ($envPaths as $path) {
-    if (file_exists($path)) {
-        loadEnvFile($path);
-        break;
-    }
-}
-// ─── نهاية تحميل .env ────────────────────────────────────
+require_once __DIR__ . '/GatewayAdapterInterface.php';
+require_once __DIR__ . '/GatewayErrorMapper.php';
+require_once __DIR__ . '/GatewayLogger.php';
 
 class NuveiAdapter implements GatewayAdapterInterface {
 
@@ -286,7 +197,15 @@ class NuveiAdapter implements GatewayAdapterInterface {
         ]);
     }
 
-    public function capture(string $transactionId, ?float $amount = null): array {
+    /**
+     * Capture — يدعم عقد الواجهة (string id) ومسار POS (array params).
+     * @param string|array $transactionId
+     */
+    public function capture(string|array $transactionId, ?float $amount = null): array {
+        if (is_array($transactionId)) {
+            return $this->captureFromParams($transactionId);
+        }
+
         // Settle — تحصيل حجز سابق مباشرة عبر settleTransaction
         if (empty($transactionId)) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', '', 0, '', 'transactionId مطلوب للـ Capture');
@@ -340,6 +259,67 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $this->log("✗ Capture failed: " . json_encode($res));
         return GatewayErrorMapper::buildErrorResponse($errCode, $transactionId, floatval($amount ?? 0), 'USD',
             $res['gwErrorReason'] ?? $res['reason'] ?? $res['errCode'] ?? 'Nuvei capture failed');
+    }
+
+    /** Capture من مسار POS (مصفوفة params مع related_transaction_id + auth_code) */
+    private function captureFromParams(array $params): array
+    {
+        $sessionRes = $this->getSessionToken();
+        if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
+            return ['success' => false, 'message' => 'Session token failed'];
+        }
+
+        $ts          = date('YmdHis');
+        $clientReqId = 'POS-CAP-' . strtoupper(substr(uniqid(), 0, 8));
+        $amount      = number_format((float)($params['amount'] ?? 0), 2, '.', '');
+        $currency    = $params['currency'] ?? 'USD';
+        $clientUniqueId = (string)($params['client_unique_id'] ?? $clientReqId);
+        $authCode    = trim((string)($params['auth_code'] ?? ''));
+        $relatedId   = (string)($params['related_transaction_id'] ?? '');
+        $authorizedAmount = isset($params['authorized_amount'])
+            ? (float)$params['authorized_amount']
+            : null;
+
+        if ($relatedId === '') {
+            return ['success' => false, 'message' => 'related_transaction_id required for capture'];
+        }
+        if ($authCode === '') {
+            return ['success' => false, 'message' => 'Nuvei authCode is required for settlement'];
+        }
+        if ($authorizedAmount !== null && (float)$amount > $authorizedAmount) {
+            return [
+                'success' => false,
+                'message' => 'Settlement amount cannot exceed the original authorized amount',
+            ];
+        }
+
+        $checksum = $this->buildChecksum([
+            $this->merchantId,
+            $this->siteId,
+            $clientReqId,
+            $clientUniqueId,
+            $amount,
+            $currency,
+            $relatedId,
+            $authCode,
+            $this->secretKey,
+        ]);
+
+        $result = $this->request('settleTransaction', [
+            'sessionToken'          => $sessionRes['sessionToken'] ?? '',
+            'merchantId'            => $this->merchantId,
+            'merchantSiteId'        => $this->siteId,
+            'clientRequestId'       => $clientReqId,
+            'clientUniqueId'        => $clientUniqueId,
+            'amount'                => $amount,
+            'currency'              => $currency,
+            'relatedTransactionId'  => $relatedId,
+            'authCode'              => $authCode,
+            'timeStamp'             => $ts,
+            'checksum'              => $checksum,
+        ]);
+
+        return $this->normalizeResponse('capture', $result, $clientReqId);
     }
 
     public function cancel(string $transactionId, string $reason = 'requested_by_customer'): array {
@@ -770,6 +750,25 @@ class NuveiAdapter implements GatewayAdapterInterface {
         return $this->purchase($params);
     }
 
+    /** شراء 2D / MOTO — نفس purchase مع مؤشر MOTO */
+    public function purchase2D(array $params): array
+    {
+        $params['is_moto'] = true;
+        $params['moto_indicator'] = $params['moto_indicator'] ?? 'M';
+        $params['transactionType'] = $params['transactionType'] ?? 'Sale';
+        return $this->purchase($params);
+    }
+
+    /** سلفة نقدية / quasi-cash عبر نفس مسار البيع */
+    public function cashAdvance(array $params): array
+    {
+        $params['is_moto'] = true;
+        $params['moto_indicator'] = $params['moto_indicator'] ?? 'M';
+        $params['transactionType'] = 'Sale';
+        $params['pos_device'] = $params['pos_device'] ?? 'CASH_ADVANCE';
+        return $this->purchase($params);
+    }
+
     // ── Purchase 3D Secure — يرجع redirectUrl لـ OTP ──────
     public function purchase3D(array $params): array
     {
@@ -948,47 +947,47 @@ class NuveiAdapter implements GatewayAdapterInterface {
     //     return $this->normalizeResponse('refund', $result, $clientReqId);
     // }
 
-    /**
- * Refund (استرداد) - استرداد مبلغ لعملية سابقة
- * 
- * @param string $transactionId معرف العملية من Nuvei
- * @param float $amount المبلغ المراد استرداده
- * @param string $currency العملة
- * @return array
- */
-public function refund(string $transactionId, float $amount, string $currency = 'USD'): array {
-    if (empty($transactionId)) {
-        return GatewayErrorMapper::buildErrorResponse(
-            'GATEWAY_ERROR', 
-            '', 
-            0, 
-            $currency, 
-            'transactionId مطلوب للـ Refund'
-        );
-    }
-    
-    if (empty($this->merchantId)) {
-        return GatewayErrorMapper::buildErrorResponse(
-            'GATEWAY_ERROR', 
-            '', 
-            0, 
-            $currency, 
-            'NUVEI credentials missing'
-        );
-    }
+        /**
+     * Refund — يدعم معرفاً نصياً أو مصفوفة POS.
+     * @param string|array $transactionId
+     */
+    public function refund(string|array $transactionId, float $amount = 0, string $currency = 'USD'): array {
+        if (is_array($transactionId)) {
+            return $this->refundFromParams($transactionId);
+        }
 
-    // الحصول على Session Token
-    $sessionRes = $this->getSessionToken();
-    if (($sessionRes['status'] ?? '') !== 'SUCCESS' || empty($sessionRes['sessionToken'])) {
-        return GatewayErrorMapper::buildErrorResponse(
-            'GATEWAY_ERROR',
-            $transactionId,
-            $amount,
-            $currency,
-            'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')
-        );
-    }
-    $sessionToken = $sessionRes['sessionToken'];
+        if (empty($transactionId)) {
+            return GatewayErrorMapper::buildErrorResponse(
+                'GATEWAY_ERROR',
+                '',
+                0,
+                $currency,
+                'transactionId مطلوب للـ Refund'
+            );
+        }
+
+        if (empty($this->merchantId)) {
+            return GatewayErrorMapper::buildErrorResponse(
+                'GATEWAY_ERROR',
+                '',
+                0,
+                $currency,
+                'NUVEI credentials missing'
+            );
+        }
+
+        // الحصول على Session Token
+        $sessionRes = $this->getSessionToken();
+        if (($sessionRes['status'] ?? '') !== 'SUCCESS' || empty($sessionRes['sessionToken'])) {
+            return GatewayErrorMapper::buildErrorResponse(
+                'GATEWAY_ERROR',
+                $transactionId,
+                $amount,
+                $currency,
+                'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')
+            );
+        }
+        $sessionToken = $sessionRes['sessionToken'];
 
     $ts    = date('YmdHis');
     $amt   = number_format($amount, 2, '.', '');
@@ -1053,6 +1052,51 @@ public function refund(string $transactionId, float $amount, string $currency = 
         $res['gwErrorReason'] ?? $res['reason'] ?? $res['errCode'] ?? 'Nuvei refund failed'
     );
 }
+
+    /** Refund من مسار POS (مصفوفة params مع related_transaction_id) */
+    private function refundFromParams(array $params): array
+    {
+        $sessionRes = $this->getSessionToken();
+        if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
+            return ['success' => false, 'message' => 'Session token failed'];
+        }
+
+        $ts          = date('YmdHis');
+        $clientReqId = 'POS-REF-' . strtoupper(substr(uniqid(), 0, 8));
+        $amount      = number_format((float)($params['amount'] ?? 0), 2, '.', '');
+        $currency    = $params['currency'] ?? 'USD';
+        $relatedId   = (string)($params['related_transaction_id'] ?? '');
+
+        if ($relatedId === '') {
+            return ['success' => false, 'message' => 'related_transaction_id required for refund'];
+        }
+
+        $checksum = $this->buildChecksum([
+            $this->merchantId,
+            $this->siteId,
+            $clientReqId,
+            $relatedId,
+            $amount,
+            $currency,
+            $this->secretKey,
+        ]);
+
+        $result = $this->request('refundTransaction', [
+            'sessionToken'          => $sessionRes['sessionToken'] ?? '',
+            'merchantId'            => $this->merchantId,
+            'merchantSiteId'        => $this->siteId,
+            'clientRequestId'       => $clientReqId,
+            'clientUniqueId'        => $clientReqId,
+            'amount'                => $amount,
+            'currency'              => $currency,
+            'relatedTransactionId'  => $relatedId,
+            'timeStamp'             => $ts,
+            'checksum'              => $checksum,
+            'comment'               => $params['reason'] ?? 'Customer refund request',
+        ]);
+
+        return $this->normalizeResponse('refund', $result, $clientReqId);
+    }
 
     // ── Void — إلغاء ───────────────────────────────────────
     public function void(array $params): array

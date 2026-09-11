@@ -74,15 +74,21 @@ class GatewayAdapterFactory
     public static function make(?string $gateway = null, string $mode = '3D'): GatewayAdapterInterface
     {
         $mode    = strtoupper(trim($mode));
-        $gateway = strtolower(trim($gateway ?? getenv('CARD_PROVIDER') ?: 'nuvei'));
+        $resolved = strtolower(trim((string)($gateway ?? '')));
+        if ($resolved === '') {
+            $resolved = strtolower(trim((string)(getenv('CARD_PROVIDER') ?: '')));
+        }
+        if ($resolved === '') {
+            throw new InvalidArgumentException('Gateway is required (pass gateway or set CARD_PROVIDER)');
+        }
 
-        $adapter = self::build($gateway);
+        $adapter = self::build($resolved);
 
         // لا نبدل البوابة بصمت؛ العملية يجب أن تنفذ عبر البوابة التي اختارها المستخدم.
         if (!$adapter->supports($mode)) {
             GatewayLogger::quick('factory', 'fallback',
-                '', false, "$gateway لا تدعم $mode");
-            throw new InvalidArgumentException("Gateway {$gateway} does not support {$mode}");
+                '', false, "$resolved لا تدعم $mode");
+            throw new InvalidArgumentException("Gateway {$resolved} does not support {$mode}");
         }
 
         return $adapter;

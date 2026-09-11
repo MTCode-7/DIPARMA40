@@ -432,7 +432,7 @@ foreach ($dailyStats as $day) {
             <a href="transactions.php" class="nav-link"><i class="fas fa-list"></i> <?= $currentLang==='en'?'Transactions':'المعاملات' ?></a>
             <a href="withdrawal_database.php" class="nav-link"><i class="fas fa-database"></i> <?= $currentLang==='en'?'Withdrawal Database':'قاعدة بيانات السحب' ?></a>
             <a href="crypto.php" class="nav-link"><i class="fas fa-coins"></i> Crypto</a>
-            <a href="wallet.php" class="nav-link"><i class="fas fa-wallet"></i> <?= $currentLang==='en'?'My Wallet':'محفظتي' ?></a>
+            <a href="wallets.php" class="nav-link"><i class="fas fa-wallet"></i> <?= $currentLang==='en'?'My Wallet':'محفظتي' ?></a>
             <a href="ledger/" class="nav-link" style="border-color:rgba(255,215,0,.2);background:rgba(255,215,0,.04)">
               <svg width="13" height="13" viewBox="0 0 100 100" fill="currentColor" style="flex-shrink:0"><rect width="100" height="100" rx="16"/><rect x="15" y="60" width="70" height="10" rx="5" fill="black"/></svg>
               Ledger
@@ -539,7 +539,7 @@ foreach ($dailyStats as $day) {
                         <?php foreach ($recentTransactions as $tx): ?>
                             <tr>
                                 <td>
-                                    <a href="transaction.php?id=<?= $tx['id'] ?>" class="reference-link">
+                                    <a href="receipt.php?ref=<?= urlencode($tx['reference']) ?>" class="reference-link">
                                         <?= htmlspecialchars($tx['reference']) ?>
                                     </a>
                                 </td>
@@ -592,7 +592,7 @@ foreach ($dailyStats as $day) {
             <i class="fas fa-plus-circle"></i>
             <?= $currentLang==='en'?'Add Gateway':'إضافة بوابة' ?>
         </a>
-        <a href="payment.php" class="quick-btn">
+        <a href="checkout_router.php" class="quick-btn">
             <i class="fas fa-hand-holding-usd"></i>
             <?= $currentLang==='en'?'New Payment':'عملية دفع جديدة' ?>
         </a>
@@ -604,11 +604,11 @@ foreach ($dailyStats as $day) {
             <i class="fas fa-database"></i>
             <?= $currentLang==='en'?'Backup':'نسخ احتياطي' ?>
         </a>
-        <a href="settings.php" class="quick-btn">
+        <a href="admin/gateway_manager.php" class="quick-btn">
             <i class="fas fa-cogs"></i>
             <?= $currentLang==='en'?'System Settings':'إعدادات النظام' ?>
         </a>
-        <a href="security.php" class="quick-btn">
+        <a href="security_check.php" class="quick-btn">
             <i class="fas fa-shield-alt"></i>
             <?= $currentLang==='en'?'Security Monitor':'مراقبة الأمان' ?>
         </a>

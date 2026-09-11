@@ -75,7 +75,10 @@ function getCurrentUser() {
 
 function isAdmin() {
     $user = getCurrentUser();
-    return !empty($user['role']) && strtolower((string)$user['role']) === 'admin';
+    if (!empty($user['role']) && strtolower((string)$user['role']) === 'admin') {
+        return true;
+    }
+    return strtolower((string)($_SESSION['role'] ?? '')) === 'admin';
 }
 
 function requireAdmin() {

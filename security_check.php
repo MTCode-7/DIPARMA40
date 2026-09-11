@@ -10,7 +10,7 @@
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
-
+requireAdmin();
 $db = db();
 $securityAlerts = [];
 $systemStatus = [];

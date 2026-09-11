@@ -1,8 +1,9 @@
 <?php
+require_once __DIR__ . '/includes/require_admin_web.php';
+require_once __DIR__ . '/includes/config.php';
 /**
  * ============================================================
  * DI PARMA | تنفيذ تحويل حي عبر Wise API
- * Profile ID: 68162936
  * ============================================================
  */
 
@@ -11,9 +12,12 @@ require_once __DIR__ . '/includes/functions.php';
 
 $db = db();
 
-// بيانات الاعتماد والـ Profile الخاصة بك
-$token = '3EebcECIYNt1U5ur2LichSENbQv_249LyDshnHLrz1Quq1BCA';
-$profileId = 68162936;
+$token = (string)(getenv('WISE_API_TOKEN') ?: getenv('WISE_TOKEN') ?: '');
+$profileId = (int)(getenv('WISE_PROFILE_ID') ?: 0);
+if ($token === '' || $profileId <= 0) {
+    fwrite(STDERR, "WISE_API_TOKEN and WISE_PROFILE_ID must be set\n");
+    exit(1);
+}
 
 // بيانات التحويل (يمكن ربطها بنموذج إدخال متحرك)
 $sourceCurrency = 'USD';

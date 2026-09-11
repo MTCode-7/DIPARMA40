@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/require_admin_web.php';
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 

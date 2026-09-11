@@ -1557,19 +1557,21 @@ function gateway_service() {
                 // نعيد success مباشرة مع تسجيل العملية كـ advice_confirmed
                 $cardNumber = preg_replace('/\D/', '', $payload['card_number'] ?? $payload['cc_number'] ?? '');
                 if (strlen($cardNumber) < 13) {
-                    // Purchase Advice بدون إعادة تحصيل — نؤكد فقط
-                    return [
-                        'success'          => true,
-                        'status'           => 'completed',
-                        'transaction_type' => 'purchase_advice',
-                        'transaction_id'   => $payload['rrn'] ?? ('ADV-' . time()),
-                        'reference'        => $payload['order_ref'] ?? '',
-                        'amount'           => (float)($payload['amount'] ?? 0),
-                        'currency'         => strtoupper($payload['currency'] ?? 'USD'),
-                        'message'          => '✅ Purchase Advice confirmed (RRN: ' . ($payload['rrn'] ?? 'N/A') . ')',
-                        'rrn'              => $payload['rrn'] ?? '',
-                        'approval_code'    => $payload['approval_code'] ?? '',
-                    ];
+                    $authId = trim((string)($payload['rrn'] ?? $payload['transaction_id'] ?? ''));
+                    if ($authId === '') {
+                        return [
+                            'success' => false,
+                            'message' => 'تحصيل الحجز يتطلب معرّف التفويض (RRN / authorization id)',
+                            'error_code' => 'ADVICE_SETTLEMENT_FAILED',
+                        ];
+                    }
+                    $normalizedPayload = GatewayAdapterFactory::normalizePayload(array_merge($payload, [
+                        'processing_mode' => '2D',
+                        'reference'       => $payload['order_ref'] ?? ('ADV-' . time()),
+                        'transaction_id'  => $authId,
+                        'partial_amount'  => (float)($payload['amount'] ?? 0),
+                    ]));
+                    return GatewayAdapterFactory::process($normalizedPayload, 'capture', $gatewayName);
                 }
 
                 // لو توفرت بيانات البطاقة نعالج عبر الـ Factory

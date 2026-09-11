@@ -77,35 +77,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay_now'])) {
     }
 
     if (!$error && $linkData) {
-        // إنشاء سجل معاملة حقيقية
-        $reference = generateReference('TXN');
-        $amount = floatval($linkData['amount']);
-        $transactionData = [
-            'reference' => $reference,
-            'gateway' => $linkData['gateway'] ?? 'default',
-            'amount' => $amount,
+        $qs = http_build_query([
+            'gateway'  => $linkData['gateway'] ?? 'paypal',
+            'amount'   => $linkData['amount'] ?? 0,
             'currency' => $linkData['currency'] ?? 'USD',
-            'customer_name' => $linkData['customer_name'] ?? 'Customer',
-            'customer_email' => $linkData['customer_email'] ?? '',
-            'customer_phone' => $linkData['customer_phone'] ?? '',
-            'status' => 'pending',
-            'payment_method' => 'link',
-            'description' => $linkData['title'] ?? 'دفع عبر رابط',
-            'user_id' => $linkData['user_id'] ?? ($_SESSION['user_id'] ?? 0),
-            'fees' => $amount * 0.025,
-            'net_amount' => $amount * 0.975,
-            'transaction_data' => json_encode($linkData),
-            'created_at' => date('Y-m-d H:i:s')
-        ];
-        
-        try {
-            $db->insert('transactions', $transactionData);
-            $db->update('payment_links', ['uses_count' => ($linkData['uses_count'] ?? 0) + 1], ['id' => $linkData['id']]);
-            header('Location: receipt.php?ref=' . urlencode($reference));
-            exit();
-        } catch (Exception $e) {
-            $error = '❌ فشل في تسجيل المعاملة: ' . $e->getMessage();
-        }
+            'link'     => $linkData['link_id'] ?? $postedLinkId,
+        ]);
+        header('Location: checkout_router.php?' . $qs);
+        exit();
     }
     $showLanding = false;
 }

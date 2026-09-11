@@ -4,7 +4,7 @@ require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
 
 $db = db();
-// Ensure notifications table exists (already created elsewhere on demand)
+$csrfToken = generateCsrfToken();
 try {
     $db->execute("CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "notifications` (
         `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -20,10 +20,14 @@ $userId = intval($_SESSION['user_id'] ?? 0);
 $message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['mark_read_id'])) {
-    $nid = intval($_POST['mark_read_id']);
-    if ($nid > 0) {
-        $db->update('notifications', ['read' => 1], ['id' => $nid]);
-        $message = '✅ تم وضع الإشعار كمقروء';
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $message = 'رمز الأمان غير صالح';
+    } else {
+        $nid = intval($_POST['mark_read_id']);
+        if ($nid > 0) {
+            $db->update('notifications', ['read' => 1], ['id' => $nid, 'user_id' => $userId]);
+            $message = 'تم وضع الإشعار كمقروء';
+        }
     }
 }
 
@@ -61,6 +65,7 @@ $notifications = $db->query('SELECT * FROM ' . DB_PREFIX . "notifications WHERE 
             <td>
               <?php if (!$n['read']): ?>
                 <form method="POST" style="display:inline-block;margin:0;">
+                  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                   <input type="hidden" name="mark_read_id" value="<?= (int)$n['id'] ?>">
                   <button class="btn">وضع كمقروء</button>
                 </form>

@@ -5,11 +5,16 @@ require_once __DIR__ . '/../includes/functions.php';
 
 requireAdmin();
 
+$csrfToken = generateCsrfToken();
 $db = db();
 $message = '';
 $messageType = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['user_action'])) {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $message = 'رمز الأمان غير صالح';
+        $messageType = 'error';
+    } else {
     $userId = intval($_POST['user_id'] ?? 0);
     $action = $_POST['action'] ?? '';
     $role = trim($_POST['role'] ?? '');
@@ -33,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['user_action'])) {
                 $messageType = 'success';
             }
         }
+    }
     }
 }
 
@@ -80,6 +86,7 @@ body{font-family:'Cairo',sans-serif;background:#0b0f17;color:#f7d76b;margin:0;pa
             <td><?= htmlspecialchars($user['created_at']) ?></td>
             <td>
               <form method="POST" style="display:inline-block;margin-left:6px;">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="user_action" value="1">
                 <input type="hidden" name="user_id" value="<?= (int)$user['id'] ?>">
                 <input type="hidden" name="action" value="update_role">
@@ -90,6 +97,7 @@ body{font-family:'Cairo',sans-serif;background:#0b0f17;color:#f7d76b;margin:0;pa
                 <button class="btn" type="submit">تحديث الدور</button>
               </form>
               <form method="POST" style="display:inline-block;margin-left:6px;">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="user_action" value="1">
                 <input type="hidden" name="user_id" value="<?= (int)$user['id'] ?>">
                 <input type="hidden" name="action" value="update_status">
