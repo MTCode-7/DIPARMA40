@@ -421,18 +421,10 @@ foreach ($dailyStats as $day) {
         <div class="nav-links">
             <a href="index.php?account_return=1" class="nav-link"><i class="fas fa-home"></i> <?= $currentLang==='en'?'Home':'الرئيسية' ?></a>
             <a href="dashboard.php" class="nav-link active"><i class="fas fa-chart-pie"></i> <?= $currentLang==='en'?'Dashboard':'لوحة التحكم' ?></a>
-            <a href="gateways.php" class="nav-link"><i class="fas fa-route"></i> <?= $currentLang==='en'?'Payment Gateways':'بوابات الدفع' ?></a>
-            <a href="logout.php" class="nav-link logout"><i class="fas fa-sign-out-alt"></i> <?= $currentLang==='en'?'Logout':'تسجيل الخروج' ?></a>
-            <a href="admin/connection_manager.php" class="nav-link"><i class="fas fa-network-wired"></i> <?= $currentLang==='en'?'Connection':'إدارة الاتصال' ?></a>
-            <a href="wallets.php" class="nav-link"><i class="fas fa-wallet"></i> <?= $currentLang==='en'?'Wallet':'المحفظة' ?></a>
-            <a href="invoices.php" class="nav-link"><i class="fas fa-file-invoice"></i> <?= $currentLang==='en'?'Invoices':'الفواتير' ?></a>
-            <a href="approvals.php" class="nav-link"><i class="fas fa-check-double"></i> <?= $currentLang==='en'?'Approvals':'الموافقات' ?></a>
-            <a href="holds.php" class="nav-link"><i class="fas fa-hand-holding-usd"></i> <?= $currentLang==='en'?'PayPal Holds':'حجوزات PayPal' ?></a>
-            <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> <?= $currentLang==='en'?'Settings':'تغيير الحساب' ?></a>
-            <a href="transactions.php" class="nav-link"><i class="fas fa-list"></i> <?= $currentLang==='en'?'Transactions':'المعاملات' ?></a>
-            <a href="withdrawal_database.php" class="nav-link"><i class="fas fa-database"></i> <?= $currentLang==='en'?'Withdrawal Database':'قاعدة بيانات السحب' ?></a>
-            <a href="crypto.php" class="nav-link"><i class="fas fa-coins"></i> Crypto</a>
             <a href="wallets.php" class="nav-link"><i class="fas fa-wallet"></i> <?= $currentLang==='en'?'My Wallet':'محفظتي' ?></a>
+            <a href="invoices.php" class="nav-link"><i class="fas fa-file-invoice"></i> <?= $currentLang==='en'?'Invoices':'الفواتير' ?></a>
+            <a href="holds.php" class="nav-link"><i class="fas fa-hand-holding-usd"></i> <?= $currentLang==='en'?'PayPal Holds':'حجوزات PayPal' ?></a>
+            <a href="crypto.php" class="nav-link"><i class="fas fa-coins"></i> Crypto</a>
             <a href="ledger/" class="nav-link" style="border-color:rgba(255,215,0,.2);background:rgba(255,215,0,.04)">
               <svg width="13" height="13" viewBox="0 0 100 100" fill="currentColor" style="flex-shrink:0"><rect width="100" height="100" rx="16"/><rect x="15" y="60" width="70" height="10" rx="5" fill="black"/></svg>
               Ledger
@@ -444,7 +436,16 @@ foreach ($dailyStats as $day) {
               <i class="fas fa-credit-card"></i> <?= $currentLang==='en'?'Checkout':'الدفع' ?>
             </a>
             <a href="kyc.php" class="nav-link"><i class="fas fa-id-card"></i> KYC</a>
+            <?php if (isAdmin()): ?>
+            <a href="gateways.php" class="nav-link"><i class="fas fa-route"></i> <?= $currentLang==='en'?'Payment Gateways':'بوابات الدفع' ?></a>
+            <a href="admin/connection_manager.php" class="nav-link"><i class="fas fa-network-wired"></i> <?= $currentLang==='en'?'Connection':'إدارة الاتصال' ?></a>
+            <a href="approvals.php" class="nav-link"><i class="fas fa-check-double"></i> <?= $currentLang==='en'?'Approvals':'الموافقات' ?></a>
+            <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> <?= $currentLang==='en'?'Settings':'تغيير الحساب' ?></a>
+            <a href="transactions.php" class="nav-link"><i class="fas fa-list"></i> <?= $currentLang==='en'?'Transactions':'المعاملات' ?></a>
+            <a href="withdrawal_database.php" class="nav-link"><i class="fas fa-database"></i> <?= $currentLang==='en'?'Withdrawal Database':'قاعدة بيانات السحب' ?></a>
             <a href="reports.php" class="nav-link"><i class="fas fa-file-alt"></i> <?= $currentLang==='en'?'Reports':'التقارير' ?></a>
+            <?php endif; ?>
+            <a href="logout.php" class="nav-link logout"><i class="fas fa-sign-out-alt"></i> <?= $currentLang==='en'?'Logout':'تسجيل الخروج' ?></a>
             <div style="display:flex;align-items:center;gap:8px">
                 <?= langSwitcher(false) ?>
             </div>
