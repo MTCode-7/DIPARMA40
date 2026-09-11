@@ -90,7 +90,7 @@ try {
         <a href="index.php">&#8962; الرئيسية</a>
         <a href="dashboard.php">لوحة التحكم</a>
         <a href="links.php">روابط الدفع</a>
-        <a href="transactions.php">المعاملات</a>
+        <?php if (isAdmin()): ?><a href="transactions.php">المعاملات</a><?php endif; ?>
         <a href="wallets.php" class="active">المحفظة</a>
         <a href="invoices.php">الفواتير</a>
     </div>

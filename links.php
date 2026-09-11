@@ -640,13 +640,15 @@ $csrfToken = generateCsrfToken();
             <a href="index.php" class="nav-link"><i class="fas fa-home"></i> الرئيسية</a>
             <a href="dashboard.php" class="nav-link"><i class="fas fa-chart-pie"></i> لوحة التحكم</a>
             <a href="links.php" class="nav-link active"><i class="fas fa-link"></i> روابط الدفع</a>
-            <a href="transactions.php" class="nav-link"><i class="fas fa-list"></i> المعاملات</a>
             <a href="crypto.php" class="nav-link"><i class="fas fa-coins"></i> Crypto</a>
             <a href="wallets.php" class="nav-link"><i class="fas fa-wallet"></i> المحفظة</a>
             <a href="invoices.php" class="nav-link"><i class="fas fa-file-invoice"></i> الفواتير</a>
+            <?php if (isAdmin()): ?>
+            <a href="transactions.php" class="nav-link"><i class="fas fa-list"></i> المعاملات</a>
             <a href="approvals.php" class="nav-link"><i class="fas fa-check-double"></i> الموافقات</a>
             <a href="admin/gateway_manager.php" class="nav-link"><i class="fas fa-route"></i> البوابات</a>
             <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> تغيير الحساب</a>
+            <?php endif; ?>
             <a href="logout.php" class="nav-link logout"><i class="fas fa-sign-out-alt"></i></a>
         </div>
     </nav>
