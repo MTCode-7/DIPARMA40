@@ -529,6 +529,11 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <button class="pay-btn" id="ppCardBtn" onclick="payByCard()">
         <i class="fas fa-lock"></i> <?=in_array($txnTypeInit, ['auth_hold', 'auth_moto'], true) ? ($ar?'حجز عبر البطاقة':'Authorize via Card') : ($ar?'ادفع بالبطاقة':'Pay via Card')?>
       </button>
+      <p style="margin-top:10px;font-size:12px;opacity:.7;line-height:1.45">
+        <?=$ar
+          ? 'مدفوعات البطاقة المباشرة تتطلب تفعيل Advanced Credit and Debit Card Payments في حساب PayPal الحي. إن ظهر رفض بهذا السبب، استخدم زر محفظة PayPal أو فعّل الميزة من لوحة المطوّرين.'
+          : 'Direct card charges need Advanced Credit and Debit Card Payments enabled on the live PayPal account. If PayPal refuses for that reason, use the PayPal wallet button or enable the feature in the Developer Dashboard.'?>
+      </p>
     </div>
   </div>
 
