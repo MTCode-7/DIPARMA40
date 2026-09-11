@@ -43,6 +43,8 @@ final class PayPalAdapter implements GatewayAdapterInterface
             'INVALID_CARD' => 'INVALID_CARD',
             'INSUFFICIENT_FUNDS' => 'INSUFFICIENT_FUNDS',
             'TRANSACTION_BLOCKED_BY_PAYEE' => 'DO_NOT_HONOR',
+            'PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING' => 'GATEWAY_ERROR',
+            'NOT_ENABLED' => 'GATEWAY_ERROR',
             'NETWORK_ERROR' => 'NETWORK_ERROR',
             'GATEWAY_ERROR' => 'GATEWAY_ERROR',
         ];
@@ -130,17 +132,27 @@ final class PayPalAdapter implements GatewayAdapterInterface
     private function describeFailure(array $result): string
     {
         $message = trim((string)($result['message'] ?? ''));
-        $issue = trim((string)($result['error_code'] ?? $result['raw']['details'][0]['issue'] ?? ''));
+        $issue = strtoupper(trim((string)($result['error_code'] ?? $result['raw']['details'][0]['issue'] ?? '')));
         $debugId = trim((string)($result['raw']['debug_id'] ?? ''));
 
-        if ($message === '') {
+        if ($issue === 'PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING'
+            || str_contains(strtolower($message), 'not setup to be able to process card')
+            || str_contains(strtolower($message), 'not enabled for card')) {
+            $message = 'حساب PayPal الحي غير مفعّل لمدفوعات البطاقة المباشرة. '
+                . 'فعّل Advanced Credit and Debit Card Payments من Developer Dashboard '
+                . '(Live → App → Features → Accept payments)، أو استخدم زر محفظة PayPal.';
+        } elseif ($message === '') {
             $message = 'PayPal رفض عملية البطاقة';
         }
+
         if ($issue !== '' && stripos($message, $issue) === false) {
             $message .= " [$issue]";
         }
         if ($debugId !== '') {
             $message .= " (debug_id: $debugId)";
+        }
+        if ($issue === 'PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING' && !$this->braintreeConfigured()) {
+            $message .= ' — لا يوجد احتياطي Braintree مضبوط.';
         }
         return $message;
     }
@@ -159,6 +171,7 @@ final class PayPalAdapter implements GatewayAdapterInterface
         $fallbackIssues = [
             'GATEWAY_ERROR',
             'NOT_ENABLED',
+            'PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING',
             'PERMISSION_DENIED',
             'UNPROCESSABLE_ENTITY',
             'PAYMENT_SOURCE_CANNOT_BE_USED',
@@ -170,6 +183,7 @@ final class PayPalAdapter implements GatewayAdapterInterface
         }
         return str_contains($message, 'credentials')
             || str_contains($message, 'not enabled')
-            || str_contains($message, 'advanced card');
+            || str_contains($message, 'advanced card')
+            || str_contains($message, 'process card payments');
     }
 }
