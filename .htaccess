@@ -121,7 +121,7 @@ DirectoryIndex landing.php
     Header always set Allow "GET, POST, HEAD, OPTIONS" env=NUVEI_PROBE
 </IfModule>
 
-<LocationMatch "^/(nuvei-(success|fail|pending|back)\.(html|php)|api/nuvei_dmn\.php)$">
+<FilesMatch "^(nuvei-(success|fail|pending|back)\.(html|php)|nuvei_dmn\.php)$">
     <IfModule mod_headers.c>
         Header always unset X-Frame-Options
         Header always set Access-Control-Allow-Origin "*"
@@ -129,7 +129,7 @@ DirectoryIndex landing.php
         Header always set Allow "GET, POST, HEAD, OPTIONS"
         Header always set Content-Security-Policy "frame-ancestors *"
     </IfModule>
-</LocationMatch>
+</FilesMatch>
 
 # ── حماية مفاتيح RSA والملفات الحساسة ──────────────────────
 <FilesMatch "\.(pem|key|crt|p12|pfx)$">
