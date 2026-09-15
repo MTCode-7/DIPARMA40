@@ -1,0 +1,9 @@
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^lib/ - [F,L]
+    RewriteRule ^native/ - [F,L]
+    RewriteRule ^bootstrap\.php$ - [F,L]
+    RewriteRule ^kiosk/?$ index.php?kiosk=1 [L,QSA]
+</IfModule>

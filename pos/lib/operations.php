@@ -1,0 +1,859 @@
+<?php
+/**
+ * DI PARMA | Canonical POS / Card Operations
+ * مسار: واجهة النظام → Acquirer → كل شبكات البطاقات العالمية
+ */
+
+if (defined('DI_PARMA_POS_OPS')) {
+    return;
+}
+define('DI_PARMA_POS_OPS', true);
+
+const POS_NO_AMOUNT_LIMIT = true;
+const POS_RRN_LEN = 12;
+
+/**
+ * أنواع العمليات المعيارية.
+ *
+ * قواعد الحقول:
+ * - capture (AUTH Capture): مبلغ مساوٍ/أقل/أكثر + RRN(12) + Approval + بطاقة + انتهاء
+ * - purchase_advice: غير مرتبط بـ AUTH — فقط RRN(12) + Approval + بطاقة + انتهاء
+ * - online_sale_moto: Approval = 4 أرقام
+ * - offline_sale_moto: Approval = 6 أرقام + بطاقة + انتهاء
+ */
+function pos_operation_catalog(): array
+{
+    return [
+        'purchase_3d' => [
+            'ar' => 'شراء 3D (OTP)',
+            'en' => 'Purchase 3D (OTP)',
+            'icon' => 'fa-shield-alt',
+            'color' => '#5bc0de',
+            'security' => '3D',
+            'requires_otp' => true,
+            'requires_card' => true,
+            'requires_cvv' => true,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'purchase3d',
+            'desc_ar' => 'بطاقة + انتهاء + CVV. البوابة تطلب OTP إن لزم. قبل 3DS لا موافقة ولا Ledger. بعد النجاح: صافي USDT → Ledger.',
+            'desc_en' => 'Card + expiry + CVV. Gateway OTP if required. No approval/Ledger before 3DS. After success: net USDT → Ledger.',
+        ],
+        'purchase_2d' => [
+            'ar' => 'شراء 2D',
+            'en' => 'Purchase 2D',
+            'icon' => 'fa-bolt',
+            'color' => '#FFD700',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => true,
+            'requires_cvv' => true,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'purchase2d',
+            'desc_ar' => 'بطاقة + انتهاء + CVV. بدون OTP. بيع فوري على البوابة. إذا APPROVED: صافي USDT → Ledger.',
+            'desc_en' => 'Card + expiry + CVV. No OTP. Immediate gateway sale. If APPROVED: net USDT → Ledger.',
+        ],
+        'auth' => [
+            'ar' => 'تفويض (حجز)',
+            'en' => 'Authorization (Hold)',
+            'icon' => 'fa-lock',
+            'color' => '#3B82F6',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => true,
+            'requires_cvv' => true,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'authorize',
+            'desc_ar' => 'حجز فقط: بطاقة + انتهاء + CVV. لا سحب ولا استرجاع هنا. الإيصال: RRN 12 + Approval. لا Ledger حتى Capture.',
+            'desc_en' => 'Hold only: card + expiry + CVV. No withdraw/refund here. Receipt: RRN 12 + Approval. No Ledger until Capture.',
+        ],
+        'capture' => [
+            'ar' => 'AUTH Capture',
+            'en' => 'AUTH Capture',
+            'icon' => 'fa-check-double',
+            'color' => '#9fe870',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => true,
+            'requires_cvv' => false,
+            'requires_expiry' => true,
+            'requires_rrn' => true,
+            'requires_approval' => true,
+            'approval_len' => null, // أي طول معتمد (عادة 6)
+            'linked_to_auth' => true,
+            'amount_flexible' => true,
+            'method' => 'capture',
+            'desc_ar' => 'مربوط بحجز AUTH. حقلان: مبلغ السحب (أقل/مساوٍ/أكثر من الحجز) + مبلغ الاسترجاع إن وجد. RRN 12 + Approval + بطاقة + انتهاء. بدون CVV. المسحوب فقط → Ledger.',
+            'desc_en' => 'Linked to AUTH hold. Two fields: withdraw amount (less/same/more than hold) + refund amount if any. RRN 12 + Approval + card + expiry. No CVV. Captured amount only → Ledger.',
+        ],
+        'purchase_advice' => [
+            'ar' => 'Purchase Advice — Capture',
+            'en' => 'Purchase Advice — Capture',
+            'icon' => 'fa-bell',
+            'color' => '#F59E0B',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => true,
+            'requires_cvv' => false,
+            'requires_expiry' => true,
+            'requires_rrn' => true,
+            'requires_approval' => true,
+            'approval_len' => 6, // bank MOTO: 4 or 6 digits
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'purchase',
+            'desc_ar' => 'حجز من مكينة أخرى أو من البنك مباشرة. RRN 12 + Approval 4 أو 6 + رقم البطاقة + انتهاء. بدون CVV. بعد الموافقة: USDT → Ledger.',
+            'desc_en' => 'Hold from another terminal or the bank directly. RRN 12 + Approval 4 or 6 + card number + expiry. No CVV. After approval: USDT → Ledger.',
+        ],
+        'online_sale_moto' => [
+            'ar' => 'Online SALE MOTO',
+            'en' => 'Online SALE MOTO',
+            'icon' => 'fa-globe',
+            'color' => '#00B9FF',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => true,
+            'requires_cvv' => true,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => true,
+            'approval_len' => 6,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'purchase2d',
+            'is_moto' => true,
+            'moto_channel' => 'online',
+            'desc_ar' => 'بيع هاتفي. بطاقة + CVV + Approval 4 أو 6. إذا APPROVED: صافي USDT → Ledger.',
+            'desc_en' => 'Phone sale. Card + CVV + Approval 4 or 6. If APPROVED: net USDT → Ledger.',
+        ],
+        'offline_sale_moto' => [
+            'ar' => 'Offline SALE MOTO',
+            'en' => 'Offline SALE MOTO',
+            'icon' => 'fa-phone',
+            'color' => '#F97316',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => true,
+            'requires_cvv' => false,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => true,
+            'approval_len' => 6,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'purchase',
+            'is_moto' => true,
+            'moto_channel' => 'offline',
+            'desc_ar' => 'موافقة صوتية من البنك. بطاقة + انتهاء + Approval 4 أو 6. بدون CVV. إذا APPROVED: صافي USDT → Ledger.',
+            'desc_en' => 'Voice approval from the bank. Card + expiry + Approval 4 or 6. No CVV. If APPROVED: net USDT → Ledger.',
+        ],
+        'refund' => [
+            'ar' => 'استرداد (Refund)',
+            'en' => 'Refund',
+            'icon' => 'fa-undo',
+            'color' => '#EF4444',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => false,
+            'requires_cvv' => false,
+            'requires_expiry' => false,
+            'requires_rrn' => true,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => true,
+            'method' => 'refund',
+            'desc_ar' => 'RRN 12 للعملية الأصلية. البوابة ترجع المبلغ. لا USDT إلى Ledger.',
+            'desc_en' => 'Original RRN 12. The gateway refunds. No USDT to Ledger.',
+        ],
+        'avoid' => [
+            'ar' => 'Avoid',
+            'en' => 'Avoid',
+            'icon' => 'fa-ban',
+            'color' => '#6B7280',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => false,
+            'requires_cvv' => false,
+            'requires_expiry' => false,
+            'requires_rrn' => true,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'void',
+            'desc_ar' => 'RRN 12. إلغاء المسار بدون خصم جديد. لا Ledger.',
+            'desc_en' => 'RRN 12. Void the path with no new charge. No Ledger.',
+        ],
+        'recurring' => [
+            'ar' => 'متكرر',
+            'en' => 'Recurring',
+            'icon' => 'fa-sync',
+            'color' => '#8B5CF6',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => true,
+            'requires_cvv' => true,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'purchase2d',
+            'desc_ar' => 'تحصيل متكرر على نفس البطاقة عبر البوابة المختارة. بعد الموافقة: USDT → Ledger.',
+            'desc_en' => 'Recurring charge on the same card via the selected gateway. After approval: USDT → Ledger.',
+        ],
+        'installment' => [
+            'ar' => 'تقسيط',
+            'en' => 'Installment',
+            'icon' => 'fa-layer-group',
+            'color' => '#A855F7',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => true,
+            'requires_cvv' => true,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'purchase2d',
+            'desc_ar' => 'تقسيط على البطاقة عبر البوابة. بعد الموافقة: USDT → Ledger.',
+            'desc_en' => 'Card installment via the gateway. After approval: USDT → Ledger.',
+        ],
+        'crypto_purchase' => [
+            'ar' => 'شراء كريبتو',
+            'en' => 'Crypto purchase',
+            'icon' => 'fa-coins',
+            'color' => '#F3BA2F',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => true,
+            'requires_cvv' => true,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'purchase2d',
+            'desc_ar' => 'سحب بالبطاقة ثم التسوية كريبتو إلى Ledger.',
+            'desc_en' => 'Card charge then crypto settlement to Ledger.',
+        ],
+        'gift_card' => [
+            'ar' => 'بطاقة هدية',
+            'en' => 'Gift card',
+            'icon' => 'fa-gift',
+            'color' => '#EC4899',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => true,
+            'requires_cvv' => true,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'purchase2d',
+            'desc_ar' => 'تحصيل بطاقة هدية عبر البوابة. بعد الموافقة: USDT → Ledger.',
+            'desc_en' => 'Gift-card charge via the gateway. After approval: USDT → Ledger.',
+        ],
+        'wire_transfer' => [
+            'ar' => 'حوالة',
+            'en' => 'Wire transfer',
+            'icon' => 'fa-university',
+            'color' => '#003087',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => false,
+            'requires_cvv' => false,
+            'requires_expiry' => false,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'purchase',
+            'desc_ar' => 'حوالة عبر البوابة المختارة. الوجهة بعد القبول: Ledger.',
+            'desc_en' => 'Wire via the selected gateway. After accept: Ledger.',
+        ],
+        'quasi_cash' => [
+            'ar' => 'شبه نقدي',
+            'en' => 'Quasi cash',
+            'icon' => 'fa-money-bill-wave',
+            'color' => '#14B8A6',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => true,
+            'requires_cvv' => true,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'purchase2d',
+            'desc_ar' => 'شبه نقدي على البطاقة. بعد الموافقة: USDT → Ledger.',
+            'desc_en' => 'Quasi-cash on the card. After approval: USDT → Ledger.',
+        ],
+        'withdrawal_pos' => [
+            'ar' => 'سحب عبر POS',
+            'en' => 'POS Withdrawal',
+            'icon' => 'fa-sim-card',
+            'color' => '#F97316',
+            'security' => '2D',
+            'requires_otp' => true,
+            'requires_card' => true,
+            'requires_cvv' => true,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'cash_advance',
+            'entry_mode' => 'pos_chip',
+            'channel' => 'system_pos',
+            'requires_charge_mode' => true,
+            'desc_ar' => 'سحب POS. يمكن تفعيل POS وNFC معاً مع مانول أو فيزيكل. اختر وضع التنفيذ. التحصيل → Ledger.',
+            'desc_en' => 'POS withdrawal. POS and NFC can both be on with Manual or Physical. Pick charge mode. Capture → Ledger.',
+        ],
+        'withdrawal_nfc' => [
+            'ar' => 'سحب عبر NFC',
+            'en' => 'NFC Withdrawal',
+            'icon' => 'fa-wifi',
+            'color' => '#14B8A6',
+            'security' => '2D',
+            'requires_otp' => true,
+            'requires_card' => true,
+            'requires_cvv' => false,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'approval_len' => null,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'cash_advance',
+            'entry_mode' => 'nfc_contactless',
+            'channel' => 'system_pos',
+            'requires_charge_mode' => true,
+            'desc_ar' => 'سحب NFC. يعمل مع POS في نفس العملية، مانول أو فيزيكل. نفس قواعد السحب وLedger.',
+            'desc_en' => 'NFC withdrawal. Can run with POS on the same sale, Manual or Physical. Same Ledger rules.',
+        ],
+    ];
+}
+
+/** أوضاع التنفيذ داخل السحب POS/NFC */
+function pos_withdrawal_charge_modes(): array
+{
+    return [
+        'purchase_advice_offline' => [
+            'ar' => 'Purchase Advice — Offline',
+            'en' => 'Purchase Advice — Offline',
+            'base' => 'purchase_advice',
+            'channel' => 'offline',
+            'approval_len' => 6,
+            'requires_rrn' => true,
+            'requires_approval' => true,
+            'requires_card' => true,
+            'requires_expiry' => true,
+        ],
+        'purchase_advice_online' => [
+            'ar' => 'Purchase Advice — Online',
+            'en' => 'Purchase Advice — Online',
+            'base' => 'purchase_advice',
+            'channel' => 'online',
+            'approval_len' => 6,
+            'requires_rrn' => true,
+            'requires_approval' => true,
+            'requires_card' => true,
+            'requires_expiry' => true,
+        ],
+        'auth' => [
+            'ar' => 'AUTH (Hold)',
+            'en' => 'AUTH (Hold)',
+            'base' => 'auth',
+            'channel' => null,
+            'approval_len' => null,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'requires_card' => true,
+            'requires_expiry' => true,
+        ],
+        'capture' => [
+            'ar' => 'AUTH Capture',
+            'en' => 'AUTH Capture',
+            'base' => 'capture',
+            'channel' => null,
+            'approval_len' => null,
+            'requires_rrn' => true,
+            'requires_approval' => true,
+            'requires_card' => true,
+            'requires_expiry' => true,
+        ],
+        'purchase_2d' => [
+            'ar' => 'Purchase 2D',
+            'en' => 'Purchase 2D',
+            'base' => 'purchase_2d',
+            'channel' => null,
+            'approval_len' => null,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'requires_card' => true,
+            'requires_expiry' => true,
+        ],
+        'purchase_3d' => [
+            'ar' => 'Purchase 3D',
+            'en' => 'Purchase 3D',
+            'base' => 'purchase_3d',
+            'channel' => null,
+            'approval_len' => null,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'requires_card' => true,
+            'requires_expiry' => true,
+        ],
+        'offline_sale_moto' => [
+            'ar' => 'Offline SALE MOTO',
+            'en' => 'Offline SALE MOTO',
+            'base' => 'offline_sale_moto',
+            'channel' => 'offline',
+            'approval_len' => 6,
+            'requires_rrn' => false,
+            'requires_approval' => true,
+            'requires_card' => true,
+            'requires_expiry' => true,
+        ],
+        'online_sale_moto' => [
+            'ar' => 'Online SALE MOTO',
+            'en' => 'Online SALE MOTO',
+            'base' => 'online_sale_moto',
+            'channel' => 'online',
+            'approval_len' => 6,
+            'requires_rrn' => false,
+            'requires_approval' => true,
+            'requires_card' => true,
+            'requires_expiry' => true,
+        ],
+    ];
+}
+
+function pos_operation_aliases(): array
+{
+    return [
+        'purchase' => 'purchase_3d',
+        'purchase_online' => 'online_sale_moto',
+        'purchase_offline' => 'offline_sale_moto',
+        'online_moto' => 'online_sale_moto',
+        'offline_moto' => 'offline_sale_moto',
+        'online_SALE_moto' => 'online_sale_moto',
+        'offline_SALE_moto' => 'offline_sale_moto',
+        'auth_complete' => 'capture',
+        'auth_capture' => 'capture',
+        'auth_hold' => 'auth',
+        'auth_moto' => 'auth',
+        'purchase_moto' => 'purchase_2d',
+        'offline_purchase' => 'offline_sale_moto',
+        'online_purchase' => 'online_sale_moto',
+        'direct2d' => 'purchase_2d',
+        'direct3d' => 'purchase_3d',
+        'withdrawal_physical' => 'withdrawal_pos',
+        'withdrawal_manual' => 'offline_sale_moto',
+        'cash_advance' => 'withdrawal_pos',
+        'void' => 'avoid',
+        'reversal' => 'avoid',
+    ];
+}
+
+function pos_normalize_operation(string $type): string
+{
+    $type = trim($type);
+    if ($type === '') {
+        return 'purchase_2d';
+    }
+    $catalog = pos_operation_catalog();
+    if (isset($catalog[$type])) {
+        return $type;
+    }
+    $aliases = pos_operation_aliases();
+    if (isset($aliases[$type])) {
+        return $aliases[$type];
+    }
+    $lower = strtolower($type);
+    if (isset($aliases[$lower])) {
+        return $aliases[$lower];
+    }
+    return $type;
+}
+
+function pos_operation_meta(string $type): ?array
+{
+    $canonical = pos_normalize_operation($type);
+    $catalog = pos_operation_catalog();
+    return $catalog[$canonical] ?? null;
+}
+
+function pos_withdrawal_types(): array
+{
+    return ['withdrawal_pos', 'withdrawal_nfc', 'withdrawal_physical', 'cash_advance'];
+}
+
+function pos_is_withdrawal(string $type): bool
+{
+    return in_array(pos_normalize_operation($type), ['withdrawal_pos', 'withdrawal_nfc'], true);
+}
+
+/** POS and NFC can both be on. Default both for every withdrawal. */
+function pos_parse_channels(array $data, string $txnType = ''): array
+{
+    $raw = $data['channels'] ?? null;
+    if ($raw === null && isset($data['extra']) && is_array($data['extra'])) {
+        $raw = $data['extra']['channels'] ?? null;
+    }
+    if (is_string($raw)) {
+        $raw = preg_split('/[\s,|]+/', $raw) ?: [];
+    }
+    if (!is_array($raw)) {
+        $raw = [];
+    }
+    $pos = false;
+    $nfc = false;
+    foreach ($raw as $c) {
+        $c = strtolower(trim((string) $c));
+        if (in_array($c, ['pos', 'pos_chip', 'chip', 'insert'], true)) {
+            $pos = true;
+        }
+        if (in_array($c, ['nfc', 'nfc_contactless', 'contactless', 'tap'], true)) {
+            $nfc = true;
+        }
+    }
+    $txn = pos_normalize_operation($txnType !== '' ? $txnType : (string) ($data['txn_type'] ?? ''));
+    if ($txn === 'withdrawal_pos') {
+        $pos = true;
+    }
+    if ($txn === 'withdrawal_nfc') {
+        $nfc = true;
+    }
+    if (!$pos && !$nfc && pos_is_withdrawal($txn)) {
+        $pos = true;
+        $nfc = true;
+    }
+    $out = [];
+    if ($pos) {
+        $out[] = 'pos';
+    }
+    if ($nfc) {
+        $out[] = 'nfc';
+    }
+    return $out;
+}
+
+function pos_channels_entry_mode(array $channels): string
+{
+    $hasPos = in_array('pos', $channels, true);
+    $hasNfc = in_array('nfc', $channels, true);
+    if ($hasPos && $hasNfc) {
+        return 'pos_and_nfc';
+    }
+    if ($hasNfc) {
+        return 'nfc_contactless';
+    }
+    return 'pos_chip';
+}
+
+function pos_is_valid_rrn(?string $rrn): bool
+{
+    $rrn = preg_replace('/\D/', '', (string)$rrn);
+    return strlen($rrn) === POS_RRN_LEN;
+}
+
+function pos_normalize_rrn(?string $rrn): string
+{
+    return preg_replace('/\D/', '', (string)$rrn);
+}
+
+/**
+ * Bank MOTO / voice approvals are 4 or 6 digits.
+ */
+function pos_is_valid_approval(?string $code, ?int $expectedLen): bool
+{
+    $code = strtoupper(preg_replace('/[^0-9A-Za-z]/', '', (string)$code));
+    if ($code === '' || !ctype_digit($code)) {
+        return false;
+    }
+    $len = strlen($code);
+    if ($expectedLen === 4 || $expectedLen === 6) {
+        return $len === 4 || $len === 6;
+    }
+    if ($expectedLen !== null) {
+        return $len === $expectedLen;
+    }
+    return $len >= 4 && $len <= 12;
+}
+
+/**
+ * يتحقق من حقول العملية ويعيد قائمة أخطاء (فارغة = صالح).
+ */
+function pos_validate_operation_fields(string $type, array $data): array
+{
+    $type = pos_normalize_operation($type);
+    $meta = pos_operation_meta($type);
+    $errors = [];
+    if (!$meta) {
+        $errors[] = 'Unknown operation type: ' . $type;
+        return $errors;
+    }
+
+    $rrn = pos_normalize_rrn($data['rrn'] ?? $data['orig_ref'] ?? '');
+    $approval = strtoupper(preg_replace('/[^0-9A-Za-z]/', '', (string)($data['approval_code'] ?? '')));
+    $card = preg_replace('/\D/', '', (string)($data['card_number'] ?? ''));
+    $expiry = trim((string)($data['card_expiry'] ?? ''));
+
+    $chargeMode = trim((string)($data['charge_mode'] ?? $data['withdrawal_mode'] ?? ''));
+    $modeMeta = null;
+    if (!empty($meta['requires_charge_mode'])) {
+        $modes = pos_withdrawal_charge_modes();
+        if ($chargeMode === '' || !isset($modes[$chargeMode])) {
+            $errors[] = 'Select charge mode: purchase_advice_offline | purchase_advice_online | auth | capture | purchase_2d | purchase_3d';
+        } else {
+            $modeMeta = $modes[$chargeMode];
+        }
+    }
+
+    $requiresRrn = !empty($meta['requires_rrn']) || !empty($modeMeta['requires_rrn']);
+    $requiresApproval = !empty($meta['requires_approval']) || !empty($modeMeta['requires_approval']);
+    $requiresCard = !empty($meta['requires_card']) || !empty($modeMeta['requires_card']);
+    $requiresExpiry = !empty($meta['requires_expiry']) || !empty($modeMeta['requires_expiry']);
+    $approvalLen = $modeMeta['approval_len'] ?? ($meta['approval_len'] ?? null);
+
+    if ($requiresRrn && !pos_is_valid_rrn($rrn)) {
+        $errors[] = 'RRN must be exactly 12 digits.';
+    }
+    if ($requiresApproval && !pos_is_valid_approval($approval, $approvalLen)) {
+        if ($approvalLen === 4 || $approvalLen === 6) {
+            $errors[] = 'Approval Code must be 4 or 6 digits (bank MOTO).';
+        } else {
+            $errors[] = 'Approval Code is required (4–12 digits).';
+        }
+    }
+    if ($requiresCard && (strlen($card) < 13 || strlen($card) > 19)) {
+        $errors[] = 'Card number must be 13–19 digits.';
+    } elseif ($requiresCard && pos_is_blocked_test_card($card)) {
+        $errors[] = 'Test and dummy cards are blocked. Use a real card.';
+    }
+    if ($requiresExpiry && !preg_match('/^(0[1-9]|1[0-2])\/([0-9]{2})$/', $expiry)) {
+        $errors[] = 'Expiry date required (MM/YY).';
+    }
+
+    return $errors;
+}
+
+/** شبكات وشركات البطاقات المقبولة — لا رفض حسب العلامة */
+function pos_card_networks(): array
+{
+    return [
+        'auto' => ['ar' => 'تلقائي من الرقم — أي شركة', 'en' => 'Auto from PAN — any issuer', 'scheme' => 'auto'],
+        'visa' => ['ar' => 'Visa', 'en' => 'Visa', 'scheme' => 'visa'],
+        'mastercard' => ['ar' => 'Mastercard', 'en' => 'Mastercard', 'scheme' => 'mastercard'],
+        'maestro' => ['ar' => 'Maestro', 'en' => 'Maestro', 'scheme' => 'maestro'],
+        'visa_electron' => ['ar' => 'Visa Electron', 'en' => 'Visa Electron', 'scheme' => 'visa'],
+        'amex' => ['ar' => 'American Express', 'en' => 'American Express', 'scheme' => 'amex'],
+        'discover' => ['ar' => 'Discover', 'en' => 'Discover', 'scheme' => 'discover'],
+        'diners' => ['ar' => 'Diners Club', 'en' => 'Diners Club', 'scheme' => 'diners'],
+        'jcb' => ['ar' => 'JCB', 'en' => 'JCB', 'scheme' => 'jcb'],
+        'unionpay' => ['ar' => 'UnionPay', 'en' => 'UnionPay', 'scheme' => 'unionpay'],
+        'mir' => ['ar' => 'Mir', 'en' => 'Mir', 'scheme' => 'mir'],
+        'rupay' => ['ar' => 'RuPay', 'en' => 'RuPay', 'scheme' => 'rupay'],
+        'elo' => ['ar' => 'Elo', 'en' => 'Elo', 'scheme' => 'elo'],
+        'hipercard' => ['ar' => 'Hipercard', 'en' => 'Hipercard', 'scheme' => 'hipercard'],
+        'troy' => ['ar' => 'Troy', 'en' => 'Troy', 'scheme' => 'troy'],
+        'verve' => ['ar' => 'Verve', 'en' => 'Verve', 'scheme' => 'verve'],
+        'mada' => ['ar' => 'مدى', 'en' => 'Mada', 'scheme' => 'mada'],
+        'meeza' => ['ar' => 'ميزة', 'en' => 'Meeza', 'scheme' => 'meeza'],
+        'knet' => ['ar' => 'كي نت', 'en' => 'KNET', 'scheme' => 'knet'],
+        'benefit' => ['ar' => 'بنفت', 'en' => 'Benefit', 'scheme' => 'benefit'],
+        'jaywan' => ['ar' => 'جويوان', 'en' => 'Jaywan', 'scheme' => 'jaywan'],
+        'napas' => ['ar' => 'NAPAS', 'en' => 'NAPAS', 'scheme' => 'napas'],
+        'paypak' => ['ar' => 'PayPak', 'en' => 'PayPak', 'scheme' => 'paypak'],
+        'dankort' => ['ar' => 'Dankort', 'en' => 'Dankort', 'scheme' => 'dankort'],
+        'bancontact' => ['ar' => 'Bancontact', 'en' => 'Bancontact', 'scheme' => 'bancontact'],
+        'girocard' => ['ar' => 'Girocard', 'en' => 'Girocard', 'scheme' => 'girocard'],
+        'interac' => ['ar' => 'Interac', 'en' => 'Interac', 'scheme' => 'interac'],
+        'uatp' => ['ar' => 'UATP', 'en' => 'UATP', 'scheme' => 'uatp'],
+        'crypto' => ['ar' => 'بطاقة كريبتو / أي مُصدر', 'en' => 'Crypto / any issuer card', 'scheme' => 'crypto'],
+        'other' => ['ar' => 'أي بطاقة أو شركة أخرى', 'en' => 'Any other card or issuer', 'scheme' => 'other'],
+    ];
+}
+
+function pos_accepted_card_types(): array
+{
+    $out = [];
+    foreach (pos_card_networks() as $code => $n) {
+        if ($code === 'auto') {
+            continue;
+        }
+        $out[] = $n['en'];
+    }
+    return $out;
+}
+
+function pos_normalize_card_network(string $code): string
+{
+    $code = strtolower(trim(str_replace([' ', '-'], '_', $code)));
+    $aliases = [
+        'mc' => 'mastercard',
+        'master' => 'mastercard',
+        'master_card' => 'mastercard',
+        'visa_mastercard' => 'auto',
+        'visa/mastercard' => 'auto',
+        'china' => 'unionpay',
+        'china_unionpay' => 'unionpay',
+        'cup' => 'unionpay',
+        'american_express' => 'amex',
+        'americanexpress' => 'amex',
+        'diners_club' => 'diners',
+        'crypto_card' => 'crypto',
+        'usdt_card' => 'crypto',
+        'binance_card' => 'crypto',
+        'world' => 'other',
+        'worldwide' => 'other',
+        'any' => 'other',
+        'all' => 'auto',
+        'electron' => 'visa_electron',
+        'visa_electron' => 'visa_electron',
+        'meza' => 'meeza',
+        'k_net' => 'knet',
+        'union_pay' => 'unionpay',
+        'dinersclub' => 'diners',
+        'ban_contact' => 'bancontact',
+        'pay_pak' => 'paypak',
+        '' => 'auto',
+    ];
+    if (isset($aliases[$code])) {
+        $code = $aliases[$code];
+    }
+    if (isset(pos_card_networks()[$code])) {
+        return $code;
+    }
+    return $code === '' ? 'auto' : 'other';
+}
+
+/** كشف الشبكة من بادئة BIN العامة — أي رقم غير معروف يُقبل كـ other */
+function pos_detect_card_network(string $pan): string
+{
+    $n = preg_replace('/\D/', '', $pan);
+    if ($n === '') {
+        return 'auto';
+    }
+    $i2 = (int)substr($n, 0, 2);
+    $i3 = (int)substr($n, 0, 3);
+    $i4 = (int)substr($n, 0, 4);
+    $i6 = substr($n, 0, 6);
+    if (str_starts_with($n, '4')) {
+        if (in_array(substr($n, 0, 4), ['4026', '4175', '4405', '4508', '4844', '4913', '4917'], true)) {
+            return 'visa_electron';
+        }
+        return 'visa';
+    }
+    if (($i2 >= 51 && $i2 <= 55) || ($i4 >= 2221 && $i4 <= 2720)) {
+        return 'mastercard';
+    }
+    if (str_starts_with($n, '34') || str_starts_with($n, '37')) {
+        return 'amex';
+    }
+    if (str_starts_with($n, '62') || str_starts_with($n, '81')) {
+        return 'unionpay';
+    }
+    if ($i4 >= 3528 && $i4 <= 3589) {
+        return 'jcb';
+    }
+    if (str_starts_with($n, '6011') || str_starts_with($n, '65') || ($i3 >= 644 && $i3 <= 649)) {
+        return 'discover';
+    }
+    if (str_starts_with($n, '36') || str_starts_with($n, '38') || ($i3 >= 300 && $i3 <= 305)) {
+        return 'diners';
+    }
+    if ($i4 >= 2200 && $i4 <= 2204) {
+        return 'mir';
+    }
+    if (str_starts_with($n, '60') || str_starts_with($n, '82')) {
+        return 'rupay';
+    }
+    if (in_array($i6, ['636368', '438935', '504175'], true)) {
+        return 'elo';
+    }
+    if (str_starts_with($n, '606282') || str_starts_with($n, '3841')) {
+        return 'hipercard';
+    }
+    if (str_starts_with($n, '9792')) {
+        return 'troy';
+    }
+    if (str_starts_with($n, '506') || str_starts_with($n, '650002')) {
+        return 'verve';
+    }
+    if (str_starts_with($n, '588845') || str_starts_with($n, '9682')) {
+        return 'mada';
+    }
+    if (str_starts_with($n, '5078') || str_starts_with($n, '5079')) {
+        return 'meeza';
+    }
+    if (str_starts_with($n, '888822')) {
+        return 'knet';
+    }
+    if (str_starts_with($n, '6703')) {
+        return 'bancontact';
+    }
+    if (str_starts_with($n, '9704')) {
+        return 'napas';
+    }
+    if (str_starts_with($n, '2205') || str_starts_with($n, '5868')) {
+        return 'paypak';
+    }
+    if (str_starts_with($n, '5081')) {
+        return 'jaywan';
+    }
+    if (str_starts_with($n, '4571')) {
+        return 'dankort';
+    }
+    if ($i2 === 1) {
+        return 'uatp';
+    }
+    if ($i2 >= 50 && $i2 <= 69) {
+        return 'maestro';
+    }
+    return 'other';
+}
+
+function pos_is_blocked_test_card(string $pan): bool
+{
+    $n = preg_replace('/\D/', '', $pan);
+    if ($n === '') {
+        return false;
+    }
+    $exact = [
+        '4111111111111111', '4242424242424242', '4000056655665556',
+        '5555555555554444', '2223003122003222', '378282246310005',
+        '6011111111111117', '30569309025904', '3566002020360505',
+    ];
+    if (in_array($n, $exact, true)) {
+        return true;
+    }
+    return in_array(substr($n, 0, 6), ['411111', '424242', '555555', '000000'], true);
+}

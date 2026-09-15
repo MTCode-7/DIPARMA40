@@ -1,0 +1,15 @@
+{
+  "gateway": "nuvei",
+  "payment_app": "Nuvei Payment App",
+  "keys_injected": true,
+  "line": "petroleum",
+  "txn_type": "purchase_2d",
+  "tid": "T705953",
+  "amount": "10.00",
+  "currency": "USD",
+  "entry_mode": "chip",
+  "pos_model": "verifone_vx675",
+  "approval_code": "",
+  "rrn": "",
+  "nuvei_txn_id": ""
+}
