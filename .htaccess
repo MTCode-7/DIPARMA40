@@ -27,11 +27,43 @@ DirectoryIndex landing.php
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Nuvei Test URLs POST to these paths — keep internal rewrite even if html is not PHP-mapped.
+    RewriteRule ^nuvei-success\.html$ nuvei-success.php [L,QSA]
+    RewriteRule ^nuvei-fail\.html$ nuvei-fail.php [L,QSA]
+    RewriteRule ^nuvei-pending\.html$ nuvei-pending.php [L,QSA]
+    RewriteRule ^nuvei-back\.html$ nuvei-back.php [L,QSA]
+
+    # الجذر المحلي هو DIPARMA40 نفسه — /DIPARMA40/... يُعاد إلى /
+    RewriteRule ^DIPARMA40(?:/(.*))?$ /$1 [R=302,L]
+
     # منع الوصول المباشر لمجلدات النظام
     RewriteRule ^(includes|config|logs|backups|cache|tmp|lib|protocols)/.*$ - [F,L]
 
     # DI PARMA API v1 routes are handled by the versioned router.
     RewriteRule ^api/v1/(?:docs?|balance|transactions|charge|refund|void|capture)/?$ api/v1/index.php [L,QSA]
+
+    # Aliases القديمة لصفحات الدفع → checkout/
+    RewriteRule ^checkout_paypal\.php$ checkout/paypal.php [R=302,L,QSA]
+    RewriteRule ^checkout_stripe\.php$ checkout/stripe.php [R=302,L,QSA]
+    RewriteRule ^checkout_nuvei\.php$ checkout/nuvei.php [R=302,L,QSA]
+    RewriteRule ^checkout_diparma\.php$ checkout/diparma.php [R=302,L,QSA]
+    RewriteRule ^checkout_payram\.php$ checkout/payram.php [R=302,L,QSA]
+    RewriteRule ^checkout_wise\.php$ checkout/wise.php [R=302,L,QSA]
+    RewriteRule ^checkout_whop\.php$ checkout/whop.php [R=302,L,QSA]
+    RewriteRule ^checkout_myfatoorah\.php$ checkout/myfatoorah.php [R=302,L,QSA]
+    RewriteRule ^checkout_binance\.php$ checkout/binance.php [R=302,L,QSA]
+    RewriteRule ^checkout_gate\.php$ checkout/gate_io.php [R=302,L,QSA]
+    RewriteRule ^checkout_mashreq\.php$ checkout/bank_mashreq.php [R=302,L,QSA]
+    RewriteRule ^checkout_HSBCbankUAE\.php$ checkout/bank_hsbc.php [R=302,L,QSA]
+    RewriteRule ^checkout_NBEbank\.php$ checkout/bank_nbe.php [R=302,L,QSA]
+    RewriteRule ^checkout_bank\.php$ checkout/bank_mashreq.php [R=302,L,QSA]
+    RewriteRule ^checkout_gateway\.php$ checkout_router.php [R=302,L,QSA]
+    RewriteRule ^checkout_offline\.php$ checkout_router.php [R=302,L,QSA]
+    RewriteRule ^checkout_live\.php$ checkout_ledger.php [R=302,L,QSA]
+    # checkout.php is the Nuvei Back/Failure URL — do not rewrite it away.
+    RewriteRule ^pos\.php$ pos/index.php [R=302,L,QSA]
+    RewriteRule ^pos_installer\.php$ pos/install.php [L,QSA]
+    RewriteRule ^pos_download\.php$ pos/install.php [L,QSA]
 
     # ── [2] إعادة توجيه HTTP إلى HTTPS ─────────────────────
     # يعمل على السيرفر البعيد تلقائياً — Cloudflare يوفر HTTPS
@@ -80,7 +112,24 @@ DirectoryIndex landing.php
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
     Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    SetEnvIf Request_URI "nuvei-(success|fail|pending|back)\.(html|php)" NUVEI_PROBE
+    SetEnvIf Request_URI "nuvei_dmn\.php" NUVEI_PROBE
+    Header always unset X-Frame-Options env=NUVEI_PROBE
+    Header always set Content-Security-Policy "frame-ancestors *" env=NUVEI_PROBE
+    Header always set Access-Control-Allow-Origin "*" env=NUVEI_PROBE
+    Header always set Access-Control-Allow-Methods "GET, POST, HEAD, OPTIONS" env=NUVEI_PROBE
+    Header always set Allow "GET, POST, HEAD, OPTIONS" env=NUVEI_PROBE
 </IfModule>
+
+<FilesMatch "^(nuvei-(success|fail|pending|back)\.(html|php)|nuvei_dmn\.php)$">
+    <IfModule mod_headers.c>
+        Header always unset X-Frame-Options
+        Header always set Access-Control-Allow-Origin "*"
+        Header always set Access-Control-Allow-Methods "GET, POST, HEAD, OPTIONS"
+        Header always set Allow "GET, POST, HEAD, OPTIONS"
+        Header always set Content-Security-Policy "frame-ancestors *"
+    </IfModule>
+</FilesMatch>
 
 # ── حماية مفاتيح RSA والملفات الحساسة ──────────────────────
 <FilesMatch "\.(pem|key|crt|p12|pfx)$">
@@ -94,6 +143,16 @@ DirectoryIndex landing.php
 </FilesMatch>
 
 # ── [7] حماية ملفات السجلات والنسخ الاحتياطية ───────────────
+<FilesMatch "^(run_setup_db\.php)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
 <FilesMatch "\.(log|sql|bak|old|swp|orig|sh)$">
     <IfModule mod_authz_core.c>
         Require all denied

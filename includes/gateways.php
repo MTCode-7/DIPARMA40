@@ -24,6 +24,48 @@ function getAllGatewayTransactionTypes(): array {
     ];
 }
 
+function getAllAcceptedCardTypes(): array
+{
+    if (function_exists('pos_accepted_card_types')) {
+        return pos_accepted_card_types();
+    }
+    return [
+        'Visa', 'Mastercard', 'Maestro', 'Visa Electron',
+        'American Express', 'Discover', 'Diners Club', 'JCB',
+        'UnionPay', 'Mir', 'RuPay', 'Elo', 'Hipercard', 'Troy',
+        'Verve', 'Mada', 'Meeza', 'KNET', 'Benefit', 'Jaywan',
+        'NAPAS', 'PayPak', 'Dankort', 'Bancontact', 'Girocard',
+        'Interac', 'UATP', 'Crypto card', 'Any other network or issuer',
+    ];
+}
+
+function gatewayAcceptsCardNetworks(string $code, array $gw): bool
+{
+    return true;
+}
+
+function applyAllAcceptedCardTypesToGateways(array &$gateways): void
+{
+    $all = getAllAcceptedCardTypes();
+    foreach ($gateways as &$gwCfg) {
+        if (!is_array($gwCfg)) {
+            continue;
+        }
+        $existing = is_array($gwCfg['card_types'] ?? null) ? $gwCfg['card_types'] : [];
+        $keep = [];
+        foreach ($existing as $typeLabel) {
+            $typeLabel = trim((string) $typeLabel);
+            if ($typeLabel === '' || in_array($typeLabel, $all, true)) {
+                continue;
+            }
+            $keep[] = $typeLabel;
+        }
+        $gwCfg['card_types'] = array_values(array_unique(array_merge($all, $keep)));
+        $gwCfg['accepts_all_card_networks'] = true;
+    }
+    unset($gwCfg);
+}
+
 $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     // ============================================================
     // 1. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ (Global)
@@ -84,9 +126,11 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         ],
         'urls' => [
             'api' => 'https://secure.nuvei.com/ppp/api/v1/',
-            'success' => getenv('NUVEI_SUCCESS_URL') ?: '/payment_success.php',
-            'cancel' => getenv('NUVEI_CANCEL_URL') ?: '/payment_cancelled.php',
-            'webhook' => getenv('NUVEI_WEBHOOK_URL') ?: '/api/webhook.php?gateway=nuvei',
+            'success' => getenv('NUVEI_SUCCESS_URL') ?: 'https://diparmas.com/nuvei-success.php',
+            'cancel' => getenv('NUVEI_FAILURE_URL') ?: getenv('NUVEI_CANCEL_URL') ?: 'https://diparmas.com/nuvei-fail.php',
+            'pending' => getenv('NUVEI_PENDING_URL') ?: 'https://diparmas.com/nuvei-pending.php',
+            'back' => getenv('NUVEI_BACK_URL') ?: 'https://diparmas.com/nuvei-back.php',
+            'webhook' => getenv('NUVEI_WEBHOOK_URL') ?: 'https://diparmas.com/api/nuvei_dmn.php',
         ],
         'environment' => getenv('NUVEI_ENVIRONMENT') ?: 'live',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR'],
@@ -94,6 +138,69 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
         'features' => ['sale', 'auth', 'settle', 'refund', 'void', '3ds', 'webhooks'],
         'card_types' => ['Visa', 'Mastercard'],
+        'setup_complete' => true
+    ],
+
+    'diparma_gateway' => [
+        'name' => 'DIPARMA GATEWAY',
+        'region' => 'Global',
+        'icon' => 'fas fa-credit-card',
+        'credentials' => [
+            'ledger_address' => getenv('LEDGER_TRC20_ADDRESS') ?: (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
+        ],
+        'urls' => [
+            'success' => getenv('DIPARMA_SUCCESS_URL') ?: 'https://diparmas.com/receipt.php',
+            'cancel' => getenv('DIPARMA_CANCEL_URL') ?: 'https://diparmas.com/checkout_router.php',
+        ],
+        'environment' => getenv('DIPARMA_ENVIRONMENT') ?: 'live',
+        'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'KWD', 'QAR', 'EGP', 'USDT'],
+        'fees' => ['percentage' => 2.5, 'fixed' => 0.30],
+        'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
+        'features' => ['sale', '3ds', 'moto', 'ledger'],
+        'card_types' => ['Visa', 'Mastercard'],
+        'setup_complete' => true
+    ],
+
+    'payram' => [
+        'name' => 'PayRam',
+        'region' => 'Crypto',
+        'icon' => 'fas fa-server',
+        'credentials' => [
+            'api_key' => getenv('PAYRAM_API_KEY') ?: '',
+            'api_url' => getenv('PAYRAM_API_URL') ?: '',
+        ],
+        'urls' => [
+            'success' => getenv('PAYRAM_SUCCESS_URL') ?: 'https://diparmas.com/receipt.php',
+            'cancel' => getenv('PAYRAM_CANCEL_URL') ?: 'https://diparmas.com/checkout_router.php',
+            'webhook' => getenv('PAYRAM_WEBHOOK_URL') ?: 'https://diparmas.com/api/payram_webhook.php',
+        ],
+        'environment' => getenv('PAYRAM_ENVIRONMENT') ?: 'live',
+        'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'USDT', 'USDC'],
+        'fees' => ['percentage' => 2.5, 'fixed' => 0.30],
+        'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
+        'features' => ['card_to_crypto', 'onramp', 'webhooks'],
+        'card_types' => getAllAcceptedCardTypes(),
+        'setup_complete' => true
+    ],
+
+    'whop' => [
+        'name' => 'Whop',
+        'region' => 'Global',
+        'icon' => 'fas fa-bolt',
+        'credentials' => [
+            'api_key' => getenv('WHOP_API_KEY') ?: '',
+        ],
+        'urls' => [
+            'success' => getenv('WHOP_SUCCESS_URL') ?: 'https://diparmas.com/receipt.php',
+            'cancel' => getenv('WHOP_CANCEL_URL') ?: 'https://diparmas.com/checkout_router.php',
+            'webhook' => getenv('WHOP_WEBHOOK_URL') ?: 'https://diparmas.com/api/webhook.php?gateway=whop',
+        ],
+        'environment' => getenv('WHOP_ENVIRONMENT') ?: 'live',
+        'currencies' => ['USD', 'EUR'],
+        'fees' => ['percentage' => 2.9, 'fixed' => 0.30],
+        'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
+        'features' => ['checkout', 'webhooks'],
+        'card_types' => getAllAcceptedCardTypes(),
         'setup_complete' => true
     ],
     
@@ -276,20 +383,23 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'USA',
         'icon' => 'fas fa-square',
         'credentials' => [
-            'api_key' => getenv('SQUARE_API_KEY') ?? '',
-            'secret_key' => getenv('SQUARE_SECRET_KEY') ?? '',
+            'api_key' => getenv('SQUARE_APPLICATION_ID') ?: (getenv('SQUARE_API_KEY') ?: ''),
+            'secret_key' => getenv('SQUARE_ACCESS_TOKEN') ?: (getenv('SQUARE_SECRET_KEY') ?: ''),
+            'location_id' => getenv('SQUARE_LOCATION_ID') ?: '',
+            'application_id' => getenv('SQUARE_APPLICATION_ID') ?: (getenv('SQUARE_API_KEY') ?: ''),
+            'access_token' => getenv('SQUARE_ACCESS_TOKEN') ?: (getenv('SQUARE_SECRET_KEY') ?: ''),
         ],
         'urls' => [
             'success' => getenv('SQUARE_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('SQUARE_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('SQUARE_WEBHOOK_URL') ?: '/api/webhook.php?gateway=square',
         ],
-        'environment' => getenv('SQUARE_ENVIRONMENT') ?? '',
+        'environment' => getenv('SQUARE_ENVIRONMENT') ?: 'sandbox',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'CAD', 'AUD', 'JPY'],
         'fees' => ['percentage' => 2.6, 'fixed' => 0.10],
         'limits' => ['min' => 0.5, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
-        'features' => ['pos', 'online', 'invoicing'],
-        'card_types' => ['Visa', 'Mastercard', 'Amex', 'Discover'],
+        'features' => ['pos', 'online', 'invoicing', 'auth', 'capture'],
+        'card_types' => getAllAcceptedCardTypes(),
         'setup_complete' => false
     ],
     
@@ -1113,6 +1223,8 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     ],
 ];
 
+applyAllAcceptedCardTypesToGateways($GLOBALS['PAYMENT_GATEWAYS_CONFIG']);
+
 // ============================================================
 // [2] ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½
 // ============================================================
@@ -1206,6 +1318,8 @@ function getGatewaysConfig() {
         }
     }
     unset($gateway);
+
+    applyAllAcceptedCardTypesToGateways($merged);
 
     return $merged;
 }
@@ -1362,6 +1476,136 @@ function isGatewayReady(array $gw): bool {
     }
 
     return hasValidGatewayConfig($gw);
+}
+
+function dp_gateway_normalize_code(string $code): string
+{
+    $code = strtolower(trim($code));
+    $aliases = [
+        'di_parma' => 'diparma',
+        'di-parma' => 'diparma',
+        'diparma-gateway' => 'diparma_gateway',
+        'diparmagateway' => 'diparma_gateway',
+        'gate.io' => 'gate_io',
+        'gateio' => 'gate_io',
+        'hsbc' => 'hsbc_uae',
+        'authorize_net' => 'authorizenet',
+    ];
+    return $aliases[$code] ?? $code;
+}
+
+function dp_gateway_effective_credentials(array $row): array
+{
+    $creds = $row['credentials'] ?? [];
+    if (is_string($creds)) {
+        $creds = json_decode($creds, true) ?: [];
+    }
+    if (!is_array($creds)) {
+        $creds = [];
+    }
+    $settings = $row['settings'] ?? [];
+    if (is_string($settings)) {
+        $settings = json_decode($settings, true) ?: [];
+    }
+    if (!is_array($settings)) {
+        $settings = [];
+    }
+    $code = dp_gateway_normalize_code((string) ($row['code'] ?? ''));
+    $static = function_exists('getGatewayConfig') ? (getGatewayConfig($code) ?: []) : [];
+    $fromEnv = is_array($static['credentials'] ?? null) ? $static['credentials'] : [];
+    $merged = array_merge($fromEnv, $settings, $creds);
+    foreach ($merged as $k => $v) {
+        if (!is_scalar($v) || trim((string) $v) === '' || (function_exists('isPlaceholderGatewayValue') && isPlaceholderGatewayValue((string) $v))) {
+            unset($merged[$k]);
+        }
+    }
+    return $merged;
+}
+
+/**
+ * After admin saves keys: activate the gateway, test it, so POS + Checkout pick it up immediately.
+ */
+function dp_publish_saved_gateway(int $id): array
+{
+    $db = db();
+    $row = $db->find('payment_gateways', ['id' => $id]);
+    if (!$row) {
+        return ['success' => false, 'published' => false, 'message' => 'Gateway not found'];
+    }
+
+    $creds = dp_gateway_effective_credentials($row);
+    $hasKeys = hasValidGatewayConfig([
+        'status' => 'active',
+        'setup_complete' => true,
+        'credentials' => $creds,
+        'config' => ['setup_complete' => true],
+    ]);
+    $code = dp_gateway_normalize_code((string) ($row['code'] ?? ''));
+    if (!$hasKeys && !in_array($code, ['diparma', 'diparma_gateway'], true)) {
+        return [
+            'success' => false,
+            'published' => false,
+            'message' => 'Enter valid API credentials before the gateway can appear on POS and Checkout.',
+        ];
+    }
+
+    $cfg = $row['config'] ?? [];
+    if (is_string($cfg)) {
+        $cfg = json_decode($cfg, true) ?: [];
+    }
+    if (!is_array($cfg)) {
+        $cfg = [];
+    }
+    $cfg['setup_complete'] = true;
+
+    $patch = [
+        'status' => 'active',
+        'config' => json_encode($cfg, JSON_UNESCAPED_UNICODE),
+    ];
+    try {
+        $patch['updated_at'] = date('Y-m-d H:i:s');
+        $db->update('payment_gateways', $patch, ['id' => $id]);
+    } catch (Throwable $e) {
+        unset($patch['updated_at']);
+        $db->update('payment_gateways', $patch, ['id' => $id]);
+    }
+
+    $test = ['success' => false, 'message' => 'Connection not tested'];
+    try {
+        require_once dirname(__DIR__) . '/lib/GatewayConnectionTester.php';
+        $test = (new GatewayConnectionTester())->test($id);
+    } catch (Throwable $e) {
+        $test = ['success' => false, 'message' => $e->getMessage()];
+    }
+
+    return [
+        'success' => true,
+        'published' => true,
+        'connected' => !empty($test['success']),
+        'message' => !empty($test['success'])
+            ? 'Gateway is live on POS and Checkout.'
+            : ('Saved and activated. Connection test: ' . (string) ($test['message'] ?? 'failed')),
+        'test' => $test,
+    ];
+}
+
+/**
+ * POS and Checkout pick from gateways enabled in Payment Gateway Manager (status = active).
+ */
+function dp_gateway_is_enabled(array $row): bool
+{
+    $status = strtolower(trim((string) ($row['status'] ?? '')));
+    return in_array($status, ['active', 'enabled', 'live'], true);
+}
+
+function isGatewayVisibleInCheckout(array $row): bool
+{
+    return dp_gateway_is_enabled($row);
+}
+
+function isGatewayVisibleInPos(array $row): bool
+{
+    return dp_gateway_is_enabled($row);
 }
 
 function getConfiguredGateways() {
@@ -2265,7 +2509,8 @@ function gateway_service() {
         
         public function getGatewayCardTypes($code) {
             $gw = getGatewayConfig($code);
-            return $gw['card_types'] ?? [];
+            $existing = is_array($gw['card_types'] ?? null) ? $gw['card_types'] : [];
+            return array_values(array_unique(array_merge(getAllAcceptedCardTypes(), $existing)));
         }
         
         public function isGatewayConfigured($code) {

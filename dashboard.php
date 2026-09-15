@@ -423,13 +423,12 @@ foreach ($dailyStats as $day) {
             <a href="dashboard.php" class="nav-link active"><i class="fas fa-chart-pie"></i> <?= $currentLang==='en'?'Dashboard':'لوحة التحكم' ?></a>
             <a href="wallets.php" class="nav-link"><i class="fas fa-wallet"></i> <?= $currentLang==='en'?'My Wallet':'محفظتي' ?></a>
             <a href="invoices.php" class="nav-link"><i class="fas fa-file-invoice"></i> <?= $currentLang==='en'?'Invoices':'الفواتير' ?></a>
-            <a href="holds.php" class="nav-link"><i class="fas fa-hand-holding-usd"></i> <?= $currentLang==='en'?'PayPal Holds':'حجوزات PayPal' ?></a>
             <a href="crypto.php" class="nav-link"><i class="fas fa-coins"></i> Crypto</a>
             <a href="ledger/" class="nav-link" style="border-color:rgba(255,215,0,.2);background:rgba(255,215,0,.04)">
               <svg width="13" height="13" viewBox="0 0 100 100" fill="currentColor" style="flex-shrink:0"><rect width="100" height="100" rx="16"/><rect x="15" y="60" width="70" height="10" rx="5" fill="black"/></svg>
               Ledger
             </a>
-            <a href="pos.php" class="nav-link" style="border-color:rgba(16,185,129,.2);background:rgba(16,185,129,.04);color:#10B981">
+            <a href="pos/index.php" class="nav-link" style="border-color:rgba(16,185,129,.2);background:rgba(16,185,129,.04);color:#10B981">
               <i class="fas fa-cash-register"></i> POS
             </a>
             <a href="checkout_router.php" class="nav-link" style="border-color:rgba(255,215,0,.3);background:rgba(255,215,0,.06);color:var(--gold);font-weight:800">
@@ -439,6 +438,7 @@ foreach ($dailyStats as $day) {
             <?php if (isAdmin()): ?>
             <a href="gateways.php" class="nav-link"><i class="fas fa-route"></i> <?= $currentLang==='en'?'Payment Gateways':'بوابات الدفع' ?></a>
             <a href="admin/connection_manager.php" class="nav-link"><i class="fas fa-network-wired"></i> <?= $currentLang==='en'?'Connection':'إدارة الاتصال' ?></a>
+            <a href="admin/auto_update.php" class="nav-link"><i class="fas fa-sync-alt"></i> Auto Update</a>
             <a href="approvals.php" class="nav-link"><i class="fas fa-check-double"></i> <?= $currentLang==='en'?'Approvals':'الموافقات' ?></a>
             <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> <?= $currentLang==='en'?'Settings':'تغيير الحساب' ?></a>
             <a href="transactions.php" class="nav-link"><i class="fas fa-list"></i> <?= $currentLang==='en'?'Transactions':'المعاملات' ?></a>
@@ -555,24 +555,7 @@ foreach ($dailyStats as $day) {
                                 <td>
                                     <span class="status-badge status-<?= $tx['status'] ?>">
                                         <?php
-                                        $statusLabels = (
-                                            $currentLang === 'en'
-                                            ? [
-                                                'completed' => 'Completed',
-                                                'pending' => 'Pending',
-                                                'failed' => 'Failed',
-                                                'refunded' => 'Refunded',
-                                                'chargeback' => 'Chargeback'
-                                            ]
-                                            : [
-                                                'completed' => 'مكتمل',
-                                                'pending' => 'قيد الانتظار',
-                                                'failed' => 'فشل',
-                                                'refunded' => 'مسترد',
-                                                'chargeback' => 'إلغاء'
-                                            ]
-                                        );
-                                        echo $statusLabels[$tx['status']] ?? $tx['status'];
+                                        echo getStatusLabel($tx['status']);
                                         ?>
                                     </span>
                                 </td>
@@ -601,14 +584,20 @@ foreach ($dailyStats as $day) {
             <i class="fas fa-file-pdf"></i>
             <?= $currentLang==='en'?'Financial Report':'تقرير مالي' ?>
         </a>
-        <a href="backup.php" class="quick-btn">
-            <i class="fas fa-database"></i>
-            <?= $currentLang==='en'?'Backup':'نسخ احتياطي' ?>
+        <a href="status.php" class="quick-btn">
+            <i class="fas fa-heartbeat"></i>
+            <?= $currentLang==='en'?'System Status':'حالة النظام' ?>
         </a>
         <a href="admin/gateway_manager.php" class="quick-btn">
             <i class="fas fa-cogs"></i>
             <?= $currentLang==='en'?'System Settings':'إعدادات النظام' ?>
         </a>
+        <?php if (isAdmin()): ?>
+        <a href="admin/auto_update.php" class="quick-btn">
+            <i class="fas fa-sync-alt"></i>
+            Auto Update
+        </a>
+        <?php endif; ?>
         <a href="security_check.php" class="quick-btn">
             <i class="fas fa-shield-alt"></i>
             <?= $currentLang==='en'?'Security Monitor':'مراقبة الأمان' ?>
@@ -617,7 +606,7 @@ foreach ($dailyStats as $day) {
             <i class="fas fa-wallet" style="color:var(--gold)"></i>
             Ledger Wallet
         </a>
-        <a href="pos.php" class="quick-btn" style="border-color:rgba(16,185,129,.2);background:rgba(16,185,129,.03)">
+        <a href="pos/index.php" class="quick-btn" style="border-color:rgba(16,185,129,.2);background:rgba(16,185,129,.03)">
             <i class="fas fa-cash-register" style="color:#10B981"></i>
             POS Terminal
         </a>

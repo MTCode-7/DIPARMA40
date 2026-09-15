@@ -23,6 +23,8 @@ require_once ROOT_PATH . '/includes/auth_check.php';
 
 requireAdmin();
 
+$ar = is_ar();
+
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
@@ -40,6 +42,7 @@ function gatewayFieldLabel($field) {
         'secret_key' => 'Secret Key',
         'client_id' => 'Client ID',
         'merchant_id' => 'Merchant ID',
+        'site_id' => 'Site ID',
         'merchant_account' => 'Merchant Account',
         'webhook' => 'Webhook URL',
         'success' => 'Success URL',
@@ -112,15 +115,46 @@ function getGatewayFormSchema($code) {
 }
 
 function getGatewayFormValues($gateway, $schema) {
-    $credentials = json_decode($gateway['credentials'] ?? '{}', true);
-    $settings = json_decode($gateway['settings'] ?? '{}', true);
+    $credentials = json_decode($gateway['credentials'] ?? '{}', true) ?: [];
+    $settings = json_decode($gateway['settings'] ?? '{}', true) ?: [];
+    $config = getGatewayConfig($gateway['code'] ?? '') ?: [];
 
     $values = ['credentials' => [], 'settings' => []];
     foreach ($schema['credentials'] as $field) {
-        $values['credentials'][$field] = $credentials[$field] ?? ($gateway[$field] ?? '');
+        $val = trim((string)($credentials[$field] ?? $gateway[$field] ?? ''));
+        if ($val === '' && isset($config['credentials'][$field])) {
+            $val = trim((string)$config['credentials'][$field]);
+        }
+        $values['credentials'][$field] = $val;
     }
     foreach ($schema['settings'] as $field) {
-        $values['settings'][$field] = $settings[$field] ?? ($gateway[$field] ?? '');
+        $val = trim((string)($settings[$field] ?? $gateway[$field] ?? ''));
+        if ($val === '' && isset($config['urls'][$field])) {
+            $val = trim((string)$config['urls'][$field]);
+        }
+        if ($val === '' && $field === 'environment') {
+            $val = trim((string)($config['environment'] ?? 'live'));
+        }
+        $values['settings'][$field] = $val;
+    }
+
+    if (($gateway['code'] ?? '') === 'nuvei') {
+        $envMerchant = trim((string)(getenv('NUVEI_MERCHANT_ID') ?: ($config['credentials']['merchant_id'] ?? '')));
+        $storedMerchant = trim((string)($values['credentials']['merchant_id'] ?? ''));
+        if ($envMerchant !== '' && ($storedMerchant === '' || !preg_match('/^\d{6,}$/', $storedMerchant))) {
+            $values['credentials']['merchant_id'] = $envMerchant;
+        }
+        foreach (['site_id' => 'NUVEI_SITE_ID', 'secret_key' => 'NUVEI_SECRET_KEY'] as $field => $envName) {
+            if (trim((string)($values['credentials'][$field] ?? '')) === '') {
+                $values['credentials'][$field] = trim((string)(getenv($envName) ?: ($config['credentials'][$field] ?? '')));
+            }
+        }
+        $values['settings']['webhook'] = $values['settings']['webhook'] ?: 'https://diparmas.com/api/nuvei_dmn.php';
+        $values['settings']['success'] = $values['settings']['success'] ?: 'https://diparmas.com/nuvei-success.php';
+        $values['settings']['cancel'] = $values['settings']['cancel'] ?: 'https://diparmas.com/nuvei-fail.php';
+        $values['settings']['pending'] = $values['settings']['pending'] ?: 'https://diparmas.com/nuvei-pending.php';
+        $values['settings']['back'] = $values['settings']['back'] ?: 'https://diparmas.com/nuvei-back.php';
+        $values['settings']['environment'] = $values['settings']['environment'] ?: 'live';
     }
 
     return $values;
@@ -145,7 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $showProfileForm = true;
     $csrfTokenValue = $_POST['csrf_token'] ?? '';
     if (!verifyCsrfToken($csrfTokenValue)) {
-        $message = '❌ فشل التحقق الأمني. حاول مرة أخرى.';
+        $message = dp_t('❌ Security verification failed. Try again.', '❌ فشل التحقق الأمني. حاول مرة أخرى.');
         $messageType = 'error';
     } else {
         $userId = intval($_SESSION['user_id'] ?? 0);
@@ -155,23 +189,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $confirmPassword = $_POST['confirm_password'] ?? '';
 
         if ($userId <= 0 || empty($profileFormData['username']) || empty($currentPassword)) {
-            $message = '❌ يرجى إدخال اسم المستخدم الحالي وكلمة المرور الحالية.';
+            $message = dp_t('❌ Enter current username and password.', '❌ يرجى إدخال اسم المستخدم الحالي وكلمة المرور الحالية.');
             $messageType = 'error';
         } else {
             try {
                 $user = $db->find('users', ['id' => $userId]);
                 if (!$user) {
-                    $message = '❌ لم يتم العثور على المستخدم.';
+                    $message = dp_t('❌ User not found.', '❌ لم يتم العثور على المستخدم.');
                     $messageType = 'error';
                 } elseif (!password_verify($currentPassword, $user['password_hash'])) {
-                    $message = '❌ كلمة المرور الحالية غير صحيحة.';
+                    $message = dp_t('❌ Current password is incorrect.', '❌ كلمة المرور الحالية غير صحيحة.');
                     $messageType = 'error';
                 } else {
                     $updateData = [];
                     if ($profileFormData['username'] !== $user['username']) {
                         $exists = $db->find('users', ['username' => $profileFormData['username']]);
                         if ($exists && intval($exists['id']) !== $userId) {
-                            $message = '❌ اسم المستخدم غير متاح. يرجى اختيار اسم آخر.';
+                            $message = dp_t('❌ Username unavailable. Choose another.', '❌ اسم المستخدم غير متاح. يرجى اختيار اسم آخر.');
                             $messageType = 'error';
                         } else {
                             $updateData['username'] = $profileFormData['username'];
@@ -180,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
                     if ($newPassword !== '') {
                         if ($newPassword !== $confirmPassword) {
-                            $message = '❌ كلمة المرور الجديدة وتأكيدها غير متطابقتين.';
+                            $message = dp_t('❌ New password and confirmation do not match.', '❌ كلمة المرور الجديدة وتأكيدها غير متطابقتين.');
                             $messageType = 'error';
                         } else {
                             $updateData['password_hash'] = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 12]);
@@ -188,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     }
 
                     if (empty($updateData) && $messageType !== 'error') {
-                        $message = 'ℹ️ لم يتم إجراء تغييرات.';
+                        $message = dp_t('ℹ️ No changes made.', 'ℹ️ لم يتم إجراء تغييرات.');
                         $messageType = 'info';
                     }
 
@@ -197,14 +231,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         if (isset($updateData['username'])) {
                             $_SESSION['user_data']['username'] = $updateData['username'];
                         }
-                        $message = '✅ تم تحديث بيانات الدخول بنجاح.';
+                        $message = dp_t('✅ Login credentials updated successfully.', '✅ تم تحديث بيانات الدخول بنجاح.');
                         $messageType = 'success';
                         $profileFormData['new_password'] = '';
                         $profileFormData['confirm_password'] = '';
                     }
                 }
             } catch (Exception $e) {
-                $message = '❌ حدث خطأ أثناء تحديث بيانات الحساب.';
+                $message = dp_t('❌ Error updating account.', '❌ حدث خطأ أثناء تحديث بيانات الحساب.');
                 $messageType = 'error';
             }
         }
@@ -216,7 +250,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
     && ($_POST['action'] ?? '') === 'test_connection') {
     header('Content-Type: application/json; charset=utf-8');
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        echo json_encode(['success' => false, 'message' => 'فشل التحقق الأمني'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['success' => false, 'message' => dp_t('Security verification failed', 'فشل التحقق الأمني')], JSON_UNESCAPED_UNICODE);
         exit();
     }
     $id = intval($_POST['gateway_id'] ?? 0);
@@ -235,7 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_gateway') {
     $id = intval($_POST['gateway_id'] ?? $_POST['id'] ?? 0);
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $message = '❌ فشل التحقق الأمني. حاول مرة أخرى.';
+        $message = dp_t('❌ Security verification failed. Try again.', '❌ فشل التحقق الأمني. حاول مرة أخرى.');
         $messageType = 'error';
     } elseif ($id > 0) {
         try {
@@ -254,6 +288,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_
                 foreach ($schema['settings'] as $field) {
                     if (array_key_exists($field, $_POST)) {
                         $settings[$field] = trim((string)$_POST[$field]);
+                    }
+                }
+                if ($existing['code'] === 'nuvei') {
+                    $credentials['merchant_id'] = trim((string)($credentials['merchant_id'] ?? getenv('NUVEI_MERCHANT_ID') ?: ''));
+                    $credentials['site_id'] = trim((string)($credentials['site_id'] ?? getenv('NUVEI_SITE_ID') ?: ''));
+                    $credentials['secret_key'] = trim((string)($credentials['secret_key'] ?? getenv('NUVEI_SECRET_KEY') ?: ''));
+                    $settings['webhook'] = trim((string)($settings['webhook'] ?? '')) ?: 'https://diparmas.com/api/nuvei_dmn.php';
+                    $settings['success'] = trim((string)($settings['success'] ?? '')) ?: 'https://diparmas.com/nuvei-success.php';
+                    $settings['cancel'] = trim((string)($settings['cancel'] ?? '')) ?: 'https://diparmas.com/nuvei-fail.php';
+                    $settings['pending'] = trim((string)($settings['pending'] ?? '')) ?: 'https://diparmas.com/nuvei-pending.php';
+                    $settings['back'] = trim((string)($settings['back'] ?? '')) ?: 'https://diparmas.com/nuvei-back.php';
+                    $settings['environment'] = trim((string)($settings['environment'] ?? '')) ?: 'live';
+                    if (trim((string)($_POST['api_endpoint'] ?? '')) === '' || str_contains((string)($_POST['api_endpoint'] ?? ''), 'example.com')) {
+                        $_POST['api_endpoint'] = 'https://secure.nuvei.com/ppp/api/v1';
+                    }
+                    if (trim((string)($_POST['api_version'] ?? '')) === '') {
+                        $_POST['api_version'] = 'v1';
+                    }
+                    if (empty($_POST['supports_2d']) && empty($_POST['supports_3d']) && empty($_POST['supports_hold']) && empty($_POST['supports_capture'])) {
+                        $_POST['supports_2d'] = '1';
+                        $_POST['supports_3d'] = '1';
+                        $_POST['supports_hold'] = '1';
+                        $_POST['supports_capture'] = '1';
                     }
                 }
                 if ($existing['code'] === 'paypal' && array_key_exists('paypal_webhook_id', $_POST)) {
@@ -281,14 +338,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_
                     'updated_at'       => date('Y-m-d H:i:s'),
                 ], ['id' => $id]);
 
-                $message     = '✅ تم حفظ التعديلات بنجاح';
+                $pub = dp_publish_saved_gateway($id);
+                if (!empty($pub['published'])) {
+                    $message = dp_t(
+                        '✅ Saved. Gateway is live on POS and Checkout now.',
+                        '✅ تم الحفظ. البوابة ظاهرة الآن في POS وCheckout.'
+                    );
+                    if (empty($pub['connected']) && !empty($pub['test']['message'])) {
+                        $message .= ' ' . dp_t('Connection test: ', 'اختبار الاتصال: ') . $pub['test']['message'];
+                    }
+                } else {
+                    $message     = dp_t('✅ Changes saved successfully', '✅ تم حفظ التعديلات بنجاح');
+                    if (!empty($pub['message'])) {
+                        $message .= ' — ' . $pub['message'];
+                    }
+                }
                 $messageType = 'success';
             } else {
-                $message     = '❌ البوابة غير موجودة';
+                $message     = dp_t('❌ Gateway not found', '❌ البوابة غير موجودة');
                 $messageType = 'error';
             }
         } catch (Exception $e) {
-            $message     = '❌ خطأ: ' . $e->getMessage();
+            $message     = dp_t('❌ Error: ', '❌ خطأ: ') . $e->getMessage();
             $messageType = 'error';
         }
     }
@@ -299,7 +370,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
     && ($_POST['action'] ?? '') === 'test_all_connections') {
     header('Content-Type: application/json; charset=utf-8');
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        echo json_encode(['success' => false, 'message' => 'فشل التحقق الأمني'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['success' => false, 'message' => dp_t('Security verification failed', 'فشل التحقق الأمني')], JSON_UNESCAPED_UNICODE);
         exit();
     }
     require_once ROOT_PATH . '/lib/GatewayConnectionTester.php';
@@ -312,7 +383,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
 // إضافة بوابة جديدة
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_gateway') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $message = '❌ فشل التحقق الأمني. حاول مرة أخرى.';
+        $message = dp_t('❌ Security verification failed. Try again.', '❌ فشل التحقق الأمني. حاول مرة أخرى.');
         $messageType = 'error';
     } else {
     $data = [
@@ -329,14 +400,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     ];
     
     if (empty($data['code']) || empty($data['name'])) {
-        $message = '❌ يرجى إدخال كود واسم البوابة';
+        $message = dp_t('❌ Enter gateway code and name', '❌ يرجى إدخال كود واسم البوابة');
         $messageType = 'error';
     } else {
         try {
             // التحقق من عدم وجود تكرار
             $exists = $db->find('payment_gateways', ['code' => $data['code']]);
             if ($exists) {
-                $message = '❌ البوابة موجودة بالفعل';
+                $message = dp_t('❌ Gateway already exists', '❌ البوابة موجودة بالفعل');
                 $messageType = 'error';
             } else {
                 $config = json_encode([
@@ -359,7 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     'retry_attempts' => 3
                 ]);
                 
-                $db->insert('payment_gateways', [
+                $newId = (int) $db->insert('payment_gateways', [
                     'code'              => $data['code'],
                     'name'              => $data['name'],
                     'type'              => $data['type'],
@@ -378,12 +449,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     'connection_status' => 'untested',
                     'sort_order'        => intval($_POST['sort_order']     ?? 0),
                 ]);
-                
-                $message = '✅ تم إضافة البوابة بنجاح';
+                $pub = dp_publish_saved_gateway($newId > 0 ? $newId : (int) ($db->getLastInsertId() ?: 0));
+                if (!empty($pub['published'])) {
+                    $message = dp_t(
+                        '✅ Gateway saved and is now live on POS and Checkout.',
+                        '✅ تم حفظ البوابة وهي ظاهرة الآن في POS وCheckout.'
+                    );
+                    if (empty($pub['connected'])) {
+                        $message .= ' ' . dp_t('Connection test: ', 'اختبار الاتصال: ') . ($pub['test']['message'] ?? '');
+                    }
+                } else {
+                    $message = dp_t('✅ Gateway added successfully', '✅ تم إضافة البوابة بنجاح');
+                    if (!empty($pub['message'])) {
+                        $message .= ' — ' . $pub['message'];
+                    }
+                }
                 $messageType = 'success';
             }
         } catch (Exception $e) {
-            $message = '❌ خطأ: ' . $e->getMessage();
+            $message = dp_t('❌ Error: ', '❌ خطأ: ') . $e->getMessage();
             $messageType = 'error';
         }
     }
@@ -398,10 +482,10 @@ if (isset($_GET['delete']) && isset($_GET['token'])) {
     if (hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
         try {
             $db->delete('payment_gateways', ['id' => $id]);
-            $message = '✅ تم حذف البوابة بنجاح';
+            $message = dp_t('✅ Gateway deleted successfully', '✅ تم حذف البوابة بنجاح');
             $messageType = 'success';
         } catch (Exception $e) {
-            $message = '❌ خطأ في الحذف';
+            $message = dp_t('❌ Delete failed', '❌ خطأ في الحذف');
             $messageType = 'error';
         }
     }
@@ -413,7 +497,7 @@ if (isset($_GET['edit'])) {
     if ($id > 0) {
         $editGateway = $db->find('payment_gateways', ['id' => $id]);
         if (!$editGateway) {
-            $message = '❌ لم يتم العثور على البوابة المطلوبة.';
+            $message = dp_t('❌ Gateway not found.', '❌ لم يتم العثور على البوابة المطلوبة.');
             $messageType = 'error';
         }
     }
@@ -430,11 +514,11 @@ if (isset($_GET['toggle']) && isset($_GET['token'])) {
             if ($gateway) {
                 $newStatus = $gateway['status'] === 'active' ? 'inactive' : 'active';
                 $db->update('payment_gateways', ['status' => $newStatus], ['id' => $id]);
-                $message = '✅ تم تغيير الحالة بنجاح';
+                $message = dp_t('✅ Status changed successfully', '✅ تم تغيير الحالة بنجاح');
                 $messageType = 'success';
             }
         } catch (Exception $e) {
-            $message = '❌ خطأ في تغيير الحالة';
+            $message = dp_t('❌ Failed to change status', '❌ خطأ في تغيير الحالة');
             $messageType = 'error';
         }
     }
@@ -502,14 +586,14 @@ if (isset($_GET['sync']) && isset($_GET['token'])) {
             }
 
             if ($added > 0) {
-                $message = "✅ تم إضافة {$added} بوابة مفقودة من التكوين";
+                $message = dp_t("✅ Added {$added} missing gateway(s) from config", "✅ تم إضافة {$added} بوابة مفقودة من التكوين");
                 $messageType = 'success';
             } else {
-                $message = 'ℹ️ لا توجد بوابات جديدة لإضافتها من التكوين';
+                $message = dp_t('ℹ️ No new gateways to add from config', 'ℹ️ لا توجد بوابات جديدة لإضافتها من التكوين');
                 $messageType = 'info';
             }
         } catch (Exception $e) {
-            $message = '❌ خطأ في مزامنة البوابات: ' . $e->getMessage();
+            $message = dp_t('❌ Gateway sync error: ', '❌ خطأ في مزامنة البوابات: ') . $e->getMessage();
             $messageType = 'error';
         }
     }
@@ -909,39 +993,39 @@ $csrfToken = generateCsrfToken();
     <!-- ===== نموذج تغيير بيانات الحساب ===== -->
     <?php if (isset($_GET['profile']) || $showProfileForm): ?>
         <div style="background:var(--bg-card);border:1px solid var(--border-gold);border-radius:16px;padding:25px;margin-bottom:25px;">
-            <h3 style="color:var(--text-light);margin-bottom:20px;"><i class="fas fa-user-cog"></i> تغيير اسم المستخدم وكلمة المرور</h3>
+            <h3 style="color:var(--text-light);margin-bottom:20px;"><i class="fas fa-user-cog"></i> <?= dp_t('Change username and password', 'تغيير اسم المستخدم وكلمة المرور') ?></h3>
             <form method="POST">
                 <input type="hidden" name="action" value="update_admin_credentials">
                 <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label><i class="fas fa-user"></i> اسم المستخدم الجديد</label>
-                        <input type="text" name="username" value="<?= htmlspecialchars($profileFormData['username']) ?>" required placeholder="أدخل اسم المستخدم الجديد">
+                        <label><i class="fas fa-user"></i> <?= dp_t('New username', 'اسم المستخدم الجديد') ?></label>
+                        <input type="text" name="username" value="<?= htmlspecialchars($profileFormData['username']) ?>" required placeholder="<?= htmlspecialchars(dp_t('Enter new username', 'أدخل اسم المستخدم الجديد')) ?>">
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label><i class="fas fa-lock"></i> كلمة المرور الحالية</label>
-                        <input type="password" name="current_password" value="" required placeholder="أدخل كلمة المرور الحالية">
+                        <label><i class="fas fa-lock"></i> <?= dp_t('Current password', 'كلمة المرور الحالية') ?></label>
+                        <input type="password" name="current_password" value="" required placeholder="<?= htmlspecialchars(dp_t('Enter current password', 'أدخل كلمة المرور الحالية')) ?>">
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label><i class="fas fa-lock"></i> كلمة المرور الجديدة</label>
-                        <input type="password" name="new_password" value="" placeholder="أدخل كلمة المرور الجديدة">
+                        <label><i class="fas fa-lock"></i> <?= dp_t('New password', 'كلمة المرور الجديدة') ?></label>
+                        <input type="password" name="new_password" value="" placeholder="<?= htmlspecialchars(dp_t('Enter new password', 'أدخل كلمة المرور الجديدة')) ?>">
                     </div>
                     <div class="form-group">
-                        <label><i class="fas fa-lock"></i> تأكيد كلمة المرور</label>
-                        <input type="password" name="confirm_password" value="" placeholder="أعد كتابة كلمة المرور الجديدة">
+                        <label><i class="fas fa-lock"></i> <?= dp_t('Confirm password', 'تأكيد كلمة المرور') ?></label>
+                        <input type="password" name="confirm_password" value="" placeholder="<?= htmlspecialchars(dp_t('Re-enter new password', 'أعد كتابة كلمة المرور الجديدة')) ?>">
                     </div>
                 </div>
 
                 <div style="display:flex;gap:10px;margin-top:15px;flex-wrap:wrap;">
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> حفظ التغييرات</button>
-                    <a href="gateway_manager.php" class="btn btn-outline"><i class="fas fa-times"></i> إلغاء</a>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> <?= dp_t('Save changes', 'حفظ التغييرات') ?></button>
+                    <a href="gateway_manager.php" class="btn btn-outline"><i class="fas fa-times"></i> <?= dp_t('Cancel', 'إلغاء') ?></a>
                 </div>
             </form>
         </div>
@@ -992,6 +1076,21 @@ $csrfToken = generateCsrfToken();
                     'webhook_url' => $settingValues['webhook'] ?? $settingValues['webhook_url'] ?? '',
                     'callback_url' => $settingValues['callback_url'] ?? ''
                 ]);
+                if (($editGateway['code'] ?? '') === 'nuvei') {
+                    $ep = trim((string)($editGateway['api_endpoint'] ?? ''));
+                    if ($ep === '' || str_contains($ep, 'example.com')) {
+                        $editGateway['api_endpoint'] = 'https://secure.nuvei.com/ppp/api/v1';
+                    }
+                    if (trim((string)($editGateway['api_version'] ?? '')) === '') {
+                        $editGateway['api_version'] = 'v1';
+                    }
+                    if (empty($editGateway['supports_2d']) && empty($editGateway['supports_3d']) && empty($editGateway['supports_hold']) && empty($editGateway['supports_capture'])) {
+                        $editGateway['supports_2d'] = 1;
+                        $editGateway['supports_3d'] = 1;
+                        $editGateway['supports_hold'] = 1;
+                        $editGateway['supports_capture'] = 1;
+                    }
+                }
             }
         ?>
         <div style="background:var(--bg-card);border:1px solid var(--border-gold);border-radius:16px;padding:25px;margin-bottom:25px;">
@@ -1033,6 +1132,12 @@ $csrfToken = generateCsrfToken();
                     </div>
                 </div>
                 
+                <?php if (($formData['code'] ?? '') === 'nuvei'): ?>
+                    <p style="color:#9ca3af;font-size:.8rem;line-height:1.6;margin:0 0 12px">
+                        Nuvei Control Panel → Merchant ID (أرقام) + Site ID + Secret Key.
+                        لا تضع كود الشركة مكان Merchant ID.
+                    </p>
+                <?php endif; ?>
                 <?php foreach ($schema['credentials'] as $field): ?>
                     <?php if ($field === 'secret' || $field === 'secret_key'): ?>
                         <div class="form-row">
@@ -1090,8 +1195,8 @@ $csrfToken = generateCsrfToken();
                         <label><i class="fas fa-globe"></i> API Endpoint (Base URL)</label>
                         <input type="url" name="api_endpoint"
                             value="<?= htmlspecialchars($editGateway['api_endpoint'] ?? '') ?>"
-                            placeholder="https://api.example.com">
-                        <small style="color:#888">عنوان API الرئيسي للبوابة</small>
+                            placeholder="<?= ($formData['code'] ?? '') === 'nuvei' ? 'https://secure.nuvei.com/ppp/api/v1' : 'https://api.example.com' ?>">
+                        <small style="color:#888"><?= ($formData['code'] ?? '') === 'nuvei' ? 'Live: https://secure.nuvei.com/ppp/api/v1' : 'عنوان API الرئيسي للبوابة' ?></small>
                     </div>
                     <div class="form-group">
                         <label><i class="fas fa-code-branch"></i> API Version</label>
@@ -1144,7 +1249,7 @@ $csrfToken = generateCsrfToken();
                                 <input type="checkbox" name="supports_hold" value="1"
                                     <?= ($editGateway['supports_hold'] ?? 0) ? 'checked' : '' ?>
                                     style="width:18px;height:18px;accent-color:#9fe870">
-                                <span style="color:#9fe870">HOLD (101.1)</span>
+                                <span style="color:#9fe870">HOLD / Auth</span>
                             </label>
                             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#ccc;font-size:.9rem">
                                 <input type="checkbox" name="supports_capture" value="1"

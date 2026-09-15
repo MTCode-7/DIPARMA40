@@ -1,7 +1,7 @@
 <?php
 /**
  * DI PARMA | NuveiAdapter (SafeCharge)
- * API: https://secure.safecharge.com/ppp/api/v1/
+ * API: https://secure.nuvei.com/ppp/api/v1/
  */
 require_once __DIR__ . '/GatewayAdapterInterface.php';
 require_once __DIR__ . '/GatewayErrorMapper.php';
@@ -19,16 +19,116 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $this->merchantId = getenv('NUVEI_MERCHANT_ID') ?: '';
         $this->siteId     = getenv('NUVEI_SITE_ID')     ?: '';
         $this->secretKey  = getenv('NUVEI_SECRET_KEY')  ?: '';
+        $envUrl = trim((string)(getenv('NUVEI_API_URL') ?: ''));
+        $env = strtolower(trim((string)(getenv('NUVEI_ENVIRONMENT') ?: 'live')));
+        if ($envUrl !== '') {
+            $this->baseUrl = rtrim($envUrl, '/');
+        } elseif ($env === 'test' || $env === 'sandbox' || $env === 'int') {
+            $this->baseUrl = 'https://ppp-test.nuvei.com/ppp/api/v1';
+        } else {
+            $this->baseUrl = 'https://secure.nuvei.com/ppp/api/v1';
+        }
         $this->logFile    = defined('LOGS_PATH') ? LOGS_PATH.'/nuvei.log' : __DIR__.'/../../logs/nuvei.log';
         if(!is_dir(dirname($this->logFile))) @mkdir(dirname($this->logFile),0755,true);
+    }
+
+    /** Live Nuvei first; old SafeCharge host only as fallback. */
+    private function apiBases(): array
+    {
+        $primary = rtrim($this->baseUrl, '/');
+        $live = [
+            'https://secure.nuvei.com/ppp/api/v1',
+            'https://secure.safecharge.com/ppp/api/v1',
+        ];
+        $test = [
+            'https://ppp-test.nuvei.com/ppp/api/v1',
+            'https://ppp-test.safecharge.com/ppp/api/v1',
+        ];
+        $env = strtolower(trim((string)(getenv('NUVEI_ENVIRONMENT') ?: 'live')));
+        $pool = ($env === 'test' || $env === 'sandbox' || $env === 'int') ? $test : $live;
+        $bases = [$primary];
+        foreach ($pool as $base) {
+            if (!in_array($base, $bases, true)) {
+                $bases[] = $base;
+            }
+        }
+        return $bases;
     }
     
 
     public function getName(): string { return 'nuvei'; }
 
+    /** Nuvei rejects localhost / http. Always send the live HTTPS site. */
+    private function publicSiteUrl(): string
+    {
+        $env = trim((string)(getenv('NUVEI_PUBLIC_URL') ?: ''));
+        $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : '';
+        $peer = defined('PEER_REMOTE_URL') ? rtrim((string) PEER_REMOTE_URL, '/') : '';
+        foreach ([$env, $site, $peer, 'https://diparmas.com'] as $url) {
+            $url = rtrim((string) $url, '/');
+            if ($url !== '' && preg_match('#^https://#i', $url) && !preg_match('#localhost|127\.0\.0\.1#i', $url)) {
+                return $url;
+            }
+        }
+        return 'https://diparmas.com';
+    }
+
+    private function publicUrlDetails(string $reference = ''): array
+    {
+        $base = $this->publicSiteUrl();
+        $valid = static function (string $url): string {
+            $url = trim($url);
+            if ($url === '' || !preg_match('#^https://#i', $url) || preg_match('#localhost|127\.0\.0\.1#i', $url)) {
+                return '';
+            }
+            return rtrim($url, ' ');
+        };
+        // Must match Nuvei Control Panel → My Integration Settings → URLs
+        $panelUrl = static function (string $envUrl, string $canonical) use ($valid): string {
+            $envUrl = $valid($envUrl);
+            if ($envUrl !== '' && (str_contains($envUrl, '/nuvei-') || str_contains($envUrl, '/nuvei_dmn.php'))) {
+                return $envUrl;
+            }
+            return $canonical;
+        };
+        return [
+            'successUrl' => $panelUrl((string) getenv('NUVEI_SUCCESS_URL'), $base . '/nuvei-success.php'),
+            'failureUrl' => $panelUrl((string) (getenv('NUVEI_FAILURE_URL') ?: getenv('NUVEI_CANCEL_URL')), $base . '/nuvei-fail.php'),
+            'pendingUrl' => $panelUrl((string) getenv('NUVEI_PENDING_URL'), $base . '/nuvei-pending.php'),
+            'notificationUrl' => $panelUrl((string) getenv('NUVEI_WEBHOOK_URL'), $base . '/api/nuvei_dmn.php'),
+        ];
+    }
+
+    /** REST urlDetails — backUrl belongs in Control Panel, not this class. */
+    private function restUrlDetails(string $reference = ''): array
+    {
+        $urls = $this->publicUrlDetails($reference);
+        return [
+            'successUrl' => $urls['successUrl'],
+            'failureUrl' => $urls['failureUrl'],
+            'pendingUrl' => $urls['pendingUrl'],
+            'notificationUrl' => $urls['notificationUrl'],
+        ];
+    }
+
+    private function hostedPayUrl(string $sessionToken): string
+    {
+        $env = strtolower(trim((string) (getenv('NUVEI_ENVIRONMENT') ?: 'live')));
+        $host = in_array($env, ['test', 'sandbox', 'int'], true)
+            ? 'https://ppp-test.nuvei.com'
+            : 'https://secure.safecharge.com';
+        return $host . '/ppp/purchase.do?sessionToken=' . rawurlencode($sessionToken);
+    }
+
+    private function saleOrAuth(array $params): string
+    {
+        $type = (string) ($params['transactionType'] ?? 'Sale');
+        return in_array($type, ['Sale', 'Auth', 'PreAuth'], true) ? $type : 'Sale';
+    }
+
     public function supports(string $mode): bool {
         $mode = strtoupper(trim($mode));
-        return in_array($mode, ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL'], true);
+        return in_array($mode, ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL', 'REFUND', 'VOID'], true);
     }
 
     public function normalizeError(array $rawResponse): string {
@@ -198,6 +298,108 @@ class NuveiAdapter implements GatewayAdapterInterface {
     }
 
     /**
+     * REST /initPayment — 3DS fingerprint + InitAuth3D.
+     * Live: https://secure.safecharge.com/ppp/api/v1/initPayment.do
+     */
+    public function initPayment(array $params): array
+    {
+        $sessionRes = $this->getSessionToken();
+        if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
+            return ['success' => false, 'message' => 'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')];
+        }
+        $clientReqId = (string) ($params['client_request_id'] ?? ('INIT-' . strtoupper(substr(uniqid(), 0, 8))));
+        $reference = (string) ($params['reference'] ?? $params['client_unique_id'] ?? $clientReqId);
+        $amount = number_format((float) ($params['amount'] ?? 0), 2, '.', '');
+        $currency = strtoupper((string) ($params['currency'] ?? 'USD'));
+        $notify3ds = $this->publicSiteUrl() . '/api/nuvei_dmn.php';
+        $body = [
+            'sessionToken' => $sessionRes['sessionToken'] ?? '',
+            'merchantId' => $this->merchantId,
+            'merchantSiteId' => $this->siteId,
+            'clientUniqueId' => $reference,
+            'clientRequestId' => $clientReqId,
+            'amount' => $amount,
+            'currency' => $currency,
+            'userTokenId' => $params['user_token_id'] ?? $params['email'] ?? ('user_' . date('YmdHis')),
+            'paymentOption' => $this->buildCardPaymentOption($params),
+            'deviceDetails' => $this->buildDeviceDetails($params),
+            'billingAddress' => $this->buildBillingAddress($params),
+            'urlDetails' => $this->restUrlDetails($reference),
+        ];
+        $card = $body['paymentOption']['card'] ?? [];
+        $card['threeD'] = ['methodNotificationUrl' => $notify3ds];
+        $body['paymentOption']['card'] = $card;
+        $res = $this->request('initPayment', $body);
+        $ok = ($res['status'] ?? '') === 'SUCCESS';
+        return [
+            'success' => $ok,
+            'status' => $ok ? 'initialized' : 'failed',
+            'transaction_id' => $res['transactionId'] ?? '',
+            'transaction_type' => $res['transactionType'] ?? 'InitAuth3D',
+            'session_token' => $res['sessionToken'] ?? ($sessionRes['sessionToken'] ?? ''),
+            'three_d' => $res['paymentOption']['card']['threeD'] ?? [],
+            'message' => $ok ? 'Nuvei initPayment' : ($res['reason'] ?? $res['gwErrorReason'] ?? 'initPayment failed'),
+            'raw' => $res,
+        ];
+    }
+
+    /**
+     * REST /accountCapture — bank details for APM payout UPO.
+     * Live: https://secure.safecharge.com/ppp/api/v1/accountCapture.do
+     */
+    public function accountCapture(array $params): array
+    {
+        $sessionRes = $this->getSessionToken();
+        if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
+            return ['success' => false, 'message' => 'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')];
+        }
+        $body = [
+            'sessionToken' => $sessionRes['sessionToken'] ?? '',
+            'merchantId' => $this->merchantId,
+            'merchantSiteId' => $this->siteId,
+            'paymentMethod' => (string) ($params['payment_method'] ?? $params['paymentMethod'] ?? ''),
+            'userTokenId' => (string) ($params['user_token_id'] ?? $params['userTokenId'] ?? ''),
+            'currencyCode' => strtoupper((string) ($params['currency'] ?? $params['currencyCode'] ?? 'USD')),
+            'countryCode' => strtoupper(substr((string) ($params['country'] ?? $params['countryCode'] ?? 'AE'), 0, 2)),
+            'languageCode' => (string) ($params['language'] ?? 'en'),
+            'urlDetails' => $this->restUrlDetails((string) ($params['reference'] ?? '')),
+        ];
+        if ($body['paymentMethod'] === '' || $body['userTokenId'] === '') {
+            return ['success' => false, 'message' => 'accountCapture requires paymentMethod and userTokenId'];
+        }
+        if (isset($params['amount']) && (float) $params['amount'] > 0) {
+            $body['amount'] = number_format((float) $params['amount'], 2, '.', '');
+        }
+        $res = $this->request('accountCapture', $body);
+        $ok = ($res['status'] ?? '') === 'SUCCESS' || !empty($res['redirectUrl']);
+        return [
+            'success' => $ok,
+            'redirect_url' => $res['redirectUrl'] ?? '',
+            'session_token' => $res['sessionToken'] ?? '',
+            'message' => $ok ? 'Nuvei accountCapture' : ($res['reason'] ?? 'accountCapture failed'),
+            'raw' => $res,
+        ];
+    }
+
+    /** REST /getPaymentStatus — verify createPayment / same session. */
+    public function getPaymentStatus(string $sessionToken): array
+    {
+        if ($sessionToken === '') {
+            return ['success' => false, 'message' => 'sessionToken required'];
+        }
+        $res = $this->request('getPaymentStatus', ['sessionToken' => $sessionToken]);
+        $ok = ($res['status'] ?? '') === 'SUCCESS';
+        return [
+            'success' => $ok,
+            'transaction_id' => $res['transactionId'] ?? '',
+            'transaction_status' => $res['transactionStatus'] ?? '',
+            'auth_code' => $res['authCode'] ?? '',
+            'message' => $ok ? 'Nuvei getPaymentStatus' : ($res['reason'] ?? 'getPaymentStatus failed'),
+            'raw' => $res,
+        ];
+    }
+
+    /**
      * Capture — يدعم عقد الواجهة (string id) ومسار POS (array params).
      * @param string|array $transactionId
      */
@@ -227,7 +429,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'currency'             => 'USD',
             'relatedTransactionId' => $transactionId,
             'timeStamp'            => $ts,
-            'checksum'             => $this->checksum($ref, $ts),
+            'checksum'             => $this->relatedChecksum($ref, $ref, $amt, 'USD', $transactionId, $ts),
+            'urlDetails'           => ['notificationUrl' => $this->restUrlDetails()['notificationUrl']],
         ];
 
         $res      = $this->post('/settleTransaction.do', $body);
@@ -264,49 +467,27 @@ class NuveiAdapter implements GatewayAdapterInterface {
     /** Capture من مسار POS (مصفوفة params مع related_transaction_id + auth_code) */
     private function captureFromParams(array $params): array
     {
-        $sessionRes = $this->getSessionToken();
-        if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
-            return ['success' => false, 'message' => 'Session token failed'];
-        }
-
         $ts          = date('YmdHis');
         $clientReqId = 'POS-CAP-' . strtoupper(substr(uniqid(), 0, 8));
         $amount      = number_format((float)($params['amount'] ?? 0), 2, '.', '');
         $currency    = $params['currency'] ?? 'USD';
         $clientUniqueId = (string)($params['client_unique_id'] ?? $clientReqId);
         $authCode    = trim((string)($params['auth_code'] ?? ''));
-        $relatedId   = (string)($params['related_transaction_id'] ?? '');
+        $relatedId   = trim((string)($params['related_transaction_id'] ?? $params['payment_id'] ?? $params['nuvei_txn_id'] ?? ''));
         $authorizedAmount = isset($params['authorized_amount'])
             ? (float)$params['authorized_amount']
             : null;
 
         if ($relatedId === '') {
-            return ['success' => false, 'message' => 'related_transaction_id required for capture'];
+            return ['success' => false, 'message' => 'Nuvei Transaction ID (Payment ID) is required for capture'];
         }
         if ($authCode === '') {
-            return ['success' => false, 'message' => 'Nuvei authCode is required for settlement'];
-        }
-        if ($authorizedAmount !== null && (float)$amount > $authorizedAmount) {
-            return [
-                'success' => false,
-                'message' => 'Settlement amount cannot exceed the original authorized amount',
-            ];
+            return ['success' => false, 'message' => 'Nuvei Auth Code is required for capture'];
         }
 
-        $checksum = $this->buildChecksum([
-            $this->merchantId,
-            $this->siteId,
-            $clientReqId,
-            $clientUniqueId,
-            $amount,
-            $currency,
-            $relatedId,
-            $authCode,
-            $this->secretKey,
-        ]);
+        $checksum = $this->relatedChecksum($clientReqId, $clientUniqueId, $amount, $currency, $relatedId, $ts);
 
         $result = $this->request('settleTransaction', [
-            'sessionToken'          => $sessionRes['sessionToken'] ?? '',
             'merchantId'            => $this->merchantId,
             'merchantSiteId'        => $this->siteId,
             'clientRequestId'       => $clientReqId,
@@ -317,6 +498,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'authCode'              => $authCode,
             'timeStamp'             => $ts,
             'checksum'              => $checksum,
+            'urlDetails'            => ['notificationUrl' => $this->restUrlDetails($clientUniqueId)['notificationUrl']],
         ]);
 
         return $this->normalizeResponse('capture', $result, $clientReqId);
@@ -343,7 +525,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'currency'             => 'USD',
             'relatedTransactionId' => $transactionId,
             'timeStamp'            => $ts,
-            'checksum'             => $this->checksum($ref, $ts),
+            'checksum'             => $this->relatedChecksum($ref, $ref, '0.00', 'USD', $transactionId, $ts),
         ];
 
         $res     = $this->post('/voidTransaction.do', $body);
@@ -376,11 +558,60 @@ class NuveiAdapter implements GatewayAdapterInterface {
             $res['gwErrorReason'] ?? $res['reason'] ?? $res['errCode'] ?? 'Nuvei void failed');
     }
 
-    // ── توليد checksum (الترتيب الصحيح الموثّق من Nuvei) ──
-    // getSessionToken: merchantId + siteId + clientRequestId + timeStamp + secretKey
-    // payment/order:   merchantId + siteId + clientRequestId + timeStamp + secretKey
+    /**
+     * REST 1.0 checksum: UTF-8 SHA-256 of concatenated fields (secret last).
+     * https://docs.nuvei.com/api/main/indexMain_v1_0.html?json
+     */
+    private function restChecksum(array $fields): string
+    {
+        return hash('sha256', implode('', array_map('strval', $fields)));
+    }
+
+    // getSessionToken: merchantId + merchantSiteId + clientRequestId + timeStamp + secret
     private function checksum(string $clientRequestId, string $timeStamp): string {
-        return hash('sha256', $this->merchantId.$this->siteId.$clientRequestId.$timeStamp.$this->secretKey);
+        return $this->restChecksum([
+            $this->merchantId,
+            $this->siteId,
+            $clientRequestId,
+            $timeStamp,
+            $this->secretKey,
+        ]);
+    }
+
+    // openOrder / payment: merchantId + merchantSiteId + clientRequestId + amount + currency + timeStamp + secret
+    private function paymentChecksum(string $clientRequestId, string $amount, string $currency, string $timeStamp): string
+    {
+        return $this->restChecksum([
+            $this->merchantId,
+            $this->siteId,
+            $clientRequestId,
+            $amount,
+            strtoupper($currency),
+            $timeStamp,
+            $this->secretKey,
+        ]);
+    }
+
+    // settle/refund/void: merchantId + merchantSiteId + clientRequestId + clientUniqueId + amount + currency + relatedTransactionId + timeStamp + secret
+    private function relatedChecksum(
+        string $clientRequestId,
+        string $clientUniqueId,
+        string $amount,
+        string $currency,
+        string $relatedTransactionId,
+        string $timeStamp
+    ): string {
+        return $this->restChecksum([
+            $this->merchantId,
+            $this->siteId,
+            $clientRequestId,
+            $clientUniqueId,
+            $amount,
+            strtoupper($currency),
+            $relatedTransactionId,
+            $timeStamp,
+            $this->secretKey,
+        ]);
     }
 
     // ── فتح session ───────────────────────────────────────
@@ -392,26 +623,30 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $currency = strtoupper($payload['currency'] ?? 'USD');
         $ref      = $payload['reference'] ?? 'ORD'.time();
         $email    = $payload['email']     ?? 'guest@diparmas.com';
-        $siteUrl  = defined('SITE_URL') ? SITE_URL : 'https://diparmas.com';
-
-        $checksum = $this->checksum($ref, $ts);
+        $checksum = $this->paymentChecksum($ref, $amount, $currency, $ts);
 
         $body = [
-            'merchantId'     => $this->merchantId,
-            'merchantSiteId' => $this->siteId,
-            'clientRequestId'=> $ref,
-            'amount'         => $amount,
-            'currency'       => $currency,
-            'timeStamp'      => $ts,
-            'checksum'       => $checksum,
-            'userTokenId'    => $email,
-            'billingAddress' => ['email' => $email],
-            'successUrl'     => $siteUrl.'/crypto_confirm.php?ref='.$ref.'&gateway=nuvei',
-            'failureUrl'     => $siteUrl.'/checkout_router.php?error=payment_failed',
-            'pendingUrl'     => $siteUrl.'/api/webhook.php?gateway=nuvei',
-            'backUrl'        => $siteUrl.'/checkout_router.php',
-            'notificationUrl'=> $siteUrl.'/api/webhook.php?gateway=nuvei',
+            'merchantId'      => $this->merchantId,
+            'merchantSiteId'  => $this->siteId,
+            'clientRequestId' => $ref,
+            'clientUniqueId'  => $ref,
+            'amount'          => $amount,
+            'currency'        => $currency,
+            'timeStamp'       => $ts,
+            'checksum'        => $checksum,
+            'userTokenId'     => $email,
+            'billingAddress'  => [
+                'email' => $email,
+                'country' => strtoupper(substr((string) ($payload['country'] ?? 'AE'), 0, 2)),
+                'firstName' => 'Customer',
+                'lastName' => 'Client',
+            ],
+            'urlDetails'      => $this->restUrlDetails($ref),
         ];
+        $txnType = $this->saleOrAuth($payload);
+        if ($txnType !== 'Sale') {
+            $body['transactionType'] = $txnType;
+        }
 
         $res = $this->post('/openOrder.do', $body);
 
@@ -420,14 +655,14 @@ class NuveiAdapter implements GatewayAdapterInterface {
             return [
                 'success'       => true,
                 'session_token' => $res['sessionToken'],
-                'checkout_url'  => 'https://secure.nuvei.com/ppp/purchase.do?sessionToken='.$res['sessionToken'],
+                'checkout_url'  => $this->hostedPayUrl((string) $res['sessionToken']),
                 'reference'     => $ref,
                 'provider'      => 'nuvei',
             ];
         }
 
         $this->log("✗ OpenOrder failed: ".json_encode($res));
-        return ['success'=>false,'message'=>$res['errCode'].' — '.($res['reason'] ?? 'Nuvei error')];
+        return ['success' => false, 'message' => trim(($res['errCode'] ?? '') . ' — ' . ($res['reason'] ?? 'Nuvei error'), ' —')];
     }
 
     // ── دفع مباشر بالبطاقة (API v1) ─────────────────────
@@ -518,14 +753,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'ipAddress' => $ipAddress,
             'browserUserAgent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
         ],
-        'transactionType'  => strtoupper($payload['processing_mode'] ?? '') === '2D'
-                                ? 'MOTO'   // Mail/Telephone Order — بدون 3DS
-                                : 'Sale',  // شراء عادي مع 3DS
-        'urlDetails' => [
-            'successUrl' => 'https://diparmas.com/crypto_confirm.php?ref=' . $ref . '&gateway=nuvei',
-            'failureUrl' => 'https://diparmas.com/checkout_router.php?error=payment_failed',
-            'notificationUrl' => 'https://diparmas.com/api/webhook.php?gateway=nuvei',
-        ]
+        'transactionType'  => 'Sale',
+        'urlDetails' => $this->restUrlDetails($ref),
     ];
 
     $res = $this->post('/payment.do', $body);
@@ -555,35 +784,6 @@ class NuveiAdapter implements GatewayAdapterInterface {
     ];
 }
 
-
-    // ── استرداد (Refund) ──────────────────────────────────
-    // public function refund(string $transactionId, float $amount, string $currency='USD'): array {
-    //     $ts    = date('YmdHis');
-    //     $amt   = number_format($amount, 2, '.', '');
-    //     $refId = 'REF'.time();
-    //     $checksum = $this->checksum($refId, $ts);
-
-    //     $body = [
-    //         'merchantId'      => $this->merchantId,
-    //         'merchantSiteId'  => $this->siteId,
-    //         'clientRequestId' => $refId,
-    //         'clientUniqueId'  => $refId,
-    //         'amount'          => $amt,
-    //         'currency'        => strtoupper($currency),
-    //         'relatedTransactionId' => $transactionId,
-    //         'timeStamp'       => $ts,
-    //         'checksum'        => $checksum,
-    //     ];
-
-    //     $res = $this->post('/refundTransaction.do', $body);
-
-    //     return [
-    //         'success'   => ($res['transactionStatus'] ?? '') === 'APPROVED',
-    //         'message'   => $res['gwErrorReason'] ?? $res['reason'] ?? 'Refund processed',
-    //         'refund_id' => $res['transactionId'] ?? '',
-    //     ];
-    // }
-
     public function settleTransaction(string $transactionId, float $amount, string $currency = 'USD', string $reference = ''): array {
         if ($this->merchantId === '' || $transactionId === '') {
             return ['success' => false, 'message' => 'Nuvei settlement requires merchant credentials and transaction ID'];
@@ -600,7 +800,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'currency' => strtoupper($currency),
             'relatedTransactionId' => $transactionId,
             'timeStamp' => $ts,
-            'checksum' => $this->checksum($ref, $ts),
+            'checksum' => $this->relatedChecksum($ref, $ref, number_format($amount, 2, '.', ''), $currency, $transactionId, $ts),
+            'urlDetails' => ['notificationUrl' => $this->restUrlDetails($ref)['notificationUrl']],
         ];
 
         $res = $this->post('/settleTransaction.do', $body);
@@ -661,21 +862,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     // ── HTTP POST ─────────────────────────────────────────
     private function post(string $endpoint, array $body): array {
-        $ch = curl_init($this->baseUrl.$endpoint);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($body),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json','Accept: application/json'],
-            CURLOPT_TIMEOUT        => 20,
-            CURLOPT_SSL_VERIFYPEER => true,
-        ]);
-        $res  = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        $data = json_decode($res ?: '{}', true) ?: [];
-        $data['_http_code'] = $code;
-        return $data;
+        return $this->request($endpoint, $body);
     }
 
     private function log(string $msg): void {
@@ -699,6 +886,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $amount    = number_format((float)$params['amount'], 2, '.', '');
         $currency  = $params['currency'] ?? 'USD';
         $userToken = $params['user_token_id'] ?? 'guest_' . date('YmdHis');
+        $reference = (string) ($params['reference'] ?? $clientReqId);
+        $txnType   = $this->saleOrAuth($params);
 
         // Nuvei checksum: merchantId + merchantSiteId + clientRequestId + amount + currency + timeStamp + secretKey
         $checksum = $this->buildChecksum([
@@ -716,30 +905,39 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'merchantId'       => $this->merchantId,
             'merchantSiteId'   => $this->siteId,
             'clientRequestId'  => $clientReqId,
-            'clientUniqueId'   => $clientReqId,
+            'clientUniqueId'   => $reference,
             'amount'           => $amount,
             'currency'         => $currency,
             'userTokenId'      => $userToken,
-            'transactionType'   => $params['transactionType'] ?? 'Sale',
+            'transactionType'  => $txnType,
             'paymentOption'    => $this->buildCardPaymentOption($params),
             'billingAddress'   => $this->buildBillingAddress($params),
             'timeStamp'        => $ts,
             'checksum'         => $checksum,
             'deviceDetails'    => $this->buildDeviceDetails($params),
-            'urlDetails'       => [
-                'successUrl'  => defined('NUVEI_SUCCESS_URL') ? NUVEI_SUCCESS_URL : 'https://diparmas.com/crypto_confirm.php',
-                'failureUrl'  => defined('NUVEI_CANCEL_URL')  ? NUVEI_CANCEL_URL  : 'https://diparmas.com/checkout.php',
-                'notificationUrl' => 'https://diparmas.com/api/webhook.php?gateway=nuvei',
-            ],
+            'urlDetails'       => $this->restUrlDetails($reference),
+            'isMoto'           => !empty($params['is_moto']) ? '1' : '0',
             'merchantDetails'  => [
                 'customField1' => 'TRANSCENDIO_FZ_LLC',
-                'customField2' => 'MASHREQ_AE300330000019101562722',
+                'customField2' => $params['ledger_addr'] ?? $params['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
                 'customField3' => $params['pos_device'] ?? 'BITEL_IC3600',
                 'customField4' => !empty($params['is_moto']) ? 'MOTO' : 'ECOM',
             ],
         ];
+        $authCode = trim((string)($params['auth_code'] ?? $params['approval_code'] ?? ''));
+        if ($authCode !== '') {
+            $body['authCode'] = $authCode;
+        }
 
         $result = $this->request('payment', $body);
+        $this->log('payment ' . $clientReqId . ' ' . json_encode([
+            'status' => $result['status'] ?? null,
+            'transactionStatus' => $result['transactionStatus'] ?? null,
+            'errCode' => $result['errCode'] ?? null,
+            'reason' => $result['reason'] ?? null,
+            'gwErrorReason' => $result['gwErrorReason'] ?? null,
+            'transactionId' => $result['transactionId'] ?? null,
+        ]));
         return $this->normalizeResponse('purchase', $result, $clientReqId);
     }
 
@@ -750,11 +948,9 @@ class NuveiAdapter implements GatewayAdapterInterface {
         return $this->purchase($params);
     }
 
-    /** شراء 2D / MOTO — نفس purchase مع مؤشر MOTO */
+    /** شراء 2D — MOTO فقط إذا أُرسل is_moto من العملية */
     public function purchase2D(array $params): array
     {
-        $params['is_moto'] = true;
-        $params['moto_indicator'] = $params['moto_indicator'] ?? 'M';
         $params['transactionType'] = $params['transactionType'] ?? 'Sale';
         return $this->purchase($params);
     }
@@ -784,7 +980,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $currency    = $params['currency'] ?? 'USD';
         $userToken   = $params['user_token_id'] ?? 'guest_' . date('YmdHis');
         $reference   = $params['reference'] ?? $clientReqId;
-        $siteUrl     = defined('SITE_URL') ? rtrim(SITE_URL, '/') : 'https://diparmas.com';
+        $siteUrl     = $this->publicSiteUrl();
 
         $checksum = $this->buildChecksum([
             $this->merchantId,
@@ -809,12 +1005,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'billingAddress'  => $this->buildBillingAddress($params),
             'timeStamp'       => $ts,
             'checksum'        => $checksum,
-            'urlDetails'      => [
-                'successUrl'      => $siteUrl . '/payment_success.php?ref=' . $reference . '&gateway=nuvei',
-                'failureUrl'      => $siteUrl . '/checkout_diparma.php?error=1',
-                'notificationUrl' => $siteUrl . '/api/webhook.php?gateway=nuvei',
-                'backUrl'         => $siteUrl . '/checkout_diparma.php',
-            ],
+            'urlDetails'      => $this->restUrlDetails($reference),
             'deviceDetails'   => $this->buildDeviceDetails($params),
             'threeD'          => $this->buildThreeDSDetails($params, $siteUrl),
             'merchantDetails' => [
@@ -826,9 +1017,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $result = $this->request('openOrder', $body);
 
         if (($result['status'] ?? '') === 'SUCCESS' && !empty($result['sessionToken'])) {
-            $payUrl = defined('NUVEI_ENVIRONMENT') && NUVEI_ENVIRONMENT === 'live'
-                ? 'https://secure.nuvei.com/ppp/purchase.do?sessionToken=' . $result['sessionToken']
-                : 'https://ppp-test.nuvei.com/ppp/purchase.do?sessionToken=' . $result['sessionToken'];
+            $payUrl = $this->hostedPayUrl((string) $result['sessionToken']);
 
             return [
                 'success'       => true,
@@ -849,106 +1038,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
         ];
     }
 
-    // ── Capture — تحصيل بعد تفويض ─────────────────────────
-    // public function capture(array $params): array
-    // {
-    //     $sessionRes = $this->getSessionToken();
-    //     if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
-    //         return ['success' => false, 'message' => 'Session token failed'];
-    //     }
-
-    //     $ts          = date('YmdHis');
-    //     $clientReqId = 'POS-CAP-' . strtoupper(substr(uniqid(), 0, 8));
-    //     $amount      = number_format((float)$params['amount'], 2, '.', '');
-    //     $currency    = $params['currency'] ?? 'USD';
-    //     $clientUniqueId = (string)($params['client_unique_id'] ?? $clientReqId);
-    //     $authCode    = trim((string)($params['auth_code'] ?? ''));
-    //     $authorizedAmount = isset($params['authorized_amount'])
-    //         ? (float)$params['authorized_amount']
-    //         : null;
-
-    //     if ($authCode === '') {
-    //         return ['success' => false, 'message' => 'Nuvei authCode is required for settlement'];
-    //     }
-
-    //     if ($authorizedAmount !== null && (float)$amount > $authorizedAmount) {
-    //         return [
-    //             'success' => false,
-    //             'message' => 'Settlement amount cannot exceed the original authorized amount',
-    //         ];
-    //     }
-
-    //     $checksum = $this->buildChecksum([
-    //         $this->merchantId,
-    //         $this->siteId,
-    //         $clientReqId,
-    //         $clientUniqueId,
-    //         $amount,
-    //         $currency,
-    //         $params['related_transaction_id'],
-    //         $authCode,
-    //         $this->secretKey,
-    //     ]);
-
-    //     $result = $this->request('settleTransaction', [
-    //         'sessionToken'          => $sessionRes['sessionToken'],
-    //         'merchantId'            => $this->merchantId,
-    //         'merchantSiteId'        => $this->siteId,
-    //         'clientRequestId'       => $clientReqId,
-    //         'clientUniqueId'        => $clientUniqueId,
-    //         'amount'                => $amount,
-    //         'currency'              => $currency,
-    //         'relatedTransactionId'  => $params['related_transaction_id'],
-    //         'authCode'              => $authCode,
-    //         'timeStamp'             => $ts,
-    //         'checksum'              => $checksum,
-    //     ]);
-
-    //     return $this->normalizeResponse('capture', $result, $clientReqId);
-    // }
-
-    // ── Refund — استرداد ───────────────────────────────────
-    // public function refund(array $params): array
-    // {
-    //     $sessionRes = $this->getSessionToken();
-    //     if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
-    //         return ['success' => false, 'message' => 'Session token failed'];
-    //     }
-
-    //     $ts          = date('YmdHis');
-    //     $clientReqId = 'POS-REF-' . strtoupper(substr(uniqid(), 0, 8));
-    //     $amount      = number_format((float)$params['amount'], 2, '.', '');
-    //     $currency    = $params['currency'] ?? 'USD';
-
-    //     $checksum = $this->buildChecksum([
-    //         $this->merchantId,
-    //         $this->siteId,
-    //         $clientReqId,
-    //         $params['related_transaction_id'],
-    //         $amount,
-    //         $currency,
-    //         $this->secretKey,
-    //     ]);
-
-    //     $result = $this->request('refundTransaction', [
-    //         'sessionToken'          => $sessionRes['sessionToken'],
-    //         'merchantId'            => $this->merchantId,
-    //         'merchantSiteId'        => $this->siteId,
-    //         'clientRequestId'       => $clientReqId,
-    //         'clientUniqueId'        => $clientReqId,
-    //         'amount'                => $amount,
-    //         'currency'              => $currency,
-    //         'relatedTransactionId'  => $params['related_transaction_id'],
-    //         'timeStamp'             => $ts,
-    //         'checksum'              => $checksum,
-    //         'comment'               => $params['reason'] ?? 'Customer refund request',
-    //     ]);
-
-    //     return $this->normalizeResponse('refund', $result, $clientReqId);
-    // }
-
-        /**
-     * Refund — يدعم معرفاً نصياً أو مصفوفة POS.
+    /**
+     * Refund — string transaction id or POS params array.
      * @param string|array $transactionId
      */
     public function refund(string|array $transactionId, float $amount = 0, string $currency = 'USD'): array {
@@ -1171,6 +1262,13 @@ class NuveiAdapter implements GatewayAdapterInterface {
     // ── بناء payment option للبطاقة ────────────────────────
     private function buildCardPaymentOption(array $p): array
     {
+        $token = trim((string)($p['cloud_token'] ?? $p['payment_token'] ?? $p['userPaymentOptionId'] ?? ''));
+        if ($token !== '' && empty($p['card_number'])) {
+            if (ctype_digit($token)) {
+                return ['userPaymentOptionId' => $token];
+            }
+            return ['card' => ['ccTempToken' => $token]];
+        }
         $card = [];
         if (!empty($p['card_number'])) {
             $expiry = explode('/', str_replace([' ','-'], '/', $p['card_expiry'] ?? '01/30'));
@@ -1178,17 +1276,19 @@ class NuveiAdapter implements GatewayAdapterInterface {
             $cardName = strtoupper(preg_replace('/[^A-Za-z\s]/', '', $p['card_name'] ?? 'CARDHOLDER'));
             $cardName = trim(preg_replace('/\s+/', ' ', $cardName)) ?: 'CARDHOLDER';
 
-            $card = [
-                'card' => [
+            $cardBody = [
                     'cardNumber'        => preg_replace('/\D/', '', $p['card_number']),
                     'cardHolderName'    => $cardName,
                     'expirationMonth'   => str_pad($expiry[0] ?? '01', 2, '0', STR_PAD_LEFT),
                     'expirationYear'    => strlen($expiry[1] ?? '30') === 2
                         ? '20' . ($expiry[1] ?? '30')
                         : ($expiry[1] ?? '2030'),
-                    'CVV'               => $p['card_cvv'] ?? '',
-                ],
             ];
+            $cvv = trim((string)($p['card_cvv'] ?? ''));
+            if ($cvv !== '') {
+                $cardBody['CVV'] = $cvv;
+            }
+            $card = ['card' => $cardBody];
         }
         return $card ?: ['card' => []];
     }
@@ -1198,18 +1298,22 @@ class NuveiAdapter implements GatewayAdapterInterface {
     {
         // cardHolderName — أحرف إنجليزية فقط بدون رموز خاصة
         $nameParts = explode(' ', strtoupper(preg_replace('/[^A-Za-z\s]/', '', $p['card_name'] ?? 'CARDHOLDER')));
-        return [
+        $addr = [
             'firstName' => $nameParts[0] ?? 'CARDHOLDER',
             'lastName'  => $nameParts[1] ?? 'CLIENT',
             'email'     => filter_var($p['email'] ?? '', FILTER_VALIDATE_EMAIL)
                             ? $p['email']
-                            : '',
-            'phone'     => preg_replace('/\D/', '', $p['phone'] ?? '971501234567') ?: '971501234567',
+                            : 'pos@diparmas.com',
             'country'   => strtoupper(substr($p['country'] ?? 'AE', 0, 2)),
-            'city'      => trim($p['city']    ?? 'Dubai') ?: 'Dubai',
-            'address'   => trim($p['address'] ?? 'Al Barsha 1, Dubai, UAE') ?: 'Al Barsha 1, Dubai, UAE',
-            'zip'       => trim($p['zip']     ?? '00000') ?: '00000',
+            'city'      => trim((string)($p['city'] ?? '')) ?: 'Dubai',
+            'address'   => trim((string)($p['address'] ?? '')) ?: 'Dubai',
+            'zip'       => trim((string)($p['zip'] ?? '')) ?: '00000',
         ];
+        $phone = preg_replace('/\D/', '', (string)($p['phone'] ?? ''));
+        if ($phone !== '') {
+            $addr['phone'] = $phone;
+        }
+        return $addr;
     }
 
     private function buildDeviceDetails(array $p): array
@@ -1226,7 +1330,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
     private function buildThreeDSDetails(array $p, string $siteUrl): array
     {
         return [
-            'notificationUrl' => rtrim($siteUrl, '/') . '/api/webhook.php?gateway=nuvei',
+            'notificationUrl' => $this->restUrlDetails()['notificationUrl'] ?: (rtrim($siteUrl, '/') . '/api/nuvei_dmn.php'),
             'challengePreference' => '04',
             'browserDetails' => [
                 'browserAcceptHeader' => $_SERVER['HTTP_ACCEPT'] ?? '*/*',
@@ -1246,56 +1350,158 @@ class NuveiAdapter implements GatewayAdapterInterface {
         // ── تطبيع الاستجابة ────────────────────────────────────
     private function normalizeResponse(string $type, array $raw, string $clientReqId): array
     {
-        $status      = strtoupper($raw['status']            ?? '');
-        $txnStatus   = strtoupper($raw['transactionStatus'] ?? $raw['internalRequestId'] ?? '');
-        $success     = in_array($status, ['SUCCESS', 'APPROVED'])
-                    || in_array($txnStatus, ['APPROVED', 'SUCCESS']);
+        $status      = strtoupper((string)($raw['status'] ?? ''));
+        $txnStatus   = strtoupper((string)($raw['transactionStatus'] ?? ''));
+        $success     = in_array($txnStatus, ['APPROVED', 'SUCCESS'], true);
+        $reason      = $success ? 'APPROVED' : $this->formatDeclineReason($raw, $txnStatus, $status);
 
         return [
             'success'          => $success,
             'txn_type'         => $type,
             'reference'        => $clientReqId,
-            'nuvei_txn_id'     => $raw['transactionId']      ?? $raw['internalRequestId'] ?? null,
+            'nuvei_txn_id'     => $raw['transactionId'] ?? $raw['gwTransactionId'] ?? null,
+            'payment_id'       => $raw['transactionId'] ?? $raw['gwTransactionId'] ?? null,
+            'transaction_id'   => $raw['transactionId'] ?? $raw['gwTransactionId'] ?? null,
             'approval_code'    => $raw['authCode']           ?? $raw['approvalCode']      ?? null,
-            'rrn'              => $raw['rrn']                 ?? $raw['retrievalReferenceNumber'] ?? $raw['externalTransactionId'] ?? null,
+            'auth_code'        => $raw['authCode']           ?? $raw['approvalCode']      ?? null,
+            'rrn'              => $raw['rrn']                 ?? $raw['retrievalReferenceNumber'] ?? null,
             'status'           => $status,
             'txn_status'       => $txnStatus,
             'amount'           => $raw['totalAmount']        ?? null,
             'currency'         => $raw['currency']           ?? null,
-            'message'          => $raw['reason']             ?? ($success ? 'APPROVED' : 'DECLINED'),
+            'message'          => $reason,
+            'decline_reason'   => $success ? null : $reason,
             'raw'              => $raw,
-            'bank'             => 'MASHREQ_AE300330000019101562722',
-            'acquirer'         => 'Mashreq Bank PSC',
+            'settlement_target'=> 'ledger',
+            'acquirer'         => 'nuvei',
             'merchant'         => 'TRANSCENDIO FZ-LLC',
         ];
+    }
+
+    private function formatDeclineReason(array $raw, string $txnStatus, string $status): string
+    {
+        $card = is_array($raw['paymentOption']['card'] ?? null) ? $raw['paymentOption']['card'] : [];
+        $blob = json_encode($raw, JSON_UNESCAPED_UNICODE) ?: '';
+        $gwCode = trim((string)($raw['gwErrorCode'] ?? $card['gwErrorCode'] ?? ''));
+        $errCode = trim((string)($raw['errCode'] ?? ''));
+        $extCode = trim((string)($raw['gwExtendedErrorCode'] ?? $card['gwExtendedErrorCode'] ?? ''));
+        $issuerCode = trim((string)($card['issuerDeclineCode'] ?? $raw['issuerDeclineCode'] ?? ''));
+        $transReason = trim((string)($raw['transReason'] ?? $card['transReason'] ?? $raw['transactionReason'] ?? ''));
+        $scan = $transReason . ' ' . $gwCode . ' ' . $errCode . ' ' . $extCode . ' ' . $blob;
+        if (preg_match('/1507/', $scan)) {
+            $gwCode = '1507';
+        } elseif ($gwCode === '' && preg_match('/\b(1011|1007|1106|1019)\b/', $scan, $m)) {
+            $gwCode = $m[1];
+        }
+        $reason = trim((string)(
+            $raw['gwErrorReason']
+            ?? $card['gwErrorReason']
+            ?? $raw['errReason']
+            ?? $raw['errorDescription']
+            ?? $raw['reason']
+            ?? $card['issuerDeclineReason']
+            ?? $raw['issuerDeclineReason']
+            ?? $raw['paymentMethodErrorReason']
+            ?? ''
+        ));
+        if ($reason !== '' && preg_match('/TRANSID=|TRANSSCORE=|TRANSREASON/i', $reason)) {
+            $reason = '';
+        }
+        $codeMap = [
+            '1011' => 'Invalid card number',
+            '1007' => 'Expired card',
+            '1106' => 'Insufficient funds',
+            '1019' => 'Invalid failure URL',
+            '1507' => 'Issuer declined',
+            '-1100' => 'Processor declined',
+            '1116' => 'Issuer declined',
+        ];
+        $arMap = [
+            '1011' => 'رقم البطاقة غير صحيح.',
+            '1007' => 'البطاقة منتهية.',
+            '1106' => 'الرصيد غير كافٍ.',
+            '1019' => 'رابط الفشل غير مقبول من Nuvei.',
+            '1507' => 'البنك المصدر رفض العملية. جرّب Purchase 3D بمبلغ صغير حقيقي.',
+            '-1100' => 'Nuvei/المعالج رفض. غالباً قرار البنك المصدر.',
+            '1116' => 'البنك المصدر رفض العملية.',
+        ];
+        if ($reason === '') {
+            $reason = $codeMap[$gwCode] ?? $codeMap[$errCode] ?? $codeMap[$extCode] ?? ($txnStatus !== '' ? $txnStatus : $status);
+        }
+        if ($reason === '' || strcasecmp($reason, 'ERROR') === 0 || strcasecmp($reason, 'DECLINED') === 0) {
+            if (isset($codeMap[$gwCode])) {
+                $reason = $codeMap[$gwCode];
+            } elseif (isset($codeMap[$extCode])) {
+                $reason = $codeMap[$extCode];
+            } else {
+                $reason = 'Generic Decline';
+            }
+        }
+        $explain = $arMap[$gwCode] ?? $arMap[$errCode] ?? $arMap[$extCode] ?? '';
+        if ($explain === '' && preg_match('/generic\s*decline/i', $reason)) {
+            $explain = 'البنك رفض العملية بدون كود تفصيلي. تواصل مع بنك البطاقة.';
+        } elseif ($explain === '' && isset($codeMap[$gwCode]) && stripos($reason, $codeMap[$gwCode]) === false) {
+            $explain = $codeMap[$gwCode];
+        }
+        $useful = static function (string $code): bool {
+            return $code !== '' && !in_array($code, ['0', '00', '000', '-1', 'null'], true);
+        };
+        $bits = array_filter([
+            $useful($gwCode) ? ('Nuvei ' . $gwCode) : '',
+            $useful($extCode) && $extCode !== $gwCode ? ('ext ' . $extCode) : '',
+            $reason,
+            $explain,
+        ]);
+        return implode(' — ', array_unique($bits));
     }
 
         // ── HTTP Request ───────────────────────────────────────
     private function request(string $endpoint, array $body): array
     {
-        $url = $this->baseUrl . $endpoint . '.do';
-        $ch  = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($body),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 30,
-            CURLOPT_SSL_VERIFYPEER => true,
-        ]);
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error    = curl_error($ch);
-        curl_close($ch);
-
-        if ($error) {
-            return ['status' => 'ERROR', 'reason' => 'cURL: ' . $error];
+        $path = ltrim($endpoint, '/');
+        if (!str_ends_with($path, '.do')) {
+            $path .= '.do';
         }
-        if ($httpCode !== 200) {
-            return ['status' => 'ERROR', 'reason' => 'HTTP ' . $httpCode];
+        $payload = json_encode($body);
+        $lastError = '';
+        foreach ($this->apiBases() as $base) {
+            $url = rtrim($base, '/') . '/' . $path;
+            $ch  = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $payload,
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 30,
+                CURLOPT_CONNECTTIMEOUT => 12,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+            ]);
+            $response = curl_exec($ch);
+            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error    = curl_error($ch);
+            curl_close($ch);
+
+            if ($error) {
+                $lastError = $error;
+                $this->log('cURL ' . $error . ' ' . $url);
+                continue;
+            }
+            if ($httpCode !== 200) {
+                $this->log('HTTP ' . $httpCode . ' ' . $url);
+                $lastError = 'HTTP ' . $httpCode;
+                continue;
+            }
+            $decoded = json_decode((string)$response, true);
+            if (!is_array($decoded)) {
+                $lastError = 'Invalid JSON response';
+                continue;
+            }
+            $this->baseUrl = $base;
+            $decoded['_http_code'] = $httpCode;
+            return $decoded;
         }
 
-        $decoded = json_decode($response, true);
-        return is_array($decoded) ? $decoded : ['status' => 'ERROR', 'reason' => 'Invalid JSON response'];
+        return ['status' => 'ERROR', 'reason' => 'cURL: ' . ($lastError !== '' ? $lastError : 'Nuvei host unreachable')];
     }
 }
