@@ -106,22 +106,22 @@ DirectoryIndex landing.php
 
 # ── [6] Security Headers ────────────────────────────────────
 <IfModule mod_headers.c>
+    # Nuvei Test URLs load these paths in an iframe from cpanel.nuvei.com.
+    SetEnvIf Request_URI "nuvei-(success|fail|pending|back)\.(html|php)" NUVEI_PROBE
+    SetEnvIf Request_URI "nuvei_dmn\.php" NUVEI_PROBE
     Header always set X-Content-Type-Options "nosniff"
-    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Frame-Options "SAMEORIGIN" env=!NUVEI_PROBE
     Header always set X-XSS-Protection "1; mode=block"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
     Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
-    SetEnvIf Request_URI "nuvei-(success|fail|pending|back)\.(html|php)" NUVEI_PROBE
-    SetEnvIf Request_URI "nuvei_dmn\.php" NUVEI_PROBE
-    Header always unset X-Frame-Options env=NUVEI_PROBE
     Header always set Content-Security-Policy "frame-ancestors *" env=NUVEI_PROBE
     Header always set Access-Control-Allow-Origin "*" env=NUVEI_PROBE
     Header always set Access-Control-Allow-Methods "GET, POST, HEAD, OPTIONS" env=NUVEI_PROBE
     Header always set Allow "GET, POST, HEAD, OPTIONS" env=NUVEI_PROBE
 </IfModule>
 
-<FilesMatch "^(nuvei-(success|fail|pending|back)\.(html|php)|nuvei_dmn\.php)$">
+<LocationMatch "^/(nuvei-(success|fail|pending|back)\.(html|php)|api/nuvei_dmn\.php)$">
     <IfModule mod_headers.c>
         Header always unset X-Frame-Options
         Header always set Access-Control-Allow-Origin "*"
@@ -129,7 +129,7 @@ DirectoryIndex landing.php
         Header always set Allow "GET, POST, HEAD, OPTIONS"
         Header always set Content-Security-Policy "frame-ancestors *"
     </IfModule>
-</FilesMatch>
+</LocationMatch>
 
 # ── حماية مفاتيح RSA والملفات الحساسة ──────────────────────
 <FilesMatch "\.(pem|key|crt|p12|pfx)$">
