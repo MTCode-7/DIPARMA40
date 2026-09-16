@@ -6,8 +6,23 @@
 function pos_ops_sticker_legend(bool $ar): string
 {
     return $ar
-        ? 'أسطورة: نعم = مطلوب للتمرير. لا = لا يُدخل. Ledger يظهر بعد قبض ناجح فقط، لا بعد الحجز وحده.'
-        : 'Legend: Yes = required to submit. No = do not enter. Ledger appears after a successful capture only — never after hold alone.';
+        ? 'نعم = مطلوب للتمرير. لا = لا يُدخل. حسب الوضع = يتبع نوع العملية. Ledger بعد Approved فقط، وليس بعد الحجز.'
+        : 'Yes = required. No = do not enter. By mode = depends on the operation. Ledger only after Approved — never after hold.';
+}
+
+function pos_render_ops_legend(bool $ar): void
+{
+    ?>
+    <section class="ops-legend-box" aria-label="أسطورة">
+      <div class="ops-legend-title">أسطورة <span>· Legend</span></div>
+      <div class="ops-legend-chips">
+        <span class="ops-chip yes"><?=$ar ? 'نعم = مطلوب' : 'Yes = required'?></span>
+        <span class="ops-chip no"><?=$ar ? 'لا = لا يُدخل' : 'No = skip'?></span>
+        <span class="ops-chip mode"><?=$ar ? 'حسب الوضع' : 'By mode'?></span>
+      </div>
+      <p class="ops-legend-note"><?= htmlspecialchars(pos_ops_sticker_legend($ar)) ?></p>
+    </section>
+    <?php
 }
 
 /**
@@ -27,8 +42,8 @@ function pos_ops_sticker_rows(): array
         ['op' => 'avoid', 'group' => 'reverse', 'card' => false, 'exp' => false, 'cvv' => false, 'otp' => false, 'rrn' => true, 'appr' => false, 'pid' => false, 'amt' => 'none', 'ledger' => 'no_new'],
         ['op' => 'recurring', 'group' => 'sale', 'card' => true, 'exp' => true, 'cvv' => true, 'otp' => false, 'rrn' => false, 'appr' => false, 'pid' => false, 'amt' => 'fixed', 'ledger' => 'after_sale'],
         ['op' => 'installment', 'group' => 'sale', 'card' => true, 'exp' => true, 'cvv' => true, 'otp' => false, 'rrn' => false, 'appr' => false, 'pid' => false, 'amt' => 'fixed', 'ledger' => 'after_sale'],
-        ['op' => 'withdrawal_pos', 'group' => 'wd', 'card' => true, 'exp' => true, 'cvv' => true, 'otp' => true, 'rrn' => 'mode', 'appr' => 'mode', 'pid' => 'mode', 'amt' => 'mode', 'ledger' => 'mode'],
-        ['op' => 'withdrawal_nfc', 'group' => 'wd', 'card' => true, 'exp' => true, 'cvv' => false, 'otp' => true, 'rrn' => 'mode', 'appr' => 'mode', 'pid' => 'mode', 'amt' => 'mode', 'ledger' => 'mode'],
+        ['op' => 'withdrawal_pos', 'group' => 'wd', 'card' => true, 'exp' => true, 'cvv' => true, 'otp' => false, 'rrn' => 'mode', 'appr' => 'mode', 'pid' => 'mode', 'amt' => 'mode', 'ledger' => 'mode'],
+        ['op' => 'withdrawal_nfc', 'group' => 'wd', 'card' => true, 'exp' => true, 'cvv' => false, 'otp' => false, 'rrn' => 'mode', 'appr' => 'mode', 'pid' => 'mode', 'amt' => 'mode', 'ledger' => 'mode'],
         ['op' => 'wire_transfer', 'group' => 'other', 'card' => false, 'exp' => false, 'cvv' => false, 'otp' => false, 'rrn' => false, 'appr' => false, 'pid' => false, 'amt' => 'fixed', 'ledger' => 'after_accept'],
     ];
 }
@@ -77,14 +92,13 @@ function pos_sticker_ledger($v, bool $ar): string
 
 function pos_render_ops_sticker(bool $ar, array $txnTypes): void
 {
-    $yes = $ar ? 'نعم' : 'Yes';
     ?>
-    <details class="ops-sticker" open>
-      <summary><?=$ar ? 'ملصق التشغيل — الحقول المطلوبة لكل نوع' : 'Operator sticker — required fields by type'?></summary>
-      <p class="ops-sticker-legend"><?= htmlspecialchars(pos_ops_sticker_legend($ar)) ?></p>
+    <div class="ops-sticker" id="opsSticker">
+      <div class="ops-sticker-head"><?=$ar ? 'ملصق التشغيل — الحقول لكل نوع' : 'Operator sticker — fields by type'?></div>
+      <?php pos_render_ops_legend($ar); ?>
       <p class="ops-sticker-wait"><?=$ar
-        ? 'زر الدفع: انتظر رد المضيف (Approved / Declined) في كل أنواع الشراء. لا تُغلق الشاشة أثناء المعالجة.'
-        : 'Pay button: wait for the host (Approved / Declined) on every purchase type. Do not close the screen while processing.'?></p>
+        ? 'زر الدفع: انتظر رد المضيف (Approved / Declined). لا تُغلق الشاشة أثناء المعالجة.'
+        : 'Pay button: wait for the host (Approved / Declined). Do not close the screen while processing.'?></p>
       <div class="ops-sticker-wrap">
         <table>
           <thead>
@@ -106,7 +120,7 @@ function pos_render_ops_sticker(bool $ar, array $txnTypes): void
                 $meta = $txnTypes[$row['op']] ?? null;
                 $label = $meta ? ($ar ? ($meta['ar'] ?? $row['op']) : ($meta['en'] ?? $row['op'])) : $row['op'];
                 $yesClass = static function ($v) {
-                    return $v === true ? ' is-yes' : '';
+                    return $v === true ? ' is-yes' : ($v === false ? ' is-no' : ' is-mode');
                 };
             ?>
             <tr data-sticker-op="<?= htmlspecialchars($row['op']) ?>">
@@ -125,7 +139,7 @@ function pos_render_ops_sticker(bool $ar, array $txnTypes): void
           </tbody>
         </table>
       </div>
-    </details>
+    </div>
     <?php
 }
 

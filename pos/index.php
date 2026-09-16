@@ -10,7 +10,14 @@ if (!function_exists('activity_operations')) {
 }
 pos_require_operator();
 
-$lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
+$lang = 'en';
+if (isset($_GET['lang']) && in_array($_GET['lang'], ['ar', 'en'], true)) {
+    $lang = $_GET['lang'];
+    $_COOKIE['di_parma_lang'] = $lang;
+    setcookie('di_parma_lang', $lang, time() + 86400 * 365, '/');
+} elseif (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') {
+    $lang = 'ar';
+}
 $ar   = ($lang === 'ar');
 $dir  = $ar ? 'rtl' : 'ltr';
 $csrf = generateCsrfToken();
@@ -399,19 +406,27 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
   .left-panel{display:none}
   .right-panel{display:block}
 }
+.ops-legend-box{margin:0 0 12px;padding:12px 12px 10px;background:rgba(255,215,0,.07);border:1.5px solid var(--border2);border-radius:14px}
+.ops-legend-title{font-size:.95rem;font-weight:900;color:var(--gold);margin-bottom:8px;letter-spacing:.02em}
+.ops-legend-title span{font-size:.72rem;font-weight:700;color:var(--muted2)}
+.ops-legend-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.ops-chip{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:.68rem;font-weight:800}
+.ops-chip.yes{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.4)}
+.ops-chip.no{background:rgba(239,68,68,.12);color:#fca5a5;border:1px solid rgba(239,68,68,.35)}
+.ops-chip.mode{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.35)}
+.ops-legend-note{margin:0;font-size:.68rem;line-height:1.55;color:var(--muted2)}
 .ops-sticker{margin:0 0 14px;background:var(--card);border:1.5px solid var(--border2);border-radius:14px;overflow:hidden}
-.ops-sticker>summary{cursor:pointer;list-style:none;padding:12px 14px;font-weight:900;font-size:.82rem;color:var(--gold);user-select:none}
-.ops-sticker>summary::-webkit-details-marker{display:none}
-.ops-sticker>summary::after{content:'▾';float:<?=$ar?'left':'right'?>;color:var(--muted2)}
-.ops-sticker[open]>summary::after{content:'▴'}
-.ops-sticker-legend{margin:0 14px 6px;font-size:.78rem;line-height:1.65;color:var(--gold);font-weight:800}
+.ops-sticker-head{padding:12px 14px 0;font-weight:900;font-size:.82rem;color:var(--gold)}
+.ops-sticker .ops-legend-box{margin:10px 12px 8px;border-radius:12px}
 .ops-sticker-wait{margin:0 14px 10px;font-size:.72rem;line-height:1.55;color:var(--muted2)}
-.ops-sticker-wrap{overflow:auto;max-height:280px;padding:0 8px 12px}
-.ops-sticker table{width:100%;border-collapse:collapse;font-size:.68rem}
+.ops-sticker-wrap{overflow:auto;max-height:320px;padding:0 8px 12px}
+.ops-sticker table{width:100%;border-collapse:collapse;font-size:.66rem}
 .ops-sticker th{position:sticky;top:0;background:var(--card2);color:var(--muted2);text-align:<?=$ar?'right':'left'?>;padding:6px 5px;white-space:nowrap}
 .ops-sticker td{padding:6px 5px;border-top:1px solid var(--border);color:var(--text);white-space:nowrap}
 .ops-sticker tr.is-current{background:rgba(255,215,0,.08)}
 .ops-sticker td.is-yes{color:var(--green);font-weight:800}
+.ops-sticker td.is-no{color:#fca5a5;font-weight:700}
+.ops-sticker td.is-mode{color:#fbbf24;font-weight:700}
 </style>
 
 <nav class="topbar">
@@ -424,6 +439,7 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
     <?php if (!$posHub): ?>
     <div class="tb-badge" style="margin-inline-start:8px"><?=htmlspecialchars($posDevice['terminal_id'])?></div>
     <?php endif; ?>
+    <a href="?<?=htmlspecialchars(http_build_query(array_merge($_GET, ['lang' => $ar ? 'en' : 'ar'])))?>" class="tb-badge" style="margin-inline-start:8px;text-decoration:none;color:var(--gold)"><?=$ar?'EN':'العربية'?></a>
   </div>
   <div class="tb-nav">
     <?php if (!$kiosk): ?>
@@ -926,6 +942,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
 <div class="layout">
 <!-- ══ LEFT: Transaction Types ══ -->
 <div class="left-panel">
+  <?php if (function_exists('pos_render_ops_legend')) pos_render_ops_legend($ar); ?>
   <div class="panel-title"><?=$ar?'نوع العملية':'Transaction Type'?></div>
   <?php foreach($txnTypes as $key => $tx): ?>
   <button class="txn-btn <?=$key===$startOp?'active':''?>"
@@ -2201,7 +2218,7 @@ window.processTransaction = async function() {
     bin_brand: (POS.cardBin && POS.cardBin.brand) || undefined,
     card_type: cardType,
     cloud_token: cloudToken || undefined,
-    charge_mode: chargeMode || undefined,
+    charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     advice_channel: document.getElementById('adviceChannel')?.value || undefined,
     auth_channel: document.getElementById('authChannel')?.value || undefined,
     wallet_address: walletAddr || undefined,
@@ -2220,6 +2237,10 @@ window.processTransaction = async function() {
   if (type === 'withdrawal_pos' || type === 'withdrawal_nfc') {
     extraData.pos_location = document.getElementById('posLocation')?.value || '';
     extraData.merchant_id  = document.getElementById('merchantId')?.value || '';
+    extraData.processing_mode = '2D';
+    extraData.sec_mode = '2D';
+    extraData.requires_otp = false;
+    if (chargeMode === 'purchase_3d') extraData.charge_mode = 'purchase_2d';
     if (type === 'withdrawal_nfc' && POS.nfcSession) {
       extraData.nfc = POS.nfcSession;
     }
@@ -2302,7 +2323,7 @@ window.processTransaction = async function() {
     rrn: origRef,
     approval_code: approval,
     auth_code: approval,
-    charge_mode: chargeMode || undefined,
+    charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     email: (document.getElementById('posEmail')?.value || '').trim(),
     ledger_address: POS.ledgerAddress,
     destination: 'ledger',

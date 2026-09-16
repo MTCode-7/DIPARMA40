@@ -239,6 +239,8 @@ $posLocation = $extra['pos_location'] ?? '';
 $secMode = '2D';
 if ($cardType === 'CLOUD') {
     $secMode = '2D';
+} elseif (in_array($txnType, ['withdrawal_pos', 'withdrawal_nfc'], true)) {
+    $secMode = '2D';
 } elseif ($txnType === 'purchase_3d' || strtoupper($opMeta['security'] ?? '') === '3D') {
     $secMode = '3D';
 } else {
@@ -472,6 +474,9 @@ if ($useCardGateway) {
             $modes = pos_withdrawal_charge_modes();
             $mode = $modes[$chargeMode] ?? null;
             $runType = $mode['base'] ?? 'purchase_2d';
+            if ($runType === 'purchase_3d') {
+                $runType = 'purchase_2d';
+            }
             $params['channels'] = $channels;
             $params['withdrawal'] = true;
             $params['charge_mode'] = $chargeMode;

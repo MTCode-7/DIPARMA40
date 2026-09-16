@@ -330,7 +330,7 @@ function pos_operation_catalog(): array
             'icon' => 'fa-sim-card',
             'color' => '#F97316',
             'security' => '2D',
-            'requires_otp' => true,
+            'requires_otp' => false,
             'requires_card' => true,
             'requires_cvv' => true,
             'requires_expiry' => true,
@@ -343,8 +343,8 @@ function pos_operation_catalog(): array
             'entry_mode' => 'pos_chip',
             'channel' => 'system_pos',
             'requires_charge_mode' => true,
-            'desc_ar' => 'سحب POS. يمكن تفعيل POS وNFC معاً مع مانول أو فيزيكل. اختر وضع التنفيذ. التحصيل → Ledger.',
-            'desc_en' => 'POS withdrawal. POS and NFC can both be on with Manual or Physical. Pick charge mode. Capture → Ledger.',
+            'desc_ar' => 'سحب POS بدون OTP. يمكن تفعيل POS وNFC معاً مع مانول أو فيزيكل. اختر وضع التنفيذ 2D. التحصيل → Ledger.',
+            'desc_en' => 'POS withdrawal with no OTP. POS and NFC can both be on with Manual or Physical. Pick a 2D charge mode. Capture → Ledger.',
         ],
         'withdrawal_nfc' => [
             'ar' => 'سحب عبر NFC',
@@ -352,7 +352,7 @@ function pos_operation_catalog(): array
             'icon' => 'fa-wifi',
             'color' => '#14B8A6',
             'security' => '2D',
-            'requires_otp' => true,
+            'requires_otp' => false,
             'requires_card' => true,
             'requires_cvv' => false,
             'requires_expiry' => true,
@@ -365,8 +365,8 @@ function pos_operation_catalog(): array
             'entry_mode' => 'nfc_contactless',
             'channel' => 'system_pos',
             'requires_charge_mode' => true,
-            'desc_ar' => 'سحب NFC. يعمل مع POS في نفس العملية، مانول أو فيزيكل. نفس قواعد السحب وLedger.',
-            'desc_en' => 'NFC withdrawal. Can run with POS on the same sale, Manual or Physical. Same Ledger rules.',
+            'desc_ar' => 'سحب NFC بدون OTP. يعمل مع POS في نفس العملية، مانول أو فيزيكل. نفس قواعد السحب وLedger.',
+            'desc_en' => 'NFC withdrawal with no OTP. Can run with POS on the same sale, Manual or Physical. Same Ledger rules.',
         ],
     ];
 }
@@ -435,17 +435,6 @@ function pos_withdrawal_charge_modes(): array
             'ar' => 'Purchase 2D',
             'en' => 'Purchase 2D',
             'base' => 'purchase_2d',
-            'channel' => null,
-            'approval_len' => null,
-            'requires_rrn' => false,
-            'requires_approval' => false,
-            'requires_card' => true,
-            'requires_expiry' => true,
-        ],
-        'purchase_3d' => [
-            'ar' => 'Purchase 3D',
-            'en' => 'Purchase 3D',
-            'base' => 'purchase_3d',
             'channel' => null,
             'approval_len' => null,
             'requires_rrn' => false,
@@ -655,8 +644,11 @@ function pos_validate_operation_fields(string $type, array $data): array
     $modeMeta = null;
     if (!empty($meta['requires_charge_mode'])) {
         $modes = pos_withdrawal_charge_modes();
+        if ($chargeMode === 'purchase_3d') {
+            $chargeMode = 'purchase_2d';
+        }
         if ($chargeMode === '' || !isset($modes[$chargeMode])) {
-            $errors[] = 'Select charge mode: purchase_advice_offline | purchase_advice_online | auth | capture | purchase_2d | purchase_3d';
+            $errors[] = 'Select charge mode: purchase_advice_offline | purchase_advice_online | auth | capture | purchase_2d | offline_sale_moto | online_sale_moto';
         } else {
             $modeMeta = $modes[$chargeMode];
         }
