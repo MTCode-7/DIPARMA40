@@ -966,3 +966,13 @@ function pos_plain_host_message($raw, int $depth = 0): string
     }
     return $text !== '' ? $text : 'DECLINED';
 }
+
+/** Display token for receipt — never print the clear value. */
+function pos_receipt_seal($value): string
+{
+    $s = trim((string) $value);
+    if ($s === '') {
+        return '••••••••••••••••';
+    }
+    return strtoupper(substr(hash('sha256', 'diparma-pos-slip|' . $s), 0, 16));
+}

@@ -1279,36 +1279,34 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="receipt-cut">••••••••••••••••••••</div>
     <div class="receipt-header">
       <div class="receipt-merchant">DI PARMA POS</div>
-      <div><?=htmlspecialchars($posMerchant['legal_name'])?></div>
-      <div class="receipt-sub"><?=htmlspecialchars($ar ? $posMerchant['line_ar'] : $posMerchant['line_en'])?></div>
-      <div class="receipt-sub">MCC <?=htmlspecialchars($posMerchant['mcc'])?></div>
+      <div class="receipt-sub" id="rMerchantSeal"><?=htmlspecialchars(pos_receipt_seal($posMerchant['legal_name'] ?? ''))?></div>
     </div>
-    <div class="receipt-row"><span>DATE</span><span id="rDate"><?=date('d/m/Y')?></span></div>
-    <div class="receipt-row"><span>TIME</span><span id="rTime"><?=date('H:i:s')?></span></div>
-    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars((string)($posDevice['terminal_id'] ?? ''))?></span></div>
-    <div class="receipt-row"><span>MID</span><span id="rMid"><?=htmlspecialchars((string)($posDevice['merchant_id'] ?? $posMerchant['brand'] ?? 'DIPARMA'))?></span></div>
-    <div class="receipt-row"><span>BATCH</span><span id="rBatch">000001</span></div>
-    <div class="receipt-row"><span>STAN</span><span id="rStan">—</span></div>
+    <div class="receipt-row"><span>DATE</span><span id="rDate"><?=htmlspecialchars(pos_receipt_seal(date('d/m/Y')))?></span></div>
+    <div class="receipt-row"><span>TIME</span><span id="rTime"><?=htmlspecialchars(pos_receipt_seal(date('H:i:s')))?></span></div>
+    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars(pos_receipt_seal((string)($posDevice['terminal_id'] ?? '')))?></span></div>
+    <div class="receipt-row"><span>MID</span><span id="rMid"><?=htmlspecialchars(pos_receipt_seal((string)($posDevice['merchant_id'] ?? $posMerchant['brand'] ?? 'DIPARMA')))?></span></div>
+    <div class="receipt-row"><span>BATCH</span><span id="rBatch"><?=htmlspecialchars(pos_receipt_seal('000001'))?></span></div>
+    <div class="receipt-row"><span>STAN</span><span id="rStan"><?=htmlspecialchars(pos_receipt_seal('STAN'))?></span></div>
     <div class="receipt-cut">------------------------</div>
-    <div class="receipt-row"><span>TRANS</span><span id="rType">SALE</span></div>
-    <div class="receipt-row"><span>ENTRY</span><span id="rEntry">—</span></div>
-    <div class="receipt-row"><span>PAN</span><span id="rCard">**** ****</span></div>
+    <div class="receipt-row"><span>TRANS</span><span id="rType"><?=htmlspecialchars(pos_receipt_seal('SALE'))?></span></div>
+    <div class="receipt-row"><span>ENTRY</span><span id="rEntry"><?=htmlspecialchars(pos_receipt_seal('MANUAL'))?></span></div>
+    <div class="receipt-row"><span>PAN</span><span id="rCard"><?=htmlspecialchars(pos_receipt_seal('PAN'))?></span></div>
     <div class="receipt-row"><span>AMOUNT</span><span id="rAmount">—</span></div>
     <div class="receipt-row"><span>CURR</span><span id="rCurrency">—</span></div>
-    <div class="receipt-banner" id="rBanner">READY</div>
+    <div class="receipt-banner" id="rBanner">PENDING</div>
     <div class="receipt-reason" id="rReason" style="display:none"></div>
-    <div class="receipt-row"><span>RC</span><span id="rRc">—</span></div>
-    <div class="receipt-row"><span>AUTH</span><span id="rApproval">—</span></div>
-    <div class="receipt-row"><span>RRN</span><span id="rRRN">—</span></div>
-    <div class="receipt-row"><span>TRACE</span><span id="rRef">—</span></div>
-    <div class="receipt-row" id="rHostRow"><span>HOST</span><span id="rNuvei">—</span></div>
-    <div class="receipt-row" id="rLedgerRow" style="display:none"><span>LEDGER</span><span id="rLedger">—</span></div>
+    <div class="receipt-row"><span>RC</span><span id="rRc"><?=htmlspecialchars(pos_receipt_seal('RC'))?></span></div>
+    <div class="receipt-row"><span>AUTH</span><span id="rApproval"><?=htmlspecialchars(pos_receipt_seal('AUTH'))?></span></div>
+    <div class="receipt-row"><span>RRN</span><span id="rRRN"><?=htmlspecialchars(pos_receipt_seal('RRN'))?></span></div>
+    <div class="receipt-row"><span>TRACE</span><span id="rRef"><?=htmlspecialchars(pos_receipt_seal('TRACE'))?></span></div>
+    <div class="receipt-row" id="rHostRow"><span>HOST</span><span id="rNuvei"><?=htmlspecialchars(pos_receipt_seal('HOST'))?></span></div>
+    <div class="receipt-row" id="rLedgerRow"><span>LEDGER</span><span id="rLedger"><?=htmlspecialchars(pos_receipt_seal('LEDGER'))?></span></div>
     <div class="receipt-total">
       <div class="receipt-row"><span>STATUS</span><span id="rStatus">PENDING</span></div>
     </div>
     <div class="receipt-footer" id="receiptFooter">
-      <?=$ar?'احتفظ بالإيصال':'PLEASE RETAIN THIS COPY'?>
-      <br>*** CUSTOMER COPY ***
+      PENDING
+      <br>*** COPY ***
     </div>
     <div class="receipt-cut">••••••••••••••••••••</div>
   </div>
@@ -1598,10 +1596,31 @@ const POS_DEVICE = <?=json_encode([
     'type' => $posDevice['type'],
     'label' => $posDevice['label'],
     'terminal_id' => $posDevice['terminal_id'],
+    'merchant_id' => $posDevice['merchant_id'] ?? ($posMerchant['brand'] ?? 'DIPARMA'),
     'wedge' => !empty($posDevice['wedge']),
 ], JSON_UNESCAPED_UNICODE)?>;
 const CARD_NETWORKS = <?=json_encode(pos_card_networks(), JSON_UNESCAPED_UNICODE)?>;
 window.CARD_NETWORKS = CARD_NETWORKS;
+
+function posSeal(val) {
+  const s = String(val == null ? '' : val).trim();
+  if (!s) return '••••••••••••••••';
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  let h2 = 0;
+  for (let i = 0; i < s.length; i++) h2 = ((h2 << 5) - h2 + s.charCodeAt(i)) | 0;
+  return ((h >>> 0).toString(16) + (h2 >>> 0).toString(16)).toUpperCase().replace(/[^A-F0-9]/g, 'A').padEnd(16, 'A').slice(0, 16);
+}
+
+function posSlipStatus(d) {
+  if (d && (d.requires_3ds || d.redirect_url)) return 'PENDING';
+  if (d && d.success) return 'APPROVED';
+  if (d && d.success === false) return 'DECLINED';
+  return 'PENDING';
+}
 
 function posPlainReason(raw) {
   if (raw == null) return '';
@@ -1824,15 +1843,15 @@ function renderExtraFields(type) {
     html += `
     <div class="fld">
       <label><i class="fas fa-map-marker-alt"></i> ${AR?'موقع الـ POS':'POS Location'}</label>
-      <input type="text" id="posLocation" placeholder="">
+      <input type="text" id="posLocation" value="${(POS_MERCHANT.line_en || POS_MERCHANT.line_ar || POS_MERCHANT.region || '').replace(/"/g,'')}">
     </div>
     <div class="fld">
       <label>TID — Terminal ID</label>
-      <input type="text" id="terminalId" placeholder="${POS_DEVICE.terminal_id}" value="${POS_DEVICE.terminal_id}">
+      <input type="text" id="terminalId" value="${POS_DEVICE.terminal_id || ''}">
     </div>
     <div class="fld">
       <label>MID — Merchant ID</label>
-      <input type="text" id="merchantId" placeholder="">
+      <input type="text" id="merchantId" value="${POS_DEVICE.merchant_id || POS_MERCHANT.brand || 'DIPARMA'}">
     </div>`;
   }
 
@@ -1849,8 +1868,16 @@ function renderExtraFields(type) {
       <div id="nfcStatus" style="margin-top:8px;font-size:.7rem;color:var(--muted2)"></div>
     </div>
     <div class="fld">
+      <label><i class="fas fa-map-marker-alt"></i> ${AR?'موقع الـ POS':'POS Location'}</label>
+      <input type="text" id="posLocation" value="${(POS_MERCHANT.line_en || POS_MERCHANT.line_ar || POS_MERCHANT.region || '').replace(/"/g,'')}">
+    </div>
+    <div class="fld">
       <label>TID — Terminal ID</label>
-      <input type="text" id="terminalId" placeholder="${POS_DEVICE.terminal_id}" value="${POS_DEVICE.terminal_id}">
+      <input type="text" id="terminalId" value="${POS_DEVICE.terminal_id || ''}">
+    </div>
+    <div class="fld">
+      <label>MID — Merchant ID</label>
+      <input type="text" id="merchantId" value="${POS_DEVICE.merchant_id || POS_MERCHANT.brand || 'DIPARMA'}">
     </div>`;
   }
 
@@ -1863,7 +1890,33 @@ function renderExtraFields(type) {
   if (type === 'capture' && typeof syncCaptureSplit === 'function') {
     syncCaptureSplit();
   }
+  if (type === 'withdrawal_pos' || type === 'withdrawal_nfc') {
+    fillWithdrawalFields();
+  }
 }
+
+window.fillWithdrawalFields = function() {
+  const tid = document.getElementById('terminalId');
+  const mid = document.getElementById('merchantId');
+  const loc = document.getElementById('posLocation');
+  const cm = document.getElementById('chargeMode');
+  if (tid) tid.value = POS_DEVICE.terminal_id || tid.value || '';
+  if (mid) mid.value = POS_DEVICE.merchant_id || (POS_MERCHANT && POS_MERCHANT.brand) || mid.value || 'DIPARMA';
+  if (loc) loc.value = loc.value || (POS_MERCHANT && (POS_MERCHANT.line_en || POS_MERCHANT.line_ar || POS_MERCHANT.region)) || '';
+  if (cm && !cm.value && CHARGE_MODES.purchase_2d) {
+    cm.value = 'purchase_2d';
+    if (typeof onChargeModeChange === 'function') onChargeModeChange();
+  }
+  const last = POS.lastTxn || {};
+  const rrn = document.getElementById('origRef');
+  const ap = document.getElementById('approvalCode');
+  const pid = document.getElementById('paymentId');
+  if (rrn && !rrn.value && last.rrn) rrn.value = String(last.rrn).replace(/\D/g, '').slice(0, 12);
+  if (ap && !ap.value && last.approval_code) ap.value = String(last.approval_code).replace(/\D/g, '').slice(0, 6);
+  if (pid && !pid.value) pid.value = last.nuvei_txn_id || last.payment_id || '';
+  const amt = document.getElementById('txnAmount')?.value || POS.amount || '';
+  updateReceipt(last.success != null ? last : { success: null }, POS.txnType, amt, document.getElementById('txnCurrency')?.value || 'USD', document.getElementById('cardNumber')?.value || '');
+};
 
 window.syncCaptureSplit = function() {
   const cap = parseFloat(document.getElementById('captureAmt')?.value) || 0;
@@ -2397,7 +2450,7 @@ window.processTransaction = async function() {
   btn.disabled = true;
   btn.innerHTML = '<span style="display:inline-block;width:16px;height:16px;border:2px solid rgba(0,0,0,.3);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite"></span> Processing...';
 
-  setPosStatus(AR ? 'معالجة...' : 'PROCESSING...');
+  setPosStatus('PENDING');
 
   const payload = {
     txn_type: type, amount, currency,
@@ -2450,19 +2503,18 @@ window.processTransaction = async function() {
     const text = await r.text();
     let d = {};
     try { d = JSON.parse(text); } catch (parseErr) {
-      const why = posPlainReason(text) || (AR ? 'السيرفر لم يرجع سبب الرفض' : 'DECLINED');
-      showResultModal(false, { success: false, message: why, decline_reason: why });
-      updateReceipt({ success: false, message: why, decline_reason: why }, type, amount, currency, cardNum);
-      setPosStatus(AR ? 'مرفوضة ✗' : 'DECLINED ✗');
-      toast((AR ? 'سبب الرفض: ' : 'Decline: ') + why, 'error');
+      showResultModal(false, { success: false });
+      updateReceipt({ success: false }, type, amount, currency, cardNum);
+      setPosStatus('DECLINED');
+      toast('DECLINED', 'error');
       return;
     }
 
     if (d.requires_3ds && d.redirect_url) {
       POS.lastTxn = d;
       updateReceipt(d, type, amount, currency, cardNum);
-      setPosStatus(AR ? 'بانتظار 3DS' : '3DS REQUIRED');
-      toast(AR?'أكمل الدفع على البوابة — التسوية للـ Ledger بعد الموافقة فقط':'Complete the gateway payment — Ledger settle runs only after approval', 'info');
+      setPosStatus('PENDING');
+      toast('PENDING', 'info');
       window.location.href = d.redirect_url;
       return;
     }
@@ -2470,33 +2522,22 @@ window.processTransaction = async function() {
       POS.lastTxn = d;
       updateReceipt(d, type, amount, currency, cardNum);
       showResultModal(true, d);
-      setPosStatus(AR ? 'مكتملة ✓' : 'APPROVED ✓');
+      setPosStatus('APPROVED');
       document.getElementById('openFullReceiptBtn').style.display = '';
       document.getElementById('modalFullReceiptBtn').style.display = '';
-      if (d.ledger_transfer) {
-        toast('✅ ' + POS_GW.toUpperCase() + ' → Ledger ' + (d.ledger_usdt ? (d.ledger_usdt + ' USDT') : ''), 'success');
-      } else if (d.ledger_status === 'queued') {
-        toast(POS_LEDGER_ONLY
-          ? (AR ? 'تحويل Ledger في الانتظار' : 'Ledger transfer queued')
-          : (AR ? 'Nuvei وافق — تحويل Ledger في الانتظار' : 'Nuvei approved — Ledger transfer queued'), 'info');
-      } else if (d.ledger_status === 'failed') {
-        toast(POS_LEDGER_ONLY
-          ? (AR ? 'فشل التحويل للـ Ledger' : 'Ledger transfer failed')
-          : (AR ? 'Nuvei وافق — فشل التحويل للـ Ledger' : 'Nuvei approved — Ledger transfer failed'), 'error');
-      }
+      toast('APPROVED', 'success');
     } else {
       POS.lastTxn = d;
       updateReceipt(d, type, amount, currency, cardNum);
       showResultModal(false, d);
-      const why = posPlainReason(d);
-      setPosStatus(AR ? ('مرفوضة ✗ ' + (why || '')) : ('DECLINED ✗ ' + (why || '')));
-      toast((AR ? 'سبب الرفض: ' : 'Decline: ') + (why || (AR ? 'رفض المصدر' : 'ISSUER DECLINED')), 'error');
+      setPosStatus('DECLINED');
+      toast('DECLINED', 'error');
     }
   } catch(e) {
-    const why = posPlainReason((e && e.message) ? e.message : (AR ? 'خطأ في الاتصال' : 'HOST TIMEOUT'));
-    showResultModal(false, { success: false, message: why, decline_reason: why });
-    toast((AR ? 'سبب الرفض: ' : 'Decline reason: ') + why, 'error');
-    setPosStatus(AR ? ('مرفوضة ✗ ' + why) : ('ERROR ✗ ' + why));
+    showResultModal(false, { success: false });
+    updateReceipt({ success: false }, type, amount, currency, cardNum);
+    toast('DECLINED', 'error');
+    setPosStatus('DECLINED');
   } finally {
     btn.disabled = false;
     const label = TXN_LABELS[type] || { ar: type, en: type };
@@ -2515,97 +2556,66 @@ function setPosStatus(msg) {
 
 // ── Update Receipt ────────────────────────────────
 function updateReceipt(d, type, amount, currency, cardNum) {
-  const label = TXN_LABELS[type] || { ar: 'SALE', en: 'SALE' };
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
-  const dateEl = document.getElementById('rDate');
-  const timeEl = document.getElementById('rTime');
-  if (dateEl) dateEl.textContent = pad(now.getDate()) + '/' + pad(now.getMonth() + 1) + '/' + now.getFullYear();
-  if (timeEl) timeEl.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
-  const tidEl = document.getElementById('rTid');
-  if (tidEl) tidEl.textContent = (document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || d.terminal_id || '—');
-  document.getElementById('rType').textContent = (d.operation_name || (AR ? label.ar : label.en) || 'SALE').toString().toUpperCase();
-  document.getElementById('rAmount').textContent = parseFloat(amount).toFixed(2);
-  document.getElementById('rCurrency').textContent = currency;
+  const dateStr = pad(now.getDate()) + '/' + pad(now.getMonth() + 1) + '/' + now.getFullYear();
+  const timeStr = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+  const tid = document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || d.terminal_id || '';
+  const mid = document.getElementById('merchantId')?.value || POS_DEVICE.merchant_id || (POS_MERCHANT && POS_MERCHANT.brand) || 'DIPARMA';
   const last4 = d.card_last4 || (cardNum ? cardNum.slice(-4) : '');
-  document.getElementById('rCard').textContent = last4 ? ('**** **** **** ' + last4) : '****';
-  const entry = document.getElementById('posInputMode')?.value || POS.inputMode || '';
-  const entryMap = { chip: 'CHIP', contactless: 'CONTACTLESS', swipe: 'SWIPE', manual: 'MANUAL', nfc: 'CONTACTLESS' };
-  const rEntry = document.getElementById('rEntry');
-  if (rEntry) rEntry.textContent = entryMap[String(entry).toLowerCase()] || (POS.inputMode === 'physical' ? 'CHIP' : 'MANUAL');
-  document.getElementById('rRef').textContent = d.reference || '—';
-  document.getElementById('rRRN').textContent = d.rrn || '—';
-  document.getElementById('rApproval').textContent = d.approval_code || '—';
-  const stanEl = document.getElementById('rStan');
-  if (stanEl) stanEl.textContent = d.stan || '—';
-  const nuveiEl = document.getElementById('rNuvei');
+  const pan = last4 ? ('************' + last4) : (cardNum || 'PAN');
+  const entry = document.getElementById('posInputMode')?.value || POS.inputMode || 'manual';
+  const status = posSlipStatus(d);
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('rDate', posSeal(dateStr));
+  set('rTime', posSeal(timeStr));
+  set('rTid', posSeal(tid));
+  set('rMid', posSeal(mid));
+  set('rBatch', posSeal(d.stan || d.reference || 'BATCH1'));
+  set('rStan', posSeal(d.stan || d.reference || 'STAN'));
+  set('rType', posSeal(d.operation_name || type || 'SALE'));
+  set('rEntry', posSeal(entry));
+  set('rCard', posSeal(pan));
+  set('rAmount', parseFloat(amount || 0).toFixed(2));
+  set('rCurrency', currency || 'USD');
+  set('rRc', posSeal(d.response_code || (status === 'APPROVED' ? '00' : '05')));
+  set('rApproval', posSeal(d.approval_code || d.bank_approval_code || 'AUTH'));
+  set('rRRN', posSeal(d.rrn || d.original_rrn || 'RRN'));
+  set('rRef', posSeal(d.reference || 'TRACE'));
+  set('rNuvei', posSeal(d.nuvei_txn_id || d.payment_id || 'HOST'));
+  const merch = document.getElementById('rMerchantSeal');
+  if (merch) merch.textContent = posSeal((POS_MERCHANT && POS_MERCHANT.legal_name) || 'MERCHANT');
+  const reasonEl = document.getElementById('rReason');
+  if (reasonEl) { reasonEl.textContent = ''; reasonEl.style.display = 'none'; }
+  const banner = document.getElementById('rBanner');
+  if (banner) {
+    banner.textContent = status;
+    banner.className = 'receipt-banner ' + (status === 'APPROVED' ? 'ok' : (status === 'DECLINED' ? 'no' : ''));
+  }
   const ledEl = document.getElementById('rLedger');
   const ledRow = document.getElementById('rLedgerRow');
-  const reasonEl = document.getElementById('rReason');
-  const banner = document.getElementById('rBanner');
-  const why = posPlainReason(d);
-  const rc = posResponseCode(d, why);
-  const rcEl = document.getElementById('rRc');
-  if (rcEl) rcEl.textContent = rc || (d.success ? '00' : '05');
-  if (nuveiEl) nuveiEl.textContent = d.nuvei_txn_id || '—';
-  if (reasonEl) {
-    if (!d.success && why) {
-      reasonEl.textContent = why;
-      reasonEl.style.display = 'block';
-    } else {
-      reasonEl.textContent = '';
-      reasonEl.style.display = 'none';
-    }
-  }
-  if (banner) {
-    banner.textContent = d.success ? 'APPROVED' : 'DECLINED';
-    banner.className = 'receipt-banner ' + (d.success ? 'ok' : 'no');
-  }
-  if (ledEl && ledRow) {
-    if (d.success && (d.ledger_txid || d.ledger_usdt || d.ledger_status)) {
-      ledRow.style.display = 'flex';
-      if (d.ledger_txid) ledEl.textContent = String(d.ledger_txid).substring(0, 16) + '…';
-      else if (d.ledger_usdt) ledEl.textContent = d.ledger_usdt + ' USDT';
-      else ledEl.textContent = d.ledger_status || '—';
-    } else {
-      ledRow.style.display = 'none';
-    }
-  }
-  document.getElementById('rStatus').textContent = d.success ? 'APPROVED' : 'DECLINED';
+  if (ledRow) ledRow.style.display = 'flex';
+  if (ledEl) ledEl.textContent = posSeal(d.ledger_txid || d.ledger_address || 'LEDGER');
+  set('rStatus', status);
   const foot = document.getElementById('receiptFooter');
-  if (foot) {
-    foot.innerHTML = d.success
-      ? (AR ? 'شكراً<br>*** CUSTOMER COPY ***' : 'THANK YOU<br>*** CUSTOMER COPY ***')
-      : (AR ? 'راجع المصدر أو جرّب بطاقة أخرى<br>*** MERCHANT COPY ***' : 'REFER TO ISSUER<br>*** MERCHANT COPY ***');
-  }
+  if (foot) foot.innerHTML = status + '<br>*** COPY ***';
 }
 
 // ── Result Modal ──────────────────────────────────
 function showResultModal(success, d) {
   const modal = document.getElementById('resultModal');
-  document.getElementById('modalIcon').textContent  = success ? '✅' : '❌';
-  document.getElementById('modalTitle').textContent =
-    success ? (AR?'تمت العملية بنجاح':'Transaction Approved') : (AR?'رُفضت العملية':'Transaction Declined');
-  document.getElementById('modalTitle').style.color = success ? 'var(--green)' : 'var(--red)';
-  document.getElementById('modalRef').textContent   = (d.terminal_id || POS_DEVICE.terminal_id || '') + (d.reference ? '  ' + d.reference : '');
-
-  const label = TXN_LABELS[POS.txnType] || { ar: 'شراء', en: 'SALE' };
-  const why = posPlainReason(d);
-  const rc = posResponseCode(d, why);
+  const status = posSlipStatus(d);
+  const amt = parseFloat(document.getElementById('txnAmount').value||0).toFixed(2);
+  const cur = document.getElementById('txnCurrency').value || 'USD';
+  document.getElementById('modalIcon').textContent  = status === 'APPROVED' ? '✅' : (status === 'PENDING' ? '⏳' : '❌');
+  document.getElementById('modalTitle').textContent = status;
+  document.getElementById('modalTitle').style.color = status === 'APPROVED' ? 'var(--green)' : (status === 'DECLINED' ? 'var(--red)' : 'var(--gold)');
+  document.getElementById('modalRef').textContent = '';
   document.getElementById('modalDetails').innerHTML = `
-    ${!success ? `<div style="background:#fff;color:#111;border-radius:4px;padding:12px;margin-bottom:12px;font-family:ui-monospace,monospace;font-size:.78rem;letter-spacing:.04em;text-align:center">
-      <div style="font-weight:900;letter-spacing:.2em;color:#991b1b">DECLINED</div>
-      <div style="margin-top:6px">RC ${rc || '05'}</div>
-      <div style="margin-top:6px;font-size:.72rem">${why || (AR?'رفض المصدر':'ISSUER DECLINED')}</div>
-    </div>` : ''}
-    <div class="modal-row"><span>TRANS</span><span>${(d.operation_name || (AR?label.ar:label.en) || 'SALE')}</span></div>
-    <div class="modal-row"><span>AMOUNT</span><span>${parseFloat(document.getElementById('txnAmount').value||0).toFixed(2)} ${document.getElementById('txnCurrency').value}</span></div>
-    <div class="modal-row"><span>TID</span><span>${d.terminal_id||POS_DEVICE.terminal_id||'—'}</span></div>
-    <div class="modal-row"><span>RRN</span><span>${d.rrn||'—'}</span></div>
-    <div class="modal-row"><span>AUTH</span><span>${d.approval_code||'—'}</span></div>
-    ${d.ledger_usdt && success ? `<div class="modal-row"><span>Ledger USDT</span><span>${d.ledger_usdt}</span></div>` : ''}
-    ${success && d.ledger_transfer ? `<div class="modal-row"><span>Ledger TX</span><span style="color:var(--green)">${d.ledger_txid?.substring(0,16)||'Sent'}…</span></div>` : ''}
-    ${d.saved === false ? `<div class="modal-row"><span>DB</span><span style="color:var(--red)">${AR?'لم يُحفظ السجل':'NOT SAVED'}</span></div>` : ''}
+    <div style="background:#fff;color:#111;border-radius:4px;padding:16px;font-family:ui-monospace,monospace;text-align:center">
+      <div style="font-weight:900;letter-spacing:.2em;margin-bottom:10px">${status}</div>
+      <div style="font-size:1.4rem;font-weight:900">${amt} ${cur}</div>
+    </div>
   `;
 
   const ltBtn = document.getElementById('ledgerTransferBtn');
