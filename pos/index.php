@@ -205,7 +205,7 @@ try {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <?php if (!empty($hasSquareSdk)): ?>
 <script type="text/javascript" src="<?=htmlspecialchars($squareSdk['script_url'])?>"></script>
-<script src="../assets/js/square_web_payments.js"></script>
+<script src="../assets/js/square_web_payments.js?v=<?= (int) @filemtime(POS_APP_ROOT . '/assets/js/square_web_payments.js') ?>"></script>
 <?php endif; ?>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -1608,24 +1608,28 @@ function selectPosGateway(code, el) {
     history.replaceState({}, '', u.toString());
   } catch (e) {}
 }
-if (POS_GW) {
-  document.addEventListener('DOMContentLoaded', function() {
+async function initSquarePos() {
+  if (!SQUARE_CFG.enabled || !window.DiparmaSquareSdk) return false;
+  if (DiparmaSquareSdk.isReady()) return true;
+  const wrap = document.getElementById('squarePosWrap');
+  if (wrap) wrap.style.display = '';
+  const ok = await DiparmaSquareSdk.init(SQUARE_CFG.application_id, SQUARE_CFG.location_id, '#square-card-container');
+  const err = document.getElementById('square-error');
+  if (err) {
+    err.textContent = ok ? '' : ((DiparmaSquareSdk.lastError() || 'Square SDK init failed')
+      + (AR
+        ? ' — طابق Application ID مع بيئة SDK، وLocation ID، وأضف الدومين في Square Dashboard → Web Payments SDK.'
+        : ' — Match Application ID to the SDK environment, confirm Location ID, and allow this domain in Square Dashboard → Web Payments SDK.'));
+  }
+  return ok;
+}
+document.addEventListener('DOMContentLoaded', function() {
+  if (POS_GW) {
     const el = document.querySelector('[data-exec-gw="'+POS_GW+'"]');
     if (el) selectPosGateway(POS_GW, el);
-  });
-}
-let squareBooted = false;
-async function initSquarePos() {
-  if (!SQUARE_CFG.enabled || !window.DiparmaSquareSdk || squareBooted) return squareBooted;
-  const ok = await DiparmaSquareSdk.init(SQUARE_CFG.application_id, SQUARE_CFG.location_id, '#square-card-container');
-  squareBooted = !!ok;
-  const err = document.getElementById('square-error');
-  if (err) err.textContent = ok ? '' : (DiparmaSquareSdk.lastError() || 'Square SDK init failed');
-  return squareBooted;
-}
-if (SQUARE_CFG.enabled) {
-  document.addEventListener('DOMContentLoaded', function(){ initSquarePos(); });
-}
+    else if (POS_GW === 'square') initSquarePos();
+  }
+});
 const POS_LEDGER_ONLY = <?= !empty($isLedgerGw) ? 'true' : 'false' ?>;
 const KIOSK = <?= $kiosk ? 'true' : 'false' ?>;
 const POS_MERCHANT = <?=json_encode($posMerchant, JSON_UNESCAPED_UNICODE)?>;

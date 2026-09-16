@@ -7,22 +7,43 @@ if (defined('DI_PARMA_SQUARE_SDK')) {
 }
 define('DI_PARMA_SQUARE_SDK', true);
 
+function square_is_application_id(string $id): bool
+{
+    return (bool) preg_match('/^(sandbox-)?sq0id[bp]-/i', $id);
+}
+
+function square_env_is_live(string $appId, string $envHint): bool
+{
+    $id = strtolower(trim($appId));
+    if (str_starts_with($id, 'sandbox-')) {
+        return false;
+    }
+    if (preg_match('/^sq0id[bp]-/', $id)) {
+        return true;
+    }
+    return in_array(strtolower(trim($envHint)), ['production', 'live', 'prod'], true);
+}
+
 function square_sdk_config(): array
 {
-    $appId = trim((string) (getenv('SQUARE_APPLICATION_ID') ?: getenv('SQUARE_API_KEY') ?: ''));
+    $envAppId = trim((string) (getenv('SQUARE_APPLICATION_ID') ?: ''));
+    $envApiKey = trim((string) (getenv('SQUARE_API_KEY') ?: ''));
+    $appId = square_is_application_id($envAppId) ? $envAppId : '';
+    if ($appId === '' && square_is_application_id($envApiKey)) {
+        $appId = $envApiKey;
+    }
     $locationId = trim((string) (getenv('SQUARE_LOCATION_ID') ?: ''));
     $token = trim((string) (getenv('SQUARE_ACCESS_TOKEN') ?: getenv('SQUARE_SECRET_KEY') ?: ''));
-    $env = strtolower(trim((string) (getenv('SQUARE_ENVIRONMENT') ?: 'live')));
-    $live = in_array($env, ['production', 'live', 'prod'], true);
+    $env = strtolower(trim((string) (getenv('SQUARE_ENVIRONMENT') ?: 'production')));
 
     try {
         $row = function_exists('db') ? db()->find('payment_gateways', ['code' => 'square']) : null;
         $creds = json_decode((string) ($row['credentials'] ?? '{}'), true) ?: [];
-        if ($appId === '' && !empty($creds['application_id'])) {
-            $appId = trim((string) $creds['application_id']);
-        }
-        if ($appId === '' && !empty($creds['api_key'])) {
-            $appId = trim((string) $creds['api_key']);
+        foreach (['application_id', 'api_key'] as $credKey) {
+            $candidate = trim((string) ($creds[$credKey] ?? ''));
+            if ($appId === '' && square_is_application_id($candidate)) {
+                $appId = $candidate;
+            }
         }
         if ($locationId === '' && !empty($creds['location_id'])) {
             $locationId = trim((string) $creds['location_id']);
@@ -35,10 +56,11 @@ function square_sdk_config(): array
         }
         if (!empty($creds['environment'])) {
             $env = strtolower(trim((string) $creds['environment']));
-            $live = in_array($env, ['production', 'live', 'prod'], true);
         }
     } catch (Throwable $e) {
     }
+
+    $live = square_env_is_live($appId, $env);
 
     return [
         'application_id' => $appId,

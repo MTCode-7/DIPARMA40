@@ -42,7 +42,7 @@ $hasSquareSdk = (($gwCode ?? '') === 'square' && !empty($squareSdk['application_
 <?php if (!empty($stripeKey)): ?><script src="https://js.stripe.com/v3/"></script><?php endif; ?>
 <?php if ($hasSquareSdk): ?>
 <script type="text/javascript" src="<?=htmlspecialchars($squareSdk['script_url'])?>"></script>
-<script src="<?=htmlspecialchars($basePath)?>assets/js/square_web_payments.js"></script>
+<script src="<?=htmlspecialchars($basePath)?>assets/js/square_web_payments.js?v=<?= (int) @filemtime(__DIR__ . '/assets/js/square_web_payments.js') ?>"></script>
 <?php endif; ?>
 </head>
 <body>
@@ -678,11 +678,13 @@ function initStripe() {
 }
 
 async function initSquareSdk() {
-  if (squareBooted || !SQUARE_CFG.enabled || !window.DiparmaSquareSdk) return;
+  if (!SQUARE_CFG.enabled || !window.DiparmaSquareSdk) return false;
+  if (window.DiparmaSquareSdk.isReady()) { squareBooted = true; return true; }
   var errEl = document.getElementById('square-error');
   var ok = await DiparmaSquareSdk.init(SQUARE_CFG.application_id, SQUARE_CFG.location_id, '#square-card-container');
   squareBooted = !!ok;
   if (errEl) errEl.textContent = ok ? '' : (DiparmaSquareSdk.lastError() || 'Square SDK init failed');
+  return ok;
 }
 
 function calcP() {

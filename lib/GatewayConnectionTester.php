@@ -226,10 +226,12 @@ class GatewayConnectionTester
         if ($token === '') {
             return ['success' => false, 'message' => 'SQUARE_ACCESS_TOKEN مفقود'];
         }
-        $env = strtolower(trim((string) ($creds['environment'] ?? getenv('SQUARE_ENVIRONMENT') ?: 'sandbox')));
-        $base = in_array($env, ['production', 'live', 'prod'], true)
-            ? 'https://connect.squareup.com'
-            : 'https://connect.squareupsandbox.com';
+        $appId = trim((string) ($creds['application_id'] ?? $creds['api_key'] ?? getenv('SQUARE_APPLICATION_ID') ?: ''));
+        $envHint = strtolower(trim((string) ($creds['environment'] ?? getenv('SQUARE_ENVIRONMENT') ?: 'production')));
+        $live = function_exists('square_env_is_live')
+            ? square_env_is_live($appId, $envHint)
+            : (str_starts_with(strtolower($appId), 'sandbox-') ? false : in_array($envHint, ['production', 'live', 'prod'], true));
+        $base = $live ? 'https://connect.squareup.com' : 'https://connect.squareupsandbox.com';
         $res = $this->curl('GET', $base . '/v2/locations', [], [
             'Authorization: Bearer ' . $token,
             'Square-Version: 2024-01-18',
