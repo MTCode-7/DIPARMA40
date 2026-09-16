@@ -1159,11 +1159,11 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
 
     <div id="manualBox" class="<?=$startMode==='physical'?'hidden':''?>" <?=pos_gateway_requires_card($posGw)?'':'style="display:none"'?>>
     <?php if (!empty($hasSquareSdk)): ?>
-    <div id="squarePosWrap" style="background:rgba(0,106,255,.08);border:1px solid rgba(0,106,255,.35);border-radius:12px;padding:12px;margin-bottom:12px;<?=($posGw==='square')?'':'display:none'?>">
+    <div id="squarePosWrap" dir="ltr" style="background:rgba(0,106,255,.08);border:1px solid rgba(0,106,255,.35);border-radius:12px;padding:12px;margin-bottom:12px;<?=($posGw==='square')?'':'display:none'?>">
       <div style="color:#6aa8ff;font-weight:800;font-size:.78rem;margin-bottom:8px">
         Square Web Payments SDK · <?=!empty($squareSdk['live']) ? 'LIVE' : 'LIVE REQUIRED'?>
       </div>
-      <div id="square-card-container" style="min-height:48px;background:rgba(0,0,0,.25);border-radius:10px;padding:8px"></div>
+      <div id="square-card-container" dir="ltr" style="min-height:96px;width:100%;background:rgba(0,0,0,.25);border-radius:10px;padding:8px"></div>
       <div id="square-error" style="color:var(--red);font-size:.7rem;margin-top:6px"></div>
     </div>
     <?php endif; ?>
@@ -1610,7 +1610,7 @@ function selectPosGateway(code, el) {
   const sq = document.getElementById('squarePosWrap');
   if (sq) {
     sq.style.display = code === 'square' ? '' : 'none';
-    if (code === 'square') initSquarePos();
+    if (code === 'square') requestAnimationFrame(function () { initSquarePos(); });
   }
   const liveOpt = document.getElementById('optLiveGw');
   const cloudOpt = document.getElementById('optCloudGw');

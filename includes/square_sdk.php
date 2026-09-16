@@ -24,6 +24,48 @@ function square_env_is_live(string $appId, string $envHint): bool
     return in_array(strtolower(trim($envHint)), ['production', 'live', 'prod'], true);
 }
 
+function square_fetch_locations(string $token, bool $live): array
+{
+    if ($token === '') {
+        return [];
+    }
+    $base = $live ? 'https://connect.squareup.com' : 'https://connect.squareupsandbox.com';
+    $ch = curl_init($base . '/v2/locations');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 8,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $token,
+            'Square-Version: 2024-01-18',
+            'Accept: application/json',
+        ],
+    ]);
+    $raw = curl_exec($ch);
+    curl_close($ch);
+    $data = json_decode((string) $raw, true);
+    return is_array($data['locations'] ?? null) ? $data['locations'] : [];
+}
+
+function square_pick_location_id(string $preferred, array $locations): string
+{
+    $all = [];
+    $active = [];
+    foreach ($locations as $loc) {
+        $id = trim((string) ($loc['id'] ?? ''));
+        if ($id === '') {
+            continue;
+        }
+        $all[] = $id;
+        if (strtoupper((string) ($loc['status'] ?? '')) === 'ACTIVE') {
+            $active[] = $id;
+        }
+    }
+    if ($preferred !== '' && in_array($preferred, $all, true)) {
+        return $preferred;
+    }
+    return $active[0] ?? ($all[0] ?? $preferred);
+}
+
 function square_sdk_config(): array
 {
     $envAppId = trim((string) (getenv('SQUARE_APPLICATION_ID') ?: ''));
@@ -61,6 +103,15 @@ function square_sdk_config(): array
     }
 
     $live = square_env_is_live($appId, $env);
+    if ($token !== '') {
+        static $locationCache = null;
+        if ($locationCache === null) {
+            $locationCache = square_fetch_locations($token, $live);
+        }
+        if ($locationCache) {
+            $locationId = square_pick_location_id($locationId, $locationCache);
+        }
+    }
 
     return [
         'application_id' => $appId,

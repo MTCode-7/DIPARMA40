@@ -12,7 +12,9 @@
     card: null,
     ready: false,
     error: '',
-    inflight: null
+    inflight: null,
+    appId: '',
+    locationId: ''
   };
 
   function isSandboxAppId(appId) {
@@ -42,9 +44,54 @@
       return 'Square sandbox application ID was loaded with the LIVE SDK. Use sandbox.web.squarecdn.com.';
     }
     if (/unexpected error occurred while initializing/i.test(msg)) {
-      return msg + ' — Application ID, Location ID, and SDK environment must match; add this domain under Square Dashboard → Web Payments SDK.';
+      return msg + ' — Application ID, Location ID, and SDK environment must match; add this exact domain (diparmas.com) under Square Dashboard → Applications → Web Payments SDK.';
     }
     return msg;
+  }
+
+  function waitForSquare(timeoutMs) {
+    return new Promise(function (resolve) {
+      if (global.Square && typeof global.Square.payments === 'function') {
+        resolve(true);
+        return;
+      }
+      var start = Date.now();
+      var t = setInterval(function () {
+        if (global.Square && typeof global.Square.payments === 'function') {
+          clearInterval(t);
+          resolve(true);
+        } else if (Date.now() - start > timeoutMs) {
+          clearInterval(t);
+          resolve(false);
+        }
+      }, 40);
+    });
+  }
+
+  function waitVisible(el) {
+    return new Promise(function (resolve) {
+      var tries = 0;
+      function tick() {
+        var wrap = null;
+        try {
+          wrap = el.closest ? el.closest('#squarePosWrap, #squareWrap') : null;
+        } catch (e) {}
+        var hidden = !!(wrap && wrap.style && wrap.style.display === 'none');
+        var w = 0;
+        try { w = el.offsetWidth || (el.getBoundingClientRect && el.getBoundingClientRect().width) || 0; } catch (e2) {}
+        if (!hidden && w > 8) {
+          resolve(true);
+          return;
+        }
+        tries += 1;
+        if (tries > 30) {
+          resolve(!hidden);
+          return;
+        }
+        requestAnimationFrame(tick);
+      }
+      tick();
+    });
   }
 
   async function destroyCard() {
@@ -55,6 +102,25 @@
     }
     state.card = null;
     state.ready = false;
+  }
+
+  async function getPayments(appId, locationId) {
+    if (state.payments && state.appId === appId && state.locationId === locationId) {
+      return state.payments;
+    }
+    var payments = global.Square.payments(appId, locationId);
+    if (payments && typeof payments.then === 'function') {
+      payments = await payments;
+    }
+    if (payments && typeof payments.setLocale === 'function') {
+      try {
+        await payments.setLocale('en-US');
+      } catch (e) {}
+    }
+    state.payments = payments;
+    state.appId = appId;
+    state.locationId = locationId;
+    return payments;
   }
 
   async function initInternal(appId, locationId, containerSelector) {
@@ -68,7 +134,7 @@
       state.error = 'SQUARE_APPLICATION_ID is not a Web Payments application ID (expected sq0idp- / sq0idb- / sandbox-sq0idb-)';
       return false;
     }
-    if (!global.Square || typeof global.Square.payments !== 'function') {
+    if (!(await waitForSquare(8000))) {
       state.error = 'Square Web Payments SDK failed to load';
       return false;
     }
@@ -81,26 +147,19 @@
       state.error = 'Square card container is missing';
       return false;
     }
-    var hidden = false;
-    try {
-      var wrap = el.closest ? el.closest('#squarePosWrap, #squareWrap') : null;
-      hidden = !!(wrap && wrap.style && wrap.style.display === 'none');
-    } catch (e) {}
-    if (hidden) {
-      state.error = 'Square card form is hidden';
-      return false;
+    el.setAttribute('dir', 'ltr');
+    if (el.closest) {
+      var wrap = el.closest('#squarePosWrap, #squareWrap');
+      if (wrap) wrap.setAttribute('dir', 'ltr');
     }
+    await waitVisible(el);
 
     await destroyCard();
     el.innerHTML = '';
 
     try {
-      var payments = global.Square.payments(appId, locationId);
-      if (payments && typeof payments.then === 'function') {
-        payments = await payments;
-      }
-      state.payments = payments;
-      state.card = await state.payments.card();
+      var payments = await getPayments(appId, locationId);
+      state.card = await payments.card();
       await state.card.attach(containerSelector || '#square-card-container');
       state.ready = true;
       state.error = '';
@@ -118,9 +177,7 @@
       return state.inflight;
     }
     state.inflight = initInternal(appId, locationId, containerSelector).then(function (ok) {
-      if (!ok) {
-        state.inflight = null;
-      }
+      state.inflight = null;
       return ok;
     }, function () {
       state.inflight = null;
