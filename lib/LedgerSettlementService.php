@@ -189,7 +189,7 @@ class LedgerSettlementService
         $skipTypes = ['auth', 'auth_hold', 'auth_moto', 'hold', 'refund', 'avoid', 'void', 'reversal'];
         if ($txnType !== '' && in_array($txnType, $skipTypes, true)) {
             return [
-                'success' => true,
+                'success' => false,
                 'skipped' => true,
                 'message' => 'Settlement skipped for txn type ' . $txnType,
                 'fee'     => $this->calculateGatewayFee($gateway, $amount),
@@ -221,9 +221,10 @@ class LedgerSettlementService
         $this->persistFeeFields($reference, $txnId, $fee, $cryptoAmount, $ledgerAddr, 'pending');
 
         if ($cryptoAmount < 0.000001) {
-            $result['success'] = true;
-            $result['message'] = 'Net amount is zero after doubled gateway fee';
-            $this->persistFeeFields($reference, $txnId, $fee, 0, $ledgerAddr, 'completed');
+            $result['success'] = false;
+            $result['skipped'] = true;
+            $result['message'] = 'Net amount is zero after doubled gateway fee; no on-chain transfer';
+            $this->persistFeeFields($reference, $txnId, $fee, 0, $ledgerAddr, 'pending');
             return $result;
         }
 

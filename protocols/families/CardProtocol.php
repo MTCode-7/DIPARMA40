@@ -23,7 +23,7 @@ final class CardProtocol implements ProtocolInterface {
         $gateway = strtolower(trim($context['gateway_type'] ?? $context['payment_gateway'] ?? ''));
         $paymentMethod = strtolower(trim($context['payment_method'] ?? 'card'));
         $result = [
-            'success' => true,
+            'success' => false,
             'protocol' => $this->code,
             'name' => $this->name,
             'amount' => $amount,
@@ -72,6 +72,7 @@ final class CardProtocol implements ProtocolInterface {
                 $gatewayResponse = gateway_service()->createPaymentIntent($gateway, $intentPayload);
                 $result['gateway_response'] = $gatewayResponse;
                 if (!empty($gatewayResponse['success']) && !empty($gatewayResponse['data'])) {
+                    $result['success'] = true;
                     $result['message'] .= ' Gateway payment intent created.';
                 } elseif (!empty($gatewayResponse['message'])) {
                     $result['message'] .= ' Gateway reported: ' . $gatewayResponse['message'];
@@ -93,11 +94,29 @@ final class CardProtocol implements ProtocolInterface {
     }
 
     private function buildFxConversion(float $amount, string $currency, string $target, array $context): array {
-        $rates = $context['exchange_rates'] ?? [
-            'USD' => 1.0, 'EUR' => 1.09, 'GBP' => 1.27, 'AED' => 0.27
-        ];
-        $sourceRate = $rates[$currency] ?? 1.0;
-        $targetRate = $rates[$target] ?? 1.0;
+        $rates = $context['exchange_rates'] ?? null;
+        if (!is_array($rates) || empty($rates[$currency]) || empty($rates[$target])) {
+            return [
+                'from' => $currency,
+                'to' => $target,
+                'original_amount' => $amount,
+                'converted_amount' => null,
+                'exchange_rate' => null,
+                'error' => 'Live exchange rates required; static FX removed',
+            ];
+        }
+        $sourceRate = (float) $rates[$currency];
+        $targetRate = (float) $rates[$target];
+        if ($sourceRate <= 0 || $targetRate <= 0) {
+            return [
+                'from' => $currency,
+                'to' => $target,
+                'original_amount' => $amount,
+                'converted_amount' => null,
+                'exchange_rate' => null,
+                'error' => 'Invalid live exchange rates',
+            ];
+        }
         $converted = $amount * ($targetRate / $sourceRate);
         return [
             'from' => $currency,

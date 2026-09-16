@@ -486,17 +486,27 @@ class PaymentOrchestrator
             );
         } else {
             $fulfillResult = [
-                'success' => !empty($ledgerSettle['success']) || !empty($ledgerSettle['queued']),
+                'success' => !empty($ledgerSettle['success']) && empty($ledgerSettle['queued']) && empty($ledgerSettle['skipped']),
                 'message' => $ledgerSettle['message'] ?? 'Ledger settlement',
                 'tx_hash' => $ledgerSettle['txid'] ?? null,
             ];
         }
 
-        if ($fulfillResult['success'] || !empty($ledgerSettle['queued'])) {
+        if (!empty($fulfillResult['success'])) {
             $this->db->update('transactions', [
-                'status'     => !empty($ledgerSettle['success']) ? 'completed' : 'pending_ledger',
+                'status'     => 'completed',
                 'updated_at' => date('Y-m-d H:i:s'),
             ], ['reference' => $reference]);
+        } elseif (!empty($ledgerSettle['queued'])) {
+            $this->db->update('transactions', [
+                'status'     => 'pending_ledger',
+                'updated_at' => date('Y-m-d H:i:s'),
+            ], ['reference' => $reference]);
+            $fulfillResult['success'] = false;
+            $fulfillResult['queued'] = true;
+        } elseif (!empty($ledgerSettle['skipped'])) {
+            $fulfillResult['success'] = false;
+            $fulfillResult['skipped'] = true;
         } else {
             $this->db->update('transactions', [
                 'status'        => 'failed',

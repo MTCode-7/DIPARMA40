@@ -197,14 +197,13 @@ class BlockchainExecutor
         }
 
         return [
-            'success'      => true,
+            'success'      => false,
             'queued'       => true,
-            'txid'         => $queueId,
             'status'       => 'queued',
             'to_address'   => $to,
             'usdt_amount'  => $amount,
             'reference'    => $ref,
-            'message'      => 'Transfer queued: ' . $reason,
+            'message'      => 'Transfer not broadcast: ' . $reason,
             'timestamp'    => date('c'),
         ];
     }

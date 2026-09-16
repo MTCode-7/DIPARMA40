@@ -131,37 +131,15 @@ class FXConversionEngine
     // ── FX Rate Fetching ────────────────────────────────────
     public function getRate(string $from, string $to = 'USDT'): array
     {
-        // Rates map (fiat→USD first, then USD→USDT≈1)
-        $usdRates = [
-            'USD' => 1.0,
-            'AED' => 0.2723,
-            'EUR' => 1.082,
-            'GBP' => 1.271,
-            'SAR' => 0.2667,
-            'KWD' => 3.257,
-            'QAR' => 0.2747,
-            'BHD' => 2.653,
-            'OMR' => 2.597,
-            'EGP' => 0.0204,
-        ];
-
-        // Try Binance first
-        if (!empty($this->binanceKey) && $from === 'USD') {
+        // Try Binance public ticker (no static FX)
+        if ($from === 'USD') {
             $binanceRate = $this->fetchBinanceRate('USDT');
             if ($binanceRate > 0) {
                 return ['success'=>true,'rate'=>$binanceRate,'source'=>'binance'];
             }
         }
 
-        // Fallback to static rates
-        $usdValue = $usdRates[strtoupper($from)] ?? null;
-        if (!$usdValue) {
-            return ['success'=>false,'message'=>'Unsupported currency: '.$from];
-        }
-
-        // USDT ≈ 1 USD
-        $rate = 1.0 / $usdValue; // How many USDT per 1 unit of $from
-        return ['success'=>true,'rate'=>round($rate, 6),'source'=>'static'];
+        return ['success'=>false,'message'=>'Live FX rate unavailable for '.$from];
     }
 
     private function fetchBinanceRate(string $symbol): float

@@ -8,10 +8,14 @@ final class BankProtocol implements ProtocolInterface {
     public function getName(): string { return $this->name; }
 
     public function execute(array $context): array {
-        // Bank transfer processing
         $beneficiary = $context['beneficiary'] ?? ($context['wallets'][0]['address'] ?? null);
-        if (empty($beneficiary)) return ['success' => false, 'message' => 'No beneficiary provided'];
-        // Execute bank transfer and log operation
-        return ['success' => true, 'message' => 'Bank transfer processed successfully', 'beneficiary' => $beneficiary];
+        if (empty($beneficiary)) {
+            return ['success' => false, 'message' => 'No beneficiary provided'];
+        }
+        return [
+            'success' => false,
+            'message' => 'Bank transfer is not simulated. Use a live bank gateway checkout.',
+            'beneficiary' => $beneficiary,
+        ];
     }
 }

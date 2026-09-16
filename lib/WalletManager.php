@@ -308,9 +308,7 @@ class WalletManager {
             $calc = ExchangeRateService::getInstance()->calculate(1, $fiat, $coin);
             return (float)($calc['rate'] ?? 0);
         } catch(Exception $e) {
-            // fallback أسعار تقريبية
-            $rates = ['USDT'=>1.0,'BTC'=>60000,'ETH'=>3000,'BNB'=>300,'USDC'=>1.0];
-            return $rates[$coin] ?? 1;
+            return 0;
         }
     }
 

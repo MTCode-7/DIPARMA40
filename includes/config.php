@@ -228,9 +228,6 @@ define('MAX_AMOUNT',        (float) env('MAX_AMOUNT', 1000000));
 define('MIN_AMOUNT',        (float) env('MIN_AMOUNT', 1));
 define('SESSION_TIMEOUT',   (int) env('SESSION_TIMEOUT',   3600));
 define('MAX_LOGIN_ATTEMPTS',(int) env('MAX_LOGIN_ATTEMPTS', 5));
-if (!defined('ALLOW_SIMULATION')) {
-    define('ALLOW_SIMULATION', false);
-}
 if (!defined('PAYRAM_API_KEY')) {
     define('PAYRAM_API_KEY', env('PAYRAM_API_KEY', ''));
 }

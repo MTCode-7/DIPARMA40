@@ -291,10 +291,13 @@ switch ($gateway) {
     // ── Whop ──────────────────────────────────────────────
     case 'whop':
         $apiKey       = getenv('WHOP_API_KEY') ?: '';
-        $checkoutUrl  = getenv('WHOP_CHECKOUT_URL') ?: 'https://whop.com/checkout/plan_A4P3nPnySfV8n';
-        // Whop لا يدعم إنشاء transaction بدون checkout — نرجع الـ checkout URL
+        $checkoutUrl  = getenv('WHOP_CHECKOUT_URL') ?: '';
+        if ($apiKey === '' || $checkoutUrl === '') {
+            $result['message'] = 'Whop API key and checkout URL required; fake checkout IDs removed';
+            break;
+        }
         saveToDb($ref,'whop',$amount,$currency,$email,['checkout_url'=>$checkoutUrl]);
-        $result = ['success'=>true,'transaction_id'=>'whop_'.time(),
+        $result = ['success'=>true,'transaction_id'=>$ref,
             'checkout_url'=>$checkoutUrl,'reference'=>$ref,
             'gateway'=>'whop','message'=>'Use Whop Checkout URL to initiate payment'];
         break;

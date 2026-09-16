@@ -8,11 +8,6 @@ final class FraudProtocol implements ProtocolInterface {
     public function getName(): string { return $this->name; }
 
     public function execute(array $context): array {
-        // Fraud detection and risk assessment
-        $amount = $context['amount'] ?? 0;
-        if ($amount > 50000) {
-            return ['success' => false, 'message' => 'Transaction flagged for manual review due to high amount'];
-        }
-        return ['success' => true, 'message' => 'Risk checks passed'];
+        return ['success' => false, 'message' => 'Risk engine not connected; auto-pass fraud check removed'];
     }
 }

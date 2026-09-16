@@ -140,20 +140,26 @@ class GatewayConnectionTester
 
     private function testDiparma(array $creds): array
     {
-        $endpoint = $creds['api_endpoint'] ?? '';
-        if ($endpoint === '') {
-            $base = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : (getenv('SITE_URL') ?: '');
-            $endpoint = $base !== '' ? $base . '/api/diparma_process.php' : '';
+        require_once __DIR__ . '/Adapters/NuveiAdapter.php';
+        $nuvei = new NuveiAdapter();
+        return $nuvei->testConnection();
+    }
+
+    private function testDiparmaGatewayCard(): array
+    {
+        $ledger = $this->testLedgerOnly();
+        if (empty($ledger['success'])) {
+            return $ledger;
         }
-        if ($endpoint === '' || !is_file(__DIR__ . '/../api/diparma_process.php')) {
-            return ['success' => false, 'message' => 'DI PARMA process endpoint missing'];
-        }
-        if (!is_file(__DIR__ . '/DIPARMAOrchestrator.php')) {
-            return ['success' => false, 'message' => 'DIPARMAOrchestrator missing'];
+        require_once __DIR__ . '/Adapters/NuveiAdapter.php';
+        $nuvei = new NuveiAdapter();
+        $card = $nuvei->testConnection();
+        if (empty($card['success'])) {
+            return $card;
         }
         return [
             'success' => true,
-            'message' => 'DI PARMA internal orchestrator ready — ' . $endpoint,
+            'message' => 'DIPARMA GATEWAY: Nuvei live + Ledger. ' . ($ledger['message'] ?? ''),
         ];
     }
 
@@ -169,30 +175,26 @@ class GatewayConnectionTester
                 'message' => 'LEDGER_TRC20_ADDRESS missing. DIPARMA GATEWAY is Ledger-only — no bank.',
             ];
         }
-        return [
-            'success' => true,
-            'message' => 'Ledger USDT TRC20 ready. ' . substr($addr, 0, 8) . '…',
-        ];
-    }
-
-    private function testDiparmaGatewayCard(): array
-    {
-        $ledger = $this->testLedgerOnly();
-        if (empty($ledger['success'])) {
-            return $ledger;
-        }
-        $merchant = trim((string) (getenv('NUVEI_MERCHANT_ID') ?: ''));
-        $secret = trim((string) (getenv('NUVEI_SECRET_KEY') ?: ''));
-        $site = trim((string) (getenv('NUVEI_SITE_ID') ?: ''));
-        if ($merchant === '' || $secret === '' || $site === '') {
+        $url = 'https://api.trongrid.io/v1/accounts/' . rawurlencode($addr);
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 12,
+            CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        ]);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        $json = is_string($body) ? json_decode($body, true) : null;
+        if ($code >= 200 && $code < 300 && is_array($json)) {
             return [
-                'success' => false,
-                'message' => 'Card rail needs NUVEI_MERCHANT_ID / SITE_ID / SECRET_KEY. Settlement is Ledger USDT.',
+                'success' => true,
+                'message' => 'Ledger USDT TRC20 reachable. ' . substr($addr, 0, 8) . '…',
             ];
         }
         return [
-            'success' => true,
-            'message' => 'DIPARMA GATEWAY: Card → Ledger USDT. ' . ($ledger['message'] ?? ''),
+            'success' => false,
+            'message' => 'TronGrid did not confirm Ledger address (HTTP ' . $code . ')',
         ];
     }
 

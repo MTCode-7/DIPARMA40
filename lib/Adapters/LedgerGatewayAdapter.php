@@ -30,7 +30,7 @@ class LedgerGatewayAdapter implements GatewayAdapterInterface
 
     public function charge(array $payload): array
     {
-        return $this->settle($payload);
+        return $this->rejectBankOp($payload, 'charge');
     }
 
     public function hold(array $payload): array
@@ -57,57 +57,5 @@ class LedgerGatewayAdapter implements GatewayAdapterInterface
             strtoupper((string) ($payload['currency'] ?? 'USD')),
             'DIPARMA GATEWAY is Ledger-only. No bank ' . $op . '.'
         );
-    }
-
-    private function settle(array $payload): array
-    {
-        require_once __DIR__ . '/../LedgerSettlementService.php';
-        $addr = trim((string) ($payload['ledger_address'] ?? $payload['ledger_addr'] ?? ''));
-        if ($addr === '' && defined('LEDGER_TRC20_ADDRESS')) {
-            $addr = trim((string) LEDGER_TRC20_ADDRESS);
-        }
-        if (!preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $addr)) {
-            return GatewayErrorMapper::buildErrorResponse(
-                'GATEWAY_ERROR',
-                (string) ($payload['reference'] ?? ''),
-                (float) ($payload['amount'] ?? 0),
-                strtoupper((string) ($payload['currency'] ?? 'USD')),
-                'LEDGER_TRC20_ADDRESS is required. No bank rail.'
-            );
-        }
-
-        $ref = (string) ($payload['reference'] ?? ('DGW-' . date('YmdHis')));
-        $settle = LedgerSettlementService::getInstance()->settleToLedger([
-            'reference' => $ref,
-            'amount' => (float) ($payload['amount'] ?? 0),
-            'currency' => strtoupper((string) ($payload['currency'] ?? 'USD')),
-            'gateway' => 'diparma_gateway',
-            'ledger_address' => $addr,
-            'destination' => 'ledger',
-            'txn_type' => (string) ($payload['txn_type'] ?? 'purchase'),
-            'user_id' => (int) ($payload['user_id'] ?? 0),
-        ]);
-
-        $ok = !empty($settle['success']) && empty($settle['skipped']);
-        $txid = $settle['txid'] ?? $settle['tx_hash'] ?? null;
-
-        return [
-            'success' => $ok,
-            'status' => $ok ? 'completed' : (!empty($settle['queued']) ? 'pending' : 'declined'),
-            'transaction_id' => $txid ?: $ref,
-            'reference' => $ref,
-            'amount' => (float) ($payload['amount'] ?? 0),
-            'currency' => strtoupper((string) ($payload['currency'] ?? 'USD')),
-            'message' => $ok
-                ? ('LEDGER ' . ($txid ?? $settle['message'] ?? 'OK'))
-                : ($settle['message'] ?? 'Ledger transfer failed'),
-            'requires_3ds' => false,
-            'ledger_address' => $addr,
-            'rail' => 'ledger',
-            'no_bank' => true,
-            'txid' => $txid,
-            'queued' => !empty($settle['queued']),
-            'raw' => $settle,
-        ];
     }
 }

@@ -10,12 +10,9 @@ final class VaultProtocol implements ProtocolInterface {
     public function execute(array $context): array {
         // Controlled vault access operations
         $action = $context['action'] ?? 'reserve';
-        if ($action === 'reserve') {
-            return ['success' => true, 'message' => 'Vault reserve executed successfully'];
-        }
-        if ($action === 'release') {
-            return ['success' => true, 'message' => 'Vault release executed successfully'];
-        }
-        return ['success' => false, 'message' => 'Unknown vault action'];
+        return [
+            'success' => false,
+            'message' => 'Vault ' . $action . ' is not simulated. Connect a live vault service.',
+        ];
     }
 }

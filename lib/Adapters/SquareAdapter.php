@@ -4,8 +4,7 @@
  * Square Payments API: charge / hold / capture / cancel
  * Docs: https://developer.squareup.com
  *
- * Card data: prefer source_id / cloud_token (Web Payments nonce or card on file).
- * Sandbox without nonce: uses cnon:card-nonce-ok for connection tests.
+ * Card data: require source_id / cloud_token from Web Payments SDK.
  */
 require_once __DIR__ . '/GatewayAdapterInterface.php';
 require_once __DIR__ . '/GatewayErrorMapper.php';
@@ -196,16 +195,13 @@ class SquareAdapter implements GatewayAdapterInterface
             ?? $payload['payment_method']
             ?? ''
         ));
-        if ($sourceId === '') {
-            $sourceId = $this->sandboxSourceFromCard($payload);
-        }
-        if ($sourceId === '') {
+        if ($sourceId === '' || strcasecmp($sourceId, 'cnon:card-nonce-ok') === 0) {
             return GatewayErrorMapper::buildErrorResponse(
                 'INVALID_CARD',
                 $reference,
                 $amount,
                 $currency,
-                'Square requires a card nonce (Web Payments SDK). Pass cloud_token / source_id.'
+                'Square requires a real card nonce from Web Payments SDK. Pass cloud_token / source_id.'
             );
         }
 
@@ -265,20 +261,6 @@ class SquareAdapter implements GatewayAdapterInterface
             GatewayLogger::log('square', $autocomplete ? 'charge' : 'hold', $payload, ['exception' => $e->getMessage()], 'NETWORK_ERROR', microtime(true) - $start);
             return GatewayErrorMapper::buildErrorResponse('NETWORK_ERROR', $reference, $amount, $currency, $e->getMessage());
         }
-    }
-
-    /** Sandbox only: keyed test without Web SDK uses Square's fake nonce. */
-    private function sandboxSourceFromCard(array $payload): string
-    {
-        if (!$this->sandbox) {
-            return '';
-        }
-        $pan = preg_replace('/\D/', '', (string) ($payload['card_number'] ?? $payload['cc_number'] ?? ''));
-        if (strlen($pan) < 13) {
-            return '';
-        }
-        // Official Square sandbox nonces
-        return 'cnon:card-nonce-ok';
     }
 
     private function errorMessage(array $res): string
