@@ -412,57 +412,12 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
         ];
     }
 
-    // Offline SALE — SAF من البنك (حد 2,000,000) ثم Forward للبوابة المختارة عند الاتصال
+    // Offline SALE — live MOTO on the selected gateway (no local approval).
     if ($txnType === 'offline_sale_moto') {
-        if (!class_exists('RealOfflineSalesManager', false)) {
-            require_once dirname(__DIR__) . '/lib/RealOfflineSalesManager.php';
-        }
-        $params['card_cvv'] = '';
         $params['is_moto'] = true;
-        $tid = trim((string) ($params['terminal_id'] ?? $params['tid'] ?? ''));
-        $ref = trim((string) ($params['rrn'] ?? $params['orig_ref'] ?? $params['reference'] ?? $params['client_unique_id'] ?? ''));
-        $amount = (float) ($params['amount'] ?? 0);
-        $cardData = array_merge($params, ['gateway' => $gateway]);
-
-        $saf = new RealOfflineSalesManager();
-        $stored = $saf->processOfflineSale($tid, $ref, $amount, $cardData);
-        if (($stored['status'] ?? '') !== 'APPROVED_OFFLINE') {
-            return [
-                'success' => false,
-                'status' => $stored['status'] ?? 'DECLINED',
-                'message' => $stored['message'] ?? 'Offline sale declined',
-                'reason' => $stored['reason'] ?? '',
-                'gateway' => $gateway,
-                'offline' => true,
-                'saf' => true,
-            ];
-        }
-
-        // محاولة Forward فورية إن توفّر مضيف SAF / البوابة
-        $endpoint = trim((string) (getenv('BANK_SAF_HOST') ?: getenv('OFFLINE_SAF_HOST') ?: ''));
-        $secret = trim((string) (getenv('BANK_SAF_KEY') ?: getenv('OFFLINE_SAF_KEY') ?: ''));
-        if ($endpoint !== '') {
-            $sync = $saf->syncOfflineQueue($endpoint, $secret);
-            $stored['sync'] = $sync;
-            if (!empty($sync['synced_count'])) {
-                $stored['status'] = 'SYNCED';
-                $stored['message'] = 'Offline sale stored then forwarded to selected host.';
-            }
-        }
-
-        return [
-            'success' => true,
-            'status' => $stored['status'] ?? 'APPROVED_OFFLINE',
-            'message' => $stored['message'] ?? 'APPROVED_OFFLINE',
-            'transaction_id' => $stored['transaction_id'] ?? $ref,
-            'reference' => $stored['ref_number'] ?? $ref,
-            'amount' => $amount,
-            'approval_code' => (string) ($params['auth_code'] ?? $params['approval_code'] ?? ''),
-            'gateway' => $gateway,
-            'offline' => true,
-            'saf' => true,
-            'sync' => $stored['sync'] ?? null,
-        ];
+        $params['is_offline'] = true;
+        $params['card_cvv'] = $params['card_cvv'] ?? '';
+        $txnType = 'online_sale_moto';
     }
 
     if ($adapter === 'nuvei') {
@@ -471,6 +426,8 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
         switch ($txnType) {
             case 'purchase_3d':
                 return $nuvei->purchase3D($params);
+            case 'purchase_2d':
+                return $nuvei->purchase2D($params);
             case 'online_sale_moto':
                 $params['is_moto'] = true;
                 return $nuvei->purchase2D($params);

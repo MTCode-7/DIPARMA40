@@ -104,7 +104,9 @@ class StripeAdapter implements GatewayAdapterInterface
             // payment_method_types=card يعمل مع كل العملات بدون قيود
             $piParams['payment_method_types[]'] = 'card';
 
-            if ($mode === '2D') {
+            if ($mode === '3D') {
+                $piParams['payment_method_options[card][request_three_d_secure]'] = 'challenge';
+            } elseif ($mode === '2D') {
                 $piParams['off_session'] = 'true';
                 $piParams['payment_method_options[card][request_three_d_secure]'] = 'any';
             }

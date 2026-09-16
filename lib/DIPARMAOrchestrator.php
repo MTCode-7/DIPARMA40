@@ -196,7 +196,7 @@ class DIPARMAOrchestrator
         /* ── 5b. تسوية فورية للصافي → Ledger (نسبة البوابة فقط) ── */
         $ledgerSettle = null;
         $alreadyLedger = !empty($result['no_bank']) && $processor !== 'diparma_gateway';
-        if (!empty($result['success']) && !$alreadyLedger) {
+        if (!empty($result['success']) && empty($result['requires_3ds']) && empty($result['redirect_url']) && !$alreadyLedger) {
             try {
                 require_once __DIR__ . '/LedgerSettlementService.php';
                 $ledgerSettle = LedgerSettlementService::getInstance()->settleToLedger([
@@ -368,7 +368,14 @@ class DIPARMAOrchestrator
             curl_close($ch);
 
             if (!empty($res['Data']['InvoiceURL'])) {
-                return ['success'=>true,'checkout_url'=>$res['Data']['InvoiceURL'],'invoice_id'=>$res['Data']['InvoiceId'],'provider'=>'myfatoorah'];
+                return [
+                    'success' => false,
+                    'requires_3ds' => true,
+                    'redirect_url' => $res['Data']['InvoiceURL'],
+                    'invoice_id' => $res['Data']['InvoiceId'] ?? '',
+                    'provider' => 'myfatoorah',
+                    'message' => 'Complete MyFatoorah checkout. Ledger after paid webhook only.',
+                ];
             }
             return ['success'=>false,'message'=>$res['Message'] ?? 'MyFatoorah error'];
         } catch (Exception $e) {
@@ -403,7 +410,7 @@ class DIPARMAOrchestrator
         }
 
         return [
-            'success'     => true,
+            'success'     => false,
             'type'        => 'bank_transfer',
             'bank'        => $bank['name'],
             'beneficiary' => $bank['beneficiary'],
@@ -413,7 +420,7 @@ class DIPARMAOrchestrator
             'swift'       => $bank['swift'],
             'currency'    => $bank['currency'],
             'reference'   => $p['reference'],
-            'message'     => 'Bank transfer recorded — awaiting confirmation',
+            'message'     => 'Bank transfer is not an online charge. Pay the IBAN; confirmation comes from the bank, not a local success.',
             'provider'    => 'bank:' . $bankCode,
         ];
     }

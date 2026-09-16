@@ -115,12 +115,12 @@ class RealOfflineSalesManager
         }
 
         return [
-            'status' => 'APPROVED_OFFLINE',
+            'status' => 'QUEUED_PENDING_HOST',
             'ref_number' => $referenceNumber,
             'amount' => $amount,
             'tid' => $terminalId,
-            'message' => 'تم قبول العملية محلياً (SAF) وتخزينها في انتظار عودة الاتصال للإرسال.',
-            'success' => true,
+            'message' => 'Stored for host retry only. Not approved. Charge the live gateway.',
+            'success' => false,
             'offline' => true,
             'saf' => true,
             'transaction_id' => $referenceNumber,

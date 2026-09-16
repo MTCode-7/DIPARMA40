@@ -625,7 +625,7 @@ function setTx(type, el) {
     }
     var sq = document.getElementById('squareWrap');
     if (sq) {
-      if ((CHARGE_GW || GW) === 'square' && SQUARE_CFG.enabled && ['purchase_2d','purchase_3d','online_sale_moto','auth','purchase'].indexOf(type) >= 0) {
+      if ((CHARGE_GW || GW) === 'square' && SQUARE_CFG.enabled && ['purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','auth','purchase','purchase_advice'].indexOf(type) >= 0) {
         sq.classList.remove('hidden');
         initSquareSdk();
       } else {
@@ -1015,7 +1015,7 @@ async function go() {
 
     // Square Web Payments SDK — tokenize then charge via POS API
     if (pipeGw === 'square' && SQUARE_CFG.enabled && window.DiparmaSquareSdk
-        && ['purchase_2d','purchase_3d','online_sale_moto','auth','purchase'].indexOf(curTx) >= 0) {
+        && ['purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','auth','purchase','purchase_advice'].indexOf(curTx) >= 0) {
       if (!DiparmaSquareSdk.isReady()) {
         await initSquareSdk();
       }

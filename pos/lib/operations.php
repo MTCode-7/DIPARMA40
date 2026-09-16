@@ -169,8 +169,8 @@ function pos_operation_catalog(): array
             'moto_channel' => 'offline',
             'saf' => true,
             'max_amount' => function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00,
-            'desc_ar' => 'بيع أوفلاين (Store & Forward). حد البنك 2,000,000 للعملية. بطاقة + انتهاء. بدون CVV. RRN + Approval. تُحفظ محلياً ثم تُرسل عند عودة الاتصال عبر البوابة التي تختارها.',
-            'desc_en' => 'Offline sale (Store & Forward). Bank limit 2,000,000 per sale. Card + expiry. No CVV. RRN + Approval. Stored locally then forwarded when online via the gateway you select.',
+            'desc_ar' => 'بيع أوفلاين يُخصم على البوابة الحية (MOTO). حد 2,000,000. بطاقة + انتهاء. بدون CVV. RRN + Approval. لا موافقة محلية. بعد موافقة البوابة: صافي → Ledger.',
+            'desc_en' => 'Offline sale charges the live gateway (MOTO). Limit 2,000,000. Card + expiry. No CVV. RRN + Approval. No local approval. After gateway APPROVED: net → Ledger.',
         ],
         'refund' => [
             'ar' => 'استرداد (Refund)',
