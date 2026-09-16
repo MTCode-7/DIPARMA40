@@ -239,8 +239,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
         $res = $this->post('/payment.do', $body);
 
-        if (in_array($res['transactionStatus'] ?? '', ['APPROVED', 'SUCCESS']) ||
-            ($res['status'] ?? '') === 'SUCCESS') {
+        if ($this->nuveiTxnApproved($res)) {
             $this->log("✓ Hold/Auth: {$ref} | txId: " . ($res['transactionId'] ?? ''));
             return [
                 'success'        => true,
@@ -259,6 +258,19 @@ class NuveiAdapter implements GatewayAdapterInterface {
                 'decline_code'   => '',
                 'retryable'      => false,
                 'hard_block'     => false,
+            ];
+        }
+
+        $redir = $this->nuveiRedirectUrl($res);
+        if ($redir !== '' || strtoupper((string)($res['transactionStatus'] ?? '')) === 'REDIRECT') {
+            return [
+                'success' => false,
+                'requires_3ds' => true,
+                'redirect_url' => $redir,
+                'transaction_id' => $res['transactionId'] ?? '',
+                'reference' => $ref,
+                'message' => '3DS_REQUIRED',
+                'raw' => $res,
             ];
         }
 
@@ -434,8 +446,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         ];
 
         $res      = $this->post('/settleTransaction.do', $body);
-        $success  = in_array(strtoupper((string)($res['transactionStatus'] ?? '')), ['APPROVED', 'SUCCESS'], true)
-                    || ($res['status'] ?? '') === 'SUCCESS';
+        $success  = $this->nuveiTxnApproved($res);
 
         if ($success) {
             $this->log("✓ Capture: {$transactionId} | ref={$ref}");
@@ -529,8 +540,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         ];
 
         $res     = $this->post('/voidTransaction.do', $body);
-        $success = in_array(strtoupper((string)($res['transactionStatus'] ?? '')), ['APPROVED', 'SUCCESS'], true)
-                   || ($res['status'] ?? '') === 'SUCCESS';
+        $success = $this->nuveiTxnApproved($res);
 
         if ($success) {
             $this->log("✓ Void: {$transactionId}");
@@ -760,8 +770,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
     $res = $this->post('/payment.do', $body);
 
     // ─── التحقق من النتيجة ───
-    if(in_array($res['transactionStatus'] ?? '', ['APPROVED','SUCCESS']) ||
-       ($res['status'] ?? '') === 'SUCCESS') {
+    if ($this->nuveiTxnApproved($res)) {
         $this->log("✓ ChargeCard: {$ref} | txId: ".($res['transactionId'] ?? ''));
         return [
             'success'        => true,
@@ -773,6 +782,20 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'provider'       => 'nuvei',
             'message'        => 'Payment approved',
             'raw'            => $res,
+        ];
+    }
+
+    $redir = $this->nuveiRedirectUrl($res);
+    $txnSt = strtoupper((string)($res['transactionStatus'] ?? ''));
+    if ($redir !== '' || $txnSt === 'REDIRECT') {
+        return [
+            'success' => false,
+            'requires_3ds' => true,
+            'redirect_url' => $redir,
+            'transaction_id' => $res['transactionId'] ?? '',
+            'reference' => $ref,
+            'message' => '3DS_REQUIRED',
+            'raw' => $res,
         ];
     }
 
@@ -805,8 +828,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         ];
 
         $res = $this->post('/settleTransaction.do', $body);
-        $success = in_array(strtoupper((string)($res['transactionStatus'] ?? '')), ['APPROVED', 'SUCCESS'], true)
-            || ($res['status'] ?? '') === 'SUCCESS';
+        $success = $this->nuveiTxnApproved($res);
 
         return [
             'success' => $success,
@@ -1228,8 +1250,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     $res = $this->post('/refundTransaction.do', $body);
 
-    $success = in_array(strtoupper((string)($res['transactionStatus'] ?? '')), ['APPROVED', 'SUCCESS'], true)
-                || ($res['status'] ?? '') === 'SUCCESS';
+    $success = $this->nuveiTxnApproved($res);
 
     if ($success) {
         $this->log("✓ Refund: {$transactionId} | ref={$refId}");
@@ -1465,6 +1486,22 @@ class NuveiAdapter implements GatewayAdapterInterface {
         ];
     }
 
+    /** Nuvei API status=SUCCESS is not an approval (DECLINED/REDIRECT also return SUCCESS). */
+    private function nuveiTxnApproved(array $res): bool
+    {
+        $txn = strtoupper((string)($res['transactionStatus'] ?? ''));
+        return in_array($txn, ['APPROVED', 'SUCCESS'], true);
+    }
+
+    private function nuveiRedirectUrl(array $res): string
+    {
+        $url = trim((string)($res['redirectUrl'] ?? $res['redirect_url'] ?? ''));
+        if ($url === '') {
+            $url = trim((string)($res['paymentOption']['card']['threeD']['acsUrl'] ?? ''));
+        }
+        return $url;
+    }
+
         // ── تطبيع الاستجابة ────────────────────────────────────
     private function normalizeResponse(string $type, array $raw, string $clientReqId): array
     {
@@ -1472,6 +1509,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $txnStatus   = strtoupper((string)($raw['transactionStatus'] ?? ''));
         $success     = in_array($txnStatus, ['APPROVED', 'SUCCESS'], true);
         $reason      = $success ? 'APPROVED' : $this->formatDeclineReason($raw, $txnStatus, $status);
+        $redirectUrl = $this->nuveiRedirectUrl($raw);
+        $needs3ds    = !$success && ($txnStatus === 'REDIRECT' || $redirectUrl !== '');
 
         return [
             'success'          => $success,
@@ -1487,8 +1526,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'txn_status'       => $txnStatus,
             'amount'           => $raw['totalAmount']        ?? null,
             'currency'         => $raw['currency']           ?? null,
-            'message'          => $reason,
-            'decline_reason'   => $success ? null : $reason,
+            'message'          => $needs3ds ? '3DS_REQUIRED' : $reason,
+            'decline_reason'   => $success || $needs3ds ? null : $reason,
+            'requires_3ds'     => $needs3ds,
+            'redirect_url'     => $needs3ds ? $redirectUrl : '',
             'raw'              => $raw,
             'settlement_target'=> 'ledger',
             'acquirer'         => 'nuvei',

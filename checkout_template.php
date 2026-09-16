@@ -1056,6 +1056,12 @@ async function go() {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
     });
     var d = await r.json();
+    var redir = d.redirect_url || d.checkout_url || (d.payment && (d.payment.redirect_url || d.payment.checkout_url));
+    if ((d.requires_3ds || redir) && redir) {
+      showToast(<?=json_encode($ar ? 'أكمل الدفع على البوابة — التسوية بعد الموافقة فقط' : 'Complete gateway payment — Ledger settles only after approval')?>, 'info');
+      window.location.href = redir;
+      return;
+    }
     if (!d.success) { showToast(d.message||(d.errors&&d.errors.join(', '))||'Failed','error'); btn.disabled=false; resetBtn(); return; }
     showToast('Done ✓','success');
     setTimeout(function(){ window.location.href=BASE+'receipt.php?ref='+encodeURIComponent(d.reference||d.order_id||REF||''); }, 1200);

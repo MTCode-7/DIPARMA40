@@ -122,28 +122,18 @@ class LedgerSettlementService
     public function toUsdt(float $amount, string $currency): float
     {
         $currency = strtoupper(trim($currency));
-        if ($currency === 'USD' || $currency === 'USDT') {
+        if (in_array($currency, ['USD', 'USDT', 'USDC'], true)) {
             return round($amount, 6);
         }
 
-        try {
-            if (!class_exists('ExchangeRateService')) {
-                require_once __DIR__ . '/ExchangeRateService.php';
-            }
-            $calc = ExchangeRateService::getInstance()->calculate($amount, $currency, 'USDT');
-            if (!empty($calc['crypto_amount'])) {
-                return round((float) $calc['crypto_amount'], 6);
-            }
-        } catch (Throwable $e) {
-            // fallback map
+        if (!class_exists('ExchangeRateService')) {
+            require_once __DIR__ . '/ExchangeRateService.php';
         }
-
-        $rates = [
-            'AED' => 0.2723, 'SAR' => 0.2667, 'EUR' => 1.08,
-            'GBP' => 1.27, 'KWD' => 3.25, 'QAR' => 0.2747,
-            'BHD' => 2.65, 'OMR' => 2.60, 'EGP' => 0.0204,
-        ];
-        return round($amount * ($rates[$currency] ?? 1.0), 6);
+        $calc = ExchangeRateService::getInstance()->calculate($amount, $currency, 'USDT');
+        if (empty($calc['crypto_amount']) || (float) ($calc['rate'] ?? 0) <= 0) {
+            throw new RuntimeException('Live FX rate unavailable for ' . $currency);
+        }
+        return round((float) $calc['crypto_amount'], 6);
     }
 
     /**
@@ -200,7 +190,11 @@ class LedgerSettlementService
         $netFiat = $fee['net_amount'];
         $asset = $this->settlementAsset();
         // حالياً التنفيذ الفعلي: USDT TRC20 إلى Ledger (TRX لاحقاً إن لزم)
-        $cryptoAmount = $this->toUsdt($netFiat, $currency);
+        try {
+            $cryptoAmount = $this->toUsdt($netFiat, $currency);
+        } catch (Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage(), 'queued' => false];
+        }
 
         $result = [
             'success'        => false,

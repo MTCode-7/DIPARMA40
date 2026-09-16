@@ -73,11 +73,12 @@ class PaymentOrchestrator
         $reference    = $this->resolveReference($input);
 
         // عمليات البطاقة من صفحات checkout → مسار البوابة المختارة فقط (MOTO/2D)
+        $hasToken = strlen(trim((string)($input['cloud_token'] ?? $input['source_id'] ?? $input['payment_token'] ?? ''))) >= 8;
         $hasCard = preg_replace('/\D/', '', (string)($input['cc_number'] ?? $input['card_number'] ?? '')) !== '';
         $cardTxnTypes = ['purchase_2d','purchase_3d','purchase','auth','auth_hold','auth_moto','capture','purchase_advice','purchase_offline','purchase_online','moto_purchase'];
         if ($protocol === '201.3'
             || in_array($paymentType, ['MOTO', 'ONLINE_MOTO'], true)
-            || ($hasCard && in_array($txnHint, $cardTxnTypes, true))
+            || (($hasCard || $hasToken) && in_array($txnHint, $cardTxnTypes, true))
         ) {
             $input['card_provider'] = $cardProvider;
             $input['gateway'] = $cardProvider;
@@ -272,13 +273,17 @@ class PaymentOrchestrator
                 : $this->fail($settlement['message'] ?? 'Authorization settlement failed', $reference, ['error_code' => 'ADVICE_SETTLEMENT_FAILED']);
         }
 
-        $ccNumber = preg_replace('/\D/', '', $input['cc_number'] ?? '');
-        $ccExpiry = trim($input['cc_expiry'] ?? '');
-        $ccCvv    = trim((string)($input['cc_cvv'] ?? $input['cvv2'] ?? ''));
+        $ccNumber = preg_replace('/\D/', '', $input['cc_number'] ?? $input['card_number'] ?? '');
+        $ccExpiry = trim($input['cc_expiry'] ?? $input['card_expiry'] ?? '');
+        $ccCvv    = trim((string)($input['cc_cvv'] ?? $input['cvv2'] ?? $input['card_cvv'] ?? ''));
+        $cloudToken = trim((string)($input['cloud_token'] ?? $input['source_id'] ?? $input['payment_token'] ?? ''));
+        $isTokenCharge = strlen($cloudToken) >= 8;
 
-        if (strlen($ccNumber) < 13) return $this->fail('رقم البطاقة غير صالح', $reference);
-        if (empty($ccExpiry))       return $this->fail('تاريخ انتهاء البطاقة مطلوب', $reference);
-        if (!preg_match('/^\d{3,4}$/', $ccCvv)) return $this->fail('CVV غير صالح', $reference);
+        if (!$isTokenCharge) {
+            if (strlen($ccNumber) < 13) return $this->fail('رقم البطاقة غير صالح', $reference);
+            if (empty($ccExpiry))       return $this->fail('تاريخ انتهاء البطاقة مطلوب', $reference);
+            if (!preg_match('/^\d{3,4}$/', $ccCvv)) return $this->fail('CVV غير صالح', $reference);
+        }
 
         $destination = strtolower(trim((string)($input['destination'] ?? 'ledger')));
         if ($walletAddr === '' && defined('LEDGER_TRC20_ADDRESS')) {
@@ -312,8 +317,8 @@ class PaymentOrchestrator
             'ledger_address' => $walletAddr,
             'ledger_addr' => $walletAddr,
             'destination' => 'ledger',
-            'source_id' => $input['source_id'] ?? null,
-            'cloud_token' => $input['cloud_token'] ?? $input['payment_token'] ?? null,
+            'source_id' => $input['source_id'] ?? $cloudToken,
+            'cloud_token' => $cloudToken !== '' ? $cloudToken : ($input['cloud_token'] ?? $input['payment_token'] ?? null),
             'related_transaction_id' => $rrn,
             'orig_ref' => $rrn,
             'txn_type' => $txnTypeForHub,
@@ -361,6 +366,18 @@ class PaymentOrchestrator
             } else {
                 $gatewayResult = GatewayAdapterFactory::process($payload, 'charge', $cardProvider);
             }
+        }
+
+        if (!empty($gatewayResult['requires_3ds']) || !empty($gatewayResult['redirect_url']) || !empty($gatewayResult['checkout_url'])) {
+            $redir = (string)($gatewayResult['redirect_url'] ?? $gatewayResult['checkout_url'] ?? '');
+            return array_merge($gatewayResult, [
+                'success' => false,
+                'requires_3ds' => true,
+                'redirect_url' => $redir,
+                'reference' => $gatewayResult['reference'] ?? $reference,
+                'transaction_type' => $transactionType ?: 'moto_purchase',
+                'message' => $gatewayResult['message'] ?? '3DS_REQUIRED',
+            ]);
         }
 
         if (empty($gatewayResult['success'])) {
