@@ -591,8 +591,10 @@ $totalPages = ceil($totalTransactions / $limit);
             <a href="transactions.php" class="nav-link active"><i class="fas fa-list"></i> Transactions</a>
             <a href="crypto.php" class="nav-link"><i class="fas fa-coins"></i> Crypto</a>
             <a href="links.php" class="nav-link"><i class="fas fa-link"></i> Payment Links</a>
+            <?php if (isAdmin()): ?>
             <a href="admin/gateway_manager.php" class="nav-link"><i class="fas fa-route"></i> Gateways</a>
             <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> Account Settings</a>
+            <?php endif; ?>
             <a href="logout.php" class="nav-link logout"><i class="fas fa-sign-out-alt"></i></a>
         </div>
     </nav>

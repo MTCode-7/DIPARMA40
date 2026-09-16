@@ -239,11 +239,15 @@ function globalNav(string $activePage = ''): string {
         'wallets'    => ['icon'=>'fas fa-wallet',        'url'=>'wallets.php',                   'label_ar'=>'المحافظ',       'label_en'=>'Wallets'],
         'history'    => ['icon'=>'fas fa-history',       'url'=>'transactions.php',              'label_ar'=>'السجل',         'label_en'=>'History'],
         'reports'    => ['icon'=>'fas fa-chart-bar',     'url'=>'reports.php',                   'label_ar'=>'التقارير',      'label_en'=>'Reports'],
-        'connection' => ['icon'=>'fas fa-cog', 'url'=>'admin/gateway_manager.php',  'label_ar'=>'بوابات الدفع','label_en'=>'Gateways'],
+        'connection' => ['icon'=>'fas fa-cog', 'url'=>'admin/gateway_manager.php',  'label_ar'=>'بوابات الدفع','label_en'=>'Gateways', 'admin' => true],
     ];
 
     $navLinks = '';
+    $showAdminNav = function_exists('isAdmin') && isAdmin();
     foreach ($pages as $key => $p) {
+        if (!empty($p['admin']) && !$showAdminNav) {
+            continue;
+        }
         $isActive = $activePage === $key;
         $label    = $isAr ? $p['label_ar'] : $p['label_en'];
         $style    = $isActive
@@ -306,6 +310,23 @@ function globalNav(string $activePage = ''): string {
         ['url'=>'pay.php','icon'=>'fas fa-dollar-sign','label'=>'Payment Page'],
         ['url'=>'user_profile.php','icon'=>'fas fa-user','label'=>'User Profile'],
     ];
+    if (!(function_exists('isAdmin') && isAdmin())) {
+        $searchPages = array_values(array_filter($searchPages, static function ($p) {
+            $url = (string) ($p['url'] ?? '');
+            if (str_contains($url, 'admin/')) {
+                return false;
+            }
+            $base = basename(parse_url($url, PHP_URL_PATH) ?: $url);
+            return !in_array($base, [
+                'approvals.php',
+                'user_profile.php',
+                'auto_update.php',
+                'withdrawal_database.php',
+                'reports.php',
+                'status.php',
+            ], true);
+        }));
+    }
     $searchPagesJson = json_encode($searchPages, JSON_UNESCAPED_UNICODE);
 
     $msgOkJson = json_encode($msgOk, JSON_UNESCAPED_UNICODE);

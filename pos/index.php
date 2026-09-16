@@ -717,10 +717,12 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
     <div style="font-weight:800;margin-bottom:8px;color:var(--gold)"><?=$ar?'لا توجد بوابة مفعّلة ومتصلة':'No enabled connected gateway'?></div>
     <div style="font-size:.78rem;color:var(--muted2);margin-bottom:8px;line-height:1.5">
       <?=$ar
-        ? 'البوابات غير المتصلة تظهر في إدارة بوابات الدفع فقط. اختبر الاتصال هناك ثم عد إلى هنا.'
-        : 'Disconnected gateways appear only in Payment Gateway Manager. Test the connection there, then return here.'?>
+        ? 'لا توجد بوابة مفعّلة ومتصلة. تواصل مع الإدارة لتفعيل بوابة.'
+        : 'No enabled connected gateway. Ask an administrator to enable one.'?>
     </div>
+    <?php if (function_exists('isAdmin') && isAdmin()): ?>
     <a href="../admin/gateway_manager.php" style="color:var(--gold);font-size:.8rem"><?=$ar?'فتح إدارة البوابات':'Open Gateway Manager'?></a>
+    <?php endif; ?>
   </div>
   <?php if ($isVerix): ?>
   <?php
@@ -1007,8 +1009,10 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="panel-title"><?=$ar?'البوابات المتصلة — اختر للتنفيذ':'Connected gateways — pick to charge'?></div>
     <div id="execGwEmpty" style="border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--card);margin-bottom:12px;<?=empty($execGws)?'':'display:none'?>">
       <div style="font-weight:800;margin-bottom:6px;color:var(--gold)"><?=$ar?'لا توجد بوابة متصلة':'No connected gateway'?></div>
-      <div style="font-size:.78rem;color:var(--muted2);line-height:1.6;margin-bottom:8px"><?=$ar?'أضف مفاتيح الاتصال واختبر البوابة من إدارة بوابات الدفع. غير المتصلة لا تظهر هنا.':'Add connection keys and test the gateway in Payment Gateway Manager. Disconnected gateways stay there.'?></div>
+      <div style="font-size:.78rem;color:var(--muted2);line-height:1.6;margin-bottom:8px"><?=$ar?'لا توجد بوابة متصلة. تواصل مع الإدارة لتفعيل بوابة.':'No connected gateway. Ask an administrator to enable one.'?></div>
+      <?php if (function_exists('isAdmin') && isAdmin()): ?>
       <a href="../admin/gateway_manager.php" style="color:var(--gold);font-size:.8rem"><?=$ar?'فتح إدارة البوابات':'Open Gateway Manager'?></a>
+      <?php endif; ?>
     </div>
     <div id="execGws" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px">
       <?php foreach ($execGws as $gwCode => $gwRow): ?>

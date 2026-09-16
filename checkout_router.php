@@ -286,12 +286,14 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       </div>
       <div style="font-size:.82rem;color:var(--muted2);line-height:1.7">
         <?=$ar
-          ? 'البوابات غير المتصلة تبقى في إدارة بوابات الدفع إلى أن تضيف مفاتيح الاتصال وتختبرها. بعد الاتصال تظهر هنا وفي POS فقط.'
-          : 'Disconnected gateways stay in Payment Gateway Manager until you add connection keys and test them. After that they appear here and on POS.'?>
+          ? 'لا توجد بوابة متصلة حالياً. تواصل مع الإدارة لتفعيل بوابة.'
+          : 'No connected gateway yet. Ask an administrator to enable one.'?>
       </div>
+      <?php if (function_exists('isAdmin') && isAdmin()): ?>
       <a href="admin/gateway_manager.php" style="display:inline-block;margin-top:14px;color:#000;background:var(--gold);padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:800;font-size:.82rem">
         <?=$ar?'فتح إدارة البوابات':'Open Gateway Manager'?>
       </a>
+      <?php endif; ?>
     </div>
     <?php endif; ?>
 

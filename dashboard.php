@@ -571,14 +571,17 @@ foreach ($dailyStats as $day) {
 
     <!-- ===== إجراءات سريعة ===== -->
     <div class="quick-actions fade-in">
+        <?php if (isAdmin()): ?>
         <a href="admin/gateway_manager.php?add=true" class="quick-btn">
             <i class="fas fa-plus-circle"></i>
             <?= $currentLang==='en'?'Add Gateway':'إضافة بوابة' ?>
         </a>
+        <?php endif; ?>
         <a href="checkout_router.php" class="quick-btn">
             <i class="fas fa-hand-holding-usd"></i>
             <?= $currentLang==='en'?'New Payment':'عملية دفع جديدة' ?>
         </a>
+        <?php if (isAdmin()): ?>
         <a href="reports.php" class="quick-btn">
             <i class="fas fa-file-pdf"></i>
             <?= $currentLang==='en'?'Financial Report':'تقرير مالي' ?>
@@ -591,16 +594,17 @@ foreach ($dailyStats as $day) {
             <i class="fas fa-cogs"></i>
             <?= $currentLang==='en'?'System Settings':'إعدادات النظام' ?>
         </a>
-        <?php if (isAdmin()): ?>
         <a href="admin/auto_update.php" class="quick-btn">
             <i class="fas fa-sync-alt"></i>
             Auto Update
         </a>
         <?php endif; ?>
+        <?php if (isAdmin()): ?>
         <a href="security_check.php" class="quick-btn">
             <i class="fas fa-shield-alt"></i>
             <?= $currentLang==='en'?'Security Monitor':'مراقبة الأمان' ?>
         </a>
+        <?php endif; ?>
         <a href="ledger/" class="quick-btn" style="border-color:rgba(255,215,0,.2);background:rgba(255,215,0,.03)">
             <i class="fas fa-wallet" style="color:var(--gold)"></i>
             Ledger Wallet
