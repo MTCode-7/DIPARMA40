@@ -165,6 +165,16 @@ try {
                         'status'     => 'completed',
                         'updated_at' => date('Y-m-d H:i:s'),
                     ], ['reference' => $hold['reference']]);
+
+                    require_once __DIR__ . '/../lib/LedgerSettlementService.php';
+                    $captureResult['ledger_settlement'] = LedgerSettlementService::settleSuccessfulPayment([
+                        'reference' => $hold['reference'],
+                        'amount'    => (float)($hold['amount'] ?? 0),
+                        'currency'  => (string)($hold['currency'] ?? 'USD'),
+                        'gateway'   => (string)($hold['gateway'] ?? 'paypal'),
+                        'user_id'   => (int)$userId,
+                        'txn_type'  => 'capture',
+                    ]);
                 }
             }
 
@@ -211,6 +221,7 @@ try {
             ], $gwOverride ?: null);
 
             if ($result['success']) {
+                $gwCode = $gwOverride ?: 'nuvei';
                 // تحديث أو إنشاء transaction
                 $existing = $db->find('transactions', ['reference' => $reference]);
                 if ($existing) {
@@ -221,7 +232,7 @@ try {
                 } else {
                     $db->insert('transactions', [
                         'reference'        => $reference,
-                        'gateway'          => 'nuvei',
+                        'gateway'          => $gwCode,
                         'amount'           => $amount,
                         'currency'         => $currency,
                         'customer_name'    => $payload['name']  ?? 'Customer',
@@ -229,13 +240,23 @@ try {
                         'status'           => 'completed',
                         'transaction_type' => 'MOTO — شراء مباشر بدون OTP',
                         'user_id'          => $userId,
-                        'fees'             => round($amount * 0.029 + 0.30, 2),
-                        'net_amount'       => round($amount - ($amount * 0.029 + 0.30), 2),
+                        'fees'             => 0,
+                        'net_amount'       => $amount,
                         'security_mode'    => '2D',
                         'gateway_response' => json_encode($result),
                         'created_at'       => date('Y-m-d H:i:s'),
                     ]);
                 }
+
+                require_once __DIR__ . '/../lib/LedgerSettlementService.php';
+                $result['ledger_settlement'] = LedgerSettlementService::settleSuccessfulPayment([
+                    'reference' => $reference,
+                    'amount'    => $amount,
+                    'currency'  => $currency,
+                    'gateway'   => $gwCode,
+                    'user_id'   => (int)$userId,
+                    'txn_type'  => 'purchase_2d',
+                ]);
             }
 
             echo json_encode($result, JSON_UNESCAPED_UNICODE);

@@ -34,33 +34,33 @@ switch($action){
             if($wallet==='fiat'){
                 if($type==='admin_credit'){
                     $db->query(
-                        "INSERT INTO user_fiat_wallets (user_id,currency,balance) VALUES (?,?,?)
+                        "INSERT INTO " . dp_table('user_fiat_wallets') . " (user_id,currency,balance) VALUES (?,?,?)
                          ON DUPLICATE KEY UPDATE balance=balance+?",
                         [$uid,$currency,$amount,$amount]
                     );
                 } else {
                     $db->query(
-                        "UPDATE user_fiat_wallets SET balance=GREATEST(0,balance-?) WHERE user_id=? AND currency=?",
+                        "UPDATE " . dp_table('user_fiat_wallets') . " SET balance=GREATEST(0,balance-?) WHERE user_id=? AND currency=?",
                         [$amount,$uid,$currency]
                     );
                 }
             } else {
                 if($type==='admin_credit'){
                     $db->query(
-                        "INSERT INTO user_crypto_wallets (user_id,coin,network,balance) VALUES (?,?,?,?)
+                        "INSERT INTO " . dp_table('user_crypto_wallets') . " (user_id,coin,network,balance) VALUES (?,?,?,?)
                          ON DUPLICATE KEY UPDATE balance=balance+?",
                         [$uid,$currency,$network,$amount,$amount]
                     );
                 } else {
                     $db->query(
-                        "UPDATE user_crypto_wallets SET balance=GREATEST(0,balance-?) WHERE user_id=? AND coin=? AND network=?",
+                        "UPDATE " . dp_table('user_crypto_wallets') . " SET balance=GREATEST(0,balance-?) WHERE user_id=? AND coin=? AND network=?",
                         [$amount,$uid,$currency,$network]
                     );
                 }
             }
 
             $db->query(
-                "INSERT INTO wallet_transactions (reference,user_id,type,wallet_type,currency,network,amount,fee,net_amount,status,note)
+                "INSERT INTO " . dp_table('wallet_transactions') . " (reference,user_id,type,wallet_type,currency,network,amount,fee,net_amount,status,note)
                  VALUES (?,?,?,?,?,?,?,0,?,'completed',?)",
                 [$ref,$uid,$type,$wallet,$currency,$network,$amount,$amount,$note?:"تعديل يدوي من الإدارة"]
             );
@@ -73,7 +73,7 @@ switch($action){
 
     case 'approve_withdraw':
         $ref = trim($p['reference']??'');
-        $txn = $db->fetchOne("SELECT * FROM wallet_transactions WHERE reference=?",[$ref]);
+        $txn = $db->fetchOne("SELECT * FROM " . dp_table('wallet_transactions') . " WHERE reference=?",[$ref]);
         if(!$txn){echo json_encode(['success'=>false,'message'=>'معاملة غير موجودة']);break;}
         if($txn['status']!=='pending'){echo json_encode(['success'=>false,'message'=>'الحالة ليست معلقة']);break;}
 
@@ -82,8 +82,8 @@ switch($action){
         $tx = $hw->sendUSDT($ref,$txn['to_address'],$txn['net_amount'],$txn['user_id']);
 
         if($tx['success']){
-            $db->query("UPDATE wallet_transactions SET status='completed',tx_hash=? WHERE reference=?",[$tx['tx_hash'],$ref]);
-            $db->query("UPDATE user_crypto_wallets SET locked=GREATEST(0,locked-?) WHERE user_id=? AND coin=? AND network=?",
+            $db->query("UPDATE " . dp_table('wallet_transactions') . " SET status='completed',tx_hash=? WHERE reference=?",[$tx['tx_hash'],$ref]);
+            $db->query("UPDATE " . dp_table('user_crypto_wallets') . " SET locked=GREATEST(0,locked-?) WHERE user_id=? AND coin=? AND network=?",
                 [$txn['amount'],$txn['user_id'],$txn['coin'],$txn['network']]);
             echo json_encode(['success'=>true,'tx_hash'=>$tx['tx_hash']]);
         } else {
@@ -93,15 +93,15 @@ switch($action){
 
     case 'reject_withdraw':
         $ref = trim($p['reference']??'');
-        $txn = $db->fetchOne("SELECT * FROM wallet_transactions WHERE reference=?",[$ref]);
+        $txn = $db->fetchOne("SELECT * FROM " . dp_table('wallet_transactions') . " WHERE reference=?",[$ref]);
         if(!$txn){echo json_encode(['success'=>false,'message'=>'معاملة غير موجودة']);break;}
 
         // استرداد المبلغ
         $db->query(
-            "UPDATE user_crypto_wallets SET balance=balance+?,locked=GREATEST(0,locked-?) WHERE user_id=? AND coin=? AND network=?",
+            "UPDATE " . dp_table('user_crypto_wallets') . " SET balance=balance+?,locked=GREATEST(0,locked-?) WHERE user_id=? AND coin=? AND network=?",
             [$txn['amount'],$txn['amount'],$txn['user_id'],$txn['coin'],$txn['network']]
         );
-        $db->query("UPDATE wallet_transactions SET status='cancelled',note='رُفض من الإدارة' WHERE reference=?",[$ref]);
+        $db->query("UPDATE " . dp_table('wallet_transactions') . " SET status='cancelled',note='رُفض من الإدارة' WHERE reference=?",[$ref]);
         echo json_encode(['success'=>true]);
         break;
 

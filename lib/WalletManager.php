@@ -3,6 +3,10 @@
  * DI PARMA | WalletManager
  * إدارة محافظ الفيات والكريبتو لكل مستخدم
  */
+if (class_exists('WalletManager', false)) {
+    return;
+}
+
 class WalletManager {
     private static ?self $instance = null;
     private $db;
@@ -36,7 +40,7 @@ class WalletManager {
         foreach (['USD','AED'] as $cur) {
             try {
                 $this->db->execute(
-                    "INSERT IGNORE INTO user_fiat_wallets (user_id,currency) VALUES (?,?)",
+                    "INSERT IGNORE INTO " . dp_table('user_fiat_wallets') . " (user_id,currency) VALUES (?,?)",
                     [$userId, $cur]
                 );
             } catch(Exception $e) {}
@@ -46,7 +50,7 @@ class WalletManager {
             foreach ($networks as $net) {
                 try {
                     $this->db->execute(
-                        "INSERT IGNORE INTO user_crypto_wallets (user_id,coin,network) VALUES (?,?,?)",
+                        "INSERT IGNORE INTO " . dp_table('user_crypto_wallets') . " (user_id,coin,network) VALUES (?,?,?)",
                         [$userId, $coin, $net]
                     );
                 } catch(Exception $e) {}
@@ -57,21 +61,21 @@ class WalletManager {
     // ── جلب محافظ المستخدم ────────────────────────────────
     public function getFiatWallets(int $userId): array {
         return $this->db->query(
-            "SELECT * FROM user_fiat_wallets WHERE user_id=? ORDER BY currency",
+            "SELECT * FROM " . dp_table('user_fiat_wallets') . " WHERE user_id=? ORDER BY currency",
             [$userId]
         ) ?: [];
     }
 
     public function getCryptoWallets(int $userId): array {
         return $this->db->query(
-            "SELECT * FROM user_crypto_wallets WHERE user_id=? ORDER BY coin,network",
+            "SELECT * FROM " . dp_table('user_crypto_wallets') . " WHERE user_id=? ORDER BY coin,network",
             [$userId]
         ) ?: [];
     }
 
     public function getFiatBalance(int $userId, string $currency='USD'): float {
         $rows = $this->db->query(
-            "SELECT balance FROM user_fiat_wallets WHERE user_id=? AND currency=?",
+            "SELECT balance FROM " . dp_table('user_fiat_wallets') . " WHERE user_id=? AND currency=?",
             [$userId, $currency]
         );
         return (float)(($rows[0] ?? [])['balance'] ?? 0);
@@ -79,7 +83,7 @@ class WalletManager {
 
     public function getCryptoBalance(int $userId, string $coin='USDT', string $network='TRC20'): float {
         $rows = $this->db->query(
-            "SELECT balance FROM user_crypto_wallets WHERE user_id=? AND coin=? AND network=?",
+            "SELECT balance FROM " . dp_table('user_crypto_wallets') . " WHERE user_id=? AND coin=? AND network=?",
             [$userId, $coin, $network]
         );
         return (float)(($rows[0] ?? [])['balance'] ?? 0);
@@ -97,17 +101,17 @@ class WalletManager {
         try {
             // إضافة للمحفظة أو تحديثها
             $existing = $this->db->query(
-                "SELECT id FROM user_fiat_wallets WHERE user_id=? AND currency=?",
+                "SELECT id FROM " . dp_table('user_fiat_wallets') . " WHERE user_id=? AND currency=?",
                 [$userId, $currency]
             );
             if (!empty($existing)) {
                 $this->db->execute(
-                    "UPDATE user_fiat_wallets SET balance=balance+?, updated_at=NOW() WHERE user_id=? AND currency=?",
+                    "UPDATE " . dp_table('user_fiat_wallets') . " SET balance=balance+?, updated_at=NOW() WHERE user_id=? AND currency=?",
                     [$net, $userId, $currency]
                 );
             } else {
                 $this->db->execute(
-                    "INSERT INTO user_fiat_wallets (user_id,currency,balance) VALUES (?,?,?)",
+                    "INSERT INTO " . dp_table('user_fiat_wallets') . " (user_id,currency,balance) VALUES (?,?,?)",
                     [$userId, $currency, $net]
                 );
             }
@@ -117,7 +121,7 @@ class WalletManager {
 
             // سجل الحركة
             $this->db->execute(
-                "INSERT INTO wallet_transactions (reference,user_id,type,wallet_type,currency,amount,fee,net_amount,status,gateway,gateway_ref,note)
+                "INSERT INTO " . dp_table('wallet_transactions') . " (reference,user_id,type,wallet_type,currency,amount,fee,net_amount,status,gateway,gateway_ref,note)
                  VALUES (?,?,'deposit','fiat',?,?,?,?,'completed',?,?,?)",
                 [$ref,$userId,$currency,$amount,$fee,$net,$gateway,$gatewayRef,"إيداع عبر $gateway"]
             );
@@ -148,11 +152,11 @@ class WalletManager {
         try {
             // خصم من فيات
             $this->db->execute(
-                "UPDATE user_fiat_wallets SET balance=balance-? WHERE user_id=? AND currency=? AND balance>=?",
+                "UPDATE " . dp_table('user_fiat_wallets') . " SET balance=balance-? WHERE user_id=? AND currency=? AND balance>=?",
                 [$fiatAmount,$userId,$fiatCurrency,$fiatAmount]
             );
             $check = $this->db->query(
-                "SELECT balance FROM user_fiat_wallets WHERE user_id=? AND currency=?",
+                "SELECT balance FROM " . dp_table('user_fiat_wallets') . " WHERE user_id=? AND currency=?",
                 [$userId,$fiatCurrency]
             );
             // تحقق من نجاح الخصم
@@ -160,17 +164,17 @@ class WalletManager {
 
             // إضافة للكريبتو
             $existing = $this->db->query(
-                "SELECT id FROM user_crypto_wallets WHERE user_id=? AND coin=? AND network=?",
+                "SELECT id FROM " . dp_table('user_crypto_wallets') . " WHERE user_id=? AND coin=? AND network=?",
                 [$userId,$coin,$network]
             );
             if (!empty($existing)) {
                 $this->db->execute(
-                    "UPDATE user_crypto_wallets SET balance=balance+? WHERE user_id=? AND coin=? AND network=?",
+                    "UPDATE " . dp_table('user_crypto_wallets') . " SET balance=balance+? WHERE user_id=? AND coin=? AND network=?",
                     [$cryptoAmt,$userId,$coin,$network]
                 );
             } else {
                 $this->db->execute(
-                    "INSERT INTO user_crypto_wallets (user_id,coin,network,balance) VALUES (?,?,?,?)",
+                    "INSERT INTO " . dp_table('user_crypto_wallets') . " (user_id,coin,network,balance) VALUES (?,?,?,?)",
                     [$userId,$coin,$network,$cryptoAmt]
                 );
             }
@@ -180,7 +184,7 @@ class WalletManager {
 
             // سجل الحركة
             $this->db->execute(
-                "INSERT INTO wallet_transactions (reference,user_id,type,wallet_type,coin,network,currency,amount,fee,net_amount,rate,from_wallet,to_wallet,status,note)
+                "INSERT INTO " . dp_table('wallet_transactions') . " (reference,user_id,type,wallet_type,coin,network,currency,amount,fee,net_amount,rate,from_wallet,to_wallet,status,note)
                  VALUES (?,?,'convert','crypto',?,?,?,?,?,?,?,'fiat','crypto','completed',?)",
                 [$ref,$userId,$coin,$network,$fiatCurrency,$fiatAmount,$fee,$cryptoAmt,$rate,
                  "تحويل $fiatAmount $fiatCurrency → $cryptoAmt $coin/$network"]
@@ -203,7 +207,7 @@ class WalletManager {
         // ── تحقق من قفل 24 ساعة (يُتجاوز للإدارة) ──────────
         if (!$skipLock) {
             $walletRow = $this->db->query(
-                "SELECT unlock_at FROM user_crypto_wallets WHERE user_id=? AND coin=? AND network=?",
+                "SELECT unlock_at FROM " . dp_table('user_crypto_wallets') . " WHERE user_id=? AND coin=? AND network=?",
                 [$userId, $coin, $network]
             );
             $unlockAt = $walletRow[0]['unlock_at'] ?? null;
@@ -222,19 +226,19 @@ class WalletManager {
         try {
             // تجميد المبلغ
             $this->db->execute(
-                "UPDATE user_crypto_wallets SET balance=balance-?,locked=locked+? WHERE user_id=? AND coin=? AND network=? AND balance>=?",
+                "UPDATE " . dp_table('user_crypto_wallets') . " SET balance=balance-?,locked=locked+? WHERE user_id=? AND coin=? AND network=? AND balance>=?",
                 [$amount,$amount,$userId,$coin,$network,$amount]
             );
             // تحقق
             $chk = $this->db->query(
-                "SELECT balance FROM user_crypto_wallets WHERE user_id=? AND coin=? AND network=?",
+                "SELECT balance FROM " . dp_table('user_crypto_wallets') . " WHERE user_id=? AND coin=? AND network=?",
                 [$userId,$coin,$network]
             );
             if (empty($chk)) throw new Exception('رصيد غير كافٍ');
 
             // سجل بحالة pending
             $this->db->execute(
-                "INSERT INTO wallet_transactions (reference,user_id,type,wallet_type,coin,network,amount,fee,net_amount,to_address,status,note)
+                "INSERT INTO " . dp_table('wallet_transactions') . " (reference,user_id,type,wallet_type,coin,network,amount,fee,net_amount,to_address,status,note)
                  VALUES (?,?,'withdraw','crypto',?,?,?,?,?,?,'pending',?)",
                 [$ref,$userId,$coin,$network,$amount,$fee,$net,$toAddress,"سحب $amount $coin/$network → $toAddress"]
             );
@@ -248,22 +252,22 @@ class WalletManager {
 
             if ($txResult['success']) {
                 $this->db->execute(
-                    "UPDATE user_crypto_wallets SET locked=locked-? WHERE user_id=? AND coin=? AND network=?",
+                    "UPDATE " . dp_table('user_crypto_wallets') . " SET locked=locked-? WHERE user_id=? AND coin=? AND network=?",
                     [$amount,$userId,$coin,$network]
                 );
                 $this->db->execute(
-                    "UPDATE wallet_transactions SET status='completed',tx_hash=? WHERE reference=?",
+                    "UPDATE " . dp_table('wallet_transactions') . " SET status='completed',tx_hash=? WHERE reference=?",
                     [$txResult['tx_hash'],$ref]
                 );
                 $this->addCompanyFee($coin, $fee, 'crypto', $network);
             } else {
                 // استرداد المبلغ عند الفشل
                 $this->db->execute(
-                    "UPDATE user_crypto_wallets SET balance=balance+?,locked=locked-? WHERE user_id=? AND coin=? AND network=?",
+                    "UPDATE " . dp_table('user_crypto_wallets') . " SET balance=balance+?,locked=locked-? WHERE user_id=? AND coin=? AND network=?",
                     [$amount,$amount,$userId,$coin,$network]
                 );
                 $this->db->execute(
-                    "UPDATE wallet_transactions SET status='failed',note=? WHERE reference=?",
+                    "UPDATE " . dp_table('wallet_transactions') . " SET status='failed',note=? WHERE reference=?",
                     ['فشل الإرسال: ' . $txResult['message'], $ref]
                 );
                 return ['success'=>false,'message'=>$txResult['message'],'reference'=>$ref];
@@ -280,17 +284,17 @@ class WalletManager {
     private function addCompanyFee(string $currency, float $amount, string $type, string $network=''): void {
         try {
             $existing = $this->db->query(
-                "SELECT id FROM company_wallets WHERE wallet_type=? AND currency=? AND (network=? OR network IS NULL)",
+                "SELECT id FROM " . dp_table('company_wallets') . " WHERE wallet_type=? AND currency=? AND (network=? OR network IS NULL)",
                 [$type,$currency,$network]
             );
             if (!empty($existing)) {
                 $this->db->execute(
-                    "UPDATE company_wallets SET balance=balance+?,total_received=total_received+? WHERE wallet_type=? AND currency=?",
+                    "UPDATE " . dp_table('company_wallets') . " SET balance=balance+?,total_received=total_received+? WHERE wallet_type=? AND currency=?",
                     [$amount,$amount,$type,$currency]
                 );
             } else {
                 $this->db->execute(
-                    "INSERT INTO company_wallets (wallet_type,currency,network,balance,total_received) VALUES (?,?,?,?,?)",
+                    "INSERT INTO " . dp_table('company_wallets') . " (wallet_type,currency,network,balance,total_received) VALUES (?,?,?,?,?)",
                     [$type,$currency,$network,$amount,$amount]
                 );
             }
@@ -319,7 +323,7 @@ class WalletManager {
         $fiats   = $this->getFiatWallets($userId);
         $cryptos = $this->getCryptoWallets($userId);
         $txns    = $this->db->query(
-            "SELECT * FROM wallet_transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 10",
+            "SELECT * FROM " . dp_table('wallet_transactions') . " WHERE user_id=? ORDER BY created_at DESC LIMIT 10",
             [$userId]
         ) ?: [];
         return ['fiat'=>$fiats,'crypto'=>$cryptos,'recent'=>$txns];

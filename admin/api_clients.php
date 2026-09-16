@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_client'])) {
     if ($message === '') {
         $apiKey = strtoupper(bin2hex(random_bytes(8)));
         $apiSecret = bin2hex(random_bytes(24));
-        $db->insert(DB_PREFIX . 'api_clients', [
+        $db->insert('api_clients', [
             'name'        => $name,
             'api_key'     => $apiKey,
             'api_secret'  => $apiSecret,

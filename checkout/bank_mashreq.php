@@ -1,22 +1,14 @@
 <?php
-$BANK_CONFIG = [
-    'name'             => 'Mashreq Bank — TRANSCENDIO FZ-LLC',
-    'gateway_code'     => 'mashreq',
-    'prefix'           => 'MSHQ',
-    'icon'             => 'fas fa-university',
-    'color'            => '#FF6600',
-    'default_currency' => 'AED',
-    'currencies'       => ['AED','USD','EUR','GBP'],
-    'fields'           => [
-        'Beneficiary'  => 'TRANSCENDIO FZ-LLC',
-        'Account No'   => '019101562722',
-        'IBAN'         => 'AE300330000019101562722',
-        'SWIFT'        => 'BOMLAEADXXX',
-        'Routing'      => '203320101',
-        'Bank'         => 'Mashreq Bank PSC',
-        'CIF'          => '015379207',
-        'RM'           => 'Johnson Joy — +9715027968066',
-        'Address'      => '403 36, Zarouni Business Centre, Al Barsha 1, Dubai, AE',
-    ],
+/**
+ * DI PARMA | صفحة بوابة مستقلة: mashreq
+ * تحتوي على جميع عمليات الشراء المعيارية.
+ */
+$gwCode = 'mashreq';
+$checkoutBase = '../';
+$bankInfo = [
+    'Beneficiary' => 'TRANSCENDIO FZ-LLC',
+    'IBAN' => 'AE300330000019101562722',
+    'SWIFT' => 'BOMLAEADXXX',
+    'Bank' => 'Mashreq Bank PSC',
 ];
-require_once __DIR__ . '/_bank_template.php';
+require __DIR__ . '/../includes/start_gateway_checkout.php';

@@ -21,6 +21,19 @@ function pos_merchant_lines(): array
             'en' => 'Petroleum & energy',
             'item' => 'Petroleum energy services',
             'suggested_gateway' => 'nuvei',
+            'icon' => 'fa-gas-pump',
+            'color' => '#F59E0B',
+        ],
+        'logistics' => [
+            'mcc' => '4214',
+            'ar' => 'لوجستيك ونقل وتوصيل',
+            'en' => 'Logistics, freight & delivery',
+            'item' => 'Logistics freight courier delivery',
+            'suggested_gateway' => 'nuvei',
+            'icon' => 'fa-truck',
+            'color' => '#3B82F6',
+            'desc_ar' => 'شحن · نقل · توصيل · مخازن — عبر أجهزة POS في المحلات والمستودعات',
+            'desc_en' => 'Freight · transport · delivery · warehouses — via POS at stores and depots',
         ],
         'hajj' => [
             'mcc' => '4722',
@@ -28,6 +41,8 @@ function pos_merchant_lines(): array
             'en' => 'Hajj, Umrah & tourism',
             'item' => 'Hajj Umrah tourism',
             'suggested_gateway' => 'stripe',
+            'icon' => 'fa-kaaba',
+            'color' => '#10B981',
         ],
         'hotels' => [
             'mcc' => '7011',
@@ -35,6 +50,8 @@ function pos_merchant_lines(): array
             'en' => 'Hotels & lodging',
             'item' => 'Hotel lodging',
             'suggested_gateway' => 'stripe',
+            'icon' => 'fa-hotel',
+            'color' => '#8B5CF6',
         ],
         'expo' => [
             'mcc' => '7991',
@@ -42,6 +59,8 @@ function pos_merchant_lines(): array
             'en' => 'Exhibitions & events',
             'item' => 'Exhibition event services',
             'suggested_gateway' => 'paypal',
+            'icon' => 'fa-calendar-check',
+            'color' => '#EC4899',
         ],
         'autos' => [
             'mcc' => '5511',
@@ -49,6 +68,8 @@ function pos_merchant_lines(): array
             'en' => 'Vehicles',
             'item' => 'Vehicle sales',
             'suggested_gateway' => 'nuvei',
+            'icon' => 'fa-car',
+            'color' => '#EF4444',
         ],
         'rental' => [
             'mcc' => '7512',
@@ -56,6 +77,8 @@ function pos_merchant_lines(): array
             'en' => 'Car rental — KSA and abroad',
             'item' => 'Car rental KSA international',
             'suggested_gateway' => 'stripe',
+            'icon' => 'fa-key',
+            'color' => '#14B8A6',
         ],
     ];
     if (function_exists('pos_custom_activities')) {
@@ -66,6 +89,8 @@ function pos_merchant_lines(): array
                 'en' => (string) ($row['en'] ?? $code),
                 'item' => (string) ($row['item'] ?? ($row['en'] ?? $code)),
                 'suggested_gateway' => (string) ($row['suggested_gateway'] ?? ''),
+                'icon' => (string) ($row['icon'] ?? 'fa-briefcase'),
+                'color' => (string) ($row['color'] ?? '#FFD700'),
             ];
         }
     }

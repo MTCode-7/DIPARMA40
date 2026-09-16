@@ -3,6 +3,7 @@ require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
 
+$ar = is_ar();
 $db = db();
 $csrfToken = generateCsrfToken();
 try {
@@ -21,12 +22,12 @@ $message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['mark_read_id'])) {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $message = 'رمز الأمان غير صالح';
+        $message = dp_t('Invalid security token', 'رمز الأمان غير صالح');
     } else {
         $nid = intval($_POST['mark_read_id']);
         if ($nid > 0) {
             $db->update('notifications', ['read' => 1], ['id' => $nid, 'user_id' => $userId]);
-            $message = 'تم وضع الإشعار كمقروء';
+            $message = dp_t('Notification marked as read', 'تم وضع الإشعار كمقروء');
         }
     }
 }
@@ -38,36 +39,36 @@ $notifications = $db->query('SELECT * FROM ' . DB_PREFIX . "notifications WHERE 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>الإشعارات - DI PARMA</title>
+  <title><?= dp_t('Notifications', 'الإشعارات') ?> - DI PARMA</title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
   <style>body{font-family:'Cairo',sans-serif;background:#0b0f17;color:#f7d76b;padding:18px} .card{background:rgba(255,255,255,0.04);padding:18px;border-radius:12px;border:1px solid rgba(255,215,0,0.08)} table{width:100%;border-collapse:collapse} th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:right} .btn{background:#2bb673;color:#fff;padding:6px 10px;border-radius:6px;text-decoration:none;border:none;cursor:pointer} .muted{color:#cfcfcf;font-size:0.9rem}</style>
 </head>
 <body>
 <div class="card">
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
-    <a href="index.php" style="color:#FFD700;text-decoration:none;padding:6px 14px;border:1px solid rgba(255,215,0,0.3);border-radius:20px;font-size:0.85rem;">&#8962; الرئيسية</a>
-    <a href="dashboard.php" style="color:#fff;text-decoration:none;padding:6px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:20px;font-size:0.85rem;">لوحة التحكم</a>
+    <a href="index.php" style="color:#FFD700;text-decoration:none;padding:6px 14px;border:1px solid rgba(255,215,0,0.3);border-radius:20px;font-size:0.85rem;">&#8962; <?= dp_t('Home', 'الرئيسية') ?></a>
+    <a href="dashboard.php" style="color:#fff;text-decoration:none;padding:6px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:20px;font-size:0.85rem;"><?= dp_t('Dashboard', 'لوحة التحكم') ?></a>
   </div>
-  <h2>الإشعارات</h2>
+  <h2><?= dp_t('Notifications', 'الإشعارات') ?></h2>
   <?php if ($message): ?><div style="padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:10px;"><strong><?= htmlspecialchars($message) ?></strong></div><?php endif; ?>
   <?php if (empty($notifications)): ?>
-    <p class="muted">لا توجد إشعارات.</p>
+    <p class="muted"><?= dp_t('No notifications.', 'لا توجد إشعارات.') ?></p>
   <?php else: ?>
     <table>
-      <thead><tr><th>العنوان</th><th>الرسالة</th><th>التاريخ</th><th>الحالة</th><th>إجراء</th></tr></thead>
+      <thead><tr><th><?= dp_t('Title', 'العنوان') ?></th><th><?= dp_t('Message', 'الرسالة') ?></th><th><?= dp_t('Date', 'التاريخ') ?></th><th><?= dp_t('Status', 'الحالة') ?></th><th><?= dp_t('Action', 'إجراء') ?></th></tr></thead>
       <tbody>
         <?php foreach ($notifications as $n): ?>
           <tr>
             <td><?= htmlspecialchars($n['title']) ?></td>
             <td style="max-width:55%;"><?= nl2br(htmlspecialchars($n['message'])) ?></td>
             <td><?= htmlspecialchars($n['created_at']) ?></td>
-            <td><?= $n['read'] ? '<span style="color:#9bd6a5">مقروء</span>' : '<span style="color:#ffd54f">جديد</span>' ?></td>
+            <td><?= $n['read'] ? '<span style="color:#9bd6a5">' . dp_t('Read', 'مقروء') . '</span>' : '<span style="color:#ffd54f">' . dp_t('New', 'جديد') . '</span>' ?></td>
             <td>
               <?php if (!$n['read']): ?>
                 <form method="POST" style="display:inline-block;margin:0;">
                   <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                   <input type="hidden" name="mark_read_id" value="<?= (int)$n['id'] ?>">
-                  <button class="btn">وضع كمقروء</button>
+                  <button class="btn"><?= dp_t('Mark as read', 'وضع كمقروء') ?></button>
                 </form>
               <?php else: ?>
                 <span class="muted">—</span>

@@ -13,9 +13,10 @@ header('Expires: 0');
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
-require_once __DIR__ . '/lib/PayRamAdapter.php';
+require_once __DIR__ . '/includes/gateways.php';
 
 require_once __DIR__ . '/includes/auth_check.php';
+require_once __DIR__ . '/includes/activity_flow.php';
 
 $lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang']==='ar' ? 'ar' : 'en';
 $ar   = ($lang === 'ar');
@@ -25,20 +26,21 @@ $db   = db();
 
 // ── البوابات المتاحة في الواجهة ───────────────────────────────────────
 $allGateways = [
-    'diparma'    => ['name'=>'DI PARMA',      'icon'=>'fas fa-coins',          'color'=>'#FFD700','type'=>'card',   'desc_ar'=>'DI PARMA Ultimate Gateway × Ledger','desc_en'=>'DI PARMA Ultimate Gateway × Ledger'],
-    'nuvei'      => ['name'=>'Nuvei',        'icon'=>'fas fa-credit-card',   'color'=>'#F97316','type'=>'card',   'desc_ar'=>'بطاقة Visa/Mastercard عبر Mashreq','desc_en'=>'Visa/Mastercard via Mashreq'],
-    'stripe'     => ['name'=>'Stripe',       'icon'=>'fab fa-stripe-s',       'color'=>'#6772e5','type'=>'card',   'desc_ar'=>'بطاقة Visa/Mastercard — مستقل','desc_en'=>'Visa/Mastercard — Independent'],
-    'paypal'     => ['name'=>'PayPal',        'icon'=>'fab fa-paypal',         'color'=>'#003087','type'=>'card',   'desc_ar'=>'PayPal مباشر','desc_en'=>'Direct PayPal'],
-    'wise'       => ['name'=>'Wise',          'icon'=>'fas fa-exchange-alt',   'color'=>'#9fe870','type'=>'digital','desc_ar'=>'بوابة دفع Wise عبر API Live','desc_en'=>'Wise payment gateway via Live API'],
-    'myfatoorah' => ['name'=>'MyFatoorah',    'icon'=>'fas fa-money-bill-wave','color'=>'#00b09b','type'=>'card',   'desc_ar'=>'بوابة الشرق الأوسط','desc_en'=>'Middle East gateway'],
-    'binance'    => ['name'=>'Binance',       'icon'=>'fas fa-coins',          'color'=>'#F3BA2F','type'=>'crypto', 'desc_ar'=>'دفع بالكريبتو','desc_en'=>'Crypto payment'],
-    'gate_io'    => ['name'=>'Gate.io',       'icon'=>'fas fa-coins',          'color'=>'#E8112D','type'=>'crypto', 'desc_ar'=>'دفع بالكريبتو','desc_en'=>'Crypto payment'],
-    'mashreq'    => ['name'=>'Mashreq Bank',  'icon'=>'fas fa-university',     'color'=>'#FF6600','type'=>'bank',   'desc_ar'=>'Mashreq — TRANSCENDIO FZ-LLC','desc_en'=>'Mashreq — TRANSCENDIO FZ-LLC'],
-    'hsbc_uae'   => ['name'=>'HSBC UAE',      'icon'=>'fas fa-university',     'color'=>'#DB0011','type'=>'bank',   'desc_ar'=>'HSBC Bank Middle East','desc_en'=>'HSBC Bank Middle East'],
-    'nbe_egypt'  => ['name'=>'NBE Egypt',     'icon'=>'fas fa-landmark',       'color'=>'#006633','type'=>'bank',   'desc_ar'=>'البنك الأهلي المصري','desc_en'=>'National Bank of Egypt'],
-    'jpmorgan'   => ['name'=>'JP Morgan Chase','icon'=>'fas fa-landmark',      'color'=>'#003087','type'=>'bank',   'desc_ar'=>'JP Morgan IOLTA','desc_en'=>'JP Morgan IOLTA'],
-    'whop'       => ['name'=>'Whop',          'icon'=>'fas fa-bolt',           'color'=>'#7C3AED','type'=>'digital','desc_ar'=>'Whop Marketplace','desc_en'=>'Whop Marketplace'],
-    'payram'     => ['name'=>'PayRam',        'icon'=>'fas fa-server',         'color'=>'#10B981','type'=>'crypto', 'desc_ar'=>'PayRam — Crypto Self-hosted','desc_en'=>'PayRam — Self-hosted Crypto'],
+    'payram'     => ['name'=>'PayRam',        'icon'=>'fas fa-server',         'color'=>'#10B981','type'=>'crypto', 'desc_ar'=>'بعد الموافقة: الصافي USDT → Ledger','desc_en'=>'After approval: net USDT → Ledger'],
+    'diparma'    => ['name'=>'DI PARMA',      'icon'=>'fas fa-coins',          'color'=>'#FFD700','type'=>'card',   'desc_ar'=>'بوابة مفعّلة تخصم البطاقة ثم الصافي → Ledger','desc_en'=>'Enabled gateway charges the card, then net → Ledger'],
+    'nuvei'      => ['name'=>'Nuvei',        'icon'=>'fas fa-credit-card',   'color'=>'#F97316','type'=>'card',   'desc_ar'=>'خصم البطاقة على Nuvei إن كانت مفعّلة. الصافي → Ledger','desc_en'=>'Card charge on Nuvei if enabled. Net → Ledger'],
+    'stripe'     => ['name'=>'Stripe',       'icon'=>'fab fa-stripe-s',       'color'=>'#6772e5','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين','desc_en'=>'All networks and issuers'],
+    'square'     => ['name'=>'Square',       'icon'=>'fas fa-square',          'color'=>'#006AFF','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين','desc_en'=>'All networks and issuers'],
+    'paypal'     => ['name'=>'PayPal',        'icon'=>'fab fa-paypal',         'color'=>'#003087','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين','desc_en'=>'All networks and issuers'],
+    'wise'       => ['name'=>'Wise',          'icon'=>'fas fa-exchange-alt',   'color'=>'#9fe870','type'=>'digital','desc_ar'=>'كل الشبكات والمُصدرين عبر Wise','desc_en'=>'All networks and issuers via Wise'],
+    'myfatoorah' => ['name'=>'MyFatoorah',    'icon'=>'fas fa-money-bill-wave','color'=>'#00b09b','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين — الشرق الأوسط','desc_en'=>'All networks and issuers — Middle East'],
+    'binance'    => ['name'=>'Binance',       'icon'=>'fas fa-coins',          'color'=>'#F3BA2F','type'=>'crypto', 'desc_ar'=>'كريبتو + كل الشبكات والمُصدرين','desc_en'=>'Crypto + all networks and issuers'],
+    'gate_io'    => ['name'=>'Gate.io',       'icon'=>'fas fa-coins',          'color'=>'#E8112D','type'=>'crypto', 'desc_ar'=>'كريبتو + كل الشبكات والمُصدرين','desc_en'=>'Crypto + all networks and issuers'],
+    'mashreq'    => ['name'=>'Mashreq Bank',  'icon'=>'fas fa-university',     'color'=>'#FF6600','type'=>'bank',   'desc_ar'=>'تحويل بنكي + كل الشبكات والمُصدرين','desc_en'=>'Bank transfer + all networks and issuers'],
+    'hsbc_uae'   => ['name'=>'HSBC UAE',      'icon'=>'fas fa-university',     'color'=>'#DB0011','type'=>'bank',   'desc_ar'=>'تحويل بنكي + كل الشبكات والمُصدرين','desc_en'=>'Bank transfer + all networks and issuers'],
+    'nbe_egypt'  => ['name'=>'NBE Egypt',     'icon'=>'fas fa-landmark',       'color'=>'#006633','type'=>'bank',   'desc_ar'=>'تحويل بنكي + كل الشبكات والمُصدرين','desc_en'=>'Bank transfer + all networks and issuers'],
+    'jpmorgan'   => ['name'=>'JP Morgan Chase','icon'=>'fas fa-landmark',      'color'=>'#003087','type'=>'bank',   'desc_ar'=>'تحويل بنكي + كل الشبكات والمُصدرين','desc_en'=>'Bank transfer + all networks and issuers'],
+    'whop'       => ['name'=>'Whop',          'icon'=>'fas fa-bolt',           'color'=>'#7C3AED','type'=>'digital','desc_ar'=>'كل الشبكات والمُصدرين','desc_en'=>'All networks and issuers'],
 ];
 
 $gateways = $allGateways;
@@ -68,23 +70,14 @@ $destinations = [
     'btc_w'      => ['icon'=>'fab fa-bitcoin',        'color'=>'#F7931A', 'ar'=>'محفظة Bitcoin',             'en'=>'Bitcoin Wallet'],
 ];
 
-  // نقاط الوصول المعروفة لكل بوابة. نعرضها دائمًا لتجنب صفحة checkout فارغة.
-  $gatewayRoutes = [
-    'nuvei'      => 'checkout_nuvei.php',
-    'stripe'     => 'checkout/stripe.php',
-    'paypal'     => 'checkout/paypal.php',
-    'wise'       => 'checkout/wise.php',
-    'myfatoorah' => 'checkout/myfatoorah.php',
-    'binance'    => 'checkout/binance.php',
-    'gate_io'    => 'checkout/gate_io.php',
-    'mashreq'    => 'checkout/bank_mashreq.php',
-    'hsbc_uae'   => 'checkout/bank_hsbc.php',
-    'nbe_egypt'  => 'checkout/bank_nbe.php',
-    'jpmorgan'   => 'checkout/bank_jpmorgan.php',
-    'whop'       => 'checkout/whop.php',
-    'payram'     => 'checkout_diparma.php',
-    'diparma'    => 'checkout_diparma.php',
-  ];
+  // كل بوابة تفتح صفحتها المستقلة وفيها جميع عمليات الشراء
+  $gatewayRoutes = [];
+  foreach (array_keys($allGateways) as $code) {
+      $routeFile = activity_checkout_route($code);
+      if ($routeFile !== '') {
+          $gatewayRoutes[$code] = $routeFile;
+      }
+  }
 
   $gatewayState = [];
   $filteredGateways = [];
@@ -92,8 +85,11 @@ $destinations = [
     if (isset($db) && is_object($db) && method_exists($db, 'query')) {
       $gatewayRows = $db->query("SELECT code,status,connection_status,config,credentials,settings FROM dp_payment_gateways WHERE status != 'deleted'");
       foreach (($gatewayRows ?? []) as $row) {
-        $code = strtolower((string)($row['code'] ?? ''));
+        $code = function_exists('dp_gateway_normalize_code')
+          ? dp_gateway_normalize_code((string)($row['code'] ?? ''))
+          : strtolower((string)($row['code'] ?? ''));
         if ($code !== '') {
+          $row['code'] = $code;
           $gatewayState[$code] = $row;
         }
       }
@@ -102,42 +98,28 @@ $destinations = [
     $gatewayState = [];
   }
 
+  // POS و Checkout: البوابات المفعّلة فقط (status = active)
   foreach ($gatewayRoutes as $code => $routeFile) {
     if (!isset($allGateways[$code])) {
       continue;
     }
-
     $row = $gatewayState[$code] ?? null;
     if ($row === null) {
       continue;
     }
-
-    $status = strtolower((string)($row['status'] ?? ''));
-    $connection = strtolower((string)($row['connection_status'] ?? ''));
-    $manualGateways = ['mashreq', 'hsbc_uae', 'nbe_egypt', 'jpmorgan'];
-    $isManualGateway = in_array($code, $manualGateways, true);
-    $isVerified = in_array($connection, ['verified', 'connected', 'ready', 'success'], true);
-
-    if (($status === 'active' || $status === 'enabled' || $status === 'live') && ($isVerified || $isManualGateway)) {
+    $row['code'] = $code;
+    if (isGatewayVisibleInCheckout($row)) {
       $filteredGateways[$code] = $allGateways[$code];
     }
   }
 
-  if (empty($filteredGateways)) {
-    foreach ($gatewayState as $code => $row) {
-      if (!isset($allGateways[$code])) {
-        continue;
-      }
-      $status = strtolower((string)($row['status'] ?? ''));
-      $connection = strtolower((string)($row['connection_status'] ?? ''));
-      if (($status === 'active' || $status === 'enabled' || $status === 'live')
-        && in_array($connection, ['verified', 'connected', 'ready', 'success'], true)) {
-        $filteredGateways[$code] = $allGateways[$code];
-      }
-    }
-  }
-
   $gateways = $filteredGateways;
+  $activityLines = pos_merchant_lines();
+  $activityChannels = activity_channels();
+  $activityOps = activity_operations();
+  $ledgerAddr = activity_ledger_address();
+  $connectedPos = activity_connected_gateways('pos');
+  $connectedLink = activity_connected_gateways('link');
 ?><!DOCTYPE html>
 <html lang="<?=$lang?>" dir="<?=$dir?>">
 <head>
@@ -219,35 +201,98 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 </header>
 
 <div class="wrap">
-  <div class="page-title"><i class="fas fa-credit-card"></i> <?=$ar?'إتمام الدفع':'Checkout'?></div>
-  <div class="page-sub"><?=$ar?'اختر بوابة الدفع وحدد وجهة المبلغ':'Select payment gateway and amount destination'?></div>
+  <div class="page-title"><i class="fas fa-briefcase"></i> <?=$ar?'الدفع حسب النشاط':'Pay by activity'?></div>
+  <div class="page-sub"><?=$ar?'نشاط الشركة → POS أو رابط → البوابة المتصلة → نوع العملية. المبلغ يصل لمحفظة Ledger.':'Business activity → POS or Link → connected gateway → operation. Amount arrives at the Ledger wallet.'?></div>
 
   <!-- Steps Bar -->
   <div class="steps-bar">
     <div class="step-item active" id="step1-item">
       <div class="step-num">1</div>
-      <div class="step-label"><?=$ar?'البوابة':'Gateway'?></div>
+      <div class="step-label"><?=$ar?'النشاط':'Activity'?></div>
     </div>
     <div class="step-sep"></div>
     <div class="step-item" id="step2-item">
       <div class="step-num">2</div>
-      <div class="step-label"><?=$ar?'الوجهة':'Destination'?></div>
+      <div class="step-label"><?=$ar?'POS أو رابط':'POS or Link'?></div>
     </div>
     <div class="step-sep"></div>
     <div class="step-item" id="step3-item">
       <div class="step-num">3</div>
-      <div class="step-label"><?=$ar?'المبلغ':'Amount'?></div>
+      <div class="step-label"><?=$ar?'البوابة':'Gateway'?></div>
     </div>
     <div class="step-sep"></div>
     <div class="step-item" id="step4-item">
       <div class="step-num">4</div>
-      <div class="step-label"><?=$ar?'تأكيد':'Confirm'?></div>
+      <div class="step-label"><?=$ar?'العملية':'Operation'?></div>
     </div>
   </div>
 
-  <!-- ══ STEP 1: اختيار البوابة ══ -->
+  <!-- ══ STEP 1: النشاط ══ -->
   <div id="sec-step1">
-    <div class="section-title"><i class="fas fa-plug"></i> <?=$ar?'اختر بوابة الدفع':'Select Payment Gateway'?></div>
+    <div class="section-title"><i class="fas fa-briefcase"></i> <?=$ar?'نشاط الشركة':'Business activity'?></div>
+    <div class="amount-section" style="margin:12px 0 18px">
+      <label for="activitySelect" style="display:block;font-size:.75rem;font-weight:800;color:var(--muted2);margin-bottom:8px"><?=$ar?'قائمة الأنشطة (تُضاف لاحقاً)':'Activity list (add more later)'?></label>
+      <select id="activitySelect" onchange="selectActivity(this.value)" style="width:100%;padding:14px 16px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;font-size:.95rem;font-weight:700">
+        <option value=""><?=$ar?'— اختر النشاط —':'— Select activity —'?></option>
+        <?php foreach ($activityLines as $lineKey => $lineRow): ?>
+        <option value="<?=htmlspecialchars($lineKey)?>">
+          <?=$ar ? htmlspecialchars($lineRow['ar']) : htmlspecialchars($lineRow['en'])?> · MCC <?=htmlspecialchars($lineRow['mcc'] ?? '')?>
+        </option>
+        <?php endforeach; ?>
+      </select>
+      <div style="font-size:.72rem;color:var(--muted2);margin-top:10px;line-height:1.6">
+        <?=$ar
+          ? 'حالياً: بترول · لوجستيك · حج · فنادق · معارض · سيارات · تأجير. أضف أنشطة جديدة من شاشة POS.'
+          : 'Current: petroleum · logistics · hajj · hotels · expo · autos · rental. Add more from the POS screen.'?>
+      </div>
+    </div>
+    <button class="continue-btn" id="btn-step1" onclick="goStep(2)" disabled>
+      <?=$ar?'التالي — POS أو رابط':'Next — POS or Link'?> <i class="fas fa-arrow-left"></i>
+    </button>
+  </div>
+
+  <!-- ══ STEP 2: القناة ══ -->
+  <div id="sec-step2" style="display:none">
+    <div class="section-title"><i class="fas fa-random"></i> <?=$ar?'نوع السحب':'Channel'?></div>
+    <div class="gw-grid">
+      <?php foreach ($activityChannels as $chKey => $ch): ?>
+      <div class="gw-card" id="ch-<?=htmlspecialchars($chKey)?>" onclick="selectChannel('<?=htmlspecialchars($chKey)?>',this)">
+        <div class="gw-icon" style="background:<?=$ch['color']?>22;color:<?=$ch['color']?>"><i class="fas <?=$ch['icon']?>"></i></div>
+        <div class="gw-name"><?=$ar?$ch['ar']:$ch['en']?></div>
+        <div class="gw-desc"><?=$ar?$ch['desc_ar']:$ch['desc_en']?></div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <div class="amount-section" style="margin-top:8px">
+      <div style="font-size:.75rem;font-weight:800;color:var(--green);margin-bottom:6px">LEDGER</div>
+      <div style="font-family:monospace;font-size:.8rem;word-break:break-all"><?=htmlspecialchars($ledgerAddr !== '' ? $ledgerAddr : 'LEDGER_TRC20_ADDRESS')?></div>
+      <div style="font-size:.7rem;color:var(--muted2);margin-top:8px"><?=$ar?'وجهة المبلغ ثابتة: عنوان المحفظة في LEDGER.':'Amount destination is fixed: the LEDGER wallet address.'?></div>
+    </div>
+    <div style="display:flex;gap:12px">
+      <button class="continue-btn" style="background:rgba(255,255,255,.06);color:var(--text);box-shadow:none;flex:0 0 120px" onclick="goStep(1)"><i class="fas fa-arrow-right"></i> <?=$ar?'رجوع':'Back'?></button>
+      <button class="continue-btn" id="btn-step2" onclick="goStep(3)" disabled><?=$ar?'التالي — البوابة':'Next — Gateway'?> <i class="fas fa-arrow-left"></i></button>
+    </div>
+  </div>
+
+  <!-- ══ STEP 3: البوابة المتصلة ══ -->
+  <div id="sec-step3" style="display:none">
+    <div class="section-title"><i class="fas fa-plug"></i> <?=$ar?'مزود الخدمة — المتصل فقط':'Provider — connected only'?></div>
+
+    <?php if (empty($gateways)): ?>
+    <div style="border:1px solid var(--border);border-radius:14px;padding:22px;background:var(--card);margin:12px 0 18px;text-align:center">
+      <div style="font-weight:800;margin-bottom:8px;color:var(--gold)">
+        <?=$ar?'لا توجد بوابات مفعّلة':'No enabled gateways'?>
+      </div>
+      <div style="font-size:.82rem;color:var(--muted2);line-height:1.7">
+        <?=$ar
+          ? 'لا توجد بوابات مفعّلة. فعّل البوابة من إدارة بوابات الدفع لتظهر هنا في Checkout وفي POS.'
+          : 'No enabled gateways. Enable a gateway in Payment Gateway Manager to show it here and on POS.'?>
+      </div>
+      <a href="admin/gateway_manager.php" style="display:inline-block;margin-top:14px;color:#000;background:var(--gold);padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:800;font-size:.82rem">
+        <?=$ar?'فتح إدارة البوابات':'Open Gateway Manager'?>
+      </a>
+    </div>
+    <?php endif; ?>
 
     <?php
     $types = ['card'=>($ar?'بطاقات':'Cards'),'bank'=>($ar?'تحويل بنكي':'Bank Transfer'),'crypto'=>($ar?'كريبتو':'Crypto'),'digital'=>($ar?'رقمي':'Digital')];
@@ -268,75 +313,35 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
     <?php endforeach; ?>
 
-    <button class="continue-btn" id="btn-step1" onclick="goStep(2)" disabled>
-      <?=$ar?'التالي — اختر وجهة المبلغ':'Next — Select Destination'?> <i class="fas fa-arrow-left"></i>
-    </button>
-  </div>
-
-  <!-- ══ STEP 2: وجهة المبلغ ══ -->
-  <div id="sec-step2" style="display:none">
-    <div class="section-title"><i class="fas fa-map-marker-alt"></i> <?=$ar?'وجهة المبلغ':'Amount Destination'?></div>
-    <div class="dest-grid">
-    <?php foreach($destinations as $code => $dest): ?>
-      <div class="dest-card" onclick="selectDestination('<?=$code?>',this)" id="dest-<?=$code?>">
-        <div class="dest-icon" style="background:<?=$dest['color']?>22;color:<?=$dest['color']?>"><i class="<?=$dest['icon']?>"></i></div>
-        <div>
-          <div class="dest-name"><?=$ar?$dest['ar']:$dest['en']?></div>
-          <?php if($code==='ledger_trx'): ?>
-          <div class="dest-detail" style="font-family:monospace;font-size:.6rem">TEwLFWlwK55b7...</div>
-          <?php elseif($code==='mashreq'): ?>
-          <div class="dest-detail">AE300330000019101562722</div>
-          <?php elseif($code==='jpmorgan'): ?>
-          <div class="dest-detail">663525063665 — Routing: 111000614</div>
-          <?php endif; ?>
-        </div>
-      </div>
-    <?php endforeach; ?>
-    </div>
-
-    <!-- حقل محفظة مخصصة -->
-    <div class="wallet-input-wrap" id="customWalletWrap">
-      <label id="customWalletLabel"><i class="fas fa-wallet"></i> <?=$ar?'عنوان المحفظة':'Wallet Address'?></label>
-      <input type="text" id="customWalletAddr" placeholder="<?=$ar?'أدخل عنوان المحفظة':'Enter wallet address'?>">
-    </div>
-
     <div style="display:flex;gap:12px">
-      <button class="continue-btn" style="background:rgba(255,255,255,.06);color:var(--text);box-shadow:none;flex:0 0 120px" onclick="goStep(1)">
-        <i class="fas fa-arrow-right"></i> <?=$ar?'رجوع':'Back'?>
-      </button>
-      <button class="continue-btn" id="btn-step2" onclick="goStep(3)" disabled>
-        <?=$ar?'التالي — المبلغ':'Next — Amount'?> <i class="fas fa-arrow-left"></i>
+      <button class="continue-btn" style="background:rgba(255,255,255,.06);color:var(--text);box-shadow:none;flex:0 0 120px" onclick="goStep(2)"><i class="fas fa-arrow-right"></i> <?=$ar?'رجوع':'Back'?></button>
+      <button class="continue-btn" id="btn-step3gw" onclick="goStep(4)" disabled>
+        <?=$ar?'التالي — نوع العملية':'Next — Operation'?> <i class="fas fa-arrow-left"></i>
       </button>
     </div>
   </div>
 
-  <!-- ══ STEP 3: المبلغ والعملة ══ -->
-  <div id="sec-step3" style="display:none">
+  <!-- ══ STEP 4: العملية ══ -->
+  <div id="sec-step4" style="display:none">
     <div class="section-title"><i class="fas fa-dollar-sign"></i> <?=$ar?'المبلغ والعملة':'Amount & Currency'?></div>
     <div class="amount-section">
 
-      <!-- 10 أنواع العمليات -->
-      <div class="section-title" style="margin-bottom:12px"><i class="fas fa-list"></i> <?=$ar?'نوع العملية':'Transaction Type'?></div>
+      <!-- 13 أنواع العمليات -->
+      <div class="section-title" style="margin-bottom:12px"><i class="fas fa-list"></i> <?=$ar?'نوع العملية (13)':'Operation type (13)'?></div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px" id="txnTypeGrid">
         <?php
-        $txnTypesRouter = [
-          'purchase_3d'     =>['ar'=>'شراء 3D',            'en'=>'Purchase 3D',       'icon'=>'fa-shield-alt',   'color'=>'#10B981','sub'=>'3D Secure',      'rrn'=>false],
-          'purchase_moto'   =>['ar'=>'شراء 2D / MOTO',     'en'=>'Purchase 2D/MOTO',  'icon'=>'fa-credit-card',  'color'=>'#06B6D4','sub'=>'2D · MOTO',       'rrn'=>false],
-          'auth'            =>['ar'=>'تفويض',              'en'=>'Authorization',     'icon'=>'fa-lock',         'color'=>'#3B82F6','sub'=>'Hold',            'rrn'=>false],
-          'auth_complete'   =>['ar'=>'إتمام تفويض',        'en'=>'Auth Completion',   'icon'=>'fa-check-double', 'color'=>'#6366F1','sub'=>'Capture · RRN',   'rrn'=>true],
-          'purchase_advice' =>['ar'=>'إشعار شراء',         'en'=>'Purchase Advice',   'icon'=>'fa-bell',         'color'=>'#F59E0B','sub'=>'Offline 2D · RRN','rrn'=>true],
-          'offline_purchase'=>['ar'=>'شراء أوفلاين',       'en'=>'Offline Purchase',  'icon'=>'fa-server',       'color'=>'#F97316','sub'=>'MOTO 2D · RRN',   'rrn'=>true],
-          'online_purchase' =>['ar'=>'شراء أونلاين',       'en'=>'Online Purchase',   'icon'=>'fa-globe',        'color'=>'#8B5CF6','sub'=>'MOTO 2D · RRN',   'rrn'=>true],
-          'refund'          =>['ar'=>'استرداد',            'en'=>'Refund',            'icon'=>'fa-undo',         'color'=>'#EF4444','sub'=>'Return',          'rrn'=>false],
-          'reversal'        =>['ar'=>'إلغاء عملية',       'en'=>'Reversal',          'icon'=>'fa-reply',        'color'=>'#EC4899','sub'=>'Same Day',        'rrn'=>false],
-          'balance'         =>['ar'=>'استعلام رصيد',      'en'=>'Balance Inquiry',   'icon'=>'fa-wallet',       'color'=>'#8B5CF6','sub'=>'Inquiry',         'rrn'=>false],
-          'cash_advance'    =>['ar'=>'سلفة نقدية',        'en'=>'Cash Advance',      'icon'=>'fa-money-bill',   'color'=>'#14B8A6','sub'=>'Advance',         'rrn'=>false],
-          'void'            =>['ar'=>'إلغاء',              'en'=>'Void',              'icon'=>'fa-ban',          'color'=>'#6B7280','sub'=>'Pre-Settlement',  'rrn'=>false],
-          'settlement'      =>['ar'=>'تسوية EOD',          'en'=>'Settlement',        'icon'=>'fa-university',   'color'=>'#FFD700','sub'=>'End of Day',      'rrn'=>false],
-          'quasi_cash'      =>['ar'=>'شبه نقدي',          'en'=>'Quasi Cash',        'icon'=>'fa-coins',        'color'=>'#F97316','sub'=>'QC · حوالات',    'rrn'=>false],
-          'transfer'        =>['ar'=>'تحويل P2P',          'en'=>'Transfer',          'icon'=>'fa-exchange-alt', 'color'=>'#06B6D4','sub'=>'P2P',             'rrn'=>false],
-          'payment'         =>['ar'=>'دفع فاتورة',        'en'=>'Bill Payment',      'icon'=>'fa-file-invoice', 'color'=>'#A855F7','sub'=>'Bill',            'rrn'=>false],
-        ];
+        $txnTypesRouter = [];
+        foreach ($activityOps as $op) {
+            $pk = $op['pos_key'];
+            $txnTypesRouter[$pk] = [
+                'ar' => $op['ar'],
+                'en' => $op['en'],
+                'icon' => $op['icon'],
+                'color' => $op['color'],
+                'sub' => '',
+                'rrn' => !empty($op['requires_rrn']),
+            ];
+        }
         foreach($txnTypesRouter as $k=>$t): ?>
         <div onclick="selectTxnTypeRouter('<?=$k?>',this)" id="rtt-<?=$k?>"
           data-needs-rrn="<?=$t['rrn']?'1':'0'?>"
@@ -403,17 +408,17 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
 
     <div style="display:flex;gap:12px">
-      <button class="continue-btn" style="background:rgba(255,255,255,.06);color:var(--text);box-shadow:none;flex:0 0 120px" onclick="goStep(2)">
+      <button class="continue-btn" style="background:rgba(255,255,255,.06);color:var(--text);box-shadow:none;flex:0 0 120px" onclick="goStep(3)">
         <i class="fas fa-arrow-right"></i> <?=$ar?'رجوع':'Back'?>
       </button>
-      <button class="continue-btn" id="btn-step3" onclick="goStep(4)" disabled>
-        <?=$ar?'مراجعة وتأكيد':'Review & Confirm'?> <i class="fas fa-arrow-left"></i>
+      <button class="continue-btn" id="btn-step3" onclick="proceedToCheckout()">
+        <?=$ar?'متابعة':'Continue'?> <i class="fas fa-arrow-left"></i>
       </button>
     </div>
   </div>
 
-  <!-- ══ STEP 4: التأكيد ══ -->
-  <div id="sec-step4" style="display:none">
+  <!-- review (unused — confirm is step 4 continue) -->
+  <div id="sec-review" style="display:none">
     <div class="section-title"><i class="fas fa-check-double"></i> <?=$ar?'مراجعة وتأكيد':'Review & Confirm'?></div>
 
     <!-- Summary -->
@@ -445,60 +450,81 @@ const AR   = <?=$ar?'true':'false'?>;
 const CSRF = '<?=$csrf?>';
 
 const STATE = {
+  line: null,
+  channel: null,
   gateway: null,
-  destination: null,
-  walletAddr: '',
+  destination: 'ledger_trx',
+  walletAddr: <?=json_encode($ledgerAddr)?>,
   amount: 0,
   currency: 'USD',
-  txnType: 'purchase',
+  txnType: 'purchase_3d',
 };
+const LEDGER_ADDR = <?=json_encode($ledgerAddr)?>;
+const POS_GWS = <?=json_encode(array_keys($connectedPos), JSON_UNESCAPED_UNICODE)?>;
+const LINK_GWS = <?=json_encode(array_keys($connectedLink), JSON_UNESCAPED_UNICODE)?>;
 
-const GW_ROUTES = {
-  nuvei: 'checkout/nuvei.php',
-  stripe: 'checkout/stripe.php',
-  paypal: 'checkout/paypal.php',
-  wise: 'checkout/wise.php',
-  myfatoorah: 'checkout/myfatoorah.php',
-  binance: 'checkout/binance.php',
-  gate_io: 'checkout/gate_io.php',
-  hsbc_uae: 'checkout/bank_hsbc.php',
-  nbe_egypt: 'checkout/bank_nbe.php',
-  mashreq: 'checkout/bank_mashreq.php',
-  jpmorgan: 'checkout/bank_jpmorgan.php',
-  whop: 'checkout/whop.php',
-  redotpay: 'checkout/redotpay.php',
-  diparma: 'checkout_diparma.php',
-  payram: 'checkout_diparma.php',
-};
+const GW_ROUTES = <?=json_encode($gatewayRoutes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
+
+function selectActivity(code, el) {
+  STATE.line = code || null;
+  const sel = document.getElementById('activitySelect');
+  if (sel && code && sel.value !== code) sel.value = code;
+  const btn = document.getElementById('btn-step1');
+  if (btn) btn.disabled = !STATE.line;
+}
+window.selectActivity = selectActivity;
+
+function selectChannel(code, el) {
+  STATE.channel = code;
+  document.querySelectorAll('[id^="ch-"]').forEach(card => card.classList.remove('selected'));
+  if (el) el.classList.add('selected');
+  const btn = document.getElementById('btn-step2');
+  if (btn) btn.disabled = false;
+  const allow = code === 'pos' ? POS_GWS : LINK_GWS;
+  document.querySelectorAll('.gw-card[id^="gw-"]').forEach(card => {
+    const id = (card.id || '').replace('gw-', '');
+    card.style.display = allow.indexOf(id) >= 0 ? '' : 'none';
+    card.classList.remove('selected');
+  });
+  STATE.gateway = null;
+  const gwBtn = document.getElementById('btn-step3gw');
+  if (gwBtn) gwBtn.disabled = true;
+}
+window.selectChannel = selectChannel;
 
 function selectGateway(code, el) {
   STATE.gateway = code;
-  document.querySelectorAll('.gw-card').forEach(card => card.classList.remove('selected'));
+  document.querySelectorAll('.gw-card[id^="gw-"]').forEach(card => card.classList.remove('selected'));
   if (el) el.classList.add('selected');
-  const btn = document.getElementById('btn-step1');
+  const btn = document.getElementById('btn-step3gw');
   if (btn) btn.disabled = false;
+  STATE.destination = 'ledger_trx';
+  STATE.walletAddr = LEDGER_ADDR;
 }
 window.selectGateway = selectGateway;
 
+function lockLedgerOnlyDestination(code) {
+  document.querySelectorAll('.dest-card').forEach(card => {
+    const id = (card.id || '').replace('dest-', '');
+    card.style.display = id === 'ledger_trx' ? '' : 'none';
+    if (id !== 'ledger_trx') card.classList.remove('selected');
+  });
+  const ledger = document.getElementById('dest-ledger_trx');
+  if (ledger) selectDestination('ledger_trx', ledger);
+}
+
 function goStep(n) {
-  if (n === 2 && !STATE.gateway) {
-    toast(AR ? 'اختر بوابة الدفع' : 'Select payment gateway', 'error');
+  if (n === 2 && !STATE.line) {
+    toast(AR ? 'اختر نشاط الشركة' : 'Select the business activity', 'error');
     return;
   }
-  if (n === 3 && !STATE.destination) {
-    toast(AR ? 'اختر وجهة المبلغ' : 'Select amount destination', 'error');
+  if (n === 3 && !STATE.channel) {
+    toast(AR ? 'اختر POS أو رابط' : 'Select POS or Link', 'error');
     return;
   }
-  if (n === 4) {
-    const amt = parseFloat(document.getElementById('txnAmount').value) || 0;
-    if (amt <= 0) {
-      toast(AR ? 'أدخل المبلغ' : 'Enter amount', 'error');
-      return;
-    }
-    STATE.amount = amt;
-    STATE.currency = document.getElementById('txnCurrency').value;
-    STATE.txnType = STATE_TXN.type;
-    updateConfirmSummary();
+  if (n === 4 && !STATE.gateway) {
+    toast(AR ? 'اختر مزود الخدمة' : 'Select a connected gateway', 'error');
+    return;
   }
 
   for (let i = 1; i <= 4; i++) {
@@ -556,11 +582,10 @@ function selectSecMode(mode, el) {
 window.selectSecMode = selectSecMode;
 
 window.addEventListener('DOMContentLoaded', function() {
-  const preferred = 'payram';
-  const cardEl = document.getElementById('gw-' + preferred);
-  if (cardEl) {
-    window.selectGateway(preferred, cardEl);
-    document.getElementById('btn-step1').disabled = false;
+  // لا نفرض بوابة افتراضية — المستخدم يختار من البوابات الظاهرة فقط
+  const firstGw = document.querySelector('.gw-card');
+  if (firstGw && typeof firstGw.onclick === 'function') {
+    // لا ننقر تلقائياً؛ يبقى الاختيار يدوياً
   }
 
   const defaultTxn = document.getElementById('rtt-purchase_3d');
@@ -571,6 +596,10 @@ window.addEventListener('DOMContentLoaded', function() {
 });
 
 function selectDestination(code, el) {
+  if (code !== 'ledger_trx') {
+    toast(AR ? 'وجهة التسوية Ledger فقط. ليست IBAN بنك.' : 'Settlement destination is Ledger only. Not a bank IBAN.', 'error');
+    return;
+  }
   STATE.destination = code;
   document.querySelectorAll('.dest-card').forEach(c => c.classList.remove('selected'));
   if (el) el.classList.add('selected');
@@ -656,28 +685,53 @@ function updateConfirmSummary() {
 }
 
 window.proceedToCheckout = function() {
+  if (!STATE.line || !STATE.channel || !STATE.gateway) {
+    toast(AR ? 'أكمل النشاط والقناة والبوابة' : 'Complete activity, channel, and gateway', 'error');
+    return;
+  }
+  if (!LEDGER_ADDR) {
+    toast(AR ? 'أضف LEDGER_TRC20_ADDRESS' : 'Set LEDGER_TRC20_ADDRESS', 'error');
+    return;
+  }
+  STATE.destination = 'ledger_trx';
+  STATE.walletAddr = LEDGER_ADDR;
+  STATE.txnType = STATE_TXN.type;
+  STATE.amount = parseFloat(document.getElementById('txnAmount')?.value) || 0;
+  STATE.currency = document.getElementById('txnCurrency')?.value || 'USD';
+
+  if (STATE.channel === 'pos') {
+    const q = new URLSearchParams({
+      kiosk: '1',
+      device: 'bitel_ic3600',
+      gw: STATE.gateway,
+      line: STATE.line,
+      op: STATE.txnType
+    });
+    window.location.href = 'pos/index.php?' + q.toString();
+    return;
+  }
+
   const route = GW_ROUTES[STATE.gateway];
   if (!route) {
     toast(AR ? 'صفحة البوابة غير متاحة بعد' : 'Gateway page not available yet', 'error');
     return;
   }
-
   const params = new URLSearchParams({
     gateway: STATE.gateway,
-    destination: STATE.destination,
+    destination: 'ledger',
     amount: String(STATE.amount || 0),
     currency: STATE.currency,
-    txn_type: STATE_TXN.type,
+    txn_type: STATE.txnType,
+    op: STATE.txnType,
+    line: STATE.line,
     sec_mode: STATE_TXN.secMode,
     orig_ref: document.getElementById('txnOrigRef')?.value.trim() || '',
     approval_code: document.getElementById('txnApprovalCode')?.value.trim() || '',
     notes: document.getElementById('txnNotes')?.value.trim() || '',
-    wallet: STATE.walletAddr || '',
+    wallet: LEDGER_ADDR,
     csrf_token: CSRF
   });
-
-  const url = route + '?' + params.toString();
-  window.location.href = url;
+  window.location.href = route + '?' + params.toString();
 };
 
 function toast(msg, type = 'info') {

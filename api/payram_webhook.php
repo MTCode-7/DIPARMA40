@@ -14,6 +14,9 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../lib/PayRamAdapter.php';
+if (is_file(__DIR__ . '/../includes/peer_link.php')) {
+    require_once __DIR__ . '/../includes/peer_link.php';
+}
 
 $rawBody = file_get_contents('php://input');
 $sigHeader = '';
@@ -151,62 +154,54 @@ if ($paymentRef !== null) {
         error_log('[PayRam Webhook] Payment DB: ' . $e->getMessage());
     }
 
-    /* إذا FILLED → تحويل واحد إلى Ledger عبر PayRam payout */
+    /* إذا FILLED → نفس نظام التسوية: رسوم×2 ثم الصافي USDT → Ledger */
     if (in_array($status, ['FILLED', 'OVER_FILLED']) && $txHash) {
         error_log("[PayRam] Payment FILLED: ref={$refId} amount={$filled} USD tx={$txHash}");
-        $ledgerAddress = defined('LEDGER_TRC20_ADDRESS')
-            ? LEDGER_TRC20_ADDRESS
-            : (getenv('LEDGER_TRC20_ADDRESS') ?: '');
-        if (!preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $ledgerAddress)) {
-            error_log('[PayRam] Ledger payout skipped: invalid LEDGER_TRC20_ADDRESS');
-        } else {
-            $lockName = 'payram-ledger-' . preg_replace('/[^A-Za-z0-9_-]/', '_', $refId);
-            $lock = $db->query('SELECT GET_LOCK(?, 10) AS acquired', [$lockName]);
-            if (!empty($lock[0]['acquired'])) {
-                try {
-                    $row = $db->query(
-                        "SELECT id, gateway_response FROM dp_transactions
-                         WHERE JSON_EXTRACT(gateway_response,'$.payram_ref')=? OR reference=? LIMIT 1",
-                        [$refId, $refId]
+        $lockName = 'payram-ledger-' . preg_replace('/[^A-Za-z0-9_-]/', '_', $refId);
+        $lock = $db->query('SELECT GET_LOCK(?, 10) AS acquired', [$lockName]);
+        if (!empty($lock[0]['acquired'])) {
+            try {
+                $row = $db->query(
+                    "SELECT id, reference, amount, currency, user_id, gateway_response FROM dp_transactions
+                     WHERE JSON_EXTRACT(gateway_response,'$.payram_ref')=? OR reference=? LIMIT 1",
+                    [$refId, $refId]
+                );
+                $meta = !empty($row[0]['gateway_response'])
+                    ? json_decode($row[0]['gateway_response'], true) : [];
+                if (!empty($row[0]) && empty($meta['ledger_settled']) && empty($meta['ledger_payout_id'])) {
+                    require_once __DIR__ . '/../lib/LedgerSettlementService.php';
+                    $settleAmt = (float)($filled > 0 ? $filled : ($row[0]['amount'] ?? 0));
+                    $settle = LedgerSettlementService::settleSuccessfulPayment([
+                        'reference'      => (string)($row[0]['reference'] ?? $refId),
+                        'amount'         => $settleAmt,
+                        'currency'       => 'USD',
+                        'gateway'        => 'payram',
+                        'user_id'        => (int)($row[0]['user_id'] ?? 0),
+                        'txn_type'       => 'purchase',
+                        'transaction_id' => (int)$row[0]['id'],
+                        'destination'    => 'ledger',
+                    ]);
+                    $db->execute(
+                        "UPDATE dp_transactions SET gateway_response=JSON_SET(COALESCE(gateway_response,'{}'), '$.ledger_settled', true, '$.ledger_settle', CAST(? AS JSON)) WHERE id=?",
+                        [json_encode($settle, JSON_UNESCAPED_UNICODE), $row[0]['id']]
                     );
-                    $meta = !empty($row[0]['gateway_response'])
-                        ? json_decode($row[0]['gateway_response'], true) : [];
-                    if (!empty($row[0]) && empty($meta['ledger_payout_id']) && empty($meta['ledger_payout_requested'])) {
-                        $db->execute(
-                            "UPDATE dp_transactions SET gateway_response=JSON_SET(COALESCE(gateway_response,'{}'), '$.ledger_payout_requested', true) WHERE id=?",
-                            [$row[0]['id']]
-                        );
-                        $payoutAmount = $payram->convertUsdToCrypto($filled, 'TRX', 'USDT');
-                        if ($payoutAmount !== null && $payoutAmount > 0) {
-                            $payout = $payram->createPayout([
-                                'email'           => 'ledger@diparmas.com',
-                                'blockchain_code' => 'TRX',
-                                'currency_code'   => 'USDT',
-                                'amount'          => $payoutAmount,
-                                'to_address'      => $ledgerAddress,
-                                'customer_id'     => 'ledger_' . $refId,
-                                'idempotency_key' => 'ledger-' . $refId,
-                            ]);
-                            if ($payout['success']) {
-                                $db->execute(
-                                    "UPDATE dp_transactions SET gateway_response=JSON_SET(COALESCE(gateway_response,'{}'), '$.ledger_payout_id', ?, '$.ledger_payout_status', ?, '$.ledger_address', ?) WHERE id=?",
-                                    [$payout['payout_id'], $payout['status'], $ledgerAddress, $row[0]['id']]
-                                );
-                            } else {
-                                $db->execute(
-                                    "UPDATE dp_transactions SET gateway_response=JSON_SET(COALESCE(gateway_response,'{}'), '$.ledger_payout_requested', false, '$.ledger_payout_error', ?) WHERE id=?",
-                                    [$payout['raw']['message'] ?? 'PayRam payout failed', $row[0]['id']]
-                                );
-                            }
-                        } else {
-                            error_log('[PayRam] Ledger payout skipped: unable to convert filled amount to USDT');
-                        }
+                    if (empty($_SERVER['HTTP_X_PEER_ORIGIN']) && function_exists('peer_request')) {
+                        try {
+                            peer_request('sync_txn', [
+                                'reference' => (string)($row[0]['reference'] ?? $refId),
+                                'gateway'   => 'payram',
+                                'amount'    => $settleAmt,
+                                'currency'  => 'USD',
+                                'status'    => 'completed',
+                                'txn_type'  => 'purchase',
+                            ], 6);
+                        } catch (Throwable $e) {}
                     }
-                } catch (Exception $e) {
-                    error_log('[PayRam] Ledger payout failed: ' . $e->getMessage());
-                } finally {
-                    $db->query('SELECT RELEASE_LOCK(?)', [$lockName]);
                 }
+            } catch (Exception $e) {
+                error_log('[PayRam] Ledger settle failed: ' . $e->getMessage());
+            } finally {
+                $db->query('SELECT RELEASE_LOCK(?)', [$lockName]);
             }
         }
     }

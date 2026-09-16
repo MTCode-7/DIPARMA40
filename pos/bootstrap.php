@@ -20,6 +20,8 @@ require_once POS_PATH . '/lib/devices.php';
 require_once POS_PATH . '/lib/merchant.php';
 require_once POS_PATH . '/lib/catalog.php';
 require_once POS_PATH . '/lib/auth.php';
+require_once POS_PATH . '/lib/DirectAdvicePOSProcessor.php';
+require_once POS_PATH . '/lib/RealOfflineSalesManager.php';
 if (is_file(POS_APP_ROOT . '/includes/activity_flow.php')) {
     require_once POS_APP_ROOT . '/includes/activity_flow.php';
 }

@@ -1,10 +1,8 @@
 <?php
 /**
  * DIPARMA host for Verifone VX 675.
- * Verix V + Nuvei Payment App + Nuvei key injection. No other gateway.
- *
  * GET  — commissioning status
- * POST — Nuvei Payment App result after on-device authorization
+ * POST — device result; gateway is the one sent in the payload (must be connected)
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -23,9 +21,9 @@ $status = [
     'success' => true,
     'device' => 'verifone_vx675',
     'os' => 'Verix V',
-    'acquirer' => 'nuvei',
+    'acquirer' => '',
     'locked_gateway' => verifone_vx675_locked_gateway(),
-    'payment_app' => 'Nuvei Payment App',
+    'payment_app' => (string) ($commission['payment_app'] ?? ''),
     'payment_app_installed' => !empty($commission['payment_app_installed']),
     'keys_injected' => !empty($commission['keys_injected']),
     'key_injection' => 'nuvei_rki',

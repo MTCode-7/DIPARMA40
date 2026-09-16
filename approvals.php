@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/db_optimized.php';
 
 requireAdmin();
 
+$ar = is_ar();
 $db = db();
 dp_ensure_indexes();
 
@@ -57,10 +58,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
             'created_at' => date('Y-m-d H:i:s')
         ]);
 
-        $message = '✅ تم قبول الطلب وتم إضافة الرصيد إلى المحفظة';
+        $message = dp_t('✅ Request approved and balance added to wallet', '✅ تم قبول الطلب وتم إضافة الرصيد إلى المحفظة');
         $messageType = 'success';
     } else {
-        $message = 'ℹ️ هذا الطلب لم يعد قابلًا للتعديل';
+        $message = dp_t('ℹ️ This request can no longer be changed', 'ℹ️ هذا الطلب لم يعد قابلًا للتعديل');
         $messageType = 'info';
     }
 }
@@ -73,10 +74,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reject_request'])) {
         $db->update('approval_requests', ['status' => 'rejected', 'reason' => $reason], ['id' => $id]);
         $db->update('invoices', ['status' => 'cancelled'], ['reference' => $request['reference']]);
         $db->update('transactions', ['status' => 'rejected'], ['reference' => $request['reference']]);
-        $message = '❌ تم رفض الطلب';
+        $message = dp_t('❌ Request rejected', '❌ تم رفض الطلب');
         $messageType = 'error';
     } else {
-        $message = 'ℹ️ هذا الطلب لم يعد قابلًا للتعديل';
+        $message = dp_t('ℹ️ This request can no longer be changed', 'ℹ️ هذا الطلب لم يعد قابلًا للتعديل');
         $messageType = 'info';
     }
 }
@@ -88,7 +89,7 @@ $requests = $db->query("SELECT * FROM " . DB_PREFIX . "approval_requests ORDER B
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DI PARMA | طلبات الموافقة</title>
+<title>DI PARMA | <?= dp_t('Approval requests', 'طلبات الموافقة') ?></title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
 <style>
 body{font-family:'Cairo',sans-serif;background:#0b0f17;color:#f7d76b;margin:0;padding:20px;} .container{max-width:1200px;margin:0 auto;} .card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,215,0,0.2);border-radius:16px;padding:20px;margin-bottom:20px;} .nav{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;} .nav a{color:#fff;text-decoration:none;padding:8px 12px;border:1px solid rgba(255,215,0,0.2);border-radius:999px;} table{width:100%;border-collapse:collapse;} th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,0.1);text-align:right;} .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,215,0,0.25);} .btn{padding:8px 12px;border:none;border-radius:8px;cursor:pointer;margin-left:6px;} .btn-success{background:#2bb673;color:#fff;} .btn-danger{background:#d9534f;color:#fff;} textarea{width:100%;min-height:70px;border-radius:8px;padding:8px;} </style>
@@ -96,17 +97,17 @@ body{font-family:'Cairo',sans-serif;background:#0b0f17;color:#f7d76b;margin:0;pa
 <body>
 <div class="container">
   <div class="nav">
-    <a href="index.php">&#8962; الرئيسية</a>
-    <a href="dashboard.php">لوحة التحكم</a>
-    <a href="wallets.php">المحفظة</a>
-    <a href="invoices.php">الفواتير</a>
-    <a href="approvals.php">الموافقات</a>
+    <a href="index.php">&#8962; <?= dp_t('Home', 'الرئيسية') ?></a>
+    <a href="dashboard.php"><?= dp_t('Dashboard', 'لوحة التحكم') ?></a>
+    <a href="wallets.php"><?= dp_t('Wallets', 'المحفظة') ?></a>
+    <a href="invoices.php"><?= dp_t('Invoices', 'الفواتير') ?></a>
+    <a href="approvals.php"><?= dp_t('Approvals', 'الموافقات') ?></a>
   </div>
   <div class="card">
-    <h2>طلبات الموافقة</h2>
+    <h2><?= dp_t('Approval requests', 'طلبات الموافقة') ?></h2>
     <?php if ($message): ?><div style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);"><?= $message ?></div><?php endif; ?>
     <table>
-      <thead><tr><th>المرجع</th><th>النوع</th><th>المبلغ</th><th>الحالة</th><th>السبب</th><th>الإجراء</th></tr></thead>
+      <thead><tr><th><?= dp_t('Reference', 'المرجع') ?></th><th><?= dp_t('Type', 'النوع') ?></th><th><?= dp_t('Amount', 'المبلغ') ?></th><th><?= dp_t('Status', 'الحالة') ?></th><th><?= dp_t('Reason', 'السبب') ?></th><th><?= dp_t('Action', 'الإجراء') ?></th></tr></thead>
       <tbody>
         <?php foreach ($requests as $request): ?>
           <tr>
@@ -119,15 +120,15 @@ body{font-family:'Cairo',sans-serif;background:#0b0f17;color:#f7d76b;margin:0;pa
               <?php if ($request['status'] === 'pending'): ?>
                 <form method="POST" style="display:inline-block;">
                   <input type="hidden" name="id" value="<?= $request['id'] ?>">
-                  <button class="btn btn-success" name="approve_request">قبول</button>
+                  <button class="btn btn-success" name="approve_request"><?= dp_t('Approve', 'قبول') ?></button>
                 </form>
                 <form method="POST" style="display:inline-block;">
                   <input type="hidden" name="id" value="<?= $request['id'] ?>">
-                  <textarea name="reason" placeholder="سبب الرفض..."></textarea>
-                  <button class="btn btn-danger" name="reject_request">رفض</button>
+                  <textarea name="reason" placeholder="<?= dp_t('Rejection reason...', 'سبب الرفض...') ?>"></textarea>
+                  <button class="btn btn-danger" name="reject_request"><?= dp_t('Reject', 'رفض') ?></button>
                 </form>
               <?php else: ?>
-                <span class="badge">تمت المعالجة</span>
+                <span class="badge"><?= dp_t('Processed', 'تمت المعالجة') ?></span>
               <?php endif; ?>
             </td>
           </tr>

@@ -1,13 +1,10 @@
 <?php
 /**
- * Verifone VX 675 — Verix V, Nuvei only.
+ * Verifone VX 675 — Verix V host.
  *
  * OS: Verix V SDK (VVDTK + VeriShield). Not Android, not a PWA.
- * Acquirer: Nuvei. No other gateway.
- * Payment App: Nuvei Payment App installed on the terminal.
- * Keys: Nuvei RKI / KIF into the terminal HSM — never stored in DIPARMA.
- *
- * After Nuvei authorizes on-device, the app notifies DIPARMA; settlement is USDT → Ledger.
+ * Web POS: operator picks any connected gateway.
+ * Native Nuvei Payment App on the device may still post Nuvei results here.
  */
 if (defined('DI_PARMA_VERIFONE_VX675')) {
     return;
@@ -53,7 +50,7 @@ function verifone_vx675_expiry(string $exp): string
 
 function verifone_vx675_locked_gateway(): string
 {
-    return 'nuvei';
+    return '';
 }
 
 function verifone_vx675_commission(): array
@@ -61,7 +58,7 @@ function verifone_vx675_commission(): array
     $dev = function_exists('pos_device_get') ? pos_device_get('verifone_vx675') : [
         'model' => 'verifone_vx675',
         'type' => 'verix_v',
-        'locked_gateway' => 'nuvei',
+        'locked_gateway' => '',
     ];
     return pos_device_commission($dev ?: []);
 }
@@ -82,7 +79,9 @@ function verifone_vx675_to_pos(array $in): array
         ? pos_normalize_gateway((string) ($in['gateway'] ?? ''))
         : strtolower(trim((string) ($in['gateway'] ?? '')));
     if ($gw === '') {
-        $gw = 'nuvei';
+        $gw = function_exists('pos_normalize_gateway')
+            ? pos_normalize_gateway((string) ($in['card_provider'] ?? ''))
+            : strtolower(trim((string) ($in['card_provider'] ?? '')));
     }
 
     return [

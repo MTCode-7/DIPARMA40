@@ -66,6 +66,37 @@ class GatewayWebhookVerifier
         return false;
     }
 
+    /** Alias — api/webhook.php كان يستدعي اسماً غير موجود فيتوقف PHP */
+    public static function verifyStripeSignature(
+        string $rawPayload,
+        string $sigHeader,
+        string $endpointSecret
+    ): bool {
+        return self::verifyStripe($rawPayload, $sigHeader, $endpointSecret);
+    }
+
+    /**
+     * HMAC عام للهيدرات x-signature / x-hub-signature-256
+     */
+    public static function verifyGenericSignature(
+        string $rawPayload,
+        string $sigHeader,
+        string $secret,
+        string $algo = 'sha256'
+    ): bool {
+        if ($secret === '' || $sigHeader === '') {
+            return false;
+        }
+        $sig = trim($sigHeader);
+        if (stripos($sig, 'sha256=') === 0) {
+            $sig = substr($sig, 7);
+        }
+        $expected = hash_hmac($algo, $rawPayload, $secret);
+        $ok = hash_equals($expected, strtolower($sig)) || hash_equals($expected, $sig);
+        self::log('generic', $ok ? 'verified' : 'invalid_sig', $algo);
+        return $ok;
+    }
+
     // ══════════════════════════════════════════════════════════
     // [2] CHECKOUT.COM
     // ══════════════════════════════════════════════════════════

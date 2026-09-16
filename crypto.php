@@ -14,8 +14,6 @@ require_once __DIR__ . '/includes/crypto_schema.php';
 
 dp_create_crypto_tables();
 
-$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
-$pageDir     = $currentLang === 'en' ? 'ltr' : 'rtl';
 $userId      = intval($_SESSION['user_id'] ?? 0);
 $db          = db();
 
@@ -66,7 +64,7 @@ $csrfToken  = generateCsrfToken();
 $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
 ?>
 <!DOCTYPE html>
-<html lang="<?= $currentLang ?>" dir="<?= $pageDir ?>">
+<html lang="<?= htmlspecialchars(dp_lang()) ?>" dir="<?= htmlspecialchars($pageDir) ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -142,27 +140,27 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
 </style>
 </head>
 <body>
-<?php if (function_exists('renderNavbar')) renderNavbar($currentLang); ?>
+<?php if (function_exists('renderNavbar')) renderNavbar(dp_lang()); ?>
 <!-- روابط إضافية للتنقل -->
 <div style="background:rgba(0,0,0,.6);padding:8px 28px;display:flex;align-items:center;gap:16px;border-bottom:1px solid rgba(255,215,0,.1)">
     <a href="index.php" style="color:var(--text-muted);font-size:.82rem;text-decoration:none;display:flex;align-items:center;gap:5px">
         <i class="fas fa-home" style="color:var(--gold)"></i>
-        <?= $currentLang==='en'?'Home':'الرئيسية' ?>
+        <?= dp_t('Home', 'الرئيسية') ?>
     </a>
     <span style="color:rgba(255,215,0,.2)">|</span>
     <a href="dashboard.php" style="color:var(--text-muted);font-size:.82rem;text-decoration:none;display:flex;align-items:center;gap:5px">
         <i class="fas fa-chart-pie" style="color:var(--gold)"></i>
-        <?= $currentLang==='en'?'Dashboard':'لوحة التحكم' ?>
+        <?= dp_t('Dashboard', 'لوحة التحكم') ?>
     </a>
     <span style="color:rgba(255,215,0,.2)">|</span>
-    <a href="checkout.php" style="color:var(--text-muted);font-size:.82rem;text-decoration:none;display:flex;align-items:center;gap:5px">
+    <a href="checkout_router.php" style="color:var(--text-muted);font-size:.82rem;text-decoration:none;display:flex;align-items:center;gap:5px">
         <i class="fas fa-credit-card" style="color:var(--gold)"></i>
         Checkout
     </a>
     <span style="color:rgba(255,215,0,.2)">|</span>
     <a href="my_cards.php" style="color:var(--text-muted);font-size:.82rem;text-decoration:none;display:flex;align-items:center;gap:5px">
         <i class="fas fa-wallet" style="color:var(--gold)"></i>
-        <?= $currentLang==='en'?'My Cards':'بطاقاتي' ?>
+        <?= dp_t('My Cards', 'بطاقاتي') ?>
     </a>
     <div style="margin-<?= $pageDir==='rtl'?'right':'left' ?>:auto">
         <?= langSwitcher(true) ?>
@@ -178,14 +176,14 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
       <i class="fas fa-coins" style="margin-<?= $pageDir==='rtl'?'left':'right' ?>:10px"></i>
       Crypto Exchange
     </h1>
-    <p style="color:var(--text-muted);margin:4px 0 0;font-size:.9rem">شراء وبيع USDT بالعملات المحلية</p>
+    <p style="color:var(--text-muted);margin:4px 0 0;font-size:.9rem"><?= dp_t('Buy and sell USDT with local currencies', 'شراء وبيع USDT بالعملات المحلية') ?></p>
   </div>
   <div class="tab-switcher">
     <button class="tab-btn active" id="btnBuy" onclick="switchTab('buy')">
-      <i class="fas fa-arrow-down-to-line"></i> شراء
+      <i class="fas fa-arrow-down-to-line"></i> <?= dp_t('Buy', 'شراء') ?>
     </button>
     <button class="tab-btn" id="btnSell" onclick="switchTab('sell')">
-      <i class="fas fa-arrow-up-from-line"></i> بيع
+      <i class="fas fa-arrow-up-from-line"></i> <?= dp_t('Sell', 'بيع') ?>
     </button>
   </div>
 </div>
@@ -217,7 +215,7 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
   </div>
   <div style="margin-<?= $pageDir==='rtl'?'right':'left' ?>:auto;display:flex;align-items:center;gap:8px">
     <span style="width:8px;height:8px;border-radius:50%;background:#4CAF50;display:inline-block;animation:pulse 2s infinite"></span>
-    <span style="color:var(--text-muted);font-size:.8rem" id="lastUpdate">يتحدث كل 30 ثانية</span>
+    <span style="color:var(--text-muted);font-size:.8rem" id="lastUpdate"><?= dp_t('Updates every 30 seconds', 'يتحدث كل 30 ثانية') ?></span>
   </div>
 </div>
 </div><!-- end crypto-hero -->
@@ -233,7 +231,7 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
 <div id="panelBuy" class="calc-card">
   <h3 style="color:var(--gold);margin:0 0 24px;font-size:1.15rem">
     <i class="fas fa-arrow-down-to-line" style="margin-<?= $pageDir==='rtl'?'left':'right' ?>:8px"></i>
-    شراء USDT
+    <?= dp_t('Buy USDT', 'شراء USDT') ?>
   </h3>
   <form id="formBuy" onsubmit="submitBuy(event)">
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -242,7 +240,7 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
 
     <!-- المبلغ بالفيات -->
     <div style="margin-bottom:20px">
-      <label style="color:var(--text-muted);font-size:.85rem;margin-bottom:8px;display:block">المبلغ الذي تريد دفعه</label>
+      <label style="color:var(--text-muted);font-size:.85rem;margin-bottom:8px;display:block"><?= dp_t('Amount you want to pay', 'المبلغ الذي تريد دفعه') ?></label>
       <div class="amount-input-wrap">
         <span class="currency-badge">AED</span>
         <input type="number" id="buyAmount" name="amount" placeholder="0.00"
@@ -267,12 +265,12 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
         <div class="coin-icon" style="background:#26a17b;color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800">₮</div>
         <div class="result-amount" id="buyResult">0.000000 USDT</div>
       </div>
-      <div class="result-meta" id="buyMeta">أدخل المبلغ لرؤية التفاصيل</div>
+      <div class="result-meta" id="buyMeta"><?= dp_t('Enter an amount to see details', 'أدخل المبلغ لرؤية التفاصيل') ?></div>
     </div>
 
     <!-- الشبكة -->
     <div style="margin-bottom:20px">
-      <label style="color:var(--text-muted);font-size:.85rem;margin-bottom:10px;display:block">الشبكة</label>
+      <label style="color:var(--text-muted);font-size:.85rem;margin-bottom:10px;display:block"><?= dp_t('Network', 'الشبكة') ?></label>
       <div class="network-pills">
         <button type="button" class="net-pill active" onclick="setNetwork('buy','TRC20',this)">TRC20 (Tron)</button>
         <button type="button" class="net-pill" onclick="setNetwork('buy','ERC20',this)">ERC20 (Ethereum)</button>
@@ -283,10 +281,10 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
     <!-- عنوان المحفظة -->
     <div style="margin-bottom:20px">
       <label style="color:var(--text-muted);font-size:.85rem;margin-bottom:8px;display:block">
-        عنوان محفظتك <span id="networkLabel" style="color:var(--gold)">(TRC20)</span>
+        <?= dp_t('Your wallet address', 'عنوان محفظتك') ?> <span id="networkLabel" style="color:var(--gold)">(TRC20)</span>
       </label>
       <input type="text" id="walletAddress" name="wallet_address"
-             placeholder="T... (عنوان Tron TRC20)"
+             placeholder="<?= htmlspecialchars(dp_t('T... (Tron TRC20 address)', 'T... (عنوان Tron TRC20)')) ?>"
              style="width:100%;padding:13px 18px;background:rgba(255,255,255,.04);
                     border:1.5px solid var(--border-gold);border-radius:12px;
                     color:var(--text-light);font-family:monospace;font-size:.9rem;outline:none"
@@ -297,14 +295,14 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
       <button type="button" onclick="useMyWallet()"
         style="margin-top:8px;padding:5px 14px;border-radius:8px;border:1px solid var(--border-gold);
                background:rgba(255,215,0,.06);color:var(--text-gold);font-size:.8rem;cursor:pointer">
-        <i class="fas fa-wallet"></i> استخدم محفظتي المحفوظة
+        <i class="fas fa-wallet"></i> <?= dp_t('Use my saved wallet', 'استخدم محفظتي المحفوظة') ?>
       </button>
       <?php endif; ?>
     </div>
 
     <!-- البوابة -->
     <div style="margin-bottom:24px">
-      <label style="color:var(--text-muted);font-size:.85rem;margin-bottom:8px;display:block">طريقة الدفع</label>
+      <label style="color:var(--text-muted);font-size:.85rem;margin-bottom:8px;display:block"><?= dp_t('Payment method', 'طريقة الدفع') ?></label>
       <select class="gateway-select" name="payment_gateway" id="buyGateway">
         <?php foreach ($activeGateways as $gw): ?>
         <option value="<?= htmlspecialchars($gw['code']) ?>"><?= htmlspecialchars($gw['name']) ?></option>
@@ -314,13 +312,13 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
 
     <!-- ملخص الرسوم -->
     <div id="feeBreakdown" style="display:none;margin-bottom:20px;background:rgba(255,255,255,.03);border-radius:10px;padding:14px 18px">
-      <div class="fee-row"><span style="color:var(--text-muted)">المبلغ</span><span id="feeAmount">—</span></div>
-      <div class="fee-row"><span style="color:var(--text-muted)">رسوم المنصة (1.5%)</span><span id="feePlatform">—</span></div>
-      <div class="fee-row"><span>ستستقبل</span><span id="feeReceive">—</span></div>
+      <div class="fee-row"><span style="color:var(--text-muted)"><?= dp_t('Amount', 'المبلغ') ?></span><span id="feeAmount">—</span></div>
+      <div class="fee-row"><span style="color:var(--text-muted)"><?= dp_t('Platform fee (1.5%)', 'رسوم المنصة (1.5%)') ?></span><span id="feePlatform">—</span></div>
+      <div class="fee-row"><span><?= dp_t('You receive', 'ستستقبل') ?></span><span id="feeReceive">—</span></div>
     </div>
 
     <button type="submit" class="submit-btn" id="btnSubmitBuy" disabled>
-      <i class="fas fa-bolt"></i> شراء الآن
+      <i class="fas fa-bolt"></i> <?= dp_t('Buy now', 'شراء الآن') ?>
     </button>
   </form>
 </div>
@@ -329,7 +327,7 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
 <div id="panelSell" class="calc-card" style="display:none">
   <h3 style="color:var(--gold);margin:0 0 24px;font-size:1.15rem">
     <i class="fas fa-arrow-up-from-line" style="margin-<?= $pageDir==='rtl'?'left':'right' ?>:8px"></i>
-    بيع USDT
+    <?= dp_t('Sell USDT', 'بيع USDT') ?>
   </h3>
   <form id="formSell" onsubmit="submitSell(event)">
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -338,7 +336,7 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
 
     <!-- مبلغ USDT -->
     <div style="margin-bottom:20px">
-      <label style="color:var(--text-muted);font-size:.85rem;margin-bottom:8px;display:block">كم USDT تريد بيعه؟</label>
+      <label style="color:var(--text-muted);font-size:.85rem;margin-bottom:8px;display:block"><?= dp_t('How much USDT do you want to sell?', 'كم USDT تريد بيعه؟') ?></label>
       <div class="amount-input-wrap">
         <span class="currency-badge" style="font-size:.7rem">USDT</span>
         <input type="number" id="sellAmount" name="crypto_amount" placeholder="0.00"
@@ -354,12 +352,12 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
         <div style="font-size:1.4rem">🇦🇪</div>
         <div class="result-amount" id="sellResult">0.00 AED</div>
       </div>
-      <div class="result-meta" id="sellMeta">أدخل المبلغ لرؤية التفاصيل</div>
+      <div class="result-meta" id="sellMeta"><?= dp_t('Enter an amount to see details', 'أدخل المبلغ لرؤية التفاصيل') ?></div>
     </div>
 
     <!-- الشبكة -->
     <div style="margin-bottom:20px">
-      <label style="color:var(--text-muted);font-size:.85rem;margin-bottom:10px;display:block">أرسل من شبكة</label>
+      <label style="color:var(--text-muted);font-size:.85rem;margin-bottom:10px;display:block"><?= dp_t('Send from network', 'أرسل من شبكة') ?></label>
       <div class="network-pills">
         <button type="button" class="net-pill active" onclick="setNetwork('sell','TRC20',this)">TRC20 (Tron)</button>
         <button type="button" class="net-pill" onclick="setNetwork('sell','ERC20',this)">ERC20 (Ethereum)</button>
@@ -371,7 +369,7 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
     <div style="margin-bottom:20px;background:rgba(255,215,0,.05);border:1px dashed rgba(255,215,0,.3);border-radius:12px;padding:16px">
       <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 10px">
         <i class="fas fa-info-circle" style="color:var(--gold)"></i>
-        أرسل USDT للعنوان أدناه وسنحوّل AED لحسابك
+        <?= dp_t('Send USDT to the address below and we will transfer AED to your account', 'أرسل USDT للعنوان أدناه وسنحوّل AED لحسابك') ?>
       </p>
       <?php if ($hotAddress): ?>
       <div style="display:flex;align-items:center;gap:8px">
@@ -381,12 +379,12 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
         </button>
       </div>
       <?php else: ?>
-      <div style="color:var(--warning);font-size:.85rem">⚠ Hot Wallet غير مضبوط بعد</div>
+      <div style="color:var(--warning);font-size:.85rem">⚠ <?= dp_t('Hot Wallet is not configured yet', 'Hot Wallet غير مضبوط بعد') ?></div>
       <?php endif; ?>
     </div>
 
     <button type="submit" class="submit-btn" id="btnSubmitSell" disabled>
-      <i class="fas fa-paper-plane"></i> تأكيد البيع
+      <i class="fas fa-paper-plane"></i> <?= dp_t('Confirm sale', 'تأكيد البيع') ?>
     </button>
   </form>
 </div>
@@ -400,7 +398,7 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
   <div class="calc-card" style="padding:22px">
     <h4 style="color:var(--gold);margin:0 0 16px;font-size:.95rem">
       <i class="fas fa-piggy-bank" style="margin-<?= $pageDir==='rtl'?'left':'right' ?>:7px"></i>
-      المحفظة المالية الداخلية
+      <?= dp_t('Internal financial wallet', 'المحفظة المالية الداخلية') ?>
     </h4>
     <?php if (!empty($financialWallets)): ?>
       <?php foreach ($financialWallets as $wallet): ?>
@@ -415,8 +413,8 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
         </div>
       <?php endforeach; ?>
     <?php else: ?>
-      <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 12px">لا توجد محفظة مالية داخلية بعد.</p>
-      <p style="color:var(--text-muted);font-size:.82rem;line-height:1.6">تظهر هنا أرصدةك المحلية بعد إتمام الدفعات أو استلام المستحقات.</p>
+      <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 12px"><?= dp_t('No internal financial wallet yet.', 'لا توجد محفظة مالية داخلية بعد.') ?></p>
+      <p style="color:var(--text-muted);font-size:.82rem;line-height:1.6"><?= dp_t('Local balances appear here after payments or payouts.', 'تظهر هنا أرصدةك المحلية بعد إتمام الدفعات أو استلام المستحقات.') ?></p>
     <?php endif; ?>
   </div>
 
@@ -424,7 +422,7 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
   <div class="calc-card" style="padding:22px">
     <h4 style="color:var(--gold);margin:0 0 16px;font-size:.95rem">
       <i class="fas fa-wallet" style="margin-<?= $pageDir==='rtl'?'left':'right' ?>:7px"></i>
-      المحفظة الرقمية
+      <?= dp_t('Crypto wallet', 'المحفظة الرقمية') ?>
     </h4>
     <?php if (!empty($userWallets)): ?>
       <div style="display:flex;flex-direction:column;gap:12px">
@@ -440,17 +438,17 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
             <button type="button" onclick="copyAddr('<?= htmlspecialchars($wallet['address']) ?>')"
               style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border-gold);
                      background:rgba(255,215,0,.06);color:var(--text-gold);font-size:.82rem;cursor:pointer">
-              <i class="fas fa-copy"></i> نسخ العنوان
+              <i class="fas fa-copy"></i> <?= dp_t('Copy address', 'نسخ العنوان') ?>
             </button>
           </div>
         <?php endforeach; ?>
       </div>
     <?php else: ?>
-      <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 12px">لا توجد محفظة رقمية بعد.</p>
+      <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 12px"><?= dp_t('No crypto wallet yet.', 'لا توجد محفظة رقمية بعد.') ?></p>
       <button onclick="createWallet()"
         style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--gold);
                background:rgba(255,215,0,.08);color:var(--gold);font-size:.88rem;cursor:pointer;font-weight:600">
-        <i class="fas fa-plus-circle"></i> إنشاء محفظة TRC20
+        <i class="fas fa-plus-circle"></i> <?= dp_t('Create TRC20 wallet', 'إنشاء محفظة TRC20') ?>
       </button>
       <div id="walletResult" style="margin-top:10px;display:none"></div>
     <?php endif; ?>
@@ -460,7 +458,7 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
   <div class="calc-card" style="padding:22px">
     <h4 style="color:var(--gold);margin:0 0 16px;font-size:.95rem">
       <i class="fas fa-chart-line" style="margin-<?= $pageDir==='rtl'?'left':'right' ?>:7px"></i>
-      أسعار الصرف الحية
+      <?= dp_t('Live exchange rates', 'أسعار الصرف الحية') ?>
     </h4>
     <div id="allRates" style="display:flex;flex-direction:column;gap:10px">
       <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-light)">
@@ -479,7 +477,7 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
       </div>
     </div>
     <p style="color:var(--text-muted);font-size:.75rem;margin:12px 0 0;text-align:center">
-      يشمل هامش منصة 1.5%
+      <?= dp_t('Includes 1.5% platform margin', 'يشمل هامش منصة 1.5%') ?>
     </p>
   </div>
 
@@ -488,8 +486,8 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
               border-radius:12px;padding:16px">
     <p style="color:var(--info);font-size:.82rem;margin:0;line-height:1.7">
       <i class="fas fa-shield-halved" style="margin-<?= $pageDir==='rtl'?'left':'right' ?>:6px"></i>
-      تأكد دائماً من صحة عنوان المحفظة قبل الإرسال.<br>
-      العمليات على البلوكشين <strong>لا يمكن التراجع عنها</strong>.
+      <?= dp_t('Always verify the wallet address before sending.', 'تأكد دائماً من صحة عنوان المحفظة قبل الإرسال.') ?><br>
+      <?= dp_t('Blockchain transactions', 'العمليات على البلوكشين') ?> <strong><?= dp_t('cannot be reversed', 'لا يمكن التراجع عنها') ?></strong>.
     </p>
   </div>
 
@@ -510,6 +508,25 @@ $hotAddress = getenv('HOT_WALLET_TRC20_ADDRESS') ?: '';
 </style>
 
 <script>
+var CRYPTO_I18N = <?= json_encode([
+    'enterAmountDetails' => dp_t('Enter an amount to see details', 'أدخل المبلغ لرؤية التفاصيل'),
+    'rateLabel' => dp_t('Rate: ', 'السعر: '),
+    'feesLabel' => dp_t(' | Fees: ', ' | رسوم: '),
+    'phTrc20' => dp_t('T... (Tron TRC20 address)', 'T... (عنوان Tron TRC20)'),
+    'phErc20' => dp_t('0x... (Ethereum address)', '0x... (عنوان Ethereum)'),
+    'phBsc' => dp_t('0x... (BSC address)', '0x... (عنوان BSC)'),
+    'lastUpdate' => dp_t('Last update: ', 'آخر تحديث: '),
+    'enterWallet' => dp_t('Enter wallet address', 'أدخل عنوان المحفظة'),
+    'processing' => dp_t('Processing...', 'جاري المعالجة...'),
+    'buyNow' => dp_t('Buy now', 'شراء الآن'),
+    'confirmSale' => dp_t('Confirm sale', 'تأكيد البيع'),
+    'requestFailed' => dp_t('Request failed', 'فشل الطلب'),
+    'connectionError' => dp_t('Connection error', 'خطأ في الاتصال'),
+    'walletCreated' => dp_t('Wallet created', 'تم إنشاء المحفظة'),
+    'walletCreatedOk' => dp_t('Wallet created successfully', 'تم إنشاء المحفظة بنجاح'),
+    'copied' => dp_t('Copied', 'تم النسخ'),
+], JSON_UNESCAPED_UNICODE) ?>;
+const LOCALE_TIME = <?= json_encode(is_ar() ? 'ar-AE' : 'en-US') ?>;
 // ── State ─────────────────────────────────────────────────
 let currentTab = 'buy';
 let rates = { USDT: <?= $initialRate ? $initialRate['final_rate'] : 3.72 ?>, BTC: 0, ETH: 0 };
@@ -534,8 +551,8 @@ function setNetwork(form, net, el) {
     if (form === 'buy') {
         document.getElementById('networkLabel').textContent = '(' + net + ')';
         document.getElementById('walletAddress').placeholder =
-            net === 'TRC20' ? 'T... (عنوان Tron TRC20)' :
-            net === 'ERC20' ? '0x... (عنوان Ethereum)' : '0x... (عنوان BSC)';
+            net === 'TRC20' ? CRYPTO_I18N.phTrc20 :
+            net === 'ERC20' ? CRYPTO_I18N.phErc20 : CRYPTO_I18N.phBsc;
     }
 }
 
@@ -544,7 +561,7 @@ function calcBuy() {
     const amt = parseFloat(document.getElementById('buyAmount').value) || 0;
     if (amt <= 0) {
         document.getElementById('buyResult').textContent = '0.000000 USDT';
-        document.getElementById('buyMeta').textContent = 'أدخل المبلغ لرؤية التفاصيل';
+        document.getElementById('buyMeta').textContent = CRYPTO_I18N.enterAmountDetails;
         document.getElementById('feeBreakdown').style.display = 'none';
         document.getElementById('btnSubmitBuy').disabled = true;
         return;
@@ -556,7 +573,7 @@ function calcBuy() {
     const netU  = (parseFloat(net) / rate).toFixed(6);
 
     document.getElementById('buyResult').textContent = usdt + ' USDT';
-    document.getElementById('buyMeta').textContent   = 'السعر: ' + rate.toFixed(4) + ' AED/USDT';
+    document.getElementById('buyMeta').textContent   = CRYPTO_I18N.rateLabel + rate.toFixed(4) + ' AED/USDT';
     document.getElementById('feeBreakdown').style.display = '';
     document.getElementById('feeAmount').textContent    = amt.toFixed(2) + ' AED';
     document.getElementById('feePlatform').textContent  = fee + ' AED';
@@ -569,7 +586,7 @@ function calcSell() {
     const usdt = parseFloat(document.getElementById('sellAmount').value) || 0;
     if (usdt <= 0) {
         document.getElementById('sellResult').textContent = '0.00 AED';
-        document.getElementById('sellMeta').textContent = 'أدخل المبلغ لرؤية التفاصيل';
+        document.getElementById('sellMeta').textContent = CRYPTO_I18N.enterAmountDetails;
         document.getElementById('btnSubmitSell').disabled = true;
         return;
     }
@@ -578,7 +595,7 @@ function calcSell() {
     const fee    = (gross * 0.015).toFixed(2);
     const net    = (gross - fee).toFixed(2);
     document.getElementById('sellResult').textContent = net + ' AED';
-    document.getElementById('sellMeta').textContent   = 'السعر: ' + rate.toFixed(4) + ' | رسوم: ' + fee + ' AED';
+    document.getElementById('sellMeta').textContent   = CRYPTO_I18N.rateLabel + rate.toFixed(4) + CRYPTO_I18N.feesLabel + fee + ' AED';
     document.getElementById('btnSubmitSell').disabled = false;
 }
 
@@ -606,7 +623,7 @@ async function fetchRates() {
         if (currentTab === 'buy')  calcBuy();
         if (currentTab === 'sell') calcSell();
         document.getElementById('lastUpdate').textContent =
-            'آخر تحديث: ' + new Date().toLocaleTimeString('ar-AE');
+            CRYPTO_I18N.lastUpdate + new Date().toLocaleTimeString(LOCALE_TIME);
     } catch(e) {}
 }
 
@@ -644,8 +661,8 @@ async function submitBuy(e) {
     e.preventDefault();
     const btn  = document.getElementById('btnSubmitBuy');
     const addr = document.getElementById('walletAddress').value.trim();
-    if (!addr) { showToast('أدخل عنوان المحفظة', 'warning'); return; }
-    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري المعالجة...';
+    if (!addr) { showToast(CRYPTO_I18N.enterWallet, 'warning'); return; }
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + CRYPTO_I18N.processing;
 
     const fd = new FormData(e.target);
     const payload = Object.fromEntries(fd.entries());
@@ -661,12 +678,12 @@ async function submitBuy(e) {
         if (d.success) {
             window.location.href = 'crypto_confirm.php?ref=' + encodeURIComponent(d.reference) + '&type=buy';
         } else {
-            showToast(d.message || 'فشل الطلب', 'error');
-            btn.disabled = false; btn.innerHTML = '<i class="fas fa-bolt"></i> شراء الآن';
+            showToast(d.message || CRYPTO_I18N.requestFailed, 'error');
+            btn.disabled = false; btn.innerHTML = '<i class="fas fa-bolt"></i> ' + CRYPTO_I18N.buyNow;
         }
     } catch(err) {
-        showToast('خطأ في الاتصال', 'error');
-        btn.disabled = false; btn.innerHTML = '<i class="fas fa-bolt"></i> شراء الآن';
+        showToast(CRYPTO_I18N.connectionError, 'error');
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-bolt"></i> ' + CRYPTO_I18N.buyNow;
     }
 }
 
@@ -674,7 +691,7 @@ async function submitBuy(e) {
 async function submitSell(e) {
     e.preventDefault();
     const btn = document.getElementById('btnSubmitSell');
-    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري المعالجة...';
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + CRYPTO_I18N.processing;
 
     const fd = new FormData(e.target);
     const payload = Object.fromEntries(fd.entries());
@@ -689,12 +706,12 @@ async function submitSell(e) {
         if (d.success) {
             window.location.href = 'crypto_confirm.php?ref=' + encodeURIComponent(d.reference) + '&type=sell';
         } else {
-            showToast(d.message || 'فشل الطلب', 'error');
-            btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> تأكيد البيع';
+            showToast(d.message || CRYPTO_I18N.requestFailed, 'error');
+            btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> ' + CRYPTO_I18N.confirmSale;
         }
     } catch(err) {
-        showToast('خطأ في الاتصال', 'error');
-        btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> تأكيد البيع';
+        showToast(CRYPTO_I18N.connectionError, 'error');
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> ' + CRYPTO_I18N.confirmSale;
     }
 }
 
@@ -706,14 +723,14 @@ async function createWallet() {
     if (d.success) {
         el.style.display = '';
         el.innerHTML = `<div class="addr-display" style="font-size:.75rem;margin-top:8px">${d.address}</div>
-        <p style="color:var(--success);font-size:.8rem;margin:6px 0">✓ تم إنشاء المحفظة</p>`;
-        showToast('تم إنشاء المحفظة بنجاح', 'success');
+        <p style="color:var(--success);font-size:.8rem;margin:6px 0">✓ ${CRYPTO_I18N.walletCreated}</p>`;
+        showToast(CRYPTO_I18N.walletCreatedOk, 'success');
     } else { showToast(d.message, 'error'); }
 }
 
 // ── Copy ──────────────────────────────────────────────────
 function copyAddr(addr) {
-    navigator.clipboard.writeText(addr).then(() => showToast('تم النسخ', 'success'));
+    navigator.clipboard.writeText(addr).then(() => showToast(CRYPTO_I18N.copied, 'success'));
 }
 
 // ── Toast ─────────────────────────────────────────────────

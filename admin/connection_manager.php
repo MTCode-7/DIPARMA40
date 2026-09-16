@@ -12,6 +12,7 @@ require_once ROOT_PATH . '/includes/auth_check.php';
 require_once ROOT_PATH . '/lib/GatewayConnectionTester.php';
 requireAdmin();
 
+$ar = is_ar();
 $db       = db();
 $csrfToken = generateCsrfToken();
 $msg = ''; $msgType = '';
@@ -20,7 +21,7 @@ $msg = ''; $msgType = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'test_connection') {
     header('Content-Type: application/json; charset=utf-8');
     $id = intval($_POST['gateway_id'] ?? 0);
-    if ($id <= 0) { echo json_encode(['success'=>false,'message'=>'ID مطلوب']); exit(); }
+    if ($id <= 0) { echo json_encode(['success'=>false,'message'=>dp_t('ID required', 'ID مطلوب')]); exit(); }
     $tester = new GatewayConnectionTester();
     echo json_encode($tester->test($id), JSON_UNESCAPED_UNICODE);
     exit();
@@ -31,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggl
     header('Content-Type: application/json; charset=utf-8');
     $id  = intval($_POST['gateway_id'] ?? 0);
     $gw  = $db->find('payment_gateways', ['id' => $id]);
-    if (!$gw) { echo json_encode(['success'=>false,'message'=>'غير موجود']); exit(); }
+    if (!$gw) { echo json_encode(['success'=>false,'message'=>dp_t('Not found', 'غير موجود')]); exit(); }
     $new = $gw['status'] === 'active' ? 'inactive' : 'active';
     $db->execute("UPDATE dp_payment_gateways SET status=?, updated_at=NOW() WHERE id=?", [$new, $id]);
     echo json_encode(['success'=>true,'new_status'=>$new]);
@@ -98,14 +99,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
     try {
         if ($isEdit && $id > 0) {
             $db->update('payment_gateways', $data, ['id' => $id]);
-            $msg = '✅ تم حفظ التغييرات'; $msgType = 'success';
+            $msg = dp_t('✅ Changes saved', '✅ تم حفظ التغييرات'); $msgType = 'success';
         } else {
             if ($db->find('payment_gateways', ['code' => $data['code']])) {
-                $msg = '❌ الكود موجود مسبقاً'; $msgType = 'error';
+                $msg = dp_t('❌ Code already exists', '❌ الكود موجود مسبقاً'); $msgType = 'error';
             } else {
                 $data['created_at'] = date('Y-m-d H:i:s');
                 $db->insert('payment_gateways', $data);
-                $msg = '✅ تم إضافة البوابة'; $msgType = 'success';
+                $msg = dp_t('✅ Gateway added', '✅ تم إضافة البوابة'); $msgType = 'success';
             }
         }
     } catch (Exception $e) {
@@ -116,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
 // ── حذف ──────────────────────────────────────────────────
 if (isset($_GET['delete'], $_GET['token']) && hash_equals($_SESSION['csrf_token'] ?? '', $_GET['token'])) {
     $db->delete('payment_gateways', ['id' => intval($_GET['delete'])]);
-    $msg = '✅ تم الحذف'; $msgType = 'success';
+    $msg = dp_t('✅ Deleted', '✅ تم الحذف'); $msgType = 'success';
 }
 
 // ── جلب القسم النشط ──────────────────────────────────────
@@ -148,11 +149,11 @@ foreach ($sections as $sec => $info) {
     $counts[$sec] = $row[0] ?? ['c'=>0,'a'=>0,'v'=>0];
 }
 ?><!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="<?= htmlspecialchars(dp_lang()) ?>" dir="<?= htmlspecialchars($pageDir) ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DI PARMA | Connection Management</title>
+<title>DI PARMA | <?= dp_t('Connection Management', 'إدارة الاتصال') ?></title>
 <link rel="stylesheet" href="../assets/css/style.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
@@ -227,13 +228,14 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;mi
 
 <!-- Header -->
 <div class="header">
-    <h1><i class="fas fa-network-wired"></i> Connection Management</h1>
+    <h1><i class="fas fa-network-wired"></i> <?= dp_t('Connection Management', 'إدارة الاتصال') ?></h1>
     <div style="display:flex;gap:10px;align-items:center">
+        <?= function_exists('langSwitcher') ? langSwitcher(false) : '' ?>
         <a href="gateway_manager.php" class="btn btn-outline btn-sm">
-            <i class="fas fa-cog"></i> Advanced Settings
+            <i class="fas fa-cog"></i> <?= dp_t('Advanced Settings', 'إعدادات متقدمة') ?>
         </a>
         <a href="../dashboard.php" class="btn btn-outline btn-sm">
-            <i class="fas fa-home"></i> Home
+            <i class="fas fa-home"></i> <?= dp_t('Home', 'الرئيسية') ?>
         </a>
     </div>
 </div>
@@ -361,16 +363,16 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;mi
     </div>
 
     <div class="gw-details">
-        <?php if ($gw['api_endpoint']): ?>
+        <?php if (!empty($gw['api_endpoint'])): ?>
         <div>🔗 <span><?= htmlspecialchars(substr($gw['api_endpoint'], 0, 45)) ?><?= strlen($gw['api_endpoint'])>45?'...':'' ?></span></div>
         <?php endif; ?>
-        <?php if ($gw['swift_code']): ?>
+        <?php if (!empty($gw['swift_code'])): ?>
         <div>🏦 SWIFT: <span><?= htmlspecialchars($gw['swift_code']) ?></span></div>
         <?php endif; ?>
-        <?php if ($gw['last_tested']): ?>
+        <?php if (!empty($gw['last_tested'])): ?>
         <div>🕐 Last tested: <span><?= date('d/m H:i', strtotime($gw['last_tested'])) ?></span></div>
         <?php endif; ?>
-        <?php if ($gw['test_message']): ?>
+        <?php if (!empty($gw['test_message'])): ?>
         <div style="color:<?= $connSt==='verified'?'#4CAF50':'#ef5350' ?>;margin-top:4px">
             <?= htmlspecialchars(mb_substr($gw['test_message'], 0, 60)) ?>
         </div>
@@ -502,7 +504,7 @@ $isEditGw  = (bool)$editGw;
             <div class="form-group full">
                 <label>Supported Features</label>
                 <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:6px">
-                    <?php foreach (['supports_2d'=>'2D','supports_3d'=>'3D Secure','supports_hold'=>'HOLD (101.1)','supports_capture'=>'CAPTURE'] as $f=>$l): ?>
+                    <?php foreach (['supports_2d'=>'2D','supports_3d'=>'3D Secure','supports_hold'=>'HOLD / Auth','supports_capture'=>'CAPTURE'] as $f=>$l): ?>
                     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:#ccc;font-size:.88rem">
                         <input type="checkbox" name="<?= $f ?>" value="1" <?= ($editGw[$f]??0)?'checked':'' ?> style="width:16px;height:16px;accent-color:var(--gold)">
                         <?= $l ?>

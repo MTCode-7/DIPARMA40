@@ -9,6 +9,12 @@
  * ============================================================
  */
 
+require_once __DIR__ . '/../includes/base58.php';
+
+if (class_exists('WalletService', false)) {
+    return;
+}
+
 class WalletService
 {
     // BIP-44 Coin Types
@@ -279,22 +285,7 @@ class WalletService
 
     private function base58Encode(string $data): string
     {
-        $alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-        $base     = strlen($alphabet);
-        $num      = gmp_import($data);
-        $encoded  = '';
-
-        while (gmp_cmp($num, 0) > 0) {
-            [$num, $rem] = gmp_div_qr($num, $base);
-            $encoded = $alphabet[gmp_intval($rem)] . $encoded;
-        }
-
-        foreach (str_split($data) as $byte) {
-            if ($byte === "\x00") $encoded = '1' . $encoded;
-            else break;
-        }
-
-        return $encoded;
+        return dp_base58_encode($data);
     }
 
     private function logEvent(string $type, ?string $reference, ?int $userId, array $payload): void

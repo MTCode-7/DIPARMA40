@@ -79,7 +79,7 @@ body { background:var(--bg-dark); color:var(--text-light); font-family:Cairo,san
         <i class="fas fa-wallet" style="margin-left:8px"></i>
         <?= $currentLang==='en'?'Saved Cards':'بطاقاتي المحفوظة' ?>
     </span>
-    <a href="checkout.php" style="color:var(--text-muted);font-size:.85rem;text-decoration:none">
+    <a href="checkout_router.php" style="color:var(--text-muted);font-size:.85rem;text-decoration:none">
         <i class="fas fa-arrow-right"></i> <?= $currentLang==='en'?'Back to Checkout':'العودة للدفع' ?>
     </a>
 </nav>

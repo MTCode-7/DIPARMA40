@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/gateways.php';
 
 requireAdmin();
 
+$ar = is_ar();
 $db = db();
 
 // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
@@ -98,7 +99,7 @@ $csrfToken = generateCsrfToken();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DI PARMA | ط­ط§ظ„ط© ط§ظ„ظ†ط¸ط§ظ…</title>
+    <title>DI PARMA | <?= dp_t('System status', 'حالة النظام') ?></title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -275,40 +276,40 @@ $csrfToken = generateCsrfToken();
     <!-- Header -->
     <div class="header">
         <div>
-            <h1>ًں“ٹ ط­ط§ظ„ط© ط§ظ„ظ†ط¸ط§ظ… ظˆ ط§ظ„ط¨ظˆط§ط¨ط§طھ</h1>
-            <p style="color:#AAA;margin-top:5px;">ظ…ط±ط§ظ‚ط¨ط© ط´ط§ظ…ظ„ط© ظ„ط¬ظ…ظٹط¹ ط§ظ„ط¨ظˆط§ط¨ط§طھ ظˆط§ظ„ط¹ظ…ظ„ظٹط§طھ</p>
+            <h1><?= dp_t('System & gateway status', 'حالة النظام والبوابات') ?></h1>
+            <p style="color:#AAA;margin-top:5px;"><?= dp_t('Overview of all gateways and operations', 'مراقبة شاملة لجميع البوابات والعمليات') ?></p>
         </div>
-        <a href="index.php" class="btn"><i class="fas fa-home"></i> ط§ظ„ط±ط¦ظٹط³ظٹط©</a>
+        <a href="index.php" class="btn"><i class="fas fa-home"></i> <?= dp_t('Home', 'الرئيسية') ?></a>
     </div>
 
     <!-- Stats Grid -->
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="icon">ًں’°</div>
+            <div class="icon">💰</div>
             <div class="value"><?= number_format($totalAmount, 2) ?></div>
-            <div class="label">ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…ط¨ظ„ط؛ ط§ظ„ظ…ط­طµظ‘ظ„ (AED)</div>
+            <div class="label"><?= dp_t('Total captured amount (AED)', 'إجمالي المبلغ المحصّل (AED)') ?></div>
         </div>
         <div class="stat-card">
-            <div class="icon">ًں“ˆ</div>
+            <div class="icon">📈</div>
             <div class="value"><?= $completedTransactions ?></div>
-            <div class="label">ط§ظ„ط¹ظ…ظ„ظٹط§طھ ط§ظ„ظ…ظƒطھظ…ظ„ط©</div>
+            <div class="label"><?= dp_t('Completed transactions', 'العمليات المكتملة') ?></div>
         </div>
         <div class="stat-card">
-            <div class="icon">ًں“ٹ</div>
+            <div class="icon">📊</div>
             <div class="value"><?= $totalTransactions ?></div>
-            <div class="label">ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط¹ظ…ظ„ظٹط§طھ</div>
+            <div class="label"><?= dp_t('Total transactions', 'إجمالي العمليات') ?></div>
         </div>
         <div class="stat-card">
-            <div class="icon">ًں’¸</div>
+            <div class="icon">💸</div>
             <div class="value"><?= number_format($totalFees, 2) ?></div>
-            <div class="label">ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط±ط³ظˆظ…</div>
+            <div class="label"><?= dp_t('Total fees', 'إجمالي الرسوم') ?></div>
         </div>
     </div>
 
     <!-- Tunnel Status -->
     <div class="section">
         <div class="section-title">
-            <i class="fas fa-network-wired"></i> ط­ط§ظ„ط© Localtunnel (Webhook)
+            <i class="fas fa-network-wired"></i> <?= dp_t('Localtunnel status (Webhook)', 'حالة Localtunnel (Webhook)') ?>
         </div>
         <div class="tunnel-status">
             <div class="pulse <?= $tunnelActive ? 'active' : 'inactive' ?>"></div>
@@ -316,8 +317,8 @@ $csrfToken = generateCsrfToken();
                 <div style="font-weight:600;margin-bottom:5px;"><?= $tunnelUrl ?></div>
                 <div style="font-size:0.9rem;color:#AAA;">
                     <?= $tunnelActive 
-                        ? '<span style="color:var(--success);">âœ… ط§ظ„ظ†ظپظ‚ ظ†ط´ط· â€” Webhooks ط³طھط¹ظ…ظ„ ط¨ط´ظƒظ„ طµط­ظٹط­</span>' 
-                        : '<span style="color:var(--danger);">â‌Œ ط§ظ„ظ†ظپظ‚ ط؛ظٹط± ظ…طھط§ط­ â€” ظ‚ظ… ط¨طھط´ط؛ظٹظ„: lt --port 80 --subdomain lovely-spiders-deny</span>' 
+                        ? '<span style="color:var(--success);">' . dp_t('✅ Tunnel active — webhooks should work', '✅ النفق نشط — Webhooks ستعمل بشكل صحيح') . '</span>' 
+                        : '<span style="color:var(--danger);">' . dp_t('❌ Tunnel unavailable — run: lt --port 80 --subdomain lovely-spiders-deny', '❌ النفق غير متاح — قم بتشغيل: lt --port 80 --subdomain lovely-spiders-deny') . '</span>' 
                     ?>
                 </div>
             </div>
@@ -327,7 +328,7 @@ $csrfToken = generateCsrfToken();
     <!-- Gateways Status -->
     <div class="section">
         <div class="section-title">
-            <i class="fas fa-credit-card"></i> ط­ط§ظ„ط© ط§ظ„ط¨ظˆط§ط¨ط§طھ (<?= count($gatewayStatus) ?> ط¨ظˆط§ط¨ط©)
+            <i class="fas fa-credit-card"></i> <?= dp_t('Gateway status', 'حالة البوابات') ?> (<?= count($gatewayStatus) ?> <?= dp_t('gateways', 'بوابة') ?>)
         </div>
         <div class="gateway-grid">
             <?php foreach ($gatewayStatus as $code => $gw): ?>
@@ -349,16 +350,16 @@ $csrfToken = generateCsrfToken();
                             <?php
                             if ($gw['status'] === 'active' && $gw['has_credentials']) {
                                 if ($code === 'wise' && $wiseStatus['status'] === 'connected') {
-                                    echo '<span class="status-badge badge-success">âœ… ظ…طھطµظ„ط© (API OK)</span>';
+                                    echo '<span class="status-badge badge-success">' . dp_t('✅ Connected (API OK)', '✅ متصلة (API OK)') . '</span>';
                                 } elseif ($code === 'wise' && $wiseStatus['status'] === 'failed') {
-                                    echo '<span class="status-badge badge-danger">â‌Œ ظپط´ظ„ ط§ظ„ط§طھطµط§ظ„</span>';
+                                    echo '<span class="status-badge badge-danger">' . dp_t('❌ Connection failed', '❌ فشل الاتصال') . '</span>';
                                 } else {
-                                    echo '<span class="status-badge badge-success">âœ… ظ…ظڈظ‡ظٹظ‘ط£ط©</span>';
+                                    echo '<span class="status-badge badge-success">' . dp_t('✅ Configured', '✅ مُهيّأة') . '</span>';
                                 }
                             } elseif ($gw['status'] === 'active') {
-                                echo '<span class="status-badge badge-warning">âڑ ï¸ڈ ط¨ظٹط§ظ†ط§طھ ظ†ط§ظ‚طµط©</span>';
+                                echo '<span class="status-badge badge-warning">' . dp_t('⚠️ Missing credentials', '⚠️ بيانات ناقصة') . '</span>';
                             } else {
-                                echo '<span class="status-badge badge-danger">â‌Œ ط؛ظٹط± ظ†ط´ط·ط©</span>';
+                                echo '<span class="status-badge badge-danger">' . dp_t('❌ Inactive', '❌ غير نشطة') . '</span>';
                             }
                             ?>
                             <span style="margin-left:8px;font-size:0.8rem;color:#888;"><?= $gw['environment'] ?></span>
@@ -370,7 +371,7 @@ $csrfToken = generateCsrfToken();
         
         <?php if ($wiseStatus['status'] !== 'not_configured'): ?>
         <div style="margin-top:20px;padding:15px;background:rgba(52,168,224,0.05);border:1px solid rgba(52,168,224,0.2);border-radius:12px;">
-            <strong>طھظپط§طµظٹظ„ Wise:</strong><br>
+            <strong><?= dp_t('Wise details:', 'تفاصيل Wise:') ?></strong><br>
             Profile ID: <code><?= htmlspecialchars($wiseStatus['profile_id'] ?? 'N/A') ?></code><br>
             HTTP Code: <span style="color:<?= $wiseStatus['http_code'] === 200 ? 'var(--success)' : 'var(--danger)' ?>"><?= $wiseStatus['http_code'] ?? 'N/A' ?></span><br>
             Environment: <strong><?= htmlspecialchars($wiseStatus['environment'] ?? 'N/A') ?></strong>
@@ -381,16 +382,16 @@ $csrfToken = generateCsrfToken();
     <!-- Recent Transactions -->
     <div class="section">
         <div class="section-title">
-            <i class="fas fa-history"></i> ط¢ط®ط± 10 ط¹ظ…ظ„ظٹط§طھ
+            <i class="fas fa-history"></i> <?= dp_t('Last 10 transactions', 'آخر 10 عمليات') ?>
         </div>
         <table>
             <thead>
                 <tr>
-                    <th>ط§ظ„ظ…ط±ط¬ط¹</th>
-                    <th>ط§ظ„ط¨ظˆط§ط¨ط©</th>
-                    <th>ط§ظ„ظ…ط¨ظ„ط؛</th>
-                    <th>ط§ظ„ط­ط§ظ„ط©</th>
-                    <th>ط§ظ„طھط§ط±ظٹط®</th>
+                    <th><?= dp_t('Reference', 'المرجع') ?></th>
+                    <th><?= dp_t('Gateway', 'البوابة') ?></th>
+                    <th><?= dp_t('Amount', 'المبلغ') ?></th>
+                    <th><?= dp_t('Status', 'الحالة') ?></th>
+                    <th><?= dp_t('Date', 'التاريخ') ?></th>
                 </tr>
             </thead>
             <tbody>

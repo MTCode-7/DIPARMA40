@@ -136,6 +136,7 @@ try {
 
         // حفظ في DB
         $db = db();
+        $fundedOk = isset($fund['status']) && strtoupper((string)$fund['status']) === 'COMPLETED';
         try {
             $db->insert('transactions', [
                 'user_id'          => intval($_SESSION['user_id']),
@@ -143,7 +144,7 @@ try {
                 'type'             => 'wise_transfer',
                 'amount'           => $amount,
                 'currency'         => $sourceCurrency,
-                'status'           => isset($fund['status']) && $fund['status'] === 'COMPLETED' ? 'completed' : 'pending',
+                'status'           => $fundedOk ? 'completed' : 'pending',
                 'gateway'          => 'wise',
                 'gateway_response' => json_encode([
                     'transfer_id'  => $transfer['id'],
@@ -154,6 +155,20 @@ try {
                 'created_at'       => date('Y-m-d H:i:s'),
             ]);
         } catch (Exception $ignored) {}
+
+        $ledgerSettle = null;
+        if ($fundedOk) {
+            require_once __DIR__ . '/../lib/LedgerSettlementService.php';
+            $ledgerSettle = LedgerSettlementService::settleSuccessfulPayment([
+                'reference' => $reference,
+                'amount'    => (float)($quote['sourceAmount'] ?? $amount),
+                'currency'  => $sourceCurrency,
+                'gateway'   => 'wise',
+                'user_id'   => (int)($_SESSION['user_id'] ?? 0),
+                'txn_type'  => 'purchase',
+                'destination' => 'ledger',
+            ]);
+        }
 
         echo json_encode([
             'success'       => true,
@@ -166,6 +181,7 @@ try {
             'target_currency' => $targetCurrency,
             'status'        => $fund['status'] ?? 'PROCESSING',
             'fee'           => $quote['fee']   ?? 0,
+            'ledger_settlement' => $ledgerSettle,
         ]);
         exit;
     }

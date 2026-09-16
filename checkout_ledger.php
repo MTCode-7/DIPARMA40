@@ -410,8 +410,8 @@ body.pos-mode .amount-big{font-size:1.8rem}
       </div>
       <div class="inp-row full">
         <div class="fld fld-chip">
-          <label><?= $ar ? 'رقم البطاقة' : 'Card Number' ?></label>
-          <input type="tel" id="card-num" maxlength="19" placeholder="•••• •••• •••• ••••"
+          <label><?= $ar ? 'رقم البطاقة — كل الشبكات والمُصدرين' : 'Card Number — all networks and issuers' ?></label>
+          <input type="tel" id="card-num" maxlength="23" placeholder="•••• •••• •••• ••••"
                  oninput="fmtCard(this)" autocomplete="cc-number">
           <span class="chip-icon" id="card-brand-icon"><i class="fas fa-credit-card"></i></span>
         </div>
@@ -657,14 +657,17 @@ function updateAmountDisplay() {
 
 /* ═══ CARD FORMAT ═══ */
 function fmtCard(inp) {
-  let v = inp.value.replace(/\D/g,'').substring(0,16);
+  let v = inp.value.replace(/\D/g,'').substring(0,19);
   inp.value = v.replace(/(.{4})/g,'$1 ').trim();
-  // Brand icon
   const icon = document.getElementById('card-brand-icon');
   if (!icon) return;
   if (/^4/.test(v))       icon.innerHTML = '<i class="fab fa-cc-visa" style="color:#1a1f71;font-size:1.1rem"></i>';
-  else if (/^5[1-5]/.test(v)) icon.innerHTML = '<i class="fab fa-cc-mastercard" style="color:#eb001b;font-size:1.1rem"></i>';
+  else if (/^(5[1-5]|222[1-9]|22[3-9]|2[3-6]|27[01]|2720)/.test(v)) icon.innerHTML = '<i class="fab fa-cc-mastercard" style="color:#eb001b;font-size:1.1rem"></i>';
   else if (/^3[47]/.test(v))  icon.innerHTML = '<i class="fab fa-cc-amex" style="color:#007bc1;font-size:1.1rem"></i>';
+  else if (/^(62|81)/.test(v)) icon.innerHTML = '<i class="fas fa-credit-card" style="color:#e21818;font-size:1.1rem"></i>';
+  else if (/^35/.test(v)) icon.innerHTML = '<i class="fab fa-cc-jcb" style="color:#0b4ea2;font-size:1.1rem"></i>';
+  else if (/^(6011|65|64[4-9])/.test(v)) icon.innerHTML = '<i class="fab fa-cc-discover" style="color:#ff6000;font-size:1.1rem"></i>';
+  else if (/^(36|38|30[0-5])/.test(v)) icon.innerHTML = '<i class="fab fa-cc-diners-club" style="color:#0079be;font-size:1.1rem"></i>';
   else icon.innerHTML = '<i class="fas fa-credit-card"></i>';
 }
 
@@ -848,16 +851,12 @@ async function refreshLedgerBalance() {
   icon.className = 'fas fa-spinner fa-spin';
   try {
     const resp = await fetch(
-      `https://apilist.tronscanapi.com/api/accountv2?address=${encodeURIComponent(addr)}`
+      `api/ledger_tron.php?action=balance&address=${encodeURIComponent(addr)}`,
+      { credentials: 'same-origin' }
     );
     const data = await resp.json();
-    let usdt = 0;
-    const tokens = data.trc20token_balances || data.tokens || [];
-    tokens.forEach(t => {
-      if (t.tokenAbbr === 'USDT' || t.tokenId === 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t') {
-        usdt = (parseFloat(t.balance || t.amount || 0) / 1e6).toFixed(2);
-      }
-    });
+    if (!data.success) throw new Error(data.message || 'balance failed');
+    const usdt = Number(data.usdt || 0).toFixed(2);
     document.getElementById('ledger-bal').textContent = usdt + ' USDT';
   } catch (e) {
     document.getElementById('ledger-bal').textContent = '— (error)';

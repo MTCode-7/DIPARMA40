@@ -53,7 +53,7 @@ if (!$txn) {
     // محاولة من جدول transactions القديم
     try {
         $rows = $db->query(
-            "SELECT * FROM transactions WHERE reference = ? LIMIT 1",
+        "SELECT * FROM " . dp_table('transactions') . " WHERE reference = ? LIMIT 1",
             [$ref]
         );
         $txn = $rows[0] ?? null;
@@ -170,9 +170,9 @@ $secMode = $txn['security_mode'] ?? $gwResp['security_mode'] ?? $gwResp['stage_1
 $authType = $txn['authorization_type'] ?? $gwResp['authorization_type'] ?? $gwResp['stage_1_card']['auth_type'] ?? 'STANDARD';
 
 // 6.6 تفاصيل البنك المستحوذ (Acquirer)
-$acquirer = $gwResp['acquirer'] ?? ($gwResp['stage_1_card']['acquirer'] ?? 'Mashreq Bank PSC');
+$acquirer = $gwResp['acquirer'] ?? ($gwResp['stage_1_card']['acquirer'] ?? 'Nuvei');
 $acquirerCountry = $gwResp['acquirer_country'] ?? ($gwResp['stage_1_card']['acquirer_country'] ?? 'AE');
-$acquirerId = $gwResp['acquirer_id'] ?? ($gwResp['stage_1_card']['acquirer_id'] ?? '330');
+$acquirerId = $gwResp['acquirer_id'] ?? ($gwResp['stage_1_card']['acquirer_id'] ?? '');
 
 // 6.7 تفاصيل التاجر
 $merchantName = 'TRANSCENDIO FZ-LLC';
@@ -181,15 +181,85 @@ $merchantCity = 'Dubai';
 $merchantCountry = 'AE';
 $merchantCategory = $gwResp['mcc'] ?? $txn['mcc'] ?? '5999';
 
-// 6.8 تفاصيل الحساب البنكي للإيداع
-$iban = $txn['iban'] ?? $gwResp['iban'] ?? 'AE300330000019101562722';
-$swift = $txn['swift'] ?? $gwResp['swift'] ?? 'BOMLAEADXXX';
-$accountName = $txn['account_name'] ?? $gwResp['account_name'] ?? 'TRANSCENDIO FZ-LLC';
+// 6.9 تفاصيل التسوية إلى Ledger (USDT)
+$gwSettle = $gwResp['ledger_settlement'] ?? $gwResp['ledger_settle'] ?? [];
+if (!is_array($gwSettle)) {
+    $gwSettle = [];
+}
+$feeInfo = $gwSettle['fee'] ?? $gwResp['gateway_fee'] ?? [];
+if (!is_array($feeInfo)) {
+    $feeInfo = [];
+}
 
-// 6.9 تفاصيل العملات الرقمية (إذا وجدت)
-$ledgerAddr = $gwResp['ledger_addr'] ?? $gwResp['stage_2_ledger']['address'] ?? $gwResp['ledger_target'] ?? '—';
-$ledgerTxid = $gwResp['ledger_txid'] ?? $gwResp['stage_2_ledger']['txid'] ?? null;
-$usdtAmt = number_format((float)($txn['ledger_amount'] ?? $gwResp['stage_2_ledger']['usdt_amount'] ?? 0), 6);
+$ledgerAddr = trim((string)(
+    $txn['ledger_address']
+    ?? $gwSettle['ledger_address']
+    ?? $gwResp['ledger_addr']
+    ?? $gwResp['stage_2_ledger']['address']
+    ?? $gwResp['ledger_target']
+    ?? $gwResp['ledger_address']
+    ?? ''
+));
+if ($ledgerAddr === '' && defined('LEDGER_TRC20_ADDRESS')) {
+    $ledgerAddr = trim((string) LEDGER_TRC20_ADDRESS);
+}
+if ($ledgerAddr === '') {
+    $ledgerAddr = '—';
+}
+
+$ledgerTxid = $txn['ledger_txid']
+    ?? $gwSettle['txid']
+    ?? $gwResp['ledger_txid']
+    ?? $gwResp['stage_2_ledger']['txid']
+    ?? null;
+
+$usdtRaw = (float)(
+    $txn['ledger_amount']
+    ?? $gwSettle['usdt_amount']
+    ?? $gwResp['stage_2_ledger']['usdt_amount']
+    ?? $gwResp['usdt_amount']
+    ?? 0
+);
+$usdtAmt = number_format($usdtRaw, 6);
+
+$gatewayFeeAmt = (float)(
+    $txn['fees']
+    ?? $feeInfo['fee_amount']
+    ?? $gwResp['fee_amount']
+    ?? 0
+);
+$feeBase = (float)($feeInfo['fee_base'] ?? 0);
+$feeMult = (float)($feeInfo['fee_multiplier'] ?? (getenv('GATEWAY_FEE_MULTIPLIER') ?: 2));
+$feePct = $feeInfo['fee_percentage'] ?? $gwResp['fee_percentage'] ?? null;
+
+$netAmt = (float)(
+    $txn['net_amount']
+    ?? $gwSettle['net_fiat']
+    ?? $gwResp['net_amount']
+    ?? max(0, (float)($txn['amount'] ?? 0) - $gatewayFeeAmt)
+);
+
+$ledgerStatus = strtolower((string)(
+    $txn['ledger_status']
+    ?? $gwSettle['message']
+    ?? ''
+));
+if ($ledgerTxid) {
+    $ledgerStatusLabel = 'SENT';
+} elseif (!empty($gwSettle['queued']) || $ledgerStatus === 'queued') {
+    $ledgerStatusLabel = 'QUEUED';
+} elseif ($usdtRaw > 0 || $netAmt > 0) {
+    $ledgerStatusLabel = 'PENDING';
+} else {
+    $ledgerStatusLabel = '';
+}
+
+$showLedgerSection = ($ledgerAddr !== '—')
+    || $usdtRaw > 0
+    || $gatewayFeeAmt > 0
+    || $netAmt > 0
+    || !empty($ledgerTxid);
+
 
 $maskedCardholderName = receiptMaskName((string)$cardholderName);
 $maskedCardExpiry = $cardExpiry !== '—' ? receiptMask((string)$cardExpiry, 0, 2) : '—';
@@ -201,8 +271,6 @@ $maskedRrn = receiptMask((string)$rrn, 2, 2);
 $maskedStan = receiptMask((string)$stan, 2, 2);
 $maskedPaymentId = receiptMask((string)$paymentId, 4, 4);
 $maskedInternalApproval = receiptMask((string)$internalApprovalCode, 2, 2);
-$maskedIban = receiptMask((string)$iban, 4, 4);
-$maskedSwift = receiptMask((string)$swift, 2, 3);
 $maskedLedgerAddr = receiptMask((string)$ledgerAddr, 6, 4);
 
 // 6.10 تحديد الحالة النهائية
@@ -212,8 +280,17 @@ $statusBg = $isApproved ? '#ecfdf5' : '#fef2f2';
 $statusIcon = $isApproved ? '✅' : '❌';
 $statusText = $isApproved ? 'APPROVED' : strtoupper($txn['status'] ?? 'DECLINED');
 
-// 6.11 نوع المعاملة
-$txnType = strtoupper(str_replace('_', ' ', $txn['transaction_type'] ?? $txn['protocol'] ?? 'PURCHASE'));
+// 6.11 نوع المعاملة — بدون عرض رموز 101 / 201
+$rawTxnType = (string)($txn['transaction_type'] ?? $txn['transaction_label'] ?? '');
+if ($rawTxnType === '' && !empty($txn['protocol'])) {
+    $rawTxnType = function_exists('protocol_display_name')
+        ? protocol_display_name((string)$txn['protocol'])
+        : 'PURCHASE';
+}
+$txnType = strtoupper(str_replace('_', ' ', $rawTxnType !== '' ? $rawTxnType : 'PURCHASE'));
+if (function_exists('redact_protocol_numbers')) {
+    $txnType = redact_protocol_numbers($txnType);
+}
 
 // ============================================================
 // 7. عرض الإيصال الحقيقي
@@ -838,40 +915,61 @@ $txnType = strtoupper(str_replace('_', ' ', $txn['transaction_type'] ?? $txn['pr
             </div>
         </div>
 
-        <!-- تفاصيل الحساب البنكي -->
         <div class="section">
-            <div class="divider">— SETTLEMENT ACCOUNT —</div>
+            <div class="divider">— SETTLEMENT DESTINATION —</div>
             <div class="bank-details">
                 <div class="bank-row">
-                    <span class="bank-label">BANK</span>
-                    <span class="bank-value">Mashreq Bank PSC</span>
+                    <span class="bank-label">PATH</span>
+                    <span class="bank-value">Nuvei → Ledger</span>
                 </div>
                 <div class="bank-row">
-                    <span class="bank-label">ACCOUNT NAME</span>
-                    <span class="bank-value"><?=htmlspecialchars(receiptMaskName((string)$accountName))?></span>
+                    <span class="bank-label">TARGET</span>
+                    <span class="bank-value">LEDGER USDT TRC20</span>
                 </div>
                 <div class="bank-row">
-                    <span class="bank-label">IBAN</span>
-                    <span class="bank-value" style="font-size:10px;font-family:monospace"><?=htmlspecialchars($maskedIban)?></span>
-                </div>
-                <div class="bank-row">
-                    <span class="bank-label">SWIFT</span>
-                    <span class="bank-value"><?=htmlspecialchars($maskedSwift)?></span>
+                    <span class="bank-label">BANK PAYOUT</span>
+                    <span class="bank-value">DISABLED</span>
                 </div>
             </div>
         </div>
 
-        <!-- تفاصيل العملات الرقمية (إذا وجدت) -->
-        <?php if ($ledgerAddr && $ledgerAddr !== '—'): ?>
+        <!-- تسوية الصافي → Ledger USDT -->
+        <?php if ($showLedgerSection): ?>
         <div class="section">
-            <div class="divider">— CRYPTO LEDGER —</div>
+            <div class="divider">— CRYPTO LEDGER SETTLEMENT —</div>
             <div class="crypto-details">
-                <div class="crypto-label">⬡ USDT TRC20 DESTINATION</div>
+                <div class="crypto-label">⬡ USDT TRC20 → LEDGER</div>
                 <div class="crypto-addr"><?=htmlspecialchars($maskedLedgerAddr)?></div>
-                <?php if ((float)$usdtAmt > 0): ?>
+                <div class="row" style="margin-top:6px">
+                    <span class="label">FULL ADDRESS</span>
+                    <span class="value small"><?=htmlspecialchars((string)$ledgerAddr)?></span>
+                </div>
+                <?php if ($gatewayFeeAmt > 0 || $feeBase > 0): ?>
                 <div class="row" style="margin-top:4px">
-                    <span class="label">AMOUNT</span>
-                    <span class="value"><?=$usdtAmt?> USDT</span>
+                    <span class="label">GATEWAY FEE BASE<?=$feePct !== null ? ' ('.$feePct.'%)' : ''?></span>
+                    <span class="value"><?=number_format($feeBase > 0 ? $feeBase : ($gatewayFeeAmt / max($feeMult, 1)), 4)?> <?=htmlspecialchars((string)($txn['currency'] ?? 'USD'))?></span>
+                </div>
+                <div class="row">
+                    <span class="label">FEE ×<?=rtrim(rtrim(number_format($feeMult, 2), '0'), '.')?></span>
+                    <span class="value"><?=number_format($gatewayFeeAmt, 4)?> <?=htmlspecialchars((string)($txn['currency'] ?? 'USD'))?></span>
+                </div>
+                <?php endif; ?>
+                <?php if ($netAmt > 0): ?>
+                <div class="row">
+                    <span class="label">NET (FIAT)</span>
+                    <span class="value"><?=number_format($netAmt, 4)?> <?=htmlspecialchars((string)($txn['currency'] ?? 'USD'))?></span>
+                </div>
+                <?php endif; ?>
+                <?php if ($usdtRaw > 0): ?>
+                <div class="row" style="margin-top:4px">
+                    <span class="label">SENT TO LEDGER</span>
+                    <span class="value highlight"><?=$usdtAmt?> USDT</span>
+                </div>
+                <?php endif; ?>
+                <?php if ($ledgerStatusLabel !== ''): ?>
+                <div class="row">
+                    <span class="label">TRANSFER STATUS</span>
+                    <span class="value"><?=htmlspecialchars($ledgerStatusLabel)?></span>
                 </div>
                 <?php endif; ?>
                 <?php if ($ledgerTxid): ?>
@@ -882,8 +980,8 @@ $txnType = strtoupper(str_replace('_', ' ', $txn['transaction_type'] ?? $txn['pr
                         View on TronScan ↗
                     </a>
                 </div>
-                <?php else: ?>
-                <div style="font-size:9px;color:#999;margin-top:4px">⏳ Transfer: Queued</div>
+                <?php elseif ($ledgerStatusLabel === 'QUEUED' || $ledgerStatusLabel === 'PENDING'): ?>
+                <div style="font-size:9px;color:#999;margin-top:4px">⏳ Transfer: <?=htmlspecialchars($ledgerStatusLabel)?></div>
                 <?php endif; ?>
             </div>
         </div>

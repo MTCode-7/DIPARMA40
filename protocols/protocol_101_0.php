@@ -4,7 +4,7 @@ require_once __DIR__ . '/../includes/gateways.php';
 
 final class Protocol_101_0 implements ProtocolInterface {
     public function getCode(): string { return '101.0'; }
-    public function getName(): string { return 'Direct Card Settlement (101.0)'; }
+    public function getName(): string { return 'Direct Card Settlement'; }
 
     public function execute(array $context): array {
         $amount = floatval($context['amount'] ?? 0);
@@ -35,7 +35,7 @@ final class Protocol_101_0 implements ProtocolInterface {
             'card_pan'         => trim($context['card_pan'] ?? ''),
             'card_expiry'      => trim($context['card_expiry'] ?? ''),
             'card_cvv'         => trim($context['card_cvv'] ?? ''),
-            'description'      => 'Direct 101.0 card settlement',
+            'description'      => 'Direct card settlement',
             'transaction_type' => 'SALE',
             'payment_method'   => 'card',
             'source'           => $context['source'] ?? 'web',
@@ -78,7 +78,7 @@ final class Protocol_101_0 implements ProtocolInterface {
             return [
                 'success' => false,
                 'requires_otp' => true,
-                'message' => '🔐 تم طلب رمز تحقق OTP من البنك لإتمام عملية 101.0',
+                'message' => '🔐 تم طلب رمز تحقق OTP من البنك لإتمام العملية',
                 'otp_hint' => $otpHint,
                 'otp_challenge_id' => $response['otp_challenge_id'] ?? null,
                 'gateway_response' => $response,
@@ -90,7 +90,7 @@ final class Protocol_101_0 implements ProtocolInterface {
         if (!empty($response['success'])) {
             return [
                 'success' => true,
-                'message' => '✅ تم تنفيذ الدفع المباشر 101.0 بنجاح',
+                'message' => '✅ تم تنفيذ الدفع المباشر بنجاح',
                 'gateway_response' => $response,
                 'protocol' => $this->getCode(),
                 'status' => $response['status'] ?? 'captured'
@@ -99,7 +99,7 @@ final class Protocol_101_0 implements ProtocolInterface {
 
         return [
             'success' => false,
-            'message' => '❌ فشل تنفيذ 101.0: ' . ($response['message'] ?? 'Gateway error'),
+            'message' => '❌ فشل تنفيذ الدفع: ' . ($response['message'] ?? 'Gateway error'),
             'gateway_response' => $response,
             'protocol' => $this->getCode(),
             'status' => $response['status'] ?? 'failed'

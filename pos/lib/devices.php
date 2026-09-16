@@ -50,6 +50,17 @@ function pos_device_catalog(): array
     $list = [
         pos_device_entry('bitel_ic3600', 'Bitel', 'IC3600', 'android_smart_pos', ['region' => 'gulf', 'detect' => ['bitel', 'ic3600']]),
         pos_device_entry('bitel_ic3800', 'Bitel', 'IC3800', 'android_smart_pos', ['region' => 'gulf', 'detect' => ['ic3800']]),
+        pos_device_entry('bitel_ic5100', 'Bitel', 'IC5100', 'android_smart_pos', [
+            'region' => 'gulf',
+            'detect' => ['ic5100', 'bitel ic5100', 'brs3617'],
+            'power' => 'DC 9V 2.5A / 12V 3.0A',
+        ]),
+        pos_device_entry('softpos_phone', 'SoftPOS', 'Phone POS', 'softpos', [
+            'region' => 'gulf',
+            'chip' => false,
+            'nfc_hw' => true,
+            'detect' => ['softpos phone', 'tap to phone', '5240'],
+        ]),
         pos_device_entry('verifone_vx675', 'Verifone', 'VX 675', 'verix_v', [
             'region' => 'americas',
             'os' => 'Verix V',
@@ -135,6 +146,9 @@ function pos_device_catalog(): array
     if (function_exists('pos_device_regional_models')) {
         $list = array_merge($list, pos_device_regional_models());
     }
+    if (function_exists('pos_company_terminal_models')) {
+        $list = array_merge($list, pos_company_terminal_models());
+    }
     $out = [];
     foreach ($list as $row) {
         $out[$row['model']] = $row;
@@ -153,9 +167,13 @@ function pos_device_aliases(): array
 {
     return [
         'ic3600' => 'bitel_ic3600',
+        'ic5100' => 'bitel_ic5100',
         'bitel' => 'bitel_ic3600',
         'bitel-ic3600' => 'bitel_ic3600',
+        'bitel-ic5100' => 'bitel_ic5100',
         'bitel_countertop' => 'bitel_ic3600',
+        'softpos_phone' => 'softpos_phone',
+        'phone_pos' => 'softpos_phone',
         'vx675' => 'verifone_vx675',
         'vx-675' => 'verifone_vx675',
         'verifone' => 'verifone_vx675',
@@ -195,9 +213,6 @@ function pos_device_aliases(): array
         'wedge' => 'keyboard_wedge',
         'chrome' => 'chrome_desktop',
         'desktop' => 'chrome_desktop',
-        'any' => 'generic_pos',
-        'other' => 'generic_pos',
-        'unknown' => 'generic_pos',
     ];
 }
 
@@ -218,21 +233,20 @@ function pos_device_accept_unknown(string $model): array
     ]);
 }
 
-/** Always returns a device. Unknown models are accepted, never rejected. */
+/** Real catalog only. Unknown models are not invented. */
 function pos_device_get(string $model): ?array
 {
     $model = strtolower(trim($model));
     if ($model === '') {
-        return pos_device_catalog()['generic_pos'] ?? pos_device_accept_unknown('generic_pos');
+        return null;
     }
     $alias = pos_device_aliases();
     $key = $alias[$model] ?? $model;
     $all = pos_device_catalog();
     if (isset($all[$key])) {
-        $all[$key]['accepted'] = true;
         return $all[$key];
     }
-    return pos_device_accept_unknown($model);
+    return null;
 }
 
 function pos_device_detect(?string $ua = null): array
@@ -248,19 +262,32 @@ function pos_device_detect(?string $ua = null): array
         }
     }
     $any = pos_device_get('generic_pos');
-    return ($any ?: pos_device_accept_unknown('generic_pos')) + ['detected' => false, 'accepted' => true];
+    return ($any ?: ['model' => '', 'accepted' => false, 'detected' => false]);
+}
+
+function pos_dummy_terminal_ids(): array
+{
+    return ['T705953', 'T0000001', 'T00000001', 'M000000001'];
 }
 
 function pos_default_terminal_id(): string
 {
-    return 'T705953';
+    if (function_exists('pos_company_terminals')) {
+        foreach (pos_company_terminals() as $row) {
+            $tid = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', (string) ($row['tid'] ?? '')));
+            if ($tid !== '' && !in_array($tid, pos_dummy_terminal_ids(), true)) {
+                return substr($tid, 0, 16);
+            }
+        }
+    }
+    return '';
 }
 
 function pos_normalize_terminal_id(string $tid): string
 {
     $tid = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', $tid));
-    if ($tid === '' || $tid === 'T0000001') {
-        return pos_default_terminal_id();
+    if ($tid === '' || in_array($tid, pos_dummy_terminal_ids(), true)) {
+        return '';
     }
     return substr($tid, 0, 16);
 }
@@ -270,11 +297,21 @@ function pos_device_resolve(array $input = [], ?string $ua = null): array
     $raw = strtolower(trim((string) ($input['pos_model'] ?? $input['device'] ?? $input['pos_device'] ?? '')));
     $device = pos_device_get($raw);
     if (!$device) {
-        $device = pos_device_get('generic_pos');
+        return [
+            'model' => '',
+            'code' => '',
+            'brand' => '',
+            'name' => '',
+            'label' => '',
+            'type' => '',
+            'accepted' => false,
+            'detected' => false,
+            'terminal_id' => pos_normalize_terminal_id((string) ($input['terminal_id'] ?? $input['tid'] ?? '')),
+        ];
     }
-    $device['accepted'] = true;
+    $device['accepted'] = !empty($device['model']);
     $device['detected'] = !empty($device['detected']);
-    $device['terminal_id'] = pos_normalize_terminal_id((string) ($input['terminal_id'] ?? $input['tid'] ?? pos_default_terminal_id()));
+    $device['terminal_id'] = pos_normalize_terminal_id((string) ($input['terminal_id'] ?? $input['tid'] ?? ''));
     $nfcOn = !empty($input['withdrawal_nfc']);
     $posOn = !empty($input['withdrawal_pos']) || !$nfcOn;
     $device['nfc'] = $nfcOn;
@@ -320,16 +357,16 @@ function pos_device_commission(array $device): array
         'acquirer' => (string) ($device['acquirer'] ?? ''),
         'locked_gateway' => '',
         'payment_app' => (string) ($device['payment_app'] ?? ''),
-        'payment_app_installed' => true,
-        'keys_injected' => true,
+        'payment_app_installed' => !empty($device['payment_app']),
+        'keys_injected' => !empty($device['key_injection']),
         'key_injection' => (string) ($device['key_injection'] ?? ''),
         'nuvei_tid' => '',
         'ready' => true,
-        'accepted' => true,
+        'accepted' => !empty($device['accepted']),
     ];
 }
 
 function pos_device_is_commissioned(array $device): bool
 {
-    return true;
+    return !empty($device['model']) && !empty($device['terminal_id']);
 }

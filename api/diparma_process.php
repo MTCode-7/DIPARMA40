@@ -78,6 +78,13 @@ if (!in_array($txnType, $noAmountTypes) && $amount <= 0) {
     exit;
 }
 
+if (!empty($body['pos_id']) || !empty($body['pos_device']) || strtolower((string)($body['source'] ?? '')) === 'pos') {
+    $body['gateway'] = 'nuvei';
+    $body['card_provider'] = 'nuvei';
+    $body['allow_fallback'] = false;
+    $body['source'] = 'pos';
+}
+
 /* ── تنفيذ عبر Orchestrator ── */
 $orch   = DIPARMAOrchestrator::getInstance();
 $result = $orch->process($body);

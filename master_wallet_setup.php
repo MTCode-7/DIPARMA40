@@ -135,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                   exit;
                 }
 
-                $db->insert(DB_PREFIX . 'transactions', [
+                $db->insert('transactions', [
                     'reference' => $ref,
                   'gateway' => 'payram',
                     'user_id' => $_SESSION['user_id'],
@@ -196,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $payramUrl = $result['url'];
 
                 // تسجيل في DB
-                $db->insert(DB_PREFIX . 'transactions', [
+                $db->insert('transactions', [
                     'reference' => $ref,
                     'gateway' => 'payram',
                     'user_id' => $_SESSION['user_id'],

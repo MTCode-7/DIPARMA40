@@ -1,6 +1,9 @@
 <?php
 /**
- * DI PARMA | Orchestrator API
+ * DI PARMA | Orchestrator API (compat)
+ *
+ * Card pipe gateways: PaymentOrchestrator → DiParmaChargeHub → POS standalone → Adapter → Ledger
+ * Webhook confirm / approve / crypto flows stay here.
  */
 header('Content-Type: application/json; charset=utf-8');
 
@@ -75,7 +78,7 @@ try {
             echo json_encode($orch->onPaymentConfirmed($reference, $payload), JSON_UNESCAPED_UNICODE);
             break;
 
-        // ── استقبال Approval Code الحقيقي من Visa/Mastercard ──
+        // ── Approval Code from the card network ──
         // يُستدعى من checkout JS بعد أن تُرجع البوابة requires_approval
         case 'approve':
             if (!verifyCsrfToken($payload['csrf_token'] ?? '')) {

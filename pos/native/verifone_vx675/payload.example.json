@@ -4,7 +4,7 @@
   "keys_injected": true,
   "line": "petroleum",
   "txn_type": "purchase_2d",
-  "tid": "T705953",
+  "tid": "",
   "amount": "10.00",
   "currency": "USD",
   "entry_mode": "chip",

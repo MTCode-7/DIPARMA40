@@ -6,18 +6,22 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/database.php';
 
-// معالجة تغيير اللغة قبل أي شيء
+// معالجة تغيير اللغة قبل أي شيء (إن لم تُعالَج في config)
 if (isset($_GET['lang']) && in_array($_GET['lang'], ['ar', 'en'], true)) {
+    // config.php عادةً يعيد التوجيه مسبقاً؛ هذا احتياطي فقط
     setcookie('di_parma_lang', $_GET['lang'], time() + (365 * 24 * 3600), '/');
     $_COOKIE['di_parma_lang'] = $_GET['lang'];
-    // redirect لنفس الصفحة بدون lang parameter
     $cleanUrl = strtok($_SERVER['REQUEST_URI'], '?');
-    header('Location: ' . $cleanUrl);
+    $q = $_GET;
+    unset($q['lang']);
+    $suffix = $q ? ('?' . http_build_query($q)) : '';
+    header('Location: ' . $cleanUrl . $suffix);
     exit();
 }
 
 $currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
-$pageDir = ($currentLang === 'en') ? 'ltr' : 'rtl';
+$pageDir = ($currentLang === 'ar') ? 'rtl' : 'ltr';
+$GLOBALS['currentLang'] = $currentLang;
 
 // تحميل نظام الترجمة
 require_once __DIR__ . '/lang.php';

@@ -10,12 +10,42 @@
  * ============================================================
  */
 
-// قراءة اللغة الحالية
+// قراءة اللغة الحالية — الإنجليزية أساس النظام
 if (!isset($currentLang)) {
-    $currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
+    $currentLang = (isset($GLOBALS['dp_lang']) && $GLOBALS['dp_lang'] === 'ar')
+        ? 'ar'
+        : ((isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en');
 }
+$GLOBALS['currentLang'] = $currentLang;
 if (!isset($pageDir)) {
-    $pageDir = $currentLang === 'en' ? 'ltr' : 'rtl';
+    $pageDir = $currentLang === 'ar' ? 'rtl' : 'ltr';
+}
+
+/**
+ * هل الواجهة عربية؟
+ */
+function is_ar(): bool {
+    global $currentLang;
+    if (isset($currentLang)) {
+        return $currentLang === 'ar';
+    }
+    return (isset($GLOBALS['dp_lang']) && $GLOBALS['dp_lang'] === 'ar')
+        || (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar');
+}
+
+/**
+ * لغة الواجهة الحالية
+ */
+function dp_lang(): string {
+    return is_ar() ? 'ar' : 'en';
+}
+
+/**
+ * نص ثنائي اللغة — الإنجليزية أولاً؛ العربية فقط عند اختيار ar
+ * dp_t('Save', 'حفظ')
+ */
+function dp_t(string $en, string $ar = ''): string {
+    return is_ar() ? ($ar !== '' ? $ar : $en) : $en;
 }
 
 // نقطة الحماية: إذا لم يتم تعيين اللغة صراحةً، فالإفتراضي دائمًا إنجليزي
@@ -115,6 +145,7 @@ $TRANSLATIONS = [
     'admin_dashboard'   => ['ar' => 'لوحة الأدمن',                  'en' => 'Admin Dashboard'],
     'gateway_manager'   => ['ar' => 'إدارة البوابات',                'en' => 'Gateway Manager'],
     'audit_dashboard'   => ['ar' => 'سجل التدقيق',                   'en' => 'Audit Dashboard'],
+    'auto_update'       => ['ar' => 'التحديث التلقائي',              'en' => 'Auto Update'],
     'aml_report'        => ['ar' => 'تقرير AML',                     'en' => 'AML Report'],
     'compliance_report' => ['ar' => 'تقرير الامتثال',                'en' => 'Compliance Report'],
     'crypto_admin'      => ['ar' => 'Crypto Admin',                  'en' => 'Crypto Admin'],
@@ -199,14 +230,14 @@ function langSwitcher(bool $showLabel = true): string {
 function globalNav(string $activePage = ''): string {
     global $currentLang;
     $username = htmlspecialchars($_SESSION['user_data']['username'] ?? $_SESSION['username'] ?? 'User');
-    $isAr     = ($currentLang ?? 'en') !== 'en';
+    $isAr     = ($currentLang ?? 'en') === 'ar';
     $langSw   = langSwitcher(false);
 
     $pages = [
         'index'      => ['icon'=>'fas fa-home',          'url'=>'index.php',                     'label_ar'=>'الرئيسية',      'label_en'=>'Home'],
         'checkout'   => ['icon'=>'fas fa-shopping-cart', 'url'=>'checkout_router.php',           'label_ar'=>'الدفع',         'label_en'=>'Checkout'],
         'wallets'    => ['icon'=>'fas fa-wallet',        'url'=>'wallets.php',                   'label_ar'=>'المحافظ',       'label_en'=>'Wallets'],
-        'history'    => ['icon'=>'fas fa-history',       'url'=>'history.php',                   'label_ar'=>'السجل',         'label_en'=>'History'],
+        'history'    => ['icon'=>'fas fa-history',       'url'=>'transactions.php',              'label_ar'=>'السجل',         'label_en'=>'History'],
         'reports'    => ['icon'=>'fas fa-chart-bar',     'url'=>'reports.php',                   'label_ar'=>'التقارير',      'label_en'=>'Reports'],
         'connection' => ['icon'=>'fas fa-network-wired', 'url'=>'admin/connection_manager.php',  'label_ar'=>'إدارة الاتصال','label_en'=>'Connections'],
     ];
@@ -223,14 +254,75 @@ function globalNav(string $activePage = ''): string {
                       </a> ";
     }
 
+    $searchPh = $isAr ? 'بحث — صفحة، معاملة، بوابة...' : 'Search — page, transaction, gateway...';
+    $acctTitle = $isAr ? 'تغيير بيانات الدخول' : 'Change Login Credentials';
+    $lblUser = $isAr ? 'اسم المستخدم الجديد' : 'New username';
+    $lblCurPwd = $isAr ? 'كلمة المرور الحالية' : 'Current password';
+    $lblNewPwd = $isAr ? 'كلمة المرور الجديدة' : 'New password';
+    $lblNewPwdOpt = $isAr ? '(اختياري)' : '(optional)';
+    $lblConfirm = $isAr ? 'تأكيد كلمة المرور الجديدة' : 'Confirm new password';
+    $phUser = $isAr ? 'اسم المستخدم' : 'Username';
+    $phKeep = $isAr ? 'اتركها فارغة للإبقاء' : 'Leave blank to keep';
+    $btnSave = $isAr ? 'حفظ' : 'Save';
+    $btnClose = $isAr ? 'إغلاق' : 'Close';
+    $msgOk = $isAr ? '✅ تم التحديث بنجاح' : '✅ Updated successfully';
+    $msgFail = $isAr ? '❌ فشل التحديث — تحقق من كلمة المرور الحالية' : '❌ Update failed — check current password';
+    $msgNet = $isAr ? '❌ خطأ في الاتصال' : '❌ Connection error';
+
+    $searchPages = $isAr ? [
+        ['url'=>'index.php','icon'=>'fas fa-home','label'=>'الصفحة الرئيسية'],
+        ['url'=>'checkout_router.php','icon'=>'fas fa-credit-card','label'=>'Checkout — الدفع'],
+        ['url'=>'wallets.php','icon'=>'fas fa-wallet','label'=>'المحافظ المالية'],
+        ['url'=>'transactions.php','icon'=>'fas fa-history','label'=>'سجل المعاملات'],
+        ['url'=>'reports.php','icon'=>'fas fa-chart-bar','label'=>'التقارير المالية'],
+        ['url'=>'transactions.php','icon'=>'fas fa-exchange-alt','label'=>'المعاملات'],
+        ['url'=>'approvals.php','icon'=>'fas fa-check-circle','label'=>'الموافقات'],
+        ['url'=>'kyc.php','icon'=>'fas fa-id-card','label'=>'KYC — التحقق من الهوية'],
+        ['url'=>'admin/connection_manager.php','icon'=>'fas fa-network-wired','label'=>'إدارة الاتصال'],
+        ['url'=>'admin/gateway_manager.php','icon'=>'fas fa-cog','label'=>'إعدادات البوابات'],
+        ['url'=>'admin/auto_update.php','icon'=>'fas fa-sync-alt','label'=>'التحديث التلقائي — Auto Update'],
+        ['url'=>'dashboard.php','icon'=>'fas fa-tachometer-alt','label'=>'لوحة التحكم'],
+        ['url'=>'change_password.php','icon'=>'fas fa-lock','label'=>'تغيير كلمة المرور'],
+        ['url'=>'holds.php','icon'=>'fas fa-hand-holding-usd','label'=>'حجوزات PayPal'],
+        ['url'=>'checkout/paypal.php','icon'=>'fab fa-paypal','label'=>'PayPal'],
+        ['url'=>'links.php','icon'=>'fas fa-link','label'=>'روابط الدفع'],
+        ['url'=>'pay.php','icon'=>'fas fa-dollar-sign','label'=>'صفحة الدفع'],
+        ['url'=>'user_profile.php','icon'=>'fas fa-user','label'=>'الملف الشخصي'],
+    ] : [
+        ['url'=>'index.php','icon'=>'fas fa-home','label'=>'Home'],
+        ['url'=>'checkout_router.php','icon'=>'fas fa-credit-card','label'=>'Checkout'],
+        ['url'=>'wallets.php','icon'=>'fas fa-wallet','label'=>'Wallets'],
+        ['url'=>'transactions.php','icon'=>'fas fa-history','label'=>'Transaction History'],
+        ['url'=>'reports.php','icon'=>'fas fa-chart-bar','label'=>'Reports'],
+        ['url'=>'transactions.php','icon'=>'fas fa-exchange-alt','label'=>'Transactions'],
+        ['url'=>'approvals.php','icon'=>'fas fa-check-circle','label'=>'Approvals'],
+        ['url'=>'kyc.php','icon'=>'fas fa-id-card','label'=>'KYC Verification'],
+        ['url'=>'admin/connection_manager.php','icon'=>'fas fa-network-wired','label'=>'Connections'],
+        ['url'=>'admin/gateway_manager.php','icon'=>'fas fa-cog','label'=>'Gateway Settings'],
+        ['url'=>'admin/auto_update.php','icon'=>'fas fa-sync-alt','label'=>'Auto Update'],
+        ['url'=>'dashboard.php','icon'=>'fas fa-tachometer-alt','label'=>'Dashboard'],
+        ['url'=>'change_password.php','icon'=>'fas fa-lock','label'=>'Change Password'],
+        ['url'=>'holds.php','icon'=>'fas fa-hand-holding-usd','label'=>'PayPal Holds'],
+        ['url'=>'checkout/paypal.php','icon'=>'fab fa-paypal','label'=>'PayPal'],
+        ['url'=>'links.php','icon'=>'fas fa-link','label'=>'Payment Links'],
+        ['url'=>'pay.php','icon'=>'fas fa-dollar-sign','label'=>'Payment Page'],
+        ['url'=>'user_profile.php','icon'=>'fas fa-user','label'=>'User Profile'],
+    ];
+    $searchPagesJson = json_encode($searchPages, JSON_UNESCAPED_UNICODE);
+
+    $msgOkJson = json_encode($msgOk, JSON_UNESCAPED_UNICODE);
+    $msgFailJson = json_encode($msgFail, JSON_UNESCAPED_UNICODE);
+    $msgNetJson = json_encode($msgNet, JSON_UNESCAPED_UNICODE);
+
     $modalId = 'globalAccountModal';
+    $fontFamily = $isAr ? 'Cairo,sans-serif' : 'Segoe UI,Arial,sans-serif';
     return <<<HTML
 <!-- ═══ Global Nav ═══════════════════════════════════════ -->
 <style>
 #globalNav{background:rgba(0,0,0,.92);border-bottom:1px solid rgba(255,215,0,.2);padding:10px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:900;}
 #globalNav .nav-links{display:flex;gap:14px;align-items:center;}
 #globalNav .search-wrap{flex:1;min-width:160px;max-width:280px;position:relative;}
-#globalNav .search-wrap input{width:100%;padding:7px 14px 7px 34px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,215,0,.2);border-radius:20px;color:#fff;font-family:Cairo,sans-serif;font-size:.82rem;outline:none;}
+#globalNav .search-wrap input{width:100%;padding:7px 14px 7px 34px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,215,0,.2);border-radius:20px;color:#fff;font-family:{$fontFamily};font-size:.82rem;outline:none;}
 #globalNav .search-wrap input:focus{border-color:var(--gold,#ffd700);}
 #globalNav .search-wrap .search-icon{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#888;pointer-events:none;}
 #globalSearchResults{position:absolute;top:calc(100% + 6px);right:0;left:0;background:#0e0e0e;border:1.5px solid rgba(255,215,0,.25);border-radius:12px;max-height:240px;overflow-y:auto;z-index:9999;display:none;}
@@ -241,11 +333,11 @@ function globalNav(string $activePage = ''): string {
 .account-box{background:#0e0e0e;border:1.5px solid rgba(255,215,0,.25);border-radius:20px;padding:28px;width:100%;max-width:420px;color:#ddd;}
 .account-box h3{color:var(--gold,#ffd700);margin:0 0 20px;font-size:1.1rem;}
 .account-box label{font-size:.78rem;color:#888;display:block;margin-bottom:4px;}
-.account-box input{width:100%;padding:10px 14px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,215,0,.2);border-radius:10px;color:#fff;font-family:Cairo,sans-serif;margin-bottom:14px;outline:none;}
+.account-box input{width:100%;padding:10px 14px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,215,0,.2);border-radius:10px;color:#fff;font-family:{$fontFamily};margin-bottom:14px;outline:none;}
 .account-box input:focus{border-color:var(--gold,#ffd700);}
 .account-box .btns{display:flex;gap:10px;margin-top:6px;}
-.account-box .btn-save{background:linear-gradient(135deg,#ffd700,#ffb700);color:#000;padding:10px 20px;border-radius:10px;border:none;cursor:pointer;font-family:Cairo,sans-serif;font-weight:700;}
-.account-box .btn-close{background:transparent;border:1.5px solid rgba(255,255,255,.15);color:#aaa;padding:10px 20px;border-radius:10px;cursor:pointer;font-family:Cairo,sans-serif;}
+.account-box .btn-save{background:linear-gradient(135deg,#ffd700,#ffb700);color:#000;padding:10px 20px;border-radius:10px;border:none;cursor:pointer;font-family:{$fontFamily};font-weight:700;}
+.account-box .btn-close{background:transparent;border:1.5px solid rgba(255,255,255,.15);color:#aaa;padding:10px 20px;border-radius:10px;cursor:pointer;font-family:{$fontFamily};}
 .account-box .msg{padding:8px 12px;border-radius:8px;font-size:.82rem;margin-bottom:12px;display:none;}
 .account-box .msg.ok{background:rgba(76,175,80,.15);color:#4CAF50;border:1px solid #4CAF5040;}
 .account-box .msg.err{background:rgba(239,83,80,.12);color:#ef5350;border:1px solid #ef535040;}
@@ -253,53 +345,45 @@ function globalNav(string $activePage = ''): string {
 </style>
 
 <nav id="globalNav">
-  <!-- Logo -->
   <a href="index.php" style="color:var(--gold,#ffd700);font-weight:800;font-size:1rem;text-decoration:none;white-space:nowrap">
     <i class="fas fa-coins"></i> DI PARMA
   </a>
-
-  <!-- Nav Links -->
   <div class="nav-links">$navLinks</div>
-
-  <!-- Search -->
   <div class="search-wrap">
     <i class="fas fa-search search-icon"></i>
     <input type="text" id="globalSearch"
-           placeholder="بحث — صفحة، معاملة، بوابة..."
+           placeholder="{$searchPh}"
            onkeyup="globalSearchFn(this.value)"
            onfocus="globalSearchFn(this.value)"
            onblur="setTimeout(function(){document.getElementById('globalSearchResults').style.display='none'},200)">
     <div id="globalSearchResults"></div>
   </div>
-
-  <!-- Lang + Account -->
   <div style="display:flex;gap:8px;align-items:center;margin-right:auto">
     {$langSw}
     <button onclick="document.getElementById('{$modalId}').classList.toggle('show')"
-            style="background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.3);color:var(--gold,#ffd700);padding:6px 12px;border-radius:20px;cursor:pointer;font-family:Cairo,sans-serif;font-size:.82rem;display:inline-flex;align-items:center;gap:6px">
+            style="background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.3);color:var(--gold,#ffd700);padding:6px 12px;border-radius:20px;cursor:pointer;font-family:{$fontFamily};font-size:.82rem;display:inline-flex;align-items:center;gap:6px">
       <i class="fas fa-user-circle"></i> $username
     </button>
   </div>
 </nav>
 
-<!-- Account Modal -->
 <div id="{$modalId}" onclick="if(event.target.id==='{$modalId}')this.classList.remove('show')">
   <div class="account-box">
-    <h3><i class="fas fa-user-cog" style="margin-left:8px"></i> تغيير بيانات الدخول</h3>
+    <h3><i class="fas fa-user-cog" style="margin-left:8px"></i> {$acctTitle}</h3>
     <div id="acctMsg" class="msg"></div>
     <form id="acctForm" onsubmit="updateAccount(event)">
-      <label>اسم المستخدم الجديد</label>
-      <input type="text" id="newUsername" value="$username" placeholder="اسم المستخدم">
-      <label>كلمة المرور الحالية <span style="color:#ef5350">*</span></label>
+      <label>{$lblUser}</label>
+      <input type="text" id="newUsername" value="$username" placeholder="{$phUser}">
+      <label>{$lblCurPwd} <span style="color:#ef5350">*</span></label>
       <input type="password" id="currentPwd" placeholder="••••••••" required>
-      <label>كلمة المرور الجديدة <span style="color:#888">(اختياري)</span></label>
-      <input type="password" id="newPwd" placeholder="اتركها فارغة للإبقاء">
-      <label>تأكيد كلمة المرور الجديدة</label>
+      <label>{$lblNewPwd} <span style="color:#888">{$lblNewPwdOpt}</span></label>
+      <input type="password" id="newPwd" placeholder="{$phKeep}">
+      <label>{$lblConfirm}</label>
       <input type="password" id="confirmPwd" placeholder="••••••••">
       <div class="btns">
-        <button type="submit" class="btn-save"><i class="fas fa-save"></i> حفظ</button>
+        <button type="submit" class="btn-save"><i class="fas fa-save"></i> {$btnSave}</button>
         <button type="button" class="btn-close" onclick="document.getElementById('{$modalId}').classList.remove('show')">
-          <i class="fas fa-times"></i> إغلاق
+          <i class="fas fa-times"></i> {$btnClose}
         </button>
       </div>
     </form>
@@ -307,25 +391,7 @@ function globalNav(string $activePage = ''): string {
 </div>
 
 <script>
-// ── Global Search ─────────────────────────────────────────
-var _searchPages = [
-  {url:'index.php',       icon:'fas fa-home',          label:'الصفحة الرئيسية'},
-  {url:'checkout_router.php', icon:'fas fa-credit-card',    label:'Checkout — الدفع'},
-  {url:'wallets.php',     icon:'fas fa-wallet',        label:'المحافظ المالية'},
-  {url:'history.php',     icon:'fas fa-history',       label:'سجل المعاملات'},
-  {url:'reports.php',     icon:'fas fa-chart-bar',     label:'التقارير المالية'},
-  {url:'transactions.php',icon:'fas fa-exchange-alt',  label:'المعاملات'},
-  {url:'approvals.php',   icon:'fas fa-check-circle',  label:'الموافقات'},
-  {url:'kyc.php',         icon:'fas fa-id-card',       label:'KYC — التحقق من الهوية'},
-  {url:'admin/connection_manager.php', icon:'fas fa-network-wired', label:'إدارة الاتصال'},
-  {url:'admin/gateway_manager.php',    icon:'fas fa-cog',           label:'إعدادات البوابات'},
-  {url:'dashboard.php',   icon:'fas fa-tachometer-alt',label:'لوحة التحكم'},
-  {url:'change_password.php',icon:'fas fa-lock',       label:'تغيير كلمة المرور'},
-  {url:'holds.php',       icon:'fas fa-hand-holding-usd',label:'الحجوزات HOLD'},
-  {url:'links.php',       icon:'fas fa-link',          label:'روابط الدفع'},
-  {url:'pay.php',         icon:'fas fa-dollar-sign',   label:'صفحة الدفع'},
-  {url:'user_profile.php',icon:'fas fa-user',          label:'الملف الشخصي'},
-];
+var _searchPages = {$searchPagesJson};
 function globalSearchFn(q) {
   var box = document.getElementById('globalSearchResults');
   if (!q || q.length < 1) { box.style.display = 'none'; return; }
@@ -337,8 +403,6 @@ function globalSearchFn(q) {
   }).join('');
   box.style.display = 'block';
 }
-
-// ── Update Account ────────────────────────────────────────
 async function updateAccount(e) {
   e.preventDefault();
   var msg = document.getElementById('acctMsg');
@@ -354,20 +418,19 @@ async function updateAccount(e) {
   try {
     var fd = new FormData();
     Object.keys(data).forEach(function(k){ fd.append(k, data[k]); });
-    // اكتشف الـ endpoint تلقائياً
     var endpoint = window.location.pathname.includes('admin/') ? 'gateway_manager.php' : '../admin/gateway_manager.php';
     var r = await fetch(endpoint, {method:'POST', body:fd});
     var text = await r.text();
-    if (text.includes('✅') || text.includes('success')) {
-      msg.textContent = '✅ تم التحديث بنجاح'; msg.className = 'msg ok'; msg.style.display = 'block';
+    if (text.includes('✅') || text.includes('success') || text.includes('Updated')) {
+      msg.textContent = {$msgOkJson}; msg.className = 'msg ok'; msg.style.display = 'block';
       document.getElementById('currentPwd').value = '';
       document.getElementById('newPwd').value     = '';
       document.getElementById('confirmPwd').value = '';
     } else {
-      msg.textContent = '❌ فشل التحديث — تحقق من كلمة المرور الحالية'; msg.className = 'msg err'; msg.style.display = 'block';
+      msg.textContent = {$msgFailJson}; msg.className = 'msg err'; msg.style.display = 'block';
     }
   } catch(err) {
-    msg.textContent = '❌ خطأ في الاتصال'; msg.className = 'msg err'; msg.style.display = 'block';
+    msg.textContent = {$msgNetJson}; msg.className = 'msg err'; msg.style.display = 'block';
   }
 }
 </script>

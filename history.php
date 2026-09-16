@@ -1,4 +1,6 @@
 <?php
-// Redirect history.php to the transactions page to preserve the sidebar link.
-header('Location: transactions.php');
-exit();
+/**
+ * Backward-compatible redirect: old history.php → transactions.php
+ */
+header('Location: transactions.php', true, 301);
+exit;

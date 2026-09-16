@@ -26,12 +26,15 @@ require_once __DIR__ . '/BraintreeAdapter.php';
 require_once __DIR__ . '/PayPalAdapter.php';
 require_once __DIR__ . '/GateIOAdapter.php';
 require_once __DIR__ . '/NuveiAdapter.php';
+require_once __DIR__ . '/SquareAdapter.php';
+require_once __DIR__ . '/LedgerGatewayAdapter.php';
 require_once __DIR__ . '/../gateways/DIPARMAGateway.php';
 
 class GatewayAdapterFactory
 {
     // ── خريطة الأسماء → الكلاسات ──────────────────────────────
     private static array $map = [
+        'square'        => SquareAdapter::class,
         'stripe'        => StripeAdapter::class,
         'myfatoorah'    => MyFatoorahAdapter::class,
         'checkout'      => CheckoutAdapter::class,
@@ -51,6 +54,7 @@ class GatewayAdapterFactory
 
     // ── البوابات التي تدعم كل عملية ──────────────────────────
     private static array $capabilities = [
+        'square'       => ['2D','3D','hold','capture','cancel'],
         'stripe'       => ['2D','3D','hold','capture','cancel'],
         'myfatoorah'   => ['2D','3D'],
         'checkout'     => ['2D','3D','hold','capture','cancel'],
@@ -60,8 +64,8 @@ class GatewayAdapterFactory
         'paypal'       => ['2D','3D','hold','capture','cancel'],
         'gate_io'      => ['charge','withdraw','balance'],
         'gateio'       => ['charge','withdraw','balance'],
-        'nuvei'        => ['2D','3D','hold','capture','cancel'],
-        'diparma'      => ['2D','3D','hold','capture','cancel'],
+        'nuvei'        => ['2D','3D','hold','capture','cancel','refund','void'],
+        'diparma'      => ['2D','3D','hold','capture','cancel','refund','void'],
     ];
 
     // ══════════════════════════════════════════════════════════
@@ -203,6 +207,15 @@ class GatewayAdapterFactory
     }
 
     /**
+     * هل اسم البوابة معروف في الخريطة؟
+     */
+    public static function isSupported(string $gateway): bool
+    {
+        $gw = strtolower(trim($gateway));
+        return isset(self::$map[$gw]);
+    }
+
+    /**
      * هل البوابة تدعم وضعاً معيناً؟
      */
     public static function gatewaySupports(string $gateway, string $mode): bool
@@ -255,6 +268,7 @@ class GatewayAdapterFactory
             'checkout'     => ['secret_key' => 'CHECKOUT_API_KEY', 'public_key' => 'CHECKOUT_PUBLIC_KEY'],
             'myfatoorah'   => ['api_key' => 'MYFAOORAH_API_KEY'],
             'diparma'      => ['api_key' => 'DIPARMA_API_KEY', 'api_secret' => 'DIPARMA_API_SECRET', 'merchant_id' => 'DIPARMA_MERCHANT_ID', 'api_url' => 'DIPARMA_API_URL'],
+            'diparma_gateway' => ['ledger_address' => 'LEDGER_TRC20_ADDRESS'],
         ];
 
         $map = $envMap[$gateway] ?? [];

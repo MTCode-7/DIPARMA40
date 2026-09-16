@@ -30,6 +30,9 @@ echo "============================================"
 # 6. تنظيف قاعدة البيانات (حذف المعاملات المعلقة القديمة)
 (crontab -l 2>/dev/null || echo "") | cat - <(echo "0 4 * * * php /var/www/diparma/api/cleanup_pending.php") | crontab -
 
+# 7. Auto Update — سحب الكود من GitHub كل 5 دقائق
+(crontab -l 2>/dev/null || echo "") | cat - <(echo "*/5 * * * * php /var/www/diparma/api/auto_update.php cron >> /var/www/diparma/logs/auto_update_cron.log 2>&1") | crontab -
+
 echo "✓ تم إعداد المهام المجدولة"
 echo ""
 echo "📌 المهام المضافة:"
@@ -39,4 +42,5 @@ echo "   *:00  → تحديث أسعار الصرف (كل ساعة)"
 echo "   */10  → فحص صحة النظام (كل 10 دقائق)"
 echo "   0:00  → تجديد SSL (يومياً)"
 echo "   4:00  → تنظيف المعاملات المعلقة (يومياً)"
+echo "   */5   → Auto Update من GitHub"
 echo "============================================"

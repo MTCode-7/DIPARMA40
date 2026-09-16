@@ -1,21 +1,15 @@
 <?php
-$BANK_CONFIG = [
-    'name'             => 'JP Morgan Chase — IOLTA',
-    'gateway_code'     => 'jpmorgan',
-    'prefix'           => 'JPM',
-    'icon'             => 'fas fa-landmark',
-    'color'            => '#003087',
-    'default_currency' => 'USD',
-    'currencies'       => ['USD'],
-    'fields'           => [
-        'Beneficiary'  => 'ROBERT VALLES JR IOLTA',
-        'Account No'   => '663525063665',
-        'Routing'      => '111000614',
-        'SWIFT'        => 'CHASUS33',
-        'Bank'         => 'JP Morgan Chase Bank N.A.',
-        'Type'         => 'IOLTA (Trust Account)',
-        'Bank Officer' => 'ANTHONY HALL',
-        'Address'      => '16738 W State Highway 71, Lakeway TX.',
-    ],
+/**
+ * DI PARMA | صفحة بوابة مستقلة: jpmorgan
+ * تحتوي على جميع عمليات الشراء المعيارية.
+ */
+$gwCode = 'jpmorgan';
+$checkoutBase = '../';
+$bankInfo = [
+    'Beneficiary' => getenv('JPMORGAN_BENEFICIARY') ?: '',
+    'Account' => getenv('JPMORGAN_ACCOUNT') ?: '',
+    'Routing' => getenv('JPMORGAN_ROUTING') ?: '',
+    'SWIFT' => getenv('JPMORGAN_SWIFT') ?: 'CHASUS33',
+    'Bank' => getenv('JPMORGAN_BANK_NAME') ?: 'JP Morgan Chase Bank N.A.',
 ];
-require_once __DIR__ . '/_bank_template.php';
+require __DIR__ . '/../includes/start_gateway_checkout.php';

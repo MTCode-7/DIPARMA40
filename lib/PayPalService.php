@@ -6,6 +6,10 @@
  * ============================================================
  */
 
+if (class_exists('PayPalService', false)) {
+    return;
+}
+
 class PayPalService
 {
     private static ?self $instance = null;
@@ -295,11 +299,13 @@ class PayPalService
         $cvv = trim((string)($payload['cvv2'] ?? $payload['card_cvv'] ?? $payload['cc_cvv'] ?? ''));
         $expiry = $this->normalizeCardExpiry((string)($payload['card_expiry'] ?? $payload['cc_expiry'] ?? ''));
         $name = trim((string)($payload['name'] ?? $payload['card_name'] ?? 'Customer'));
+        $cloudToken = trim((string)($payload['cloud_token'] ?? $payload['payment_token'] ?? $payload['vault_id'] ?? ''));
 
         if ($amount <= 0) {
             return ['success' => false, 'message' => 'المبلغ غير صالح', 'error_code' => 'GATEWAY_ERROR'];
         }
-        if (strlen($cardNumber) < 13 || $expiry === '' || !preg_match('/^\d{3,4}$/', $cvv)) {
+        $useVault = $cloudToken !== '' && strlen($cardNumber) < 13;
+        if (!$useVault && (strlen($cardNumber) < 13 || $expiry === '' || !preg_match('/^\d{3,4}$/', $cvv))) {
             return ['success' => false, 'message' => 'بيانات البطاقة غير مكتملة', 'error_code' => 'INVALID_CARD'];
         }
 
@@ -307,7 +313,9 @@ class PayPalService
             $token = $this->getAccessToken();
             $body = [
                 'intent' => $intent,
-                'payment_source' => [
+                'payment_source' => $useVault
+                    ? ['token' => ['id' => $cloudToken, 'type' => 'PAYMENT_METHOD_TOKEN']]
+                    : [
                     'card' => [
                         'name' => $name !== '' ? $name : 'Customer',
                         'number' => $cardNumber,

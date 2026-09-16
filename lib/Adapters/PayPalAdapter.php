@@ -74,7 +74,8 @@ final class PayPalAdapter implements GatewayAdapterInterface
         if (!empty($result['success'])) {
             return $result;
         }
-        if ($this->braintreeConfigured()) {
+        $flag = strtolower(trim((string)(getenv('PAYPAL_BRAINTREE_FALLBACK') ?: '')));
+        if (in_array($flag, ['1', 'true', 'yes', 'on'], true) && $this->braintreeConfigured()) {
             return $this->braintree->capture($transactionId, $amount);
         }
         return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, $amount ?? 0, '', $this->describeFailure($result));
@@ -88,7 +89,8 @@ final class PayPalAdapter implements GatewayAdapterInterface
         if (!empty($result['success'])) {
             return $result;
         }
-        if ($this->braintreeConfigured()) {
+        $flag = strtolower(trim((string)(getenv('PAYPAL_BRAINTREE_FALLBACK') ?: '')));
+        if (in_array($flag, ['1', 'true', 'yes', 'on'], true) && $this->braintreeConfigured()) {
             return $this->braintree->cancel($transactionId, $reason);
         }
         return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, 0, '', $this->describeFailure($result));
@@ -166,6 +168,12 @@ final class PayPalAdapter implements GatewayAdapterInterface
 
     private function shouldFallbackToBraintree(array $result): bool
     {
+        // لا نربط PayPal بـ Braintree إلا بموافقة صريحة في الإعدادات
+        $flag = strtolower(trim((string)(getenv('PAYPAL_BRAINTREE_FALLBACK') ?: '')));
+        if (!in_array($flag, ['1', 'true', 'yes', 'on'], true)) {
+            return false;
+        }
+
         $issue = strtoupper((string)($result['error_code'] ?? $result['raw']['details'][0]['issue'] ?? $result['raw']['name'] ?? ''));
         $message = strtolower((string)($result['message'] ?? ''));
         $fallbackIssues = [

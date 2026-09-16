@@ -12,9 +12,6 @@ $csrfToken = generateCsrfToken();
 $svc       = HoldCaptureService::getInstance();
 $db        = db();
 
-$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
-$pageDir     = $currentLang === 'en' ? 'ltr' : 'rtl';
-
 // نتيجة حجز جديد
 $newRef = $_GET['ref'] ?? '';
 $newPI  = $_GET['pi']  ?? '';
@@ -36,11 +33,11 @@ $statusConfig = [
 ];
 ?>
 <!DOCTYPE html>
-<html lang="<?= $currentLang ?>" dir="<?= $pageDir ?>">
+<html lang="<?= htmlspecialchars(dp_lang()) ?>" dir="<?= htmlspecialchars($pageDir) ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DI PARMA | <?= $currentLang==='en'?'My Holds':'حجوزاتي' ?></title>
+<title>DI PARMA | <?= dp_t('PayPal Holds', 'حجوزات PayPal') ?></title>
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
@@ -65,14 +62,17 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
 <nav style="background:rgba(0,0,0,.85);border-bottom:1px solid var(--border-gold);padding:14px 28px;display:flex;align-items:center;justify-content:space-between">
     <span style="color:var(--gold);font-weight:800;font-size:1.1rem">
         <i class="fas fa-hand-holding-usd" style="margin-left:8px"></i>
-        <?= $currentLang==='en'?'My Holds (HOLD/CAPTURE)':'حجوزاتي (HOLD/CAPTURE)' ?>
+        <?= dp_t('PayPal Holds (HOLD/CAPTURE)', 'حجوزات PayPal (HOLD/CAPTURE)') ?>
     </span>
     <div style="display:flex;gap:10px">
+        <a href="checkout/paypal.php" style="color:#4DA6FF;font-size:.85rem;text-decoration:none;padding:7px 14px;border:1px solid rgba(77,166,255,.35);border-radius:8px">
+            <i class="fab fa-paypal"></i> PayPal
+        </a>
         <a href="checkout_router.php" style="color:var(--text-muted);font-size:.85rem;text-decoration:none;padding:7px 14px;border:1px solid var(--border-light);border-radius:8px">
-            <i class="fas fa-plus"></i> <?= $currentLang==='en'?'New':'جديد' ?>
+            <i class="fas fa-plus"></i> <?= dp_t('New', 'جديد') ?>
         </a>
         <a href="dashboard.php" style="color:var(--text-muted);font-size:.85rem;text-decoration:none">
-            <i class="fas fa-arrow-right"></i>
+            <i class="fas fa-arrow-<?= is_ar() ? 'left' : 'right' ?>"></i>
         </a>
     </div>
 </nav>
@@ -109,23 +109,21 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
 <div style="background:rgba(91,192,222,.1);border:1.5px solid #5bc0de;border-radius:16px;padding:20px 24px;margin-bottom:24px">
     <h3 style="color:#5bc0de;margin:0 0 8px">
         <i class="fas fa-check-circle"></i>
-        <?= $currentLang==='en'?'Hold Authorized Successfully!':'تم تأكيد الحجز بنجاح!' ?>
+        <?= dp_t('Hold Authorized Successfully!', 'تم تأكيد الحجز بنجاح!') ?>
     </h3>
     <p style="color:var(--text-muted);margin:0 0 12px;font-size:.9rem">
-        <?= $currentLang==='en'
-            ?'The amount is reserved but NOT charged yet. You can capture or cancel it.'
-            :'المبلغ محجوز ولم يُخصم بعد. يمكنك التحصيل أو الإلغاء.' ?>
+        <?= dp_t('The amount is reserved but NOT charged yet. You can capture or cancel it.', 'المبلغ محجوز ولم يُخصم بعد. يمكنك التحصيل أو الإلغاء.') ?>
     </p>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button onclick="captureHold('<?= addslashes($newPI) ?>')"
             class="action-btn btn-capture">
             <i class="fas fa-check-double"></i>
-            <?= $currentLang==='en'?'Capture Now':'تحصيل الآن' ?>
+            <?= dp_t('Capture Now', 'تحصيل الآن') ?>
         </button>
         <button onclick="cancelHold('<?= addslashes($newPI) ?>')"
             class="action-btn btn-cancel">
             <i class="fas fa-times"></i>
-            <?= $currentLang==='en'?'Cancel Hold':'إلغاء الحجز' ?>
+            <?= dp_t('Cancel Hold', 'إلغاء الحجز') ?>
         </button>
     </div>
     <div class="pi-code" style="margin-top:12px">PI: <?= htmlspecialchars($newPI) ?></div>
@@ -136,13 +134,13 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
 <div style="background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.15);border-radius:14px;padding:16px 20px;margin-bottom:24px">
     <h4 style="color:var(--gold);margin:0 0 10px;font-size:.9rem">
         <i class="fas fa-info-circle"></i>
-        <?= $currentLang==='en'?'How Hold/Capture Works:':'كيف يعمل الحجز والتحصيل:' ?>
+        <?= dp_t('How Hold/Capture Works:', 'كيف يعمل الحجز والتحصيل:') ?>
     </h4>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
         <?php foreach ([
-            ['fa-lock',         '#5bc0de', $currentLang==='en'?'1. HOLD':'1. الحجز',       $currentLang==='en'?'Reserve amount without charging':'حجز المبلغ بدون خصم'],
-            ['fa-check-double', '#4CAF50', $currentLang==='en'?'2. CAPTURE':'2. التحصيل', $currentLang==='en'?'Charge the authorized amount':'تحصيل المبلغ المحجوز'],
-            ['fa-times',        '#ef5350', $currentLang==='en'?'3. CANCEL':'3. الإلغاء',  $currentLang==='en'?'Release without charge':'تحرير بدون خصم'],
+            ['fa-lock',         '#5bc0de', dp_t('1. HOLD', '1. الحجز'),       dp_t('Reserve amount without charging', 'حجز المبلغ بدون خصم')],
+            ['fa-check-double', '#4CAF50', dp_t('2. CAPTURE', '2. التحصيل'), dp_t('Charge the authorized amount', 'تحصيل المبلغ المحجوز')],
+            ['fa-times',        '#ef5350', dp_t('3. CANCEL', '3. الإلغاء'),  dp_t('Release without charge', 'تحرير بدون خصم')],
         ] as [$ic,$c,$t,$d]): ?>
         <div style="background:rgba(255,255,255,.03);border-radius:10px;padding:12px">
             <div style="color:<?= $c ?>;font-weight:700;margin-bottom:4px">
@@ -158,16 +156,16 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
 <div style="text-align:center;padding:48px;background:var(--bg-card);border:1px dashed rgba(255,215,0,.2);border-radius:20px">
     <i class="fas fa-hand-holding-usd" style="font-size:3rem;color:rgba(255,215,0,.2);display:block;margin-bottom:12px"></i>
     <p style="color:var(--text-muted)">
-        <?= $currentLang==='en'?'No holds yet — use HOLD in checkout':'لا توجد حجوزات بعد — استخدم خيار الحجز في Checkout' ?>
+        <?= dp_t('No holds yet — use HOLD in checkout', 'لا توجد حجوزات بعد — استخدم خيار الحجز في Checkout') ?>
     </p>
     <a href="checkout_router.php" style="display:inline-block;margin-top:12px;padding:10px 24px;background:var(--gold-gradient);color:#000;border-radius:10px;text-decoration:none;font-weight:700">
-        <i class="fas fa-plus"></i> <?= $currentLang==='en'?'New Hold':'حجز جديد' ?>
+        <i class="fas fa-plus"></i> <?= dp_t('New Hold', 'حجز جديد') ?>
     </a>
 </div>
 <?php else: ?>
 <?php foreach ($holds as $hold):
     $sc = $statusConfig[$hold['status']] ?? $statusConfig['pending'];
-    $label = $currentLang==='en' ? $sc['label_en'] : $sc['label_ar'];
+    $label = dp_t($sc['label_en'], $sc['label_ar']);
     $meta  = json_decode($hold['meta'] ?? '{}', true);
     $canCapture = $hold['status'] === 'authorized';
     $canCancel  = in_array($hold['status'], ['authorized', 'pending']);
@@ -182,20 +180,20 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
                 </span>
             </div>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:10px">
-                <div><span style="color:var(--text-muted);font-size:.78rem">المبلغ</span><br>
+                <div><span style="color:var(--text-muted);font-size:.78rem"><?= dp_t('Amount', 'المبلغ') ?></span><br>
                     <span style="color:var(--gold);font-weight:700"><?= number_format((float)$hold['amount'],2) ?> <?= $hold['currency'] ?></span></div>
                 <?php if ($hold['captured_amount']): ?>
-                <div><span style="color:var(--text-muted);font-size:.78rem">المُحصَّل</span><br>
+                <div><span style="color:var(--text-muted);font-size:.78rem"><?= dp_t('Captured', 'المُحصَّل') ?></span><br>
                     <span style="color:#4CAF50;font-weight:700"><?= number_format((float)$hold['captured_amount'],2) ?> <?= $hold['currency'] ?></span></div>
                 <?php endif; ?>
                 <?php if (!empty($meta['crypto'])): ?>
                 <div><span style="color:var(--text-muted);font-size:.78rem">Crypto</span><br>
                     <span><?= htmlspecialchars($meta['crypto']) ?>/<?= htmlspecialchars($meta['network']??'TRC20') ?></span></div>
                 <?php endif; ?>
-                <div><span style="color:var(--text-muted);font-size:.78rem">التاريخ</span><br>
+                <div><span style="color:var(--text-muted);font-size:.78rem"><?= dp_t('Date', 'التاريخ') ?></span><br>
                     <span style="font-size:.8rem"><?= $hold['created_at'] ?></span></div>
                 <?php if ($hold['expires_at'] && $hold['status']==='authorized'): ?>
-                <div><span style="color:var(--text-muted);font-size:.78rem">ينتهي</span><br>
+                <div><span style="color:var(--text-muted);font-size:.78rem"><?= dp_t('Expires', 'ينتهي') ?></span><br>
                     <span style="color:#f0ad4e;font-size:.8rem"><?= $hold['expires_at'] ?></span></div>
                 <?php endif; ?>
             </div>
@@ -207,19 +205,19 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
             <button onclick="captureHold('<?= addslashes($hold['payment_intent_id']) ?>')"
                     class="action-btn btn-capture">
                 <i class="fas fa-check-double"></i>
-                <?= $currentLang==='en'?'Capture':'تحصيل' ?>
+                <?= dp_t('Capture', 'تحصيل') ?>
             </button>
             <button onclick="showPartialCapture('<?= addslashes($hold['payment_intent_id']) ?>',<?= $hold['amount'] ?>)"
                     style="padding:7px 14px;border-radius:10px;border:1px solid rgba(76,175,80,.3);background:transparent;color:#9fe870;cursor:pointer;font-size:.82rem">
                 <i class="fas fa-scissors"></i>
-                <?= $currentLang==='en'?'Partial':'جزئي' ?>
+                <?= dp_t('Partial', 'جزئي') ?>
             </button>
             <?php endif; ?>
             <?php if ($canCancel): ?>
             <button onclick="cancelHold('<?= addslashes($hold['payment_intent_id']) ?>')"
                     class="action-btn btn-cancel">
                 <i class="fas fa-times"></i>
-                <?= $currentLang==='en'?'Cancel':'إلغاء' ?>
+                <?= dp_t('Cancel', 'إلغاء') ?>
             </button>
             <?php endif; ?>
         </div>
@@ -234,19 +232,19 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
 <!-- Modal Partial Capture -->
 <div id="partialModal" class="modal-overlay">
     <div class="modal-box">
-        <h3 style="color:var(--gold);margin:0 0 16px">تحصيل جزئي</h3>
+        <h3 style="color:var(--gold);margin:0 0 16px"><?= dp_t('Partial capture', 'تحصيل جزئي') ?></h3>
         <input type="hidden" id="partialPI">
-        <label style="color:var(--text-muted);font-size:.85rem;display:block;margin-bottom:6px">المبلغ الجزئي</label>
+        <label style="color:var(--text-muted);font-size:.85rem;display:block;margin-bottom:6px"><?= dp_t('Partial amount', 'المبلغ الجزئي') ?></label>
         <input type="number" id="partialAmount" step="0.01" placeholder="0.00"
                style="width:100%;padding:12px;background:rgba(255,255,255,.05);border:1px solid var(--border-gold);border-radius:10px;color:var(--text-light);font-size:1rem;margin-bottom:6px">
         <small id="partialMax" style="color:var(--text-muted);font-size:.78rem"></small>
         <div style="display:flex;gap:10px;margin-top:16px">
             <button onclick="confirmPartial()" class="action-btn btn-capture" style="flex:1;padding:11px">
-                <i class="fas fa-check-double"></i> تأكيد التحصيل
+                <i class="fas fa-check-double"></i> <?= dp_t('Confirm capture', 'تأكيد التحصيل') ?>
             </button>
             <button onclick="document.getElementById('partialModal').style.display='none'"
                     style="flex:1;padding:11px;border-radius:10px;background:rgba(255,255,255,.05);color:var(--text-muted);border:1px solid var(--border-light);cursor:pointer">
-                إلغاء
+                <?= dp_t('Cancel', 'إلغاء') ?>
             </button>
         </div>
     </div>
@@ -256,9 +254,25 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
 
 <script>
 var CSRF = '<?= $csrfToken ?>';
+var HOLD_I18N = <?= json_encode([
+    'confirmCapture' => dp_t('Confirm capture of the authorized amount?', 'تأكيد تحصيل المبلغ المحجوز؟'),
+    'captureOk' => dp_t('Captured successfully ✓', 'تم التحصيل بنجاح ✓'),
+    'captureFail' => dp_t('Capture failed', 'فشل التحصيل'),
+    'paypalPrompt' => dp_t('Enter capture amount, max ', 'أدخل مبلغ التحصيل، بحد أقصى '),
+    'amountInvalid' => dp_t('Amount must be greater than zero and not exceed the authorized amount', 'المبلغ يجب أن يكون أكبر من صفر ولا يتجاوز مبلغ التفويض'),
+    'paypalConfirm' => dp_t('Confirm capture of ', 'تأكيد تحصيل '),
+    'paypalFromHold' => dp_t(' from PayPal hold?', ' من حجز PayPal؟'),
+    'paypalOk' => dp_t('PayPal captured successfully ✓', 'تم تحصيل PayPal بنجاح ✓'),
+    'paypalFail' => dp_t('PayPal capture failed', 'فشل تحصيل PayPal'),
+    'cancelConfirm' => dp_t('Cancel hold? The amount will be released to the customer.', 'إلغاء الحجز؟ سيُحرَّر المبلغ للعميل.'),
+    'cancelOk' => dp_t('Hold cancelled', 'تم إلغاء الحجز'),
+    'cancelFail' => dp_t('Cancel failed', 'فشل الإلغاء'),
+    'maxLabel' => dp_t('Maximum: ', 'الحد الأقصى: '),
+    'enterValidAmount' => dp_t('Enter a valid amount', 'أدخل مبلغاً صحيحاً'),
+], JSON_UNESCAPED_UNICODE) ?>;
 
 async function captureHold(pi, partial) {
-    if (!confirm('تأكيد تحصيل المبلغ المحجوز؟')) return;
+    if (!confirm(HOLD_I18N.confirmCapture)) return;
     var body = {payment_intent_id: pi, csrf_token: CSRF};
     if (partial) body.partial_amount = partial;
     var r = await fetch('api/hold_capture.php?action=capture', {
@@ -267,54 +281,54 @@ async function captureHold(pi, partial) {
     });
     var d = await r.json();
     if (d.success) {
-        showToast('تم التحصيل بنجاح ✓', 'success');
+        showToast(HOLD_I18N.captureOk, 'success');
         setTimeout(function(){ location.reload(); }, 2000);
     } else {
-        showToast(d.message || 'فشل التحصيل', 'error');
+        showToast(d.message || HOLD_I18N.captureFail, 'error');
     }
 }
 
 async function capturePayPalHold(authorizationId, reference, authorizedAmount) {
-    var requested = window.prompt('أدخل مبلغ التحصيل، بحد أقصى ' + Number(authorizedAmount).toFixed(2), Number(authorizedAmount).toFixed(2));
+    var requested = window.prompt(HOLD_I18N.paypalPrompt + Number(authorizedAmount).toFixed(2), Number(authorizedAmount).toFixed(2));
     if (requested === null) return;
     var amount = Number(requested);
     if (!Number.isFinite(amount) || amount <= 0 || amount > Number(authorizedAmount)) {
-        showToast('المبلغ يجب أن يكون أكبر من صفر ولا يتجاوز مبلغ التفويض', 'error');
+        showToast(HOLD_I18N.amountInvalid, 'error');
         return;
     }
-    if (!confirm('تأكيد تحصيل ' + amount.toFixed(2) + ' من حجز PayPal؟')) return;
+    if (!confirm(HOLD_I18N.paypalConfirm + amount.toFixed(2) + HOLD_I18N.paypalFromHold)) return;
     var r = await fetch('api/paypal.php?action=capture_authorization', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({authorization_id: authorizationId, reference: reference, amount: amount.toFixed(2), csrf_token: CSRF})
     });
     var d = await r.json();
     if (d.success) {
-        showToast('تم تحصيل PayPal بنجاح ✓', 'success');
+        showToast(HOLD_I18N.paypalOk, 'success');
         setTimeout(function(){ location.reload(); }, 1500);
     } else {
-        showToast(d.message || 'فشل تحصيل PayPal', 'error');
+        showToast(d.message || HOLD_I18N.paypalFail, 'error');
     }
 }
 
 async function cancelHold(pi) {
-    if (!confirm('إلغاء الحجز؟ سيُحرَّر المبلغ للعميل.')) return;
+    if (!confirm(HOLD_I18N.cancelConfirm)) return;
     var r = await fetch('api/hold_capture.php?action=cancel', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({payment_intent_id: pi, csrf_token: CSRF})
     });
     var d = await r.json();
     if (d.success) {
-        showToast('تم إلغاء الحجز', 'success');
+        showToast(HOLD_I18N.cancelOk, 'success');
         setTimeout(function(){ location.reload(); }, 1500);
     } else {
-        showToast(d.message || 'فشل الإلغاء', 'error');
+        showToast(d.message || HOLD_I18N.cancelFail, 'error');
     }
 }
 
 function showPartialCapture(pi, maxAmount) {
     document.getElementById('partialPI').value = pi;
     document.getElementById('partialAmount').value = '';
-    document.getElementById('partialMax').textContent = 'الحد الأقصى: ' + maxAmount;
+    document.getElementById('partialMax').textContent = HOLD_I18N.maxLabel + maxAmount;
     document.getElementById('partialAmount').max = maxAmount;
     document.getElementById('partialModal').style.display = 'flex';
 }
@@ -322,7 +336,7 @@ function showPartialCapture(pi, maxAmount) {
 function confirmPartial() {
     var pi = document.getElementById('partialPI').value;
     var amt = parseFloat(document.getElementById('partialAmount').value);
-    if (!amt || amt <= 0) { showToast('أدخل مبلغاً صحيحاً', 'warning'); return; }
+    if (!amt || amt <= 0) { showToast(HOLD_I18N.enterValidAmount, 'warning'); return; }
     document.getElementById('partialModal').style.display = 'none';
     captureHold(pi, amt);
 }

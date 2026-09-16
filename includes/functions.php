@@ -340,24 +340,38 @@ function isValidAmount($amount) {
 }
 
 /**
- * الحصول على حالة المعاملة بالعربي
+ * Transaction status label — English by default; Arabic only when lang=ar
  */
 function getStatusLabel($status) {
     $labels = [
-        'pending' => 'قيد الانتظار',
-        'authorized' => 'تم التفويض',
-        'captured' => 'تم الخصم',
-        'settled' => 'تم التسوية',
-        'completed' => 'مكتمل',
-        'failed' => 'فشل',
-        'refunded' => 'مسترد',
-        'chargeback' => 'إلغاء',
-        'active' => 'نشط',
-        'inactive' => 'غير نشط',
-        'expired' => 'منتهي',
-        'deleted' => 'محذوف'
+        'pending' => ['en' => 'Pending', 'ar' => 'قيد الانتظار'],
+        'authorized' => ['en' => 'Authorized', 'ar' => 'تم التفويض'],
+        'captured' => ['en' => 'Captured', 'ar' => 'تم الخصم'],
+        'settled' => ['en' => 'Settled', 'ar' => 'تم التسوية'],
+        'completed' => ['en' => 'Completed', 'ar' => 'مكتمل'],
+        'failed' => ['en' => 'Failed', 'ar' => 'فشل'],
+        'refunded' => ['en' => 'Refunded', 'ar' => 'مسترد'],
+        'chargeback' => ['en' => 'Chargeback', 'ar' => 'إلغاء'],
+        'cancelled' => ['en' => 'Cancelled', 'ar' => 'ملغى'],
+        'active' => ['en' => 'Active', 'ar' => 'نشط'],
+        'inactive' => ['en' => 'Inactive', 'ar' => 'غير نشط'],
+        'expired' => ['en' => 'Expired', 'ar' => 'منتهي'],
+        'deleted' => ['en' => 'Deleted', 'ar' => 'محذوف'],
     ];
-    return $labels[$status] ?? $status;
+    $lang = 'en';
+    if (function_exists('dp_lang')) {
+        $lang = dp_lang();
+    } elseif (isset($GLOBALS['currentLang'])) {
+        $lang = $GLOBALS['currentLang'] === 'ar' ? 'ar' : 'en';
+    } elseif (isset($GLOBALS['dp_lang'])) {
+        $lang = $GLOBALS['dp_lang'] === 'ar' ? 'ar' : 'en';
+    } elseif ((isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar')) {
+        $lang = 'ar';
+    }
+    if (!isset($labels[$status])) {
+        return (string) $status;
+    }
+    return $labels[$status][$lang] ?? $labels[$status]['en'];
 }
 
 /**
@@ -403,6 +417,7 @@ function isLinkValid($link) {
 
 /**
  * الحصول على قائمة البروتوكولات المتاحة
+ * ملاحظة: الأكواد الداخلية (101/201) لا تُعرض للمستخدم — استخدم protocol_display_name()
  */
 function getAvailableProtocols(): array {
     return [
@@ -414,31 +429,96 @@ function getAvailableProtocols(): array {
             'type' => 'withdrawal',
             'features' => ['direct', 'simple', 'no-verification']
         ],
+        '101.0' => [
+            'code' => '101.0',
+            'name' => 'سحب مباشر بالبطاقة',
+            'description' => 'تحصيل فوري بالبطاقة',
+            'icon' => '💳',
+            'type' => 'purchase',
+            'features' => ['card', 'direct']
+        ],
         '101.1' => [
             'code' => '101.1',
-            'name' => 'تفويض عالمي - Standard Visa/Mastercard',
-            'description' => 'تفويض بطاقات الائتمان العالمي',
+            'name' => 'تفويض وتسوية — كل الشبكات والمُصدرين',
+            'description' => 'تفويض بطاقات الائتمان ثم التحصيل',
             'icon' => '💳',
             'type' => 'authorization',
             'features' => ['card', 'global', '3ds']
         ],
         '201.3' => [
             'code' => '201.3',
-            'name' => 'تسوية شركات - Corporate Settlement',
-            'description' => 'تسوية الحسابات بين الشركات',
+            'name' => 'تسوية شركات / MOTO',
+            'description' => 'تسوية ومبيعات MOTO للشركات',
             'icon' => '🏢',
             'type' => 'settlement',
             'features' => ['corporate', 'batch', 'verification']
         ],
         '801.9' => [
             'code' => '801.9',
-            'name' => 'الأمان الأساسي - Basic Security Protocol',
+            'name' => 'الأمان الأساسي',
             'description' => 'بروتوكول أمان أساسي للعمليات البسيطة',
             'icon' => '🔒',
             'type' => 'security',
             'features' => ['secure', 'basic', 'fraud-check']
         ]
     ];
+}
+
+/**
+ * اسم البروتوكول للعرض فقط — بدون أرقام 101 أو 201 أبداً.
+ */
+function protocol_display_name(?string $code): string
+{
+    $code = trim((string)$code);
+    if ($code === '') {
+        return '—';
+    }
+
+    static $labels = [
+        '101.0' => ['ar' => 'سحب مباشر بالبطاقة', 'en' => 'Direct Card Sale'],
+        '101.1' => ['ar' => 'تفويض وتسوية', 'en' => 'Auth & Capture'],
+        '201.3' => ['ar' => 'تسوية شركات / MOTO', 'en' => 'Corporate / MOTO Settlement'],
+        '201.0' => ['ar' => 'تسوية مباشرة', 'en' => 'Direct Settlement'],
+        '201.2' => ['ar' => 'تسوية مباشرة', 'en' => 'Direct Settlement'],
+        '201.4' => ['ar' => 'تسوية مباشرة', 'en' => 'Direct Settlement'],
+        '201.5' => ['ar' => 'تسوية مباشرة', 'en' => 'Direct Settlement'],
+        '201.6' => ['ar' => 'تسوية مباشرة', 'en' => 'Direct Settlement'],
+        '201.7' => ['ar' => 'تسوية مباشرة', 'en' => 'Direct Settlement'],
+        '201.9' => ['ar' => 'تسوية مباشرة', 'en' => 'Direct Settlement'],
+        '801.9' => ['ar' => 'الأمان الأساسي', 'en' => 'Basic Security'],
+        'SIMPLE_WITHDRAWAL' => ['ar' => 'سحب بسيط', 'en' => 'Simple Withdrawal'],
+        'DIRECT' => ['ar' => 'مباشر', 'en' => 'Direct'],
+    ];
+
+    $lang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
+    if (isset($labels[$code])) {
+        return $labels[$code][$lang] ?? $labels[$code]['en'];
+    }
+
+    // أي كود يبدأ بـ 101 أو 201 → اسم عام بدون أرقام
+    if (preg_match('/^101(\.|$)/', $code)) {
+        return $lang === 'ar' ? 'عملية بطاقة' : 'Card Operation';
+    }
+    if (preg_match('/^201(\.|$)/', $code)) {
+        return $lang === 'ar' ? 'تسوية / MOTO' : 'Settlement / MOTO';
+    }
+
+    // تنظيف أي ظهور لـ 101 / 201 كنص بروتوكول في التسمية
+    return redact_protocol_numbers($code);
+}
+
+/**
+ * يحذف من النص المعروض رموز البروتوكول 101 و 201 (ومشتقاتها 101.x / 201.x)
+ * لا يُستخدم على IBAN أو أرقام حسابات — فقط على حقول البروتوكول/الرسائل.
+ */
+function redact_protocol_numbers(string $text): string
+{
+    $text = preg_replace('/\b101(?:\.\d+)?\b/u', '', $text);
+    $text = preg_replace('/\b201(?:\.\d+)?\b/u', '', $text);
+    $text = preg_replace('/[ \t]{2,}/u', ' ', $text);
+    $text = preg_replace('/\s([,.:;])/u', '$1', $text);
+    $text = trim($text, " \t\n\r\0\x0B-–—");
+    return $text === '' ? '—' : $text;
 }
 
 /**

@@ -9,31 +9,35 @@ require_once '../lib/WalletManager.php';
 $wm = WalletManager::getInstance();
 $db = db();
 
-// إجمالي محافظ الشركة
-$companyWallets = $db->fetchAll("SELECT * FROM company_wallets ORDER BY wallet_type,currency") ?: [];
-
-// إحصاءات
-$totalUsers    = $db->fetchOne("SELECT COUNT(*) c FROM users WHERE status='active'")['c'] ?? 0;
-$totalDeposits = $db->fetchOne("SELECT COALESCE(SUM(amount),0) s FROM wallet_transactions WHERE type='deposit' AND status='completed'")['s'] ?? 0;
-$totalFees     = $db->fetchOne("SELECT COALESCE(SUM(fee),0) s FROM wallet_transactions WHERE status='completed'")['s'] ?? 0;
-$pendingWd     = $db->fetchOne("SELECT COUNT(*) c FROM wallet_transactions WHERE type='withdraw' AND status='pending'")['c'] ?? 0;
-
-// قائمة المستخدمين مع أرصدتهم
-$users = $db->fetchAll("
-    SELECT u.id,u.username,u.email,
-        COALESCE((SELECT SUM(balance) FROM user_fiat_wallets WHERE user_id=u.id),0) fiat_total,
-        COALESCE((SELECT SUM(balance) FROM user_crypto_wallets WHERE user_id=u.id),0) crypto_total,
-        COALESCE((SELECT COUNT(*) FROM wallet_transactions WHERE user_id=u.id),0) txn_count
-    FROM users u WHERE u.status='active'
-    ORDER BY fiat_total DESC LIMIT 50
-") ?: [];
-
-// آخر الحركات
-$recentTxns = $db->fetchAll("
-    SELECT wt.*,u.username FROM wallet_transactions wt
-    LEFT JOIN users u ON u.id=wt.user_id
-    ORDER BY wt.created_at DESC LIMIT 20
-") ?: [];
+$companyWallets = [];
+$totalUsers = 0;
+$totalDeposits = 0;
+$totalFees = 0;
+$pendingWd = 0;
+$users = [];
+$recentTxns = [];
+try {
+    $companyWallets = $db->fetchAll("SELECT * FROM " . dp_table('company_wallets') . " ORDER BY wallet_type,currency") ?: [];
+    $totalUsers    = $db->fetchOne("SELECT COUNT(*) c FROM " . dp_table('users') . " WHERE status='active'")['c'] ?? 0;
+    $totalDeposits = $db->fetchOne("SELECT COALESCE(SUM(amount),0) s FROM " . dp_table('wallet_transactions') . " WHERE type='deposit' AND status='completed'")['s'] ?? 0;
+    $totalFees     = $db->fetchOne("SELECT COALESCE(SUM(fee),0) s FROM " . dp_table('wallet_transactions') . " WHERE status='completed'")['s'] ?? 0;
+    $pendingWd     = $db->fetchOne("SELECT COUNT(*) c FROM " . dp_table('wallet_transactions') . " WHERE type='withdraw' AND status='pending'")['c'] ?? 0;
+    $users = $db->fetchAll("
+        SELECT u.id,u.username,u.email,
+            COALESCE((SELECT SUM(balance) FROM " . dp_table('user_fiat_wallets') . " WHERE user_id=u.id),0) fiat_total,
+            COALESCE((SELECT SUM(balance) FROM " . dp_table('user_crypto_wallets') . " WHERE user_id=u.id),0) crypto_total,
+            COALESCE((SELECT COUNT(*) FROM " . dp_table('wallet_transactions') . " WHERE user_id=u.id),0) txn_count
+        FROM " . dp_table('users') . " u WHERE u.status='active'
+        ORDER BY fiat_total DESC LIMIT 50
+    ") ?: [];
+    $recentTxns = $db->fetchAll("
+        SELECT wt.*,u.username FROM " . dp_table('wallet_transactions') . " wt
+        LEFT JOIN " . dp_table('users') . " u ON u.id=wt.user_id
+        ORDER BY wt.created_at DESC LIMIT 20
+    ") ?: [];
+} catch (Throwable $e) {
+    error_log('[admin/wallets] ' . $e->getMessage());
+}
 ?><!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>

@@ -23,14 +23,14 @@ try {
     switch ($action) {
 
         case 'initiate':
-            if (empty($_SESSION['user_id'])) { http_response_code(401); echo json_encode(['success'=>false,'message'=>'غير مصرّح']); break; }
+            if (empty($_SESSION['user_id'])) { http_response_code(401); echo json_encode(['success'=>false,'message'=>dp_t('Unauthorized', 'غير مصرّح')]); break; }
             if (!verifyCsrfToken($payload['csrf_token'] ?? '')) { echo json_encode(['success'=>false,'message'=>'CSRF invalid']); break; }
             $level = intval($payload['level'] ?? 1);
             echo json_encode($kyc->initiateKYC((int)$_SESSION['user_id'], $level), JSON_UNESCAPED_UNICODE);
             break;
 
         case 'status':
-            if (empty($_SESSION['user_id'])) { http_response_code(401); echo json_encode(['success'=>false,'message'=>'غير مصرّح']); break; }
+            if (empty($_SESSION['user_id'])) { http_response_code(401); echo json_encode(['success'=>false,'message'=>dp_t('Unauthorized', 'غير مصرّح')]); break; }
             echo json_encode(array_merge($kyc->getStatus((int)$_SESSION['user_id']), ['success'=>true]), JSON_UNESCAPED_UNICODE);
             break;
 
@@ -45,9 +45,9 @@ try {
 
         default:
             http_response_code(400);
-            echo json_encode(['success'=>false,'message'=>'action غير معروف']);
+            echo json_encode(['success'=>false,'message'=>dp_t('Unknown action', 'action غير معروف')]);
     }
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['success'=>false,'message'=> APP_IS_LOCAL ? $e->getMessage() : 'خطأ داخلي']);
+    echo json_encode(['success'=>false,'message'=> APP_IS_LOCAL ? $e->getMessage() : dp_t('Internal error', 'خطأ داخلي')]);
 }

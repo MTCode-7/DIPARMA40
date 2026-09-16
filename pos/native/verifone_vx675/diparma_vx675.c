@@ -61,7 +61,7 @@ int main(void)
     memset(&sale, 0, sizeof(sale));
     strncpy(sale.line, "petroleum", sizeof(sale.line) - 1);
     strncpy(sale.txn_type, "purchase_2d", sizeof(sale.txn_type) - 1);
-    strncpy(sale.tid, "T705953", sizeof(sale.tid) - 1);
+    strncpy(sale.tid, "", sizeof(sale.tid) - 1);
     strncpy(sale.currency, "USD", sizeof(sale.currency) - 1);
     strncpy(sale.entry_mode, "chip", sizeof(sale.entry_mode) - 1);
     /* After Nuvei Payment App approval with injected keys: copy auth + RRN. */

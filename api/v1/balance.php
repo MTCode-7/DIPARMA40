@@ -12,15 +12,30 @@ $client = ApiAuth::verify();
 
 $ledgerAddr = $client['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '');
 
-// جلب رصيد TronScan
+// رصيد عبر TronGrid (Tronscan يعيد 401 بدون مفتاح)
 $trxBal = 0; $usdtBal = 0;
+$usdtContract = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 try {
-    $r = @file_get_contents("https://apilist.tronscanapi.com/api/accountv2?address={$ledgerAddr}");
-    if ($r) {
-        $d = json_decode($r, true);
-        $trxBal  = round(floatval($d['balance'] ?? 0) / 1e6, 4);
-        $usdt    = array_filter($d['trc20token_balances'] ?? [], fn($t) => $t['tokenAbbr'] === 'USDT');
-        $usdtBal = $usdt ? round(floatval(reset($usdt)['balance'] ?? 0) / 1e6, 2) : 0;
+    if ($ledgerAddr !== '' && preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $ledgerAddr)) {
+        $ch = curl_init('https://api.trongrid.io/v1/accounts/' . rawurlencode($ledgerAddr));
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+        $r = curl_exec($ch);
+        curl_close($ch);
+        if ($r) {
+            $d = json_decode($r, true);
+            $acc = $d['data'][0] ?? [];
+            $trxBal = round(floatval($acc['balance'] ?? 0) / 1e6, 4);
+            foreach (($acc['trc20'] ?? []) as $row) {
+                if (is_array($row) && isset($row[$usdtContract])) {
+                    $usdtBal = round(floatval($row[$usdtContract]) / 1e6, 2);
+                    break;
+                }
+            }
+        }
     }
 } catch (Exception $e) {}
 

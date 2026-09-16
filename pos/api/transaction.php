@@ -106,11 +106,18 @@ if (!is_array($data)) {
 
 $extraEarly = is_array($data['extra'] ?? null) ? $data['extra'] : [];
 $requestedGateway = pos_normalize_gateway((string)($data['gateway'] ?? $data['card_provider'] ?? $extraEarly['gateway'] ?? ''));
-if ($requestedGateway === '' || !pos_gateway_is_live($requestedGateway)) {
+if ($requestedGateway === 'diparma_gateway') {
+    $alt = pos_normalize_gateway((string)($data['card_provider'] ?? $extraEarly['card_provider'] ?? ''));
+    if ($alt === 'diparma_gateway') {
+        $alt = '';
+    }
+    $requestedGateway = $alt;
+}
+if ($requestedGateway === '' || !pos_is_charge_processor($requestedGateway) || !pos_gateway_is_live($requestedGateway)) {
     http_response_code(422);
     echo json_encode([
         'success' => false,
-        'message' => 'POS gateway is not enabled. Enable it in Payment Gateway Manager.',
+        'message' => 'Pick an enabled payment gateway. Ledger is the settlement destination, not a charge gateway.',
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -123,7 +130,7 @@ $txnType = pos_normalize_operation($txnTypeRaw);
 $opMeta = pos_operation_meta($txnType) ?? [];
 $amount = floatval($data['amount'] ?? 0);
 $currency = strtoupper($data['currency'] ?? 'USD');
-if ($posGateway === 'diparma_gateway') {
+if (pos_gateway_requires_card($requestedGateway)) {
     $currency = pos_best_card_currency($currency);
 }
 $cardNumber = preg_replace('/\D/', '', $data['card_number'] ?? $data['cc_number'] ?? '');
@@ -135,6 +142,9 @@ $cardNetwork = pos_normalize_card_network((string)($data['card_network'] ?? $dat
 $cloudToken = trim((string)($data['cloud_token'] ?? $data['payment_token'] ?? $data['source_id'] ?? ''));
 $sourceId = trim((string)($data['source_id'] ?? $cloudToken));
 $origRef = trim((string)($data['orig_ref'] ?? $data['rrn'] ?? $data['bank_rrn'] ?? $data['refund_reference'] ?? ''));
+$bankRrn = pos_normalize_rrn((string)($data['bank_rrn'] ?? $extraEarly['bank_rrn'] ?? $origRef));
+$paymentId = trim((string)($data['payment_id'] ?? $data['nuvei_txn_id'] ?? $data['transaction_id'] ?? $extraEarly['payment_id'] ?? ''));
+$gatewayApprovalCode = trim((string)($data['gateway_approval_code'] ?? $data['auth_code'] ?? $extraEarly['gateway_approval_code'] ?? ''));
 $ledgerAddr = trim((string) LEDGER_TRC20_ADDRESS);
 $hotWalletAddr = trim($data['hot_wallet_address'] ?? HOT_WALLET_TRC20_ADDRESS);
 $autoTransfer = true;
@@ -209,9 +219,21 @@ if ($userId > 0) {
 // بيانات إضافية
 $manualApproval = $extra['approval_code'] ?? '';
 $bankApprovalCode = trim((string)($data['approval_code'] ?? $data['bank_approval_code'] ?? $manualApproval ?? ''));
-$manualRRN = $extra['manual_rrn'] ?? $data['bank_rrn'] ?? '';
+$manualRRN = $extra['manual_rrn'] ?? $data['bank_rrn'] ?? $bankRrn;
+if ($gatewayApprovalCode === '') {
+    $gatewayApprovalCode = trim((string)($extra['gateway_approval_code'] ?? $extra['auth_code'] ?? ''));
+}
+if ($gatewayApprovalCode === '') {
+    $gatewayApprovalCode = $bankApprovalCode;
+}
+if ($paymentId === '') {
+    $paymentId = trim((string)($extra['payment_id'] ?? $extra['nuvei_txn_id'] ?? ''));
+}
+if ($bankRrn !== '') {
+    $origRef = $bankRrn;
+}
 $manualNotes = $extra['notes'] ?? '';
-$terminalId = $resolvedDevice['terminal_id'] ?? pos_normalize_terminal_id((string)($extra['terminal_id'] ?? 'T0000001'));
+$terminalId = $resolvedDevice['terminal_id'] ?? pos_normalize_terminal_id((string)($extra['terminal_id'] ?? $data['tid'] ?? ''));
 $merchantId = $extra['merchant_id'] ?? '';
 $posLocation = $extra['pos_location'] ?? '';
 $secMode = '2D';
@@ -232,12 +254,32 @@ $reference = $data['reference'] ?? 'POS-' . strtoupper(substr($txnType, 0, 4)) .
 
 $errors = [];
 
-// بدون حدود مبلغ — فقط أكبر من صفر (ما عدا avoid بدون مبلغ)
+// بدون حدود مبلغ عامة — فقط أكبر من صفر (ما عدا avoid بدون مبلغ)
 if ($amount <= 0 && $txnType !== 'avoid') {
     $errors[] = 'Invalid amount. Must be greater than 0.';
 }
+// Bank account ceiling: Direct Advice / Purchase Advice capped at 5,000,000
+if ($txnType === 'purchase_advice') {
+    $bankCap = function_exists('pos_direct_advice_max_amount') ? pos_direct_advice_max_amount() : 5000000.00;
+    if ($amount > $bankCap) {
+        $errors[] = 'Bank account limit: amount cannot exceed ' . number_format($bankCap, 2, '.', ',') . '.';
+    }
+}
+// Bank offline (SAF) ceiling: 2,000,000 per sale
+if ($txnType === 'offline_sale_moto') {
+    $offlineCap = function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00;
+    if ($amount > $offlineCap) {
+        $errors[] = 'Offline bank limit: amount cannot exceed ' . number_format($offlineCap, 2, '.', ',') . '.';
+    }
+}
 if ($cardNumber !== '' && pos_is_blocked_test_card($cardNumber)) {
     $errors[] = 'Test and dummy cards are blocked. Use a real card.';
+}
+if ($terminalId === '' || (function_exists('pos_dummy_terminal_ids') && in_array($terminalId, pos_dummy_terminal_ids(), true))) {
+    $errors[] = 'Real Terminal ID (TID) is required. Dummy TIDs are rejected.';
+}
+if (empty($resolvedDevice['model']) || empty($resolvedDevice['accepted'])) {
+    $errors[] = 'Select a real POS model from the catalog.';
 }
 
 if (!preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $ledgerAddr)) {
@@ -268,7 +310,14 @@ if ($cardType === 'CLOUD' && $cardRail && strlen($cloudToken) < 8 && !in_array($
 $fieldPayload = [
     'rrn' => $origRef !== '' ? $origRef : ($data['rrn'] ?? $manualRRN ?? ''),
     'orig_ref' => $origRef,
+    'bank_rrn' => $bankRrn,
     'approval_code' => $bankApprovalCode,
+    'bank_approval_code' => $bankApprovalCode,
+    'payment_id' => $paymentId,
+    'nuvei_txn_id' => $paymentId,
+    'transaction_id' => $paymentId,
+    'gateway_approval_code' => $gatewayApprovalCode,
+    'auth_code' => $gatewayApprovalCode,
     'card_number' => $cardNumber,
     'card_expiry' => $cardExpiry,
     'charge_mode' => $chargeMode,
@@ -342,10 +391,11 @@ if ($txnType === 'capture') {
 
 // Capture فقط مرتبط بـ AUTH — advice مستقل
 $authorizedAmount = null;
-if ($txnType === 'capture' && !empty($origRef)) {
+if ($txnType === 'capture' && ($origRef !== '' || $paymentId !== '')) {
     $originalRows = $db->query(
-        "SELECT amount, transaction_type, status FROM " . DB_PREFIX . "transactions WHERE reference = ? OR rrn = ? LIMIT 1",
-        [$origRef, pos_normalize_rrn($origRef)]
+        "SELECT amount, transaction_type, status, rrn, reference FROM " . DB_PREFIX . "transactions
+         WHERE reference = ? OR rrn = ? OR gateway_response LIKE ? LIMIT 1",
+        [$origRef !== '' ? $origRef : $paymentId, pos_normalize_rrn($origRef), '%' . $paymentId . '%']
     );
     if (!empty($originalRows[0]['amount'])) {
         $authorizedAmount = (float)$originalRows[0]['amount'];
@@ -372,23 +422,6 @@ $result = [];
 $orderPersistedByOrchestrator = false;
 $orchestratorOrderId = null;
 
-if (!empty($nuveiVerix)) {
-    $useCardGateway = false;
-    $success = true;
-    $message = 'APPROVED';
-    $approvalCode = $bankApprovalCode;
-    $rrn = $origRef !== '' ? (function_exists('pos_normalize_rrn') ? pos_normalize_rrn($origRef) : $origRef) : '';
-    $nuveiTxnId = trim((string)($data['nuvei_txn_id'] ?? $extra['nuvei_txn_id'] ?? '')) ?: null;
-    $gatewayResponse = [
-        'source' => 'nuvei_payment_app',
-        'os' => 'Verix V',
-        'acquirer' => 'nuvei',
-        'payment_app' => 'Nuvei Payment App',
-        'keys_injected' => true,
-        'pos_model' => 'verifone_vx675',
-    ];
-}
-
 if ($useCardGateway) {
     try {
         $params = [
@@ -413,9 +446,11 @@ if ($useCardGateway) {
             'user_token_id' => 'user_' . $userId . '_' . time(),
             'pos_device' => $posDevice,
             'channel' => $entryChannel,
-            'related_transaction_id' => $origRef,
-            'auth_code' => $data['auth_code'] ?? ($data['approval_code'] ?? ($extra['auth_code'] ?? $bankApprovalCode)),
-            'client_unique_id' => $origRef,
+            'related_transaction_id' => $paymentId !== '' ? $paymentId : $origRef,
+            'auth_code' => $gatewayApprovalCode !== '' ? $gatewayApprovalCode : ($data['auth_code'] ?? ($data['approval_code'] ?? ($extra['auth_code'] ?? $bankApprovalCode))),
+            'client_unique_id' => $origRef !== '' ? $origRef : $reference,
+            'payment_id' => $paymentId,
+            'nuvei_txn_id' => $paymentId,
             'authorized_amount' => $authorizedAmount,
             'reference' => $reference,
             'terminal_id' => $terminalId,
@@ -455,7 +490,6 @@ if ($useCardGateway) {
             }
         }
         if ($params['email'] === '') {
-            $params['email'] = 'pos@diparmas.com';
             try {
                 $urows = $db->query("SELECT email FROM " . DB_PREFIX . "users WHERE id=? LIMIT 1", [$userId]);
                 if (!empty($urows[0]['email'])) {
@@ -516,7 +550,7 @@ if ($useCardGateway) {
                 $result['success'] = $capOk && $refOk;
             }
         } else {
-            // POS_WEB → Payment Orchestrator → Provider → Payment Result → Orders
+            // Gateway only — no order/accounting layer, no simulated approval
             $result = pos_run_payment_orchestrator($posGateway, $runType, $params);
         }
 

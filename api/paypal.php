@@ -186,21 +186,21 @@ try {
                     'updated_at' => date('Y-m-d H:i:s'),
                 ], ['reference' => $reference ?: $result['reference']]);
 
-                // إرسال USDT بعد الدفع
-                $txn = $db->find('transactions', ['reference' => $reference ?: $result['reference']]);
-                if ($txn) {
-                    $gwData  = json_decode($txn['gateway_response'] ?? '{}', true);
-                    $toAddr  = $gwData['wallet']        ?? '';
-                    $cryptoAmt = floatval($gwData['crypto_amount'] ?? 0);
-                    $network = $gwData['network']       ?? 'TRC20';
-
-                    if (!empty($toAddr) && $cryptoAmt > 0 && file_exists(__DIR__.'/../lib/ExchangeAPIService.php')) {
-                        require_once __DIR__.'/../lib/ExchangeAPIService.php';
-                        require_once __DIR__.'/../lib/WalletService.php';
-                        require_once __DIR__.'/../lib/HotWalletService.php';
-                        $ex = ExchangeAPIService::getInstance();
-                        $ex->fulfillOrder($txn['reference'], $cryptoAmt, $toAddr, $network, intval($txn['user_id']));
-                    }
+                $ref = $reference ?: ($result['reference'] ?? '');
+                if ($ref !== '') {
+                    require_once __DIR__.'/../lib/LedgerSettlementService.php';
+                    $txn = $db->find('transactions', ['reference' => $ref]);
+                    $settle = LedgerSettlementService::getInstance()->settleToLedger([
+                        'reference'      => $ref,
+                        'amount'         => (float)($txn['amount'] ?? 0),
+                        'currency'       => (string)($txn['currency'] ?? 'USD'),
+                        'gateway'        => 'paypal',
+                        'ledger_address' => '',
+                        'user_id'        => (int)($txn['user_id'] ?? 0),
+                        'txn_type'       => 'purchase',
+                        'destination'    => 'ledger',
+                    ]);
+                    $result['ledger_settlement'] = $settle;
                 }
             }
 
@@ -232,6 +232,23 @@ try {
                     ?? '';
                 if ($reference) {
                     $db->update('transactions', ['status' => 'completed'], ['reference' => $reference]);
+                    try {
+                        require_once __DIR__.'/../lib/LedgerSettlementService.php';
+                        $txn = $db->find('transactions', ['reference' => $reference]);
+                        if ($txn) {
+                            LedgerSettlementService::getInstance()->settleToLedger([
+                                'reference' => $reference,
+                                'amount'    => (float)$txn['amount'],
+                                'currency'  => (string)($txn['currency'] ?? 'USD'),
+                                'gateway'   => 'paypal',
+                                'user_id'   => (int)($txn['user_id'] ?? 0),
+                                'txn_type'  => 'purchase',
+                                'destination' => 'ledger',
+                            ]);
+                        }
+                    } catch (Throwable $e) {
+                        error_log('[PayPal][Ledger] ' . $e->getMessage());
+                    }
                 }
             }
 

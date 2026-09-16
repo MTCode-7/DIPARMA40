@@ -618,20 +618,10 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);displ
 <!-- ══════════════════ SCRIPTS ══════════════════ -->
 
 <!--
-  Import Map: نحدد الإصدارات بدقة ونستخدم المسار الصحيح ./lib/esm/index.js
-  device-signer-kit-tron غير مستقر على CDN → نعتمد hw-app-trx كبديل
+  Ledger عبر المكتبات الكلاسيكية المستقرة (WebHID + Tron App)
+  DMK من jsDelivr يفشل غالباً بسبب تبعيات ESM — نستبدله بـ esm.sh
 -->
-<script type="importmap">
-{
-  "imports": {
-    "@ledgerhq/device-management-kit":         "https://cdn.jsdelivr.net/npm/@ledgerhq/device-management-kit@1.8.0/lib/esm/index.js",
-    "@ledgerhq/device-transport-kit-web-hid":  "https://cdn.jsdelivr.net/npm/@ledgerhq/device-transport-kit-web-hid@1.2.4/lib/esm/index.js",
-    "rxjs":                                    "https://cdn.jsdelivr.net/npm/rxjs@7.8.2/dist/esm5/index.js",
-    "rxjs/operators":                          "https://cdn.jsdelivr.net/npm/rxjs@7.8.2/dist/esm5/operators/index.js"
-  }
-}
-</script>
-
+<script src="../assets/js/ledger_hid.js?v=5"></script>
 <script type="module">
 // ─────────────────────────────────────────────
 // State
@@ -640,6 +630,7 @@ const STATE = {
   connected: false,
   network: 'tron',
   address: null,
+  transport: null,
   dmk: null,
   sessionId: null,
   accounts: { tron: null, eth: null },
@@ -647,8 +638,13 @@ const STATE = {
 };
 
 const MOONPAY_KEY = '<?= htmlspecialchars($moonpayKey) ?>';
-const LEDGER_TRX  = '<?= $ledgerTRXAddress ?>';
+const LEDGER_TRX  = '<?= htmlspecialchars($ledgerTRXAddress) ?>';
 
+const LEDGER_CDN = {
+  transport: 'https://esm.sh/@ledgerhq/hw-transport-webhid@6.30.0',
+  trx:       'https://esm.sh/@ledgerhq/hw-app-trx@6.36.6',
+};
+const LEDGER_API = '../api/ledger_tron.php';
 // ─────────────────────────────────────────────
 // WebHID Browser Check
 // ─────────────────────────────────────────────
@@ -718,19 +714,25 @@ window.handleConnect = async function() {
 
   const btn  = document.getElementById('connectBtn');
   const btn2 = document.getElementById('connectBtn2');
-  [btn, btn2].forEach(b => { if(b){ b.disabled=true; b.innerHTML='<span class="spinner"></span>'; } });
 
   try {
-    await connectViaDMK();
+    await connectViaWebHID();
+    [btn, btn2].forEach(b => { if(b){ b.disabled=true; } });
   } catch(err) {
     console.error('[Ledger] Connection failed:', err);
     const msg = err?.message || String(err);
-    if (msg.includes('Failed to fetch') || msg.includes('import')) {
-      toast('<?= $ar ? 'خطأ في تحميل مكتبة Ledger. تحقق من الإنترنت.' : 'Failed to load Ledger library. Check your connection.' ?>', 'error');
-    } else if (msg.includes('No device') || msg.includes('discovery')) {
-      toast('<?= $ar ? 'لم يتم اكتشاف جهاز Ledger. تأكد من التوصيل.' : 'No Ledger device found. Check USB connection.' ?>', 'error');
+    if (/Failed to fetch|NetworkError|Load failed|import|CORS/i.test(msg)) {
+      // إن فشل CDN لكن لدينا عنوان .env — نربطه يدوياً
+      if (LEDGER_TRX && /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(LEDGER_TRX)) {
+        toast('<?= $ar ? 'تعذر تحميل المكتبة — تم الربط بالعنوان من الإعدادات' : 'Library load failed — linked with configured address' ?>', 'info');
+        onConnected(LEDGER_TRX);
+      } else {
+        toast('<?= $ar ? 'خطأ في تحميل مكتبة Ledger. تحقق من الإنترنت أو جرّب Chrome.' : 'Failed to load Ledger library. Check connection or try Chrome.' ?>', 'error');
+      }
+    } else if (window.DiparmaLedgerHid) {
+      toast(window.DiparmaLedgerHid.explainError(err, <?= $ar ? 'true' : 'false' ?>), 'error');
     } else {
-      toast(msg.substring(0, 80) + (msg.length > 80 ? '…' : ''), 'error');
+      toast(msg.substring(0, 100) + (msg.length > 100 ? '…' : ''), 'error');
     }
   } finally {
     [btn, btn2].forEach(b => {
@@ -739,112 +741,49 @@ window.handleConnect = async function() {
   }
 };
 
-async function connectViaDMK() {
-  // تحميل DMK + WebHID transport بإصدارات محددة وآمنة
-  let DeviceManagementKitBuilder, webHidTransportFactory;
-  try {
-    const dmkMod = await import('@ledgerhq/device-management-kit');
-    const hidMod = await import('@ledgerhq/device-transport-kit-web-hid');
-    DeviceManagementKitBuilder = dmkMod.DeviceManagementKitBuilder;
-    webHidTransportFactory     = hidMod.webHidTransportFactory;
-  } catch (importErr) {
-    throw new Error('Failed to load Ledger DMK: ' + importErr.message);
+async function loadLedgerModules() {
+  const [transportMod, trxMod] = await Promise.all([
+    import(LEDGER_CDN.transport),
+    import(LEDGER_CDN.trx),
+  ]);
+  const hid = window.DiparmaLedgerHid;
+  const TransportWebHID = hid
+    ? hid.resolveTransportClass(transportMod)
+    : (transportMod.default || transportMod.TransportWebHID);
+  const Trx = trxMod.Trx || trxMod.default || trxMod;
+  if (!TransportWebHID || !Trx) {
+    throw new Error('Ledger modules incomplete');
   }
+  return { TransportWebHID, Trx };
+}
 
-  const dmk = new DeviceManagementKitBuilder()
-    .addTransport(webHidTransportFactory)
-    .build();
-
-  STATE.dmk = dmk;
-
-  // طلب صلاحية WebHID من المتصفح
-  toast('<?= $ar ? 'اختر جهاز Ledger من القائمة المنبثقة...' : 'Select your Ledger device from the popup...' ?>', 'info');
-
-  // اكتشاف الجهاز مع timeout 30s
-  const device = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      sub.unsubscribe();
-      reject(new Error('<?= $ar ? 'انتهى وقت الاكتشاف. حاول مجدداً.' : 'Discovery timeout. Please try again.' ?>'));
-    }, 30000);
-
-    const sub = dmk.startDiscovering({}).subscribe({
-      next(dev) {
-        clearTimeout(timer);
-        sub.unsubscribe();
-        resolve(dev);
-      },
-      error(e) {
-        clearTimeout(timer);
-        reject(e);
-      },
-    });
-  });
-
-  // الاتصال بالجهاز
-  const sessionId = await dmk.connect({ device });
-  STATE.sessionId = sessionId;
-
-  // جلب معلومات الجهاز
-  try {
-    const info = dmk.getConnectedDevice({ sessionId });
-    document.getElementById('deviceName').textContent =
-      (info?.modelId || 'Ledger') + ' ' + (info?.name || '');
-    document.getElementById('deviceFirmware').textContent =
-      'FW: ' + (info?.firmwareVersion || '—');
-  } catch(e) {}
-
-  // جلب عنوان TRX عبر hw-transport-webhid + hw-app-trx (أكثر استقراراً من DMK Tron Signer)
-  // fallback: نعرض عنوان Ledger TRX المعروف من .env
-  let address = LEDGER_TRX;
-
-  try {
-    // محاولة جلب العنوان عبر DMK command مباشر
-    const { SendCommandInAppDeviceAction } = await import('@ledgerhq/device-management-kit');
-    // إذا نجح الاستيراد — نحاول
-    address = await getTronAddressViaDMK(dmk, sessionId);
-  } catch (signerErr) {
-    // SignerTrxBuilder غير متاح أو فشل — نستخدم العنوان الافتراضي
-    console.warn('[Ledger] Tron signer unavailable, using env address:', signerErr.message);
-    toast('<?= $ar ? 'تم الاتصال — يُعرض العنوان الافتراضي' : 'Connected — using default TRX address' ?>', 'info');
+async function connectViaWebHID() {
+  if (!window.DiparmaLedgerHid || !window.DiparmaLedgerHid.connectFromClick) {
+    throw new Error('Ledger helper missing — refresh the page');
   }
-
+  const session = await window.DiparmaLedgerHid.connectFromClick();
+  STATE.transport = session.transport;
+  const address = session.address;
+  if (!address || typeof address !== 'string' || !address.startsWith('T')) {
+    try { await session.transport.close(); } catch (_) {}
+    STATE.transport = null;
+    throw new Error('Invalid Tron address from device');
+  }
+  try {
+    const info = session.transport.deviceModel;
+    if (info) {
+      document.getElementById('deviceName').textContent = info.productName || 'Ledger';
+      document.getElementById('deviceFirmware').textContent = 'USB HID';
+    }
+  } catch (_) {}
   STATE.address = address;
   STATE.accounts.tron = address;
-
   onConnected(address);
 }
 
-// محاولة جلب عنوان TRX مباشرة عبر APDU
-async function getTronAddressViaDMK(dmk, sessionId) {
-  // BIP44 path للـ Tron: 44'/195'/0'/0/0
-  // APDU للـ Tron app: CLA=0xE0, INS=0x02 (GET_PUBLIC_KEY)
-  const path = "44'/195'/0'/0/0";
-  const pathBuffer = buildBip44Path(path);
-
-  // بناء APDU packet
-  const apdu = new Uint8Array([
-    0xE0,       // CLA
-    0x02,       // INS: GET_PUBLIC_KEY
-    0x00,       // P1: return address immediately
-    0x00,       // P2: no confirmation
-    pathBuffer.length, // Lc
-    ...pathBuffer
-  ]);
-
-  try {
-    // إرسال APDU عبر DMK
-    const result = await dmk.sendApdu({ sessionId, apdu });
-    if (result?.data && result.data.length >= 65) {
-      // استخراج العنوان من response
-      const addrLen = result.data[65];
-      const addrBytes = result.data.slice(66, 66 + addrLen);
-      const decoder = new TextDecoder();
-      return decoder.decode(addrBytes);
-    }
-  } catch (e) {
-    // ignore — fallback to env address
-  }
-  return LEDGER_TRX;
+// توافق خلفي مع الاسم القديم
+async function connectViaDMK() {
+  return connectViaWebHID();
 }
 
 function buildBip44Path(path) {
@@ -896,13 +835,19 @@ function onConnected(address) {
 }
 
 window.disconnectLedger = async function() {
+  try {
+    if (STATE.transport) {
+      await STATE.transport.close();
+    }
+  } catch (_) {}
   if (STATE.dmk && STATE.sessionId) {
-    try { await STATE.dmk.disconnect({ sessionId: STATE.sessionId }); } catch(e) {}
+    try { await STATE.dmk.disconnect({ sessionId: STATE.sessionId }); } catch(_) {}
   }
+  STATE.transport = null;
+  STATE.dmk = null;
+  STATE.sessionId = null;
   STATE.connected = false;
   STATE.address = null;
-  STATE.sessionId = null;
-  STATE.dmk = null;
 
   const pill = document.getElementById('statusPill');
   pill.classList.remove('connected');
@@ -910,7 +855,7 @@ window.disconnectLedger = async function() {
   document.getElementById('statusText').textContent = '<?= $ar ? "غير متصل" : "Disconnected" ?>';
 
   const btn = document.getElementById('connectBtn');
-  btn.className = 'btn btn-dark btn-sm';
+  btn.className = 'btn btn-gold btn-sm';
   btn.innerHTML = '<i class="fas fa-plug"></i> <?= $t['connect'] ?>';
 
   document.getElementById('deviceInfo').style.display = 'none';
@@ -918,8 +863,10 @@ window.disconnectLedger = async function() {
   document.getElementById('accountsSection').classList.add('hidden');
   document.getElementById('statsRow').style.display = 'none';
   document.getElementById('refreshBtn').disabled = true;
+  document.getElementById('sendNotConnected')?.classList.remove('hidden');
+  document.getElementById('sendForm')?.classList.add('hidden');
 
-  toast('Ledger disconnected', 'info');
+  toast('<?= $ar ? "تم قطع الاتصال" : "Disconnected" ?>', 'info');
 };
 
 // ─────────────────────────────────────────────
@@ -930,28 +877,33 @@ async function loadTronAccount(address) {
     '<div style="padding:20px;color:var(--muted)"><span class="spinner"></span> Loading...</div>';
 
   try {
-    const r = await fetch(`https://apilist.tronscanapi.com/api/accountv2?address=${address}`);
-    const d = await r.json();
+    // عبر خادم DI PARMA → TronGrid (يتجنب 401 من Tronscan وقيود المتصفح)
+    const r = await fetch(`${LEDGER_API}?action=balance&address=${encodeURIComponent(address)}`, {
+      credentials: 'same-origin',
+    });
+    const payload = await r.json();
+    if (!r.ok || !payload.success) {
+      throw new Error(payload.message || ('HTTP ' + r.status));
+    }
 
-    const trxBal   = parseFloat((d.balance / 1e6) || 0);
-    const usdtToken = d.trc20token_balances?.find(t => t.tokenAbbr === 'USDT');
-    const usdtBal  = parseFloat(usdtToken ? usdtToken.balance / 1e6 : 0);
-    const totalUSD = parseFloat(d.totalAssetInUsd || 0);
+    const trxBal   = parseFloat(payload.trx || 0);
+    const usdtBal  = parseFloat(payload.usdt || 0);
+    const totalUSD = parseFloat(payload.total_usd || 0);
 
     STATE.balances = { trx: trxBal, usdt: usdtBal };
+    STATE.address  = address;
 
-    // Stats
     document.getElementById('statTotal').textContent  = '$' + totalUSD.toFixed(2);
-    document.getElementById('statTRX').textContent    = trxBal.toFixed(2) + ' TRX';
+    document.getElementById('statTRX').textContent    = trxBal.toFixed(4) + ' TRX';
     document.getElementById('statUSDT').textContent   = usdtBal.toFixed(2) + ' USDT';
-
-    // Account Card
     document.getElementById('accountsGrid').innerHTML = buildAccountCard(address, trxBal, usdtBal, totalUSD);
 
   } catch(e) {
+    console.error('[Ledger] balance error:', e);
     document.getElementById('accountsGrid').innerHTML =
       `<div class="acc-card"><div class="acc-name" style="color:var(--red)">Failed to load balance</div>
-       <div class="acc-addr">${address}</div></div>`;
+       <div class="acc-addr">${address}</div>
+       <div style="font-size:.72rem;color:var(--muted);margin-top:8px">${e.message||''}</div></div>`;
   }
 }
 
@@ -1013,11 +965,14 @@ window.loadTransactions = async function() {
       <?= $ar ? 'وصّل Ledger أولاً' : 'Connect Ledger first' ?></div>`;
     return;
   }
-  container.innerHTML = '<div style="padding:20px;color:var(--muted)"><span class="spinner"></span> Loading from TronScan...</div>';
+  container.innerHTML = '<div style="padding:20px;color:var(--muted)"><span class="spinner"></span> Loading...</div>';
   try {
-    const r = await fetch(`https://apilist.tronscanapi.com/api/transaction?address=${STATE.address}&limit=25&start=0`);
+    const r = await fetch(`${LEDGER_API}?action=transactions&address=${encodeURIComponent(STATE.address)}&limit=25`, {
+      credentials: 'same-origin',
+    });
     const d = await r.json();
-    renderTransactions(d.data || [], container);
+    if (!r.ok || !d.success) throw new Error(d.message || ('HTTP ' + r.status));
+    renderTransactions(d.transactions || [], container);
   } catch(e) {
     container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--red)">Failed to load: ${e.message}</div>`;
   }
@@ -1040,16 +995,16 @@ function renderTransactions(txns, container) {
     </tr></thead><tbody>`;
 
   txns.forEach(tx => {
-    const isIn  = tx.toAddress === STATE.address;
-    const amt   = tx.amount ? (tx.amount / 1e6).toFixed(4) : '0';
+    const amt   = Number(tx.amount || 0).toFixed(4);
     const hash  = tx.hash || '';
     const date  = tx.timestamp
       ? new Date(tx.timestamp).toLocaleString('en-GB', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})
       : '—';
+    const ok = tx.confirmed !== false;
     html += `<tr>
-      <td><span class="${isIn ? 'txn-in' : 'txn-out'}">${isIn ? '↓ IN' : '↑ OUT'}</span></td>
-      <td style="font-weight:800;color:${isIn ? 'var(--green)' : 'var(--red)'}">${isIn ? '+' : '-'}${amt} TRX</td>
-      <td><span class="badge-confirmed">Confirmed</span></td>
+      <td><span class="txn-out">TRX</span></td>
+      <td style="font-weight:800">${amt} TRX</td>
+      <td><span class="badge-confirmed">${ok ? 'Confirmed' : 'Pending'}</span></td>
       <td style="color:var(--muted);font-size:.72rem">${date}</td>
       <td><a href="https://tronscan.org/#/transaction/${hash}" target="_blank"
              style="color:var(--gold);font-family:monospace;font-size:.68rem">${hash.substring(0,12)}…</a></td>
@@ -1129,6 +1084,11 @@ function toast(msg, type = 'info') {
   t._timer = setTimeout(() => { t.style.transform = 'translateX(-50%) translateY(100px)'; }, 4000);
 }
 window.toast = toast;
+
+// تحميل رصيد عنوان .env مباشرة عند فتح الصفحة (بدون انتظار WebHID)
+if (LEDGER_TRX && /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(LEDGER_TRX)) {
+  onConnected(LEDGER_TRX);
+}
 </script>
 </body>
 </html>

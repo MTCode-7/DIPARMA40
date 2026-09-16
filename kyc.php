@@ -17,13 +17,13 @@ $successMessage = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_kyc'])) {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $uploadError = 'رمز CSRF غير صالح.';
+        $uploadError = dp_t('Invalid CSRF token.', 'رمز CSRF غير صالح.');
     } else {
         try {
             $db = db();
             $user = $db->find('users', ['id' => $userId]);
             if (!$user) {
-                throw new RuntimeException('المستخدم غير موجود.');
+                throw new RuntimeException(dp_t('User not found.', 'المستخدم غير موجود.'));
             }
 
             $phone = trim((string)($_POST['phone'] ?? ''));
@@ -33,10 +33,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_kyc'])) {
             $level = max(1, min(3, intval($_POST['level'] ?? 1)));
 
             if ($phone === '' || $country === '' || $address === '' || $documentType === '') {
-                throw new RuntimeException('الرجاء ملء جميع الحقول الإجبارية.');
+                throw new RuntimeException(dp_t('Please fill in all required fields.', 'الرجاء ملء جميع الحقول الإجبارية.'));
             }
             if (empty($_FILES['document_file']) || empty($_FILES['selfie_file'])) {
-                throw new RuntimeException('يرجى رفع صورة الهوية والصورة الشخصية.');
+                throw new RuntimeException(dp_t('Please upload ID and selfie photos.', 'يرجى رفع صورة الهوية والصورة الشخصية.'));
             }
 
             $uploadFolder = ROOT_PATH . '/uploads/kyc/' . $userId;
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_kyc'])) {
                 $db->insert('kyc_verifications', array_merge(['user_id' => $userId], $kycData));
             }
 
-            $successMessage = 'تم إرسال بيانات التحقق بنجاح. سيتم مراجعتها خلال 24 ساعة.';
+            $successMessage = dp_t('Verification submitted successfully. Review within 24 hours.', 'تم إرسال بيانات التحقق بنجاح. سيتم مراجعتها خلال 24 ساعة.');
         } catch (Exception $e) {
             $uploadError = $e->getMessage();
         }
@@ -81,14 +81,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_kyc'])) {
 }
 
 $kyc       = KYCService::getInstance()->getStatus($userId);
-$pageDir   = 'rtl';
 ?>
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="<?= htmlspecialchars(dp_lang()) ?>" dir="<?= htmlspecialchars($pageDir) ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DI PARMA | التحقق من الهوية</title>
+<title>DI PARMA | <?= dp_t('KYC Verification', 'التحقق من الهوية') ?></title>
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
@@ -143,45 +142,45 @@ $pageDir   = 'rtl';
         <div>
             <div style="color:<?= $bannerColor[0] ?>;font-weight:700;font-size:.95rem">
                 <?= match($kyc['status']) {
-                    'approved'    => 'تم التحقق — Level ' . $kyc['level'],
-                    'pending'     => 'قيد المراجعة',
-                    'rejected'    => 'تم الرفض — تواصل مع الدعم',
-                    'not_started' => 'لم تبدأ التحقق بعد',
+                    'approved'    => dp_t('Verified — Level ', 'تم التحقق — Level ') . $kyc['level'],
+                    'pending'     => dp_t('Pending review', 'قيد المراجعة'),
+                    'rejected'    => dp_t('Rejected — contact support', 'تم الرفض — تواصل مع الدعم'),
+                    'not_started' => dp_t('Verification not started', 'لم تبدأ التحقق بعد'),
                     default       => $kyc['status']
                 } ?>
             </div>
             <div style="color:var(--text-muted);font-size:.82rem">
-                الحد اليومي: <?= $kyc['daily_limit'] >= 999999999 ? '∞ بلا حدود' : '$' . number_format($kyc['daily_limit']) . ' USD' ?> |
-                الحد الشهري: <?= $kyc['monthly_limit'] >= 999999999 ? '∞ بلا حدود' : '$' . number_format($kyc['monthly_limit']) . ' USD' ?>
+                <?= dp_t('Daily limit', 'الحد اليومي') ?>: <?= $kyc['daily_limit'] >= 999999999 ? dp_t('∞ No limits', '∞ بلا حدود') : '$' . number_format($kyc['daily_limit']) . ' USD' ?> |
+                <?= dp_t('Monthly limit', 'الحد الشهري') ?>: <?= $kyc['monthly_limit'] >= 999999999 ? dp_t('∞ No limits', '∞ بلا حدود') : '$' . number_format($kyc['monthly_limit']) . ' USD' ?>
             </div>
         </div>
     </div>
 
-    <h3 style="color:var(--text-light);margin:0 0 8px">اختر مستوى التحقق</h3>
+    <h3 style="color:var(--text-light);margin:0 0 8px"><?= dp_t('Choose verification level', 'اختر مستوى التحقق') ?></h3>
     <p style="color:var(--text-muted);font-size:.85rem;margin:0 0 8px">
-        كل مستوى أعلى يتيح لك حدوداً أكبر للتداول
+        <?= dp_t('Higher levels unlock larger trading limits.', 'كل مستوى أعلى يتيح لك حدوداً أكبر للتداول') ?>
     </p>
 
     <!-- مستويات KYC -->
     <div class="level-grid">
         <?php foreach ([
-            [1, 'أساسي',   'بريد + هاتف',       '1,000', '5,000'],
-            [2, 'متوسط',   'هوية + صورة شخصية', '5,000', '50,000'],
-            [3, 'مؤسسي',   'مستندات كاملة',     '50,000','500,000'],
+            [1, dp_t('Basic', 'أساسي'),   dp_t('Email + phone', 'بريد + هاتف'),       '1,000', '5,000'],
+            [2, dp_t('Standard', 'متوسط'),   dp_t('ID + selfie', 'هوية + صورة شخصية'), '5,000', '50,000'],
+            [3, dp_t('Institutional', 'مؤسسي'),   dp_t('Full documents', 'مستندات كاملة'),     '50,000','500,000'],
         ] as [$lvl,$name,$docs,$daily,$monthly]): ?>
         <?php $isCurrent = $kyc['level'] >= $lvl && $kyc['status'] === 'approved'; ?>
         <div class="level-box <?= $isCurrent ? 'current' : ($lvl==1?'selected':'') ?>"
              id="level<?= $lvl ?>" onclick="selectLevel(<?= $lvl ?>)">
             <?php if ($isCurrent): ?>
             <div style="color:#4CAF50;font-size:.75rem;margin-bottom:4px">
-                <i class="fas fa-check"></i> محقّق
+                <i class="fas fa-check"></i> <?= dp_t('Verified', 'محقّق') ?>
             </div>
             <?php endif; ?>
             <div class="level-num"><?= $lvl ?></div>
             <div class="level-title"><?= $name ?></div>
             <div style="color:var(--text-muted);font-size:.75rem;margin-bottom:8px"><?= $docs ?></div>
-            <div class="level-limit">يومي: ∞ بلا حدود</div>
-            <div class="level-limit">شهري: ∞ بلا حدود</div>
+            <div class="level-limit"><?= dp_t('Daily', 'يومي') ?>: <?= dp_t('∞ No limits', '∞ بلا حدود') ?></div>
+            <div class="level-limit"><?= dp_t('Monthly', 'شهري') ?>: <?= dp_t('∞ No limits', '∞ بلا حدود') ?></div>
         </div>
         <?php endforeach; ?>
     </div>
@@ -204,61 +203,61 @@ $pageDir   = 'rtl';
 
         <div style="display:grid;gap:18px;margin-bottom:24px">
             <div style="display:grid;gap:8px">
-                <label style="color:var(--text-light);font-weight:700">البريد الإلكتروني</label>
+                <label style="color:var(--text-light);font-weight:700"><?= dp_t('Email', 'البريد الإلكتروني') ?></label>
                 <input type="email" value="<?= htmlspecialchars($_SESSION['user_data']['email'] ?? '') ?>" readonly style="padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.7);color:#fff;">
             </div>
             <div style="display:grid;gap:8px">
-                <label style="color:var(--text-light);font-weight:700">الهاتف</label>
+                <label style="color:var(--text-light);font-weight:700"><?= dp_t('Phone', 'الهاتف') ?></label>
                 <input type="text" name="phone" value="<?= htmlspecialchars($kyc['phone'] ?? '') ?>" required style="padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.7);color:#fff;">
             </div>
             <div style="display:grid;gap:8px">
-                <label style="color:var(--text-light);font-weight:700">الدولة</label>
+                <label style="color:var(--text-light);font-weight:700"><?= dp_t('Country', 'الدولة') ?></label>
                 <input type="text" name="country" value="<?= htmlspecialchars($kyc['country'] ?? '') ?>" required style="padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.7);color:#fff;">
             </div>
             <div style="display:grid;gap:8px">
-                <label style="color:var(--text-light);font-weight:700">العنوان</label>
+                <label style="color:var(--text-light);font-weight:700"><?= dp_t('Address', 'العنوان') ?></label>
                 <textarea name="address" rows="3" required style="padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.7);color:#fff;resize:vertical;"><?= htmlspecialchars($kyc['address'] ?? '') ?></textarea>
             </div>
             <div style="display:grid;gap:8px">
-                <label style="color:var(--text-light);font-weight:700">نوع المستند</label>
+                <label style="color:var(--text-light);font-weight:700"><?= dp_t('Document type', 'نوع المستند') ?></label>
                 <select name="document_type" required style="padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.7);color:#fff;">
-                    <?php foreach (['Passport' => 'جواز سفر', 'National ID' => 'هوية وطنية', 'Driver License' => 'رخصة قيادة'] as $value => $label): ?>
+                    <?php foreach (['Passport' => dp_t('Passport', 'جواز سفر'), 'National ID' => dp_t('National ID', 'هوية وطنية'), 'Driver License' => dp_t('Driver License', 'رخصة قيادة')] as $value => $label): ?>
                         <option value="<?= htmlspecialchars($value) ?>" <?= ($kyc['document_type'] ?? '') === $value ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div style="display:grid;gap:8px">
-                <label style="color:var(--text-light);font-weight:700">صورة المستند</label>
+                <label style="color:var(--text-light);font-weight:700"><?= dp_t('Document photo', 'صورة المستند') ?></label>
                 <input type="file" name="document_file" accept="image/jpeg,image/png,application/pdf" required style="padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.7);color:#fff;">
             </div>
             <div style="display:grid;gap:8px">
-                <label style="color:var(--text-light);font-weight:700">الصورة الشخصية</label>
+                <label style="color:var(--text-light);font-weight:700"><?= dp_t('Selfie', 'الصورة الشخصية') ?></label>
                 <input type="file" name="selfie_file" accept="image/jpeg,image/png" required style="padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.7);color:#fff;">
             </div>
         </div>
 
         <?php if ($kyc['status'] === 'pending'): ?>
             <div style="text-align:center;padding:16px;color:#f0ad4e;font-size:.9rem;background:rgba(240,173,78,.08);border:1px solid rgba(240,173,78,.25);border-radius:14px;">
-                <i class="fas fa-clock"></i> طلبك قيد المراجعة — سيتم إشعارك عند الانتهاء
+                <i class="fas fa-clock"></i> <?= dp_t('Your request is under review — we will notify you when done.', 'طلبك قيد المراجعة — سيتم إشعارك عند الانتهاء') ?>
             </div>
         <?php elseif ($kyc['status'] === 'approved'): ?>
             <div style="text-align:center;padding:16px;color:#4CAF50;font-size:.9rem;background:rgba(76,175,80,.08);border:1px solid rgba(76,175,80,.25);border-radius:14px;">
-                <i class="fas fa-check-circle"></i> تم التحقق بنجاح — يمكنك متابعة الاستخدام
+                <i class="fas fa-check-circle"></i> <?= dp_t('Verified — you can continue using the platform.', 'تم التحقق بنجاح — يمكنك متابعة الاستخدام') ?>
             </div>
         <?php else: ?>
             <button class="start-btn" type="submit">
-                <i class="fas fa-id-card"></i> إرسال طلب التحقق
+                <i class="fas fa-id-card"></i> <?= dp_t('Submit verification', 'إرسال طلب التحقق') ?>
             </button>
         <?php endif; ?>
     </form>
 
     <!-- شرح العملية -->
     <div style="margin-top:28px;border-top:1px solid var(--border-light);padding-top:20px">
-        <h4 style="color:var(--text-light);margin:0 0 14px;font-size:.9rem">كيف تعمل العملية؟</h4>
+        <h4 style="color:var(--text-light);margin:0 0 14px;font-size:.9rem"><?= dp_t('How it works', 'كيف تعمل العملية؟') ?></h4>
         <?php foreach ([
-            ['fa-upload',    'رفع المستندات',    'هوية وطنية أو جواز سفر + صورة شخصية'],
-            ['fa-search',    'المراجعة',          'يتم التحقق خلال 1-24 ساعة'],
-            ['fa-check',     'التفعيل',           'ترتفع حدودك تلقائياً'],
+            ['fa-upload',    dp_t('Upload documents', 'رفع المستندات'),    dp_t('National ID or passport + selfie', 'هوية وطنية أو جواز سفر + صورة شخصية')],
+            ['fa-search',    dp_t('Review', 'المراجعة'),          dp_t('Verified within 1–24 hours', 'يتم التحقق خلال 1-24 ساعة')],
+            ['fa-check',     dp_t('Activation', 'التفعيل'),           dp_t('Your limits increase automatically', 'ترتفع حدودك تلقائياً')],
         ] as [$ic,$title,$desc]): ?>
         <div style="display:flex;gap:12px;margin-bottom:14px">
             <div style="width:32px;height:32px;border-radius:50%;background:rgba(255,215,0,.1);
@@ -283,6 +282,13 @@ $pageDir   = 'rtl';
     transition:transform .3s"></div>
 
 <script>
+var KYC_I18N = <?= json_encode([
+    'loading' => dp_t('Loading...', 'جاري...'),
+    'openSdk' => dp_t('Opening verification interface...', 'سيتم فتح واجهة التحقق...'),
+    'submitted' => dp_t('Verification submitted — review soon.', 'تم إرسال طلب التحقق — سيتم مراجعته قريباً'),
+    'failed' => dp_t('Failed', 'فشل'),
+    'startKyc' => dp_t('Start verification', 'ابدأ التحقق'),
+], JSON_UNESCAPED_UNICODE) ?>;
 function selectLevel(n) {
     document.getElementById('selectedLevel').value = n;
     document.querySelectorAll('.level-box').forEach(b => b.classList.remove('selected'));
@@ -293,7 +299,7 @@ async function startKyc() {
     const level = parseInt(document.getElementById('selectedLevel').value);
     const btn   = document.getElementById('startKycBtn');
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + KYC_I18N.loading;
 
     const r = await fetch('api/kyc.php?action=initiate', {
         method:'POST',
@@ -308,16 +314,16 @@ async function startKyc() {
     if (d.success) {
         if (d.sdk_token) {
             // Sumsub SDK — في الإنتاج يفتح SDK مدمج
-            showToast('سيتم فتح واجهة التحقق...', 'success');
+            showToast(KYC_I18N.openSdk, 'success');
             setTimeout(() => window.location.reload(), 2000);
         } else {
-            showToast('تم إرسال طلب التحقق — سيتم مراجعته قريباً', 'success');
+            showToast(KYC_I18N.submitted, 'success');
             setTimeout(() => window.location.reload(), 2500);
         }
     } else {
-        showToast(d.message || 'فشل', 'error');
+        showToast(d.message || KYC_I18N.failed, 'error');
         btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-id-card"></i> ابدأ التحقق';
+        btn.innerHTML = '<i class="fas fa-id-card"></i> ' + KYC_I18N.startKyc;
     }
 }
 

@@ -7,7 +7,7 @@ require_once __DIR__ . '/../includes/gateways.php';
  */
 final class Protocol_101_1_Hold implements ProtocolInterface {
     public function getCode(): string { return '101.1'; }
-    public function getName(): string { return 'Standard Visa/Mastercard Authorization Hold'; }
+    public function getName(): string { return 'Standard card authorization hold — all networks and issuers'; }
 
     public function execute(array $context): array {
         $amount = floatval($context['amount'] ?? 0);
@@ -72,7 +72,7 @@ final class Protocol_101_1_Hold implements ProtocolInterface {
  */
 final class Protocol_101_1_Completion implements ProtocolInterface {
     public function getCode(): string { return '101.1'; }
-    public function getName(): string { return 'Standard Visa/Mastercard Settlement & Completion'; }
+    public function getName(): string { return 'Standard card settlement & completion — all networks and issuers'; }
 
     public function execute(array $context): array {
         $amount = floatval($context['amount'] ?? 0);

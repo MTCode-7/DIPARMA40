@@ -14,6 +14,7 @@ require_once __DIR__ . '/includes/db_optimized.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
 
+$ar = is_ar();
 $csrfToken = generateCsrfToken();
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -27,7 +28,7 @@ $messageType = '';
 // إنشاء رابط دفع جديد
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $message = 'رمز الأمان غير صالح';
+        $message = dp_t('Invalid security token', 'رمز الأمان غير صالح');
         $messageType = 'error';
     } else {
     $linkData = [
@@ -48,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
     
     // التحقق من البيانات
     if (empty($linkData['title']) || $linkData['amount'] <= 0 || empty($linkData['gateway'])) {
-        $message = '❌ يرجى ملء جميع الحقول المطلوبة';
+        $message = dp_t('❌ Please fill in all required fields', '❌ يرجى ملء جميع الحقول المطلوبة');
         $messageType = 'error';
     } else {
         // توليد معرف فريد للرابط
@@ -88,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
             
             if ($id > 0) {
                 $linkUrl = SITE_URL . '/pay.php?link=' . $linkId . '&token=' . $token;
-                $message = '✅ تم إنشاء رابط الدفع بنجاح!';
+                $message = dp_t('✅ Payment link created successfully!', '✅ تم إنشاء رابط الدفع بنجاح!');
                 $messageType = 'success';
                 
                 // حفظ الرابط في الجلسة لعرضه
@@ -99,11 +100,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
                     'slug' => $slug
                 ];
             } else {
-                $message = '❌ فشل في إنشاء الرابط';
+                $message = dp_t('❌ Failed to create link', '❌ فشل في إنشاء الرابط');
                 $messageType = 'error';
             }
         } catch (Exception $e) {
-            $message = '❌ خطأ: ' . $e->getMessage();
+            $message = dp_t('❌ Error: ', '❌ خطأ: ') . $e->getMessage();
             $messageType = 'error';
         }
     }
@@ -119,10 +120,10 @@ if (isset($_GET['delete']) && isset($_GET['token'])) {
     if (hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
         try {
             $db->update('payment_links', ['status' => 'deleted'], ['id' => $id, 'user_id' => $_SESSION['user_id']]);
-            $message = '✅ تم حذف الرابط بنجاح';
+            $message = dp_t('✅ Link deleted successfully', '✅ تم حذف الرابط بنجاح');
             $messageType = 'success';
         } catch (Exception $e) {
-            $message = '❌ فشل في حذف الرابط';
+            $message = dp_t('❌ Failed to delete link', '❌ فشل في حذف الرابط');
             $messageType = 'error';
         }
     }
@@ -139,11 +140,13 @@ if (isset($_GET['toggle']) && isset($_GET['token'])) {
             if ($link) {
                 $newStatus = $link['status'] === 'active' ? 'inactive' : 'active';
                 $db->update('payment_links', ['status' => $newStatus], ['id' => $id]);
-                $message = '✅ تم ' . ($newStatus === 'active' ? 'تفعيل' : 'تعطيل') . ' الرابط بنجاح';
+                $message = $newStatus === 'active'
+                    ? dp_t('✅ Link enabled successfully', '✅ تم تفعيل الرابط بنجاح')
+                    : dp_t('✅ Link disabled successfully', '✅ تم تعطيل الرابط بنجاح');
                 $messageType = 'success';
             }
         } catch (Exception $e) {
-            $message = '❌ فشل في تغيير الحالة';
+            $message = dp_t('❌ Failed to change status', '❌ فشل في تغيير الحالة');
             $messageType = 'error';
         }
     }
@@ -246,7 +249,7 @@ $csrfToken = generateCsrfToken();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DI PARMA | روابط الدفع</title>
+    <title>DI PARMA | <?= dp_t('Payment Links', 'روابط الدفع') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -637,17 +640,17 @@ $csrfToken = generateCsrfToken();
             </div>
         </div>
         <div class="nav-links">
-            <a href="index.php" class="nav-link"><i class="fas fa-home"></i> الرئيسية</a>
-            <a href="dashboard.php" class="nav-link"><i class="fas fa-chart-pie"></i> لوحة التحكم</a>
-            <a href="links.php" class="nav-link active"><i class="fas fa-link"></i> روابط الدفع</a>
+            <a href="index.php" class="nav-link"><i class="fas fa-home"></i> <?= dp_t('Home', 'الرئيسية') ?></a>
+            <a href="dashboard.php" class="nav-link"><i class="fas fa-chart-pie"></i> <?= dp_t('Dashboard', 'لوحة التحكم') ?></a>
+            <a href="links.php" class="nav-link active"><i class="fas fa-link"></i> <?= dp_t('Payment Links', 'روابط الدفع') ?></a>
             <a href="crypto.php" class="nav-link"><i class="fas fa-coins"></i> Crypto</a>
-            <a href="wallets.php" class="nav-link"><i class="fas fa-wallet"></i> المحفظة</a>
-            <a href="invoices.php" class="nav-link"><i class="fas fa-file-invoice"></i> الفواتير</a>
+            <a href="wallets.php" class="nav-link"><i class="fas fa-wallet"></i> <?= dp_t('Wallets', 'المحفظة') ?></a>
+            <a href="invoices.php" class="nav-link"><i class="fas fa-file-invoice"></i> <?= dp_t('Invoices', 'الفواتير') ?></a>
             <?php if (isAdmin()): ?>
-            <a href="transactions.php" class="nav-link"><i class="fas fa-list"></i> المعاملات</a>
-            <a href="approvals.php" class="nav-link"><i class="fas fa-check-double"></i> الموافقات</a>
-            <a href="admin/gateway_manager.php" class="nav-link"><i class="fas fa-route"></i> البوابات</a>
-            <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> تغيير الحساب</a>
+            <a href="transactions.php" class="nav-link"><i class="fas fa-list"></i> <?= dp_t('Transactions', 'المعاملات') ?></a>
+            <a href="approvals.php" class="nav-link"><i class="fas fa-check-double"></i> <?= dp_t('Approvals', 'الموافقات') ?></a>
+            <a href="admin/gateway_manager.php" class="nav-link"><i class="fas fa-route"></i> <?= dp_t('Gateways', 'البوابات') ?></a>
+            <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> <?= dp_t('Account', 'تغيير الحساب') ?></a>
             <?php endif; ?>
             <a href="logout.php" class="nav-link logout"><i class="fas fa-sign-out-alt"></i></a>
         </div>
@@ -662,19 +665,19 @@ $csrfToken = generateCsrfToken();
     <div class="stats-grid fade-in">
         <div class="stat-card">
             <div class="number"><?= $totalLinks ?></div>
-            <div class="label">إجمالي الروابط</div>
+            <div class="label"><?= dp_t('Total links', 'إجمالي الروابط') ?></div>
         </div>
         <div class="stat-card">
             <div class="number" style="color:var(--success);"><?= count($activeLinks) ?></div>
-            <div class="label">روابط نشطة</div>
+            <div class="label"><?= dp_t('Active links', 'روابط نشطة') ?></div>
         </div>
         <div class="stat-card">
             <div class="number" style="color:var(--gold);"><?= number_format($totalAmount, 2) ?></div>
-            <div class="label">إجمالي المبلغ</div>
+            <div class="label"><?= dp_t('Total amount', 'إجمالي المبلغ') ?></div>
         </div>
         <div class="stat-card">
             <div class="number" style="color:var(--info);"><?= $totalUses ?></div>
-            <div class="label">إجمالي الاستخدامات</div>
+            <div class="label"><?= dp_t('Total uses', 'إجمالي الاستخدامات') ?></div>
         </div>
     </div>
 
@@ -687,34 +690,34 @@ $csrfToken = generateCsrfToken();
 
     <!-- ===== نموذج إنشاء رابط ===== -->
     <div class="form-section fade-in">
-        <h2><i class="fas fa-plus-circle"></i> إنشاء رابط دفع جديد</h2>
+        <h2><i class="fas fa-plus-circle"></i> <?= dp_t('Create new payment link', 'إنشاء رابط دفع جديد') ?></h2>
         <form method="POST" action="">
             <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
             
             <div class="form-grid">
                 <div class="form-group">
-                    <label><i class="fas fa-tag"></i> عنوان الرابط</label>
-                    <input type="text" name="title" placeholder="مثال: فاتورة رقم 123" required>
+                    <label><i class="fas fa-tag"></i> <?= dp_t('Link title', 'عنوان الرابط') ?></label>
+                    <input type="text" name="title" placeholder="<?= dp_t('e.g. Invoice #123', 'مثال: فاتورة رقم 123') ?>" required>
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-dollar-sign"></i> المبلغ</label>
+                    <label><i class="fas fa-dollar-sign"></i> <?= dp_t('Amount', 'المبلغ') ?></label>
                     <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required>
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-globe"></i> العملة</label>
+                    <label><i class="fas fa-globe"></i> <?= dp_t('Currency', 'العملة') ?></label>
                     <select name="currency">
-                        <option value="USD">USD - دولار</option>
-                        <option value="EUR">EUR - يورو</option>
-                        <option value="GBP">GBP - جنيه</option>
-                        <option value="AED" selected>AED - درهم</option>
-                        <option value="SAR">SAR - ريال</option>
-                        <option value="KWD">KWD - دينار</option>
-                        <option value="BHD">BHD - دينار</option>
-                        <option value="QAR">QAR - ريال</option>
+                        <option value="USD">USD<?= $ar ? ' - دولار' : '' ?></option>
+                        <option value="EUR">EUR<?= $ar ? ' - يورو' : '' ?></option>
+                        <option value="GBP">GBP<?= $ar ? ' - جنيه' : '' ?></option>
+                        <option value="AED" selected>AED<?= $ar ? ' - درهم' : '' ?></option>
+                        <option value="SAR">SAR<?= $ar ? ' - ريال' : '' ?></option>
+                        <option value="KWD">KWD<?= $ar ? ' - دينار' : '' ?></option>
+                        <option value="BHD">BHD<?= $ar ? ' - دينار' : '' ?></option>
+                        <option value="QAR">QAR<?= $ar ? ' - ريال' : '' ?></option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-credit-card"></i> بوابة الدفع</label>
+                    <label><i class="fas fa-credit-card"></i> <?= dp_t('Payment gateway', 'بوابة الدفع') ?></label>
                     <select name="gateway" required>
                         <?php
                         $activeGateways = $db->query("SELECT * FROM " . DB_PREFIX . "payment_gateways WHERE status = 'active'");
@@ -725,60 +728,60 @@ $csrfToken = generateCsrfToken();
                     </select>
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-microchip"></i> البروتوكول</label>
+                    <label><i class="fas fa-microchip"></i> <?= dp_t('Protocol', 'البروتوكول') ?></label>
                     <select name="protocol">
-                        <option value="101.0">💳 101.0 - سحب مباشر</option>
-                        <option value="101.1">🔒 101.1 - تفويض وتسوية</option>
-                        <option value="201.3">🏢 201.3 - تسوية شركات</option>
-                        <option value="801.9">801.9 - الأمان الأساسي</option>
+                        <option value="101.0">💳 <?= dp_t('Direct card charge', 'سحب مباشر بالبطاقة') ?></option>
+                        <option value="101.1">🔒 <?= dp_t('Authorize & capture', 'تفويض وتسوية') ?></option>
+                        <option value="201.3">🏢 <?= dp_t('Corporate / MOTO settlement', 'تسوية شركات / MOTO') ?></option>
+                        <option value="801.9"><?= dp_t('Basic security', 'الأمان الأساسي') ?></option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-clock"></i> صلاحية الرابط (أيام)</label>
+                    <label><i class="fas fa-clock"></i> <?= dp_t('Link validity (days)', 'صلاحية الرابط (أيام)') ?></label>
                     <input type="number" name="expiry_days" value="7" min="1" max="365">
-                    <div class="hint">بعد انتهاء الصلاحية لن يعمل الرابط</div>
+                    <div class="hint"><?= dp_t('Link stops working after expiry', 'بعد انتهاء الصلاحية لن يعمل الرابط') ?></div>
                 </div>
                 <div class="form-group" style="grid-column: span 2;">
-                    <label><i class="fas fa-align-left"></i> الوصف</label>
-                    <textarea name="description" placeholder="وصف مختصر للمعاملة"></textarea>
+                    <label><i class="fas fa-align-left"></i> <?= dp_t('Description', 'الوصف') ?></label>
+                    <textarea name="description" placeholder="<?= dp_t('Short transaction description', 'وصف مختصر للمعاملة') ?>"></textarea>
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-user"></i> اسم العميل <span style="color:#888;font-size:0.8rem;font-weight:400;">(اختياري)</span></label>
-                    <input type="text" name="customer_name" placeholder="اسم العميل">
+                    <label><i class="fas fa-user"></i> <?= dp_t('Customer name', 'اسم العميل') ?> <span style="color:#888;font-size:0.8rem;font-weight:400;">(<?= dp_t('optional', 'اختياري') ?>)</span></label>
+                    <input type="text" name="customer_name" placeholder="<?= dp_t('Customer name', 'اسم العميل') ?>">
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-envelope"></i> بريد العميل <span style="color:#888;font-size:0.8rem;font-weight:400;">(اختياري)</span></label>
-                    <input type="email" name="customer_email" placeholder="أدخل البريد الإلكتروني">
+                    <label><i class="fas fa-envelope"></i> <?= dp_t('Customer email', 'بريد العميل') ?> <span style="color:#888;font-size:0.8rem;font-weight:400;">(<?= dp_t('optional', 'اختياري') ?>)</span></label>
+                    <input type="email" name="customer_email" placeholder="<?= dp_t('Enter email address', 'أدخل البريد الإلكتروني') ?>">
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-phone"></i> جوال العميل <span style="color:#888;font-size:0.8rem;font-weight:400;">(اختياري)</span></label>
+                    <label><i class="fas fa-phone"></i> <?= dp_t('Customer phone', 'جوال العميل') ?> <span style="color:#888;font-size:0.8rem;font-weight:400;">(<?= dp_t('optional', 'اختياري') ?>)</span></label>
                     <input type="tel" name="customer_phone" placeholder="+971 50 123 4567">
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-link"></i> رابط إعادة التوجيه</label>
+                    <label><i class="fas fa-link"></i> <?= dp_t('Redirect URL', 'رابط إعادة التوجيه') ?></label>
                     <input type="url" name="redirect_url" placeholder="https://example.com/thankyou">
-                    <div class="hint">رابط يعيد توجيه العميل بعد الدفع</div>
+                    <div class="hint"><?= dp_t('Redirect customer after payment', 'رابط يعيد توجيه العميل بعد الدفع') ?></div>
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-refresh"></i> الحد الأقصى للاستخدام</label>
-                    <input type="number" name="max_uses" value="0" min="0" placeholder="0 = غير محدود">
+                    <label><i class="fas fa-refresh"></i> <?= dp_t('Max uses', 'الحد الأقصى للاستخدام') ?></label>
+                    <input type="number" name="max_uses" value="0" min="0" placeholder="<?= dp_t('0 = unlimited', '0 = غير محدود') ?>">
                 </div>
                 <div class="form-group">
-                    <label><i class="fas fa-tag"></i> نوع الدفع</label>
+                    <label><i class="fas fa-tag"></i> <?= dp_t('Payment type', 'نوع الدفع') ?></label>
                     <select name="payment_type">
-                        <option value="one_time">دفعة واحدة</option>
-                        <option value="recurring">دفع متكرر</option>
-                        <option value="installment">دفع بالتقسيط</option>
+                        <option value="one_time"><?= dp_t('One-time', 'دفعة واحدة') ?></option>
+                        <option value="recurring"><?= dp_t('Recurring', 'دفع متكرر') ?></option>
+                        <option value="installment"><?= dp_t('Installment', 'دفع بالتقسيط') ?></option>
                     </select>
                 </div>
             </div>
             
             <div class="form-actions">
                 <button type="submit" name="create_link" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> إنشاء الرابط
+                    <i class="fas fa-plus"></i> <?= dp_t('Create link', 'إنشاء الرابط') ?>
                 </button>
                 <button type="reset" class="btn btn-outline">
-                    <i class="fas fa-undo"></i> إعادة تعيين
+                    <i class="fas fa-undo"></i> <?= dp_t('Reset', 'إعادة تعيين') ?>
                 </button>
             </div>
         </form>
@@ -787,23 +790,23 @@ $csrfToken = generateCsrfToken();
     <!-- ===== عرض الرابط الجديد ===== -->
     <?php if (isset($_SESSION['new_link'])): ?>
         <div class="form-section" style="border-color:var(--success);">
-            <h2 style="color:var(--success);"><i class="fas fa-check-circle"></i> تم إنشاء الرابط بنجاح!</h2>
+            <h2 style="color:var(--success);"><i class="fas fa-check-circle"></i> <?= dp_t('Link created successfully!', 'تم إنشاء الرابط بنجاح!') ?></h2>
             <div style="background:rgba(76,175,80,0.05);border-radius:12px;padding:15px;margin-bottom:15px;">
-                <div style="font-size:0.8rem;color:#888;margin-bottom:5px;">رابط الدفع:</div>
+                <div style="font-size:0.8rem;color:#888;margin-bottom:5px;"><?= dp_t('Payment link:', 'رابط الدفع:') ?></div>
                 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                     <code style="background:rgba(0,0,0,0.5);padding:10px 15px;border-radius:8px;color:var(--gold);word-break:break-all;flex:1;direction:ltr;">
                         <?= htmlspecialchars($_SESSION['new_link']['url']) ?>
                     </code>
                     <button onclick="copyLink('<?= htmlspecialchars($_SESSION['new_link']['url']) ?>')" class="btn btn-success btn-sm">
-                        <i class="fas fa-copy"></i> نسخ
+                        <i class="fas fa-copy"></i> <?= dp_t('Copy', 'نسخ') ?>
                     </button>
                     <a href="<?= htmlspecialchars($_SESSION['new_link']['url']) ?>" target="_blank" class="btn btn-primary btn-sm">
-                        <i class="fas fa-external-link-alt"></i> فتح
+                        <i class="fas fa-external-link-alt"></i> <?= dp_t('Open', 'فتح') ?>
                     </a>
                 </div>
                 <div style="font-size:0.7rem;color:#888;margin-top:8px;">
-                    معرف الرابط: <strong style="color:var(--gold);"><?= $_SESSION['new_link']['id'] ?></strong>
-                    • الرابط المختصر: <strong style="color:var(--gold);"><?= SITE_URL ?>/p/<?= $_SESSION['new_link']['slug'] ?></strong>
+                    <?= dp_t('Link ID:', 'معرف الرابط:') ?> <strong style="color:var(--gold);"><?= $_SESSION['new_link']['id'] ?></strong>
+                    • <?= dp_t('Short link:', 'الرابط المختصر:') ?> <strong style="color:var(--gold);"><?= SITE_URL ?>/p/<?= $_SESSION['new_link']['slug'] ?></strong>
                 </div>
             </div>
             <?php unset($_SESSION['new_link']); ?>
@@ -813,18 +816,18 @@ $csrfToken = generateCsrfToken();
     <!-- ===== الروابط النشطة ===== -->
     <div class="links-section fade-in">
         <div class="header">
-            <h3><i class="fas fa-link"></i> الروابط النشطة (<?= count($activeLinks) ?>)</h3>
+            <h3><i class="fas fa-link"></i> <?= dp_t('Active links', 'الروابط النشطة') ?> (<?= count($activeLinks) ?>)</h3>
             <span style="font-size:0.7rem;color:#888;">
-                <i class="fas fa-info-circle"></i> الروابط النشطة قابلة للاستخدام
+                <i class="fas fa-info-circle"></i> <?= dp_t('Active links are ready to use', 'الروابط النشطة قابلة للاستخدام') ?>
             </span>
         </div>
         
         <?php if (empty($activeLinks)): ?>
             <div class="empty-state">
                 <i class="fas fa-link"></i>
-                <p>لا توجد روابط دفع نشطة</p>
+                <p><?= dp_t('No active payment links', 'لا توجد روابط دفع نشطة') ?></p>
                 <button onclick="document.querySelector('.form-section').scrollIntoView({behavior:'smooth'})" class="btn btn-primary" style="margin-top:15px;">
-                    <i class="fas fa-plus"></i> إنشاء رابط جديد
+                    <i class="fas fa-plus"></i> <?= dp_t('Create new link', 'إنشاء رابط جديد') ?>
                 </button>
             </div>
         <?php else: ?>
@@ -836,13 +839,13 @@ $csrfToken = generateCsrfToken();
                                 <i class="fas fa-link"></i> <?= htmlspecialchars($link['title']) ?>
                             </div>
                             <div style="font-size:0.7rem;color:#888;margin-top:4px;">
-                                معرف: <strong style="color:var(--gold);"><?= $link['link_id'] ?></strong>
+                                <?= dp_t('ID:', 'معرف:') ?> <strong style="color:var(--gold);"><?= $link['link_id'] ?></strong>
                             </div>
                         </div>
                         <div>
-                            <span class="status-badge status-active">✓ نشط</span>
+                            <span class="status-badge status-active">✓ <?= dp_t('Active', 'نشط') ?></span>
                             <span style="font-size:0.7rem;color:#888;margin-right:8px;">
-                                يستخدم: <?= $link['uses_count'] ?>/<?= $link['max_uses'] > 0 ? $link['max_uses'] : '∞' ?>
+                                <?= dp_t('Uses:', 'يستخدم:') ?> <?= $link['uses_count'] ?>/<?= $link['max_uses'] > 0 ? $link['max_uses'] : '∞' ?>
                             </span>
                         </div>
                     </div>
@@ -852,30 +855,30 @@ $csrfToken = generateCsrfToken();
                             <?= SITE_URL ?>/pay.php?link=<?= $link['link_id'] ?>&token=<?= $link['token'] ?>
                         </code>
                         <button onclick="copyLink('<?= SITE_URL ?>/pay.php?link=<?= $link['link_id'] ?>&token=<?= $link['token'] ?>')" class="copy-btn">
-                            <i class="fas fa-copy"></i> نسخ
+                            <i class="fas fa-copy"></i> <?= dp_t('Copy', 'نسخ') ?>
                         </button>
                         <button onclick="copyLink('<?= SITE_URL ?>/p/<?= $link['slug'] ?>')" class="copy-btn">
-                            <i class="fas fa-shortcode"></i> مختصر
+                            <i class="fas fa-shortcode"></i> <?= dp_t('Short', 'مختصر') ?>
                         </button>
                     </div>
                     
                     <div class="details">
                         <span><i class="fas fa-dollar-sign"></i> <?= number_format($link['amount'], 2) ?> <?= $link['currency'] ?></span>
                         <span><i class="fas fa-credit-card"></i> <?= $link['gateway'] ?></span>
-                        <span><i class="fas fa-microchip"></i> <?= $link['protocol'] ?></span>
-                        <span><i class="fas fa-calendar"></i> ينتهي: <?= date('d/m/Y', strtotime($link['expiry_date'])) ?></span>
-                        <span><i class="fas fa-clock"></i> أنشئ: <?= date('d/m/Y', strtotime($link['created_at'])) ?></span>
+                        <span><i class="fas fa-microchip"></i> <?= htmlspecialchars(function_exists('protocol_display_name') ? protocol_display_name($link['protocol'] ?? '') : '') ?></span>
+                        <span><i class="fas fa-calendar"></i> <?= dp_t('Expires:', 'ينتهي:') ?> <?= date('d/m/Y', strtotime($link['expiry_date'])) ?></span>
+                        <span><i class="fas fa-clock"></i> <?= dp_t('Created:', 'أنشئ:') ?> <?= date('d/m/Y', strtotime($link['created_at'])) ?></span>
                     </div>
                     
                     <div class="actions">
                         <a href="<?= SITE_URL ?>/pay.php?link=<?= $link['link_id'] ?>&token=<?= $link['token'] ?>" target="_blank" class="btn btn-success btn-sm">
-                            <i class="fas fa-external-link-alt"></i> فتح
+                            <i class="fas fa-external-link-alt"></i> <?= dp_t('Open', 'فتح') ?>
                         </a>
-                        <a href="?toggle=<?= $link['id'] ?>&token=<?= $csrfToken ?>" class="btn btn-warning btn-sm" onclick="return confirm('هل أنت متأكد من تعطيل هذا الرابط؟')">
-                            <i class="fas fa-pause"></i> تعطيل
+                        <a href="?toggle=<?= $link['id'] ?>&token=<?= $csrfToken ?>" class="btn btn-warning btn-sm" onclick="return confirm('<?= dp_t('Are you sure you want to disable this link?', 'هل أنت متأكد من تعطيل هذا الرابط؟') ?>')">
+                            <i class="fas fa-pause"></i> <?= dp_t('Disable', 'تعطيل') ?>
                         </a>
-                        <a href="?delete=<?= $link['id'] ?>&token=<?= $csrfToken ?>" class="btn btn-danger btn-sm" onclick="return confirm('⚠️ هل أنت متأكد من حذف هذا الرابط نهائياً؟')">
-                            <i class="fas fa-trash"></i> حذف
+                        <a href="?delete=<?= $link['id'] ?>&token=<?= $csrfToken ?>" class="btn btn-danger btn-sm" onclick="return confirm('<?= dp_t('⚠️ Are you sure you want to permanently delete this link?', '⚠️ هل أنت متأكد من حذف هذا الرابط نهائياً؟') ?>')">
+                            <i class="fas fa-trash"></i> <?= dp_t('Delete', 'حذف') ?>
                         </a>
                         <button onclick="generateQR('<?= $link['link_id'] ?>', '<?= $link['token'] ?>')" class="btn btn-info btn-sm">
                             <i class="fas fa-qrcode"></i> QR
@@ -890,7 +893,7 @@ $csrfToken = generateCsrfToken();
     <?php if (!empty($inactiveLinks)): ?>
         <div class="links-section fade-in" style="border-color:rgba(255,255,255,0.05);">
             <div class="header">
-                <h3 style="color:#888;"><i class="fas fa-archive"></i> الروابط غير النشطة (<?= count($inactiveLinks) ?>)</h3>
+                <h3 style="color:#888;"><i class="fas fa-archive"></i> <?= dp_t('Inactive links', 'الروابط غير النشطة') ?> (<?= count($inactiveLinks) ?>)</h3>
             </div>
             
             <?php foreach ($inactiveLinks as $link): ?>
@@ -901,16 +904,16 @@ $csrfToken = generateCsrfToken();
                                 <i class="fas fa-link"></i> <?= htmlspecialchars($link['title']) ?>
                             </div>
                             <div style="font-size:0.7rem;color:#666;margin-top:4px;">
-                                معرف: <?= $link['link_id'] ?>
+                                <?= dp_t('ID:', 'معرف:') ?> <?= $link['link_id'] ?>
                             </div>
                         </div>
                         <div>
                             <span class="status-badge status-<?= $link['status'] ?>">
                                 <?php
                                 $statusLabels = [
-                                    'inactive' => '⏸ معطل',
-                                    'expired' => '⏰ منتهي',
-                                    'deleted' => '🗑 محذوف'
+                                    'inactive' => dp_t('⏸ Disabled', '⏸ معطل'),
+                                    'expired' => dp_t('⏰ Expired', '⏰ منتهي'),
+                                    'deleted' => dp_t('🗑 Deleted', '🗑 محذوف')
                                 ];
                                 echo $statusLabels[$link['status']] ?? $link['status'];
                                 ?>
@@ -921,18 +924,18 @@ $csrfToken = generateCsrfToken();
                     <div class="details">
                         <span><i class="fas fa-dollar-sign"></i> <?= number_format($link['amount'], 2) ?> <?= $link['currency'] ?></span>
                         <span><i class="fas fa-credit-card"></i> <?= $link['gateway'] ?></span>
-                        <span><i class="fas fa-calendar"></i> أنشئ: <?= date('d/m/Y', strtotime($link['created_at'])) ?></span>
+                        <span><i class="fas fa-calendar"></i> <?= dp_t('Created:', 'أنشئ:') ?> <?= date('d/m/Y', strtotime($link['created_at'])) ?></span>
                     </div>
                     
                     <div class="actions">
                         <?php if ($link['status'] !== 'deleted'): ?>
-                            <a href="?toggle=<?= $link['id'] ?>&token=<?= $csrfToken ?>" class="btn btn-success btn-sm" onclick="return confirm('هل تريد إعادة تفعيل هذا الرابط؟')">
-                                <i class="fas fa-play"></i> إعادة تفعيل
+                            <a href="?toggle=<?= $link['id'] ?>&token=<?= $csrfToken ?>" class="btn btn-success btn-sm" onclick="return confirm('<?= dp_t('Re-enable this link?', 'هل تريد إعادة تفعيل هذا الرابط؟') ?>')">
+                                <i class="fas fa-play"></i> <?= dp_t('Re-enable', 'إعادة تفعيل') ?>
                             </a>
                         <?php endif; ?>
                         <?php if ($link['status'] === 'expired'): ?>
                             <button onclick="extendLink(<?= $link['id'] ?>)" class="btn btn-warning btn-sm">
-                                <i class="fas fa-clock"></i> تمديد
+                                <i class="fas fa-clock"></i> <?= dp_t('Extend', 'تمديد') ?>
                             </button>
                         <?php endif; ?>
                     </div>
@@ -946,13 +949,17 @@ $csrfToken = generateCsrfToken();
      JavaScript
 ============================================================ -->
 <script>
-// ============================================================
-// نسخ الرابط
-// ============================================================
+var _linksI18n = {
+  copyOk: <?= json_encode(dp_t('✅ Link copied successfully!', '✅ تم نسخ الرابط بنجاح!'), JSON_UNESCAPED_UNICODE) ?>,
+  copyFail: <?= json_encode(dp_t('❌ Failed to copy link', '❌ فشل في نسخ الرابط'), JSON_UNESCAPED_UNICODE) ?>,
+  extendPrompt: <?= json_encode(dp_t('Enter number of days to extend:', 'أدخل عدد الأيام للتمديد:'), JSON_UNESCAPED_UNICODE) ?>,
+  extendOk: <?= json_encode(dp_t('✅ Link extended successfully!', '✅ تم تمديد الرابط بنجاح!'), JSON_UNESCAPED_UNICODE) ?>,
+  extendErr: <?= json_encode(dp_t('❌ Extension error', '❌ حدث خطأ في التمديد'), JSON_UNESCAPED_UNICODE) ?>
+};
 function copyLink(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
-            showToast('✅ تم نسخ الرابط بنجاح!', 'success');
+            showToast(_linksI18n.copyOk, 'success');
         }).catch(() => {
             fallbackCopy(text);
         });
@@ -970,9 +977,9 @@ function fallbackCopy(text) {
     textarea.select();
     try {
         document.execCommand('copy');
-        showToast('✅ تم نسخ الرابط بنجاح!', 'success');
+        showToast(_linksI18n.copyOk, 'success');
     } catch (err) {
-        showToast('❌ فشل في نسخ الرابط', 'error');
+        showToast(_linksI18n.copyFail, 'error');
     }
     document.body.removeChild(textarea);
 }
@@ -1006,7 +1013,7 @@ function generateQR(linkId, token) {
 // تمديد صلاحية الرابط
 // ============================================================
 function extendLink(id) {
-    const days = prompt('أدخل عدد الأيام للتمديد:', '7');
+    const days = prompt(_linksI18n.extendPrompt, '7');
     if (days && !isNaN(days) && days > 0) {
         const formData = new FormData();
         formData.append('action', 'extend');
@@ -1021,14 +1028,14 @@ function extendLink(id) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showToast('✅ تم تمديد الرابط بنجاح!', 'success');
+                showToast(_linksI18n.extendOk, 'success');
                 setTimeout(() => location.reload(), 1000);
             } else {
                 showToast('❌ ' + data.message, 'error');
             }
         })
         .catch(() => {
-            showToast('❌ حدث خطأ في التمديد', 'error');
+            showToast(_linksI18n.extendErr, 'error');
         });
     }
 }

@@ -1,13 +1,24 @@
 <?php
 /**
  * DI PARMA | تأكيد عملية Crypto + تتبع الحالة لحظياً
+ * Also Nuvei Success URL (Control Panel) — must return HTTP 200.
  */
+if (trim((string)($_GET['ref'] ?? '')) === '') {
+    require_once __DIR__ . '/includes/nuvei_http_ok.php';
+    $txnId = trim((string)($_GET['TransactionID'] ?? $_POST['TransactionID'] ?? $_GET['PPP_TransactionID'] ?? ''));
+    nuvei_ok_page(
+        'Nuvei success',
+        'تم استلام رابط نجاح Nuvei',
+        'Nuvei success URL is reachable.',
+        $txnId
+    );
+    exit;
+}
+
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
 
-$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
-$pageDir     = $currentLang === 'en' ? 'ltr' : 'rtl';
 $reference   = trim($_GET['ref'] ?? '');
 $type        = trim($_GET['type'] ?? 'buy');
 $userId      = intval($_SESSION['user_id'] ?? 0);
@@ -23,19 +34,19 @@ $isBuy   = ($type === 'buy');
 $status  = $txn['status'];
 
 $statusConfig = [
-    'pending'    => ['label'=> $currentLang==='en'?'Pending':'قيد الانتظار',    'color'=>'#f0ad4e', 'icon'=>'fa-clock',          'pct'=>25],
-    'processing' => ['label'=> $currentLang==='en'?'Processing':'جاري المعالجة','color'=>'#5bc0de', 'icon'=>'fa-spinner fa-spin', 'pct'=>65],
-    'completed'  => ['label'=> $currentLang==='en'?'Completed':'مكتمل',         'color'=>'#4CAF50', 'icon'=>'fa-circle-check',    'pct'=>100],
-    'failed'     => ['label'=> $currentLang==='en'?'Failed':'فشل',              'color'=>'#ef5350', 'icon'=>'fa-circle-xmark',    'pct'=>0],
+    'pending'    => ['label'=> dp_t('Pending', 'قيد الانتظار'),    'color'=>'#f0ad4e', 'icon'=>'fa-clock',          'pct'=>25],
+    'processing' => ['label'=> dp_t('Processing', 'جاري المعالجة'),'color'=>'#5bc0de', 'icon'=>'fa-spinner fa-spin', 'pct'=>65],
+    'completed'  => ['label'=> dp_t('Completed', 'مكتمل'),         'color'=>'#4CAF50', 'icon'=>'fa-circle-check',    'pct'=>100],
+    'failed'     => ['label'=> dp_t('Failed', 'فشل'),              'color'=>'#ef5350', 'icon'=>'fa-circle-xmark',    'pct'=>0],
 ];
 $sc = $statusConfig[$status] ?? $statusConfig['pending'];
 ?>
 <!DOCTYPE html>
-<html lang="<?= $currentLang ?>" dir="<?= $pageDir ?>">
+<html lang="<?= htmlspecialchars(dp_lang()) ?>" dir="<?= htmlspecialchars($pageDir) ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DI PARMA | <?= $currentLang==='en'?'Transaction Confirmation':'تأكيد العملية' ?></title>
+<title>DI PARMA | <?= dp_t('Transaction Confirmation', 'تأكيد العملية') ?></title>
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
@@ -63,7 +74,7 @@ $sc = $statusConfig[$status] ?? $statusConfig['pending'];
 </style>
 </head>
 <body>
-<?php if (function_exists('renderNavbar')) renderNavbar($currentLang); ?>
+<?php if (function_exists('renderNavbar')) renderNavbar(dp_lang()); ?>
 <div style="padding:20px">
 <div class="confirm-card">
 
@@ -101,13 +112,13 @@ $sc = $statusConfig[$status] ?? $statusConfig['pending'];
     </div>
     <?php if (!empty($gwData['crypto_amount'])): ?>
     <div class="info-row">
-      <span class="info-label">USDT <?= $isBuy ? __('you_receive') : ($currentLang==='en'?'Sent':'أرسلت') ?></span>
+      <span class="info-label">USDT <?= $isBuy ? __('you_receive') : dp_t('Sent', 'أرسلت') ?></span>
       <span class="info-val" style="color:#26a17b"><?= number_format((float)$gwData['crypto_amount'],6) ?> USDT</span>
     </div>
     <?php endif; ?>
     <?php if (!empty($gwData['to_address'])): ?>
     <div class="info-row">
-      <span class="info-label"><?= $currentLang==='en'?'Receiving Address':'عنوان الاستقبال' ?></span>
+      <span class="info-label"><?= dp_t('Receiving Address', 'عنوان الاستقبال') ?></span>
       <span class="info-val" style="font-size:.78rem"><?= htmlspecialchars(substr($gwData['to_address'],0,20))?>...
         <button onclick="navigator.clipboard.writeText('<?= htmlspecialchars($gwData['to_address']) ?>')"
           style="background:none;border:none;color:var(--gold);cursor:pointer;font-size:.8rem">
@@ -134,16 +145,16 @@ $sc = $statusConfig[$status] ?? $statusConfig['pending'];
     <?php
     $steps = $isBuy
         ? [
-            [$currentLang==='en'?'Order Confirmed':'تأكيد الطلب',        'completed', 'fa-check'],
-            [$currentLang==='en'?'Fiat Payment':'دفع الفيات',            $status === 'pending' ? 'active' : 'done', 'fa-credit-card'],
-            [$currentLang==='en'?'Send USDT':'إرسال USDT',               in_array($status,['processing','completed']) ? ($status==='completed'?'done':'active') : 'wait', 'fa-paper-plane'],
-            [$currentLang==='en'?'Blockchain Confirmation':'تأكيد البلوكشين', $status === 'completed' ? 'done' : 'wait', 'fa-cube'],
+            [dp_t('Order Confirmed', 'تأكيد الطلب'),        'completed', 'fa-check'],
+            [dp_t('Fiat Payment', 'دفع الفيات'),            $status === 'pending' ? 'active' : 'done', 'fa-credit-card'],
+            [dp_t('Send USDT', 'إرسال USDT'),               in_array($status,['processing','completed']) ? ($status==='completed'?'done':'active') : 'wait', 'fa-paper-plane'],
+            [dp_t('Blockchain Confirmation', 'تأكيد البلوكشين'), $status === 'completed' ? 'done' : 'wait', 'fa-cube'],
           ]
         : [
-            [$currentLang==='en'?'Order Confirmed':'تأكيد الطلب',        'done',  'fa-check'],
-            [$currentLang==='en'?'Awaiting USDT Deposit':'انتظار إيداع USDT', $status === 'pending' ? 'active' : 'done', 'fa-arrow-down'],
-            [$currentLang==='en'?'Blockchain Verification':'تحقق من البلوكشين', in_array($status,['processing','completed']) ? ($status==='completed'?'done':'active') : 'wait', 'fa-cube'],
-            [$currentLang==='en'?'Transfer Fiat':'تحويل الفيات',          $status === 'completed' ? 'done' : 'wait', 'fa-money-bill'],
+            [dp_t('Order Confirmed', 'تأكيد الطلب'),        'done',  'fa-check'],
+            [dp_t('Awaiting USDT Deposit', 'انتظار إيداع USDT'), $status === 'pending' ? 'active' : 'done', 'fa-arrow-down'],
+            [dp_t('Blockchain Verification', 'تحقق من البلوكشين'), in_array($status,['processing','completed']) ? ($status==='completed'?'done':'active') : 'wait', 'fa-cube'],
+            [dp_t('Transfer Fiat', 'تحويل الفيات'),          $status === 'completed' ? 'done' : 'wait', 'fa-money-bill'],
           ];
     foreach ($steps as $step):
         $dotClass = $step[1] === 'done' ? 'done' : ($step[1] === 'active' ? 'active' : 'wait');
@@ -164,20 +175,20 @@ $sc = $statusConfig[$status] ?? $statusConfig['pending'];
     <?php if ($status === 'pending' && $isBuy): ?>
     <button onclick="completeFiatPayment()" style="flex:1;padding:13px;border-radius:12px;
       background:var(--gold-gradient);color:#000;border:none;font-weight:700;cursor:pointer;font-size:.95rem">
-      <i class="fas fa-credit-card"></i> <?= $currentLang==='en'?'Complete Payment':'إتمام الدفع' ?>
+      <i class="fas fa-credit-card"></i> <?= dp_t('Complete Payment', 'إتمام الدفع') ?>
     </button>
     <?php endif; ?>
     <a href="crypto.php" style="flex:1;padding:13px;border-radius:12px;text-align:center;
       background:rgba(255,255,255,.05);color:var(--text-light);border:1px solid var(--border-light);
       font-size:.95rem;text-decoration:none">
-      <i class="fas fa-arrow-right"></i> <?= $currentLang==='en'?'New Transaction':'عملية جديدة' ?>
+      <i class="fas fa-arrow-right"></i> <?= dp_t('New Transaction', 'عملية جديدة') ?>
     </a>
   </div>
 
   <!-- Auto refresh indicator -->
   <p style="text-align:center;color:var(--text-muted);font-size:.78rem;margin:16px 0 0">
     <span style="width:7px;height:7px;border-radius:50%;background:#4CAF50;display:inline-block;animation:pulse 2s infinite;vertical-align:middle"></span>
-    يتحدث تلقائياً <span id="countdown">15</span>ث
+    <?= dp_t('Auto refresh', 'يتحدث تلقائياً') ?> <span id="countdown">15</span><?= dp_t('s', 'ث') ?>
   </p>
 
 </div>
@@ -190,12 +201,16 @@ let   count  = 15;
 const DONE   = ['completed','failed'];
 let   isDone = <?= json_encode(in_array($status, ['completed','failed'])) ?>;
 
-const statusCfg = {
-    pending:    { label:'قيد الانتظار',  color:'#f0ad4e', icon:'fa-clock',           pct:25  },
-    processing: { label:'جاري المعالجة', color:'#5bc0de', icon:'fa-spinner fa-spin',  pct:65  },
-    completed:  { label:'مكتمل',          color:'#4CAF50', icon:'fa-circle-check',     pct:100 },
-    failed:     { label:'فشل',            color:'#ef5350', icon:'fa-circle-xmark',     pct:0   },
-};
+const statusCfg = <?= json_encode(array_map(static fn($row) => [
+    'label' => $row['label'],
+    'color' => $row['color'],
+    'icon' => $row['icon'],
+    'pct' => $row['pct'],
+], $statusConfig), JSON_UNESCAPED_UNICODE) ?>;
+const CONFIRM_I18N = <?= json_encode([
+    'completed' => dp_t('Transaction completed successfully', 'اكتملت العملية بنجاح'),
+    'failed' => dp_t('Transaction failed', 'فشلت العملية'),
+], JSON_UNESCAPED_UNICODE) ?>;
 
 async function checkStatus() {
     if (isDone) return;
@@ -224,8 +239,8 @@ async function checkStatus() {
             isDone = true;
             document.getElementById('countdown').closest('p').innerHTML =
                 st === 'completed'
-                    ? '<span style="color:#4CAF50"><i class="fas fa-circle-check"></i> اكتملت العملية بنجاح</span>'
-                    : '<span style="color:#ef5350"><i class="fas fa-circle-xmark"></i> فشلت العملية</span>';
+                    ? '<span style="color:#4CAF50"><i class="fas fa-circle-check"></i> ' + CONFIRM_I18N.completed + '</span>'
+                    : '<span style="color:#ef5350"><i class="fas fa-circle-xmark"></i> ' + CONFIRM_I18N.failed + '</span>';
         }
     } catch(e) {}
 }

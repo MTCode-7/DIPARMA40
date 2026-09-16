@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'withd
     } else {
         // تحقق من الرصيد
         $cw = $db->query(
-            "SELECT balance FROM company_wallets WHERE wallet_type='crypto' AND currency=? AND (network=? OR network='')",
+            "SELECT balance FROM " . dp_table('company_wallets') . " WHERE wallet_type='crypto' AND currency=? AND (network=? OR network='')",
             [$coin, $network]
         );
         $balance = floatval($cw[0]['balance'] ?? 0);
@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'withd
 
                 if ($tx['success']) {
                     $db->execute(
-                        "UPDATE company_wallets SET balance=balance-?, total_sent=total_sent+? WHERE wallet_type='crypto' AND currency=?",
+                        "UPDATE " . dp_table('company_wallets') . " SET balance=balance-?, total_sent=total_sent+? WHERE wallet_type='crypto' AND currency=?",
                         [$amount, $amount, $coin]
                     );
                     $msg = ['type'=>'success','text'=>"✅ تم السحب — {$amount} {$coin} | TX: " . substr($tx['tx_hash'],0,20) . '...'];
@@ -55,25 +55,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'withd
 
 // ── جلب محافظ الشركة ─────────────────────────────────
 $cryptoWallets = $db->query(
-    "SELECT * FROM company_wallets WHERE wallet_type='crypto' ORDER BY currency, network"
+    "SELECT * FROM " . dp_table('company_wallets') . " WHERE wallet_type='crypto' ORDER BY currency, network"
 ) ?: [];
 $fiatWallets = $db->query(
-    "SELECT * FROM company_wallets WHERE wallet_type='fiat' ORDER BY currency"
+    "SELECT * FROM " . dp_table('company_wallets') . " WHERE wallet_type='fiat' ORDER BY currency"
 ) ?: [];
 
 // ── إحصاءات ──────────────────────────────────────────
 $totalFees = $db->query(
-    "SELECT COALESCE(SUM(fee),0) s FROM wallet_transactions WHERE status='completed'"
+    "SELECT COALESCE(SUM(fee),0) s FROM " . dp_table('wallet_transactions') . " WHERE status='completed'"
 ) ?: [];
 $todayFees = $db->query(
-    "SELECT COALESCE(SUM(fee),0) s FROM wallet_transactions WHERE status='completed' AND DATE(created_at)=CURDATE()"
+    "SELECT COALESCE(SUM(fee),0) s FROM " . dp_table('wallet_transactions') . " WHERE status='completed' AND DATE(created_at)=CURDATE()"
 ) ?: [];
 $totalOffline = $db->query(
-    "SELECT COUNT(*) c, COALESCE(SUM(amount),0) s FROM dp_transactions WHERE gateway='offline' AND status='completed'"
+    "SELECT COUNT(*) c, COALESCE(SUM(amount),0) s FROM " . dp_table('transactions') . " WHERE gateway='offline' AND status='completed'"
 ) ?: [];
 $recentTxns = $db->query(
-    "SELECT wt.*, u.username FROM wallet_transactions wt
-     LEFT JOIN dp_users u ON u.id=wt.user_id
+    "SELECT wt.*, u.username FROM " . dp_table('wallet_transactions') . " wt
+     LEFT JOIN " . dp_table('users') . " u ON u.id=wt.user_id
      WHERE wt.type IN ('deposit','fee')
      ORDER BY wt.created_at DESC LIMIT 20"
 ) ?: [];

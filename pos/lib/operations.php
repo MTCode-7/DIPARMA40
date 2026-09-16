@@ -93,16 +93,17 @@ function pos_operation_catalog(): array
             'requires_expiry' => true,
             'requires_rrn' => true,
             'requires_approval' => true,
+            'requires_payment_id' => true,
             'approval_len' => null, // أي طول معتمد (عادة 6)
             'linked_to_auth' => true,
             'amount_flexible' => true,
             'method' => 'capture',
-            'desc_ar' => 'مربوط بحجز AUTH. حقلان: مبلغ السحب (أقل/مساوٍ/أكثر من الحجز) + مبلغ الاسترجاع إن وجد. RRN 12 + Approval + بطاقة + انتهاء. بدون CVV. المسحوب فقط → Ledger.',
-            'desc_en' => 'Linked to AUTH hold. Two fields: withdraw amount (less/same/more than hold) + refund amount if any. RRN 12 + Approval + card + expiry. No CVV. Captured amount only → Ledger.',
+            'desc_ar' => 'أكمل حجز AUTH سابق. اختر الحجز أو أدخل المراجع. مبلغ السحب: أقل أو مساوٍ أو أكثر من الحجز. بنك: RRN 12 + Approval. بوابة: Payment ID + Approval. بدون CVV. المسحوب فقط → Ledger.',
+            'desc_en' => 'Complete a previous AUTH hold. Pick the hold or enter refs. Capture amount: less, same, or more than the hold. Bank: RRN 12 + Approval. Gateway: Payment ID + Approval. No CVV. Captured amount only → Ledger.',
         ],
         'purchase_advice' => [
-            'ar' => 'Purchase Advice — Capture',
-            'en' => 'Purchase Advice — Capture',
+            'ar' => 'Purchase Advice — Direct',
+            'en' => 'Purchase Advice — Direct',
             'icon' => 'fa-bell',
             'color' => '#F59E0B',
             'security' => '2D',
@@ -112,12 +113,17 @@ function pos_operation_catalog(): array
             'requires_expiry' => true,
             'requires_rrn' => true,
             'requires_approval' => true,
+            'requires_payment_id' => true,
             'approval_len' => 6, // bank MOTO: 4 or 6 digits
             'linked_to_auth' => false,
             'amount_flexible' => false,
             'method' => 'purchase',
-            'desc_ar' => 'حجز من مكينة أخرى أو من البنك مباشرة. RRN 12 + Approval 4 أو 6 + رقم البطاقة + انتهاء. بدون CVV. بعد الموافقة: USDT → Ledger.',
-            'desc_en' => 'Hold from another terminal or the bank directly. RRN 12 + Approval 4 or 6 + card number + expiry. No CVV. After approval: USDT → Ledger.',
+            'direct_advice' => true,
+            'mti' => '0220',
+            'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
+            'max_amount' => function_exists('pos_direct_advice_max_amount') ? pos_direct_advice_max_amount() : 5000000.00,
+            'desc_ar' => 'Advice مباشر من البنك (MTI 0220) بدون AUTH مسبق. حد الحساب 5,000,000. بطاقة + انتهاء. بدون CVV. RRN + Approval. عبر البوابة التي تختارها. بعد الموافقة: صافي → Ledger.',
+            'desc_en' => 'Bank Direct Advice (MTI 0220) with no pre-auth. Account max 5,000,000. Card + expiry. No CVV. RRN + Approval. Uses the gateway you select. After approval: net → Ledger.',
         ],
         'online_sale_moto' => [
             'ar' => 'Online SALE MOTO',
@@ -127,22 +133,24 @@ function pos_operation_catalog(): array
             'security' => '2D',
             'requires_otp' => false,
             'requires_card' => true,
-            'requires_cvv' => true,
+            'requires_cvv' => false,
             'requires_expiry' => true,
-            'requires_rrn' => false,
+            'requires_rrn' => true,
             'requires_approval' => true,
+            'requires_payment_id' => true,
             'approval_len' => 6,
             'linked_to_auth' => false,
             'amount_flexible' => false,
             'method' => 'purchase2d',
             'is_moto' => true,
             'moto_channel' => 'online',
-            'desc_ar' => 'بيع هاتفي. بطاقة + CVV + Approval 4 أو 6. إذا APPROVED: صافي USDT → Ledger.',
-            'desc_en' => 'Phone sale. Card + CVV + Approval 4 or 6. If APPROVED: net USDT → Ledger.',
+            'security' => '2D',
+            'desc_ar' => '2D MOTO. بطاقة + انتهاء. بدون CVV. بنك: RRN 12 + Approval 4 أو 6. بوابة: Payment ID + Approval. بعد الموافقة: صافي → Ledger.',
+            'desc_en' => '2D MOTO. Card + expiry. No CVV. Bank: RRN 12 + Approval 4 or 6. Gateway: Payment ID + Approval. After approval: net → Ledger.',
         ],
         'offline_sale_moto' => [
-            'ar' => 'Offline SALE MOTO',
-            'en' => 'Offline SALE MOTO',
+            'ar' => 'Offline SALE — SAF',
+            'en' => 'Offline SALE — SAF',
             'icon' => 'fa-phone',
             'color' => '#F97316',
             'security' => '2D',
@@ -150,16 +158,19 @@ function pos_operation_catalog(): array
             'requires_card' => true,
             'requires_cvv' => false,
             'requires_expiry' => true,
-            'requires_rrn' => false,
+            'requires_rrn' => true,
             'requires_approval' => true,
+            'requires_payment_id' => true,
             'approval_len' => 6,
             'linked_to_auth' => false,
             'amount_flexible' => false,
             'method' => 'purchase',
             'is_moto' => true,
             'moto_channel' => 'offline',
-            'desc_ar' => 'موافقة صوتية من البنك. بطاقة + انتهاء + Approval 4 أو 6. بدون CVV. إذا APPROVED: صافي USDT → Ledger.',
-            'desc_en' => 'Voice approval from the bank. Card + expiry + Approval 4 or 6. No CVV. If APPROVED: net USDT → Ledger.',
+            'saf' => true,
+            'max_amount' => function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00,
+            'desc_ar' => 'بيع أوفلاين (Store & Forward). حد البنك 2,000,000 للعملية. بطاقة + انتهاء. بدون CVV. RRN + Approval. تُحفظ محلياً ثم تُرسل عند عودة الاتصال عبر البوابة التي تختارها.',
+            'desc_en' => 'Offline sale (Store & Forward). Bank limit 2,000,000 per sale. Card + expiry. No CVV. RRN + Approval. Stored locally then forwarded when online via the gateway you select.',
         ],
         'refund' => [
             'ar' => 'استرداد (Refund)',
@@ -360,6 +371,18 @@ function pos_operation_catalog(): array
     ];
 }
 
+/** أنواع تحتاج مراجع Nuvei Control Panel: بنك RRN+Auth Code وبوابة Transaction ID+Auth Code */
+function pos_dual_acquirer_types(): array
+{
+    return ['offline_sale_moto', 'online_sale_moto', 'purchase_advice', 'capture'];
+}
+
+function pos_is_valid_payment_id(?string $id): bool
+{
+    $id = trim((string) $id);
+    return strlen($id) >= 6 && (bool) preg_match('/^[A-Za-z0-9._\-]+$/', $id);
+}
+
 /** أوضاع التنفيذ داخل السحب POS/NFC */
 function pos_withdrawal_charge_modes(): array
 {
@@ -436,7 +459,7 @@ function pos_withdrawal_charge_modes(): array
             'base' => 'offline_sale_moto',
             'channel' => 'offline',
             'approval_len' => 6,
-            'requires_rrn' => false,
+            'requires_rrn' => true,
             'requires_approval' => true,
             'requires_card' => true,
             'requires_expiry' => true,
@@ -447,7 +470,7 @@ function pos_withdrawal_charge_modes(): array
             'base' => 'online_sale_moto',
             'channel' => 'online',
             'approval_len' => 6,
-            'requires_rrn' => false,
+            'requires_rrn' => true,
             'requires_approval' => true,
             'requires_card' => true,
             'requires_expiry' => true,
@@ -621,8 +644,10 @@ function pos_validate_operation_fields(string $type, array $data): array
         return $errors;
     }
 
-    $rrn = pos_normalize_rrn($data['rrn'] ?? $data['orig_ref'] ?? '');
-    $approval = strtoupper(preg_replace('/[^0-9A-Za-z]/', '', (string)($data['approval_code'] ?? '')));
+    $rrn = pos_normalize_rrn($data['rrn'] ?? $data['orig_ref'] ?? $data['bank_rrn'] ?? '');
+    $approval = strtoupper(preg_replace('/[^0-9A-Za-z]/', '', (string)($data['approval_code'] ?? $data['bank_approval_code'] ?? '')));
+    $paymentId = trim((string)($data['payment_id'] ?? $data['nuvei_txn_id'] ?? $data['transaction_id'] ?? ''));
+    $gwApproval = strtoupper(preg_replace('/[^0-9A-Za-z]/', '', (string)($data['gateway_approval_code'] ?? $data['auth_code'] ?? '')));
     $card = preg_replace('/\D/', '', (string)($data['card_number'] ?? ''));
     $expiry = trim((string)($data['card_expiry'] ?? ''));
 
@@ -648,9 +673,20 @@ function pos_validate_operation_fields(string $type, array $data): array
     }
     if ($requiresApproval && !pos_is_valid_approval($approval, $approvalLen)) {
         if ($approvalLen === 4 || $approvalLen === 6) {
-            $errors[] = 'Approval Code must be 4 or 6 digits (bank MOTO).';
+            $errors[] = 'Bank Auth Code (Nuvei Auth Code) must be 4 or 6 digits.';
         } else {
-            $errors[] = 'Approval Code is required (4–12 digits).';
+            $errors[] = 'Bank Auth Code is required (4–12 digits).';
+        }
+    }
+    if (!empty($meta['requires_payment_id']) || in_array($type, pos_dual_acquirer_types(), true)) {
+        if (!pos_is_valid_payment_id($paymentId)) {
+            $errors[] = 'Nuvei Transaction ID (Payment ID) is required.';
+        }
+        if ($gwApproval === '') {
+            $gwApproval = $approval;
+        }
+        if (!pos_is_valid_approval($gwApproval, $approvalLen)) {
+            $errors[] = 'Gateway Auth Code must be 4 or 6 digits (Nuvei Auth Code).';
         }
     }
     if ($requiresCard && (strlen($card) < 13 || strlen($card) > 19)) {

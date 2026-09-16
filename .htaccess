@@ -89,11 +89,6 @@ DirectoryIndex landing.php
     Header append Vary User-Agent env=!dont-vary
 </IfModule>
 
-# ── [4b] OPcache Headers ─────────────────────────────────────
-<IfModule mod_headers.c>
-    Header set X-Content-Encoding "gzip" env=gzip
-</IfModule>
-
 # ── [5] Cache للملفات الثابتة ───────────────────────────────
 <IfModule mod_expires.c>
     ExpiresActive On
@@ -109,16 +104,26 @@ DirectoryIndex landing.php
     # Nuvei Test URLs load these paths in an iframe from cpanel.nuvei.com.
     SetEnvIf Request_URI "nuvei-(success|fail|pending|back)\.(html|php)" NUVEI_PROBE
     SetEnvIf Request_URI "nuvei_dmn\.php" NUVEI_PROBE
+
+    # Payment / POS / API / admin — never cache at Cloudflare or browser
+    SetEnvIf Request_URI "^/(pos|api|admin|checkout)(/|$)" DIPARMA_NOCACHE
+    SetEnvIf Request_URI "checkout_router\.php|login\.php|pay\.php|capture\.php|receipt\.php" DIPARMA_NOCACHE
+
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "SAMEORIGIN" env=!NUVEI_PROBE
     Header always set X-XSS-Protection "1; mode=block"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
-    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
     Header always set Content-Security-Policy "frame-ancestors *" env=NUVEI_PROBE
     Header always set Access-Control-Allow-Origin "*" env=NUVEI_PROBE
     Header always set Access-Control-Allow-Methods "GET, POST, HEAD, OPTIONS" env=NUVEI_PROBE
     Header always set Allow "GET, POST, HEAD, OPTIONS" env=NUVEI_PROBE
+
+    Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0" env=DIPARMA_NOCACHE
+    Header always set Pragma "no-cache" env=DIPARMA_NOCACHE
+    Header always set CDN-Cache-Control "no-store" env=DIPARMA_NOCACHE
+    Header always set Cloudflare-CDN-Cache-Control "no-store" env=DIPARMA_NOCACHE
 </IfModule>
 
 <FilesMatch "^(nuvei-(success|fail|pending|back)\.(html|php)|nuvei_dmn\.php)$">

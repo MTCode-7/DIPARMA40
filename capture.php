@@ -83,6 +83,7 @@ $gwMap = [
     'paypal'     => ['label'=>'PayPal',     'color'=>'#0070ba','icon'=>'fab fa-paypal',           'id_label'=>'PayPal Payment ID', 'placeholder'=>'PAY-... / PAYID-...'],
     'myfatoorah' => ['label'=>'MyFatoorah', 'color'=>'#00b09b','icon'=>'fas fa-money-bill-wave', 'id_label'=>'Invoice / Payment ID','placeholder'=>'Invoice ID'],
     'nuvei'      => ['label'=>'Nuvei',      'color'=>'#0A5EB0','icon'=>'fas fa-credit-card',     'id_label'=>'Transaction ID',    'placeholder'=>'transactionId'],
+    'diparma'    => ['label'=>'DI PARMA',   'color'=>'#FFD700','icon'=>'fas fa-coins',           'id_label'=>'Transaction ID',    'placeholder'=>'transactionId'],
     'hsbc_uae'   => ['label'=>'HSBC UAE',   'color'=>'#DB0011','icon'=>'fas fa-university',      'id_label'=>'Bank Reference',    'placeholder'=>'Bank Ref'],
     'nbe_egypt'  => ['label'=>'NBE Egypt',  'color'=>'#006633','icon'=>'fas fa-landmark',        'id_label'=>'Bank Reference',    'placeholder'=>'Bank Ref'],
     'mashreq'    => ['label'=>'Mashreq',    'color'=>'#CC0000','icon'=>'fas fa-university',      'id_label'=>'Bank Reference',    'placeholder'=>'Bank Ref'],
@@ -257,8 +258,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
     <!-- البطاقة إلزامية -->
     <div class="fld">
-      <label style="color:var(--orange)"><?=$ar?'رقم البطاقة':'Card Number'?> <span class="req">*</span></label>
-      <input type="text" name="card_number" maxlength="19" placeholder="0000 0000 0000 0000"
+      <label style="color:var(--orange)"><?=$ar?'رقم البطاقة — كل الشبكات والمُصدرين':'Card Number — all networks and issuers'?> <span class="req">*</span></label>
+      <input type="text" name="card_number" maxlength="23" placeholder="0000 0000 0000 0000"
              oninput="fmtCard(this)" style="font-family:monospace;letter-spacing:1px" required>
     </div>
     <div class="fld-row">
@@ -366,7 +367,7 @@ function selectTx(type, el) {
 }
 
 function fmtCard(el) {
-  var v = el.value.replace(/\D/g,'').substring(0,16);
+  var v = el.value.replace(/\D/g,'').substring(0,19);
   el.setAttribute('data-raw', v);
   el.value = v.replace(/(.{4})/g,'$1 ').trim();
 }

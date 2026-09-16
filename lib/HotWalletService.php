@@ -8,6 +8,12 @@
  * ============================================================
  */
 
+require_once __DIR__ . '/../includes/base58.php';
+
+if (class_exists('HotWalletService', false)) {
+    return;
+}
+
 class HotWalletService
 {
     private const TRON_API_BASE   = 'https://api.trongrid.io';
@@ -404,16 +410,7 @@ class HotWalletService
 
     private function base58Decode(string $input): string
     {
-        $alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-        $num      = gmp_init(0);
-        $base     = gmp_init(58);
-
-        foreach (str_split($input) as $char) {
-            $pos = strpos($alphabet, $char);
-            $num = gmp_add(gmp_mul($num, $base), gmp_init($pos));
-        }
-
-        return gmp_export($num);
+        return dp_base58_decode($input);
     }
 
     private function fail(string $reference, string $message): array

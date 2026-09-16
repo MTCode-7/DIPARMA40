@@ -6,6 +6,7 @@
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/lang.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -20,15 +21,15 @@ if (isset($_GET['lang']) && in_array($_GET['lang'], ['ar', 'en'], true)) {
     exit();
 }
 
-$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
-$pageDir = ($currentLang === 'en') ? 'ltr' : 'rtl';
-$pageTitle = ($currentLang === 'en') ? 'DI PARMA | Login' : 'DI PARMA | تسجيل الدخول';
-$pageSubTitle = ($currentLang === 'en') ? 'Ultimate Financial Gateway' : 'بوابة الدفع المالية الشاملة';
-$usernameLabel = ($currentLang === 'en') ? 'Username' : 'اسم المستخدم';
-$passwordLabel = ($currentLang === 'en') ? 'Password' : 'كلمة المرور';
-$usernamePlaceholder = ($currentLang === 'en') ? 'Enter username' : 'أدخل اسم المستخدم';
-$passwordPlaceholder = ($currentLang === 'en') ? 'Enter password' : 'أدخل كلمة المرور';
-$loginButton = ($currentLang === 'en') ? 'Login' : 'تسجيل الدخول';
+$currentLang = dp_lang();
+$pageDir = $pageDir ?? (is_ar() ? 'rtl' : 'ltr');
+$pageTitle = 'DI PARMA | ' . dp_t('Login', 'تسجيل الدخول');
+$pageSubTitle = dp_t('Ultimate Financial Gateway', 'بوابة الدفع المالية الشاملة');
+$usernameLabel = dp_t('Username', 'اسم المستخدم');
+$passwordLabel = dp_t('Password', 'كلمة المرور');
+$usernamePlaceholder = dp_t('Enter username', 'أدخل اسم المستخدم');
+$passwordPlaceholder = dp_t('Enter password', 'أدخل كلمة المرور');
+$loginButton = dp_t('Login', 'تسجيل الدخول');
 $csrfToken = generateCsrfToken();
 
 if (isset($_GET['logout'])) {
@@ -41,14 +42,14 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $error = 'Invalid security token. Please try again.';
+        $error = dp_t('Invalid security token. Please try again.', 'رمز الأمان غير صالح. حاول مرة أخرى.');
     }
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
     
         if ($error === '') {
             if (empty($username) || empty($password)) {
-        $error = 'يرجى إدخال اسم المستخدم وكلمة المرور';
+        $error = dp_t('Please enter username and password.', 'يرجى إدخال اسم المستخدم وكلمة المرور');
             } else {
         try {
             $db = db();
@@ -60,11 +61,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             }
             
             if ($user && ($user['status'] ?? 'active') === 'inactive') {
-                $error = 'هذا الحساب معطل ولا يمكن تسجيل الدخول إليه حالياً';
+                $error = dp_t('This account is disabled and cannot be used to sign in.', 'هذا الحساب معطل ولا يمكن تسجيل الدخول إليه حالياً');
             } elseif ($user && ($user['status'] ?? 'active') === 'pending') {
-                $error = $currentLang === 'en'
-                    ? 'Your account is pending admin approval. Please wait.'
-                    : 'حسابك قيد المراجعة — في انتظار موافقة الإدارة';
+                $error = dp_t('Your account is pending admin approval. Please wait.', 'حسابك قيد المراجعة — في انتظار موافقة الإدارة');
             } elseif ($user && password_verify($password, $user['password_hash'])) {
                 session_regenerate_id(true);
                 $_SESSION['user_id'] = $user['id'];
@@ -86,10 +85,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 header('Location: ' . SITE_URL . '/dashboard.php');
                 exit();
             } else {
-                $error = 'اسم المستخدم أو كلمة المرور غير صحيحة';
+                $error = dp_t('Incorrect username or password.', 'اسم المستخدم أو كلمة المرور غير صحيحة');
             }
         } catch (Exception $e) {
-            $error = 'حدث خطأ في النظام';
+            $error = dp_t('A system error occurred.', 'حدث خطأ في النظام');
         }
             }
         }
@@ -210,15 +209,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <?php if (isset($_GET['pending'])): ?>
         <div class="alert" style="background:rgba(255,193,7,.1);border:1px solid rgba(255,193,7,.3);color:#ffc107;border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:.9rem">
             <i class="fas fa-clock" style="margin-left:8px"></i>
-            <?= $currentLang === 'en'
-                ? 'Account created successfully. Awaiting admin approval before you can login.'
-                : 'تم إنشاء حسابك بنجاح — في انتظار موافقة الإدارة قبل تسجيل الدخول' ?>
+            <?= dp_t('Account created successfully. Awaiting admin approval before you can login.', 'تم إنشاء حسابك بنجاح — في انتظار موافقة الإدارة قبل تسجيل الدخول') ?>
         </div>
     <?php endif; ?>
 
     <?php if (isset($_GET['account_disabled'])): ?>
         <div class="alert alert-error"><i class="fas fa-ban"></i>
-            <?= $currentLang === 'en' ? 'This account has been disabled.' : 'تم تعطيل هذا الحساب' ?>
+            <?= dp_t('This account has been disabled.', 'تم تعطيل هذا الحساب') ?>
         </div>
     <?php endif; ?>
 
@@ -244,7 +241,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <div class="login-footer" style="display:flex;flex-direction:column;gap:10px;align-items:center;">
         <a href="mailto:infodiparma@proton.me" style="color:var(--gold);text-decoration:none;font-size:0.9rem;">
             <i class="fas fa-envelope"></i>
-            <?= $currentLang === 'en' ? 'Contact us: infodiparma@proton.me' : 'تواصل معنا: infodiparma@proton.me' ?>
+            <?= dp_t('Contact us: infodiparma@proton.me', 'تواصل معنا: infodiparma@proton.me') ?>
         </a>
     </div>
 

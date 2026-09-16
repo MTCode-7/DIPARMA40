@@ -1,19 +1,14 @@
 <?php
-$BANK_CONFIG = [
-    'name'             => 'HSBC Bank Middle East — UAE',
-    'gateway_code'     => 'hsbc_uae',
-    'prefix'           => 'HSBC',
-    'icon'             => 'fas fa-university',
-    'color'            => '#DB0011',
-    'default_currency' => 'AED',
-    'currencies'       => ['AED','USD','EUR','GBP'],
-    'fields'           => [
-        'Beneficiary'  => 'MR RAGEH SAEED ALI BAKRAIT',
-        'Account No'   => '013-053368-001',
-        'IBAN'         => 'AE850200000013053368001',
-        'SWIFT'        => 'BBMEAEAD',
-        'Bank'         => 'HSBC Bank Middle East Limited',
-        'City'         => 'Abu Dhabi, UAE',
-    ],
+/**
+ * DI PARMA | صفحة بوابة مستقلة: hsbc_uae
+ * تحتوي على جميع عمليات الشراء المعيارية.
+ */
+$gwCode = 'hsbc_uae';
+$checkoutBase = '../';
+$bankInfo = [
+    'Beneficiary' => 'MR RAGEH SAEED ALI BAKRAIT',
+    'IBAN' => 'AE850200000013053368001',
+    'SWIFT' => 'BBMEAEAD',
+    'Bank' => 'HSBC Bank Middle East Limited',
 ];
-require_once __DIR__ . '/_bank_template.php';
+require __DIR__ . '/../includes/start_gateway_checkout.php';

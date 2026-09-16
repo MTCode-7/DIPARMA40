@@ -58,12 +58,14 @@ class GatewayConnectionTester
                 last_tested       = NOW(),
                 test_response_ms  = ?,
                 test_message      = ?,
+                status            = CASE WHEN ? = 1 THEN 'active' ELSE status END,
                 updated_at        = NOW()
              WHERE id = ?",
             [
                 $result['success'] ? 'verified' : 'failed',
                 $ms,
                 $result['message'],
+                $result['success'] ? 1 : 0,
                 $gatewayId,
             ]
         );
@@ -111,9 +113,11 @@ class GatewayConnectionTester
         // اختيار طريقة الاختبار حسب البوابة
         return match(strtolower($code)) {
             'stripe'       => $this->testStripe($creds),
+            'square'       => $this->testSquare($creds),
             'checkout'     => $this->testCheckout($creds),
             'paytabs'      => $this->testPayTabs($creds),
-            'authorizenet' => $this->testAuthorizeNet($creds),
+            'authorizenet',
+            'authorize_net'=> $this->testAuthorizeNet($creds),
             'myfatoorah'   => $this->testMyFatoorah($creds),
             'nuvei'        => $this->testNuvei($creds),
             'paypal'       => $this->testPayPal($creds),
@@ -128,8 +132,68 @@ class GatewayConnectionTester
             'crypto_com',
             'cryptocom'    => $this->testCryptoCom($creds),
             'sfox'         => $this->testSfox($creds),
+            'diparma'      => $this->testDiparma($creds),
+            'diparma_gateway' => $this->testDiparmaGatewayCard(),
             default        => $this->testGenericRest($gw, $creds),
         };
+    }
+
+    private function testDiparma(array $creds): array
+    {
+        $endpoint = $creds['api_endpoint'] ?? '';
+        if ($endpoint === '') {
+            $base = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : (getenv('SITE_URL') ?: '');
+            $endpoint = $base !== '' ? $base . '/api/diparma_process.php' : '';
+        }
+        if ($endpoint === '' || !is_file(__DIR__ . '/../api/diparma_process.php')) {
+            return ['success' => false, 'message' => 'DI PARMA process endpoint missing'];
+        }
+        if (!is_file(__DIR__ . '/DIPARMAOrchestrator.php')) {
+            return ['success' => false, 'message' => 'DIPARMAOrchestrator missing'];
+        }
+        return [
+            'success' => true,
+            'message' => 'DI PARMA internal orchestrator ready — ' . $endpoint,
+        ];
+    }
+
+    private function testLedgerOnly(): array
+    {
+        $addr = defined('LEDGER_TRC20_ADDRESS') ? trim((string) LEDGER_TRC20_ADDRESS) : '';
+        if ($addr === '') {
+            $addr = trim((string) (getenv('LEDGER_TRC20_ADDRESS') ?: ''));
+        }
+        if (!preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $addr)) {
+            return [
+                'success' => false,
+                'message' => 'LEDGER_TRC20_ADDRESS missing. DIPARMA GATEWAY is Ledger-only — no bank.',
+            ];
+        }
+        return [
+            'success' => true,
+            'message' => 'Ledger USDT TRC20 ready. ' . substr($addr, 0, 8) . '…',
+        ];
+    }
+
+    private function testDiparmaGatewayCard(): array
+    {
+        $ledger = $this->testLedgerOnly();
+        if (empty($ledger['success'])) {
+            return $ledger;
+        }
+        $merchant = trim((string) (getenv('NUVEI_MERCHANT_ID') ?: ''));
+        $secret = trim((string) (getenv('NUVEI_SECRET_KEY') ?: ''));
+        $site = trim((string) (getenv('NUVEI_SITE_ID') ?: ''));
+        if ($merchant === '' || $secret === '' || $site === '') {
+            return [
+                'success' => false,
+                'message' => 'Card rail needs NUVEI_MERCHANT_ID / SITE_ID / SECRET_KEY. Settlement is Ledger USDT.',
+            ];
+        }
+        return [
+            'success' => true,
+            'message' => 'DIPARMA GATEWAY: Card → Ledger USDT. ' . ($ledger['message'] ?? ''),
+        ];
     }
 
     // ── Stripe ───────────────────────────────────────────────
@@ -151,6 +215,32 @@ class GatewayConnectionTester
             return ['success' => false, 'message' => '❌ مفتاح Stripe غير صحيح'];
         }
         return ['success' => false, 'message' => '❌ Stripe: HTTP ' . $res['http_code']];
+    }
+
+    // ── Square ───────────────────────────────────────────────
+    private function testSquare(array $creds): array
+    {
+        $token = $creds['access_token'] ?? $creds['secret_key'] ?? getenv('SQUARE_ACCESS_TOKEN') ?: getenv('SQUARE_SECRET_KEY') ?: '';
+        if ($token === '') {
+            return ['success' => false, 'message' => 'SQUARE_ACCESS_TOKEN مفقود'];
+        }
+        $env = strtolower(trim((string) ($creds['environment'] ?? getenv('SQUARE_ENVIRONMENT') ?: 'sandbox')));
+        $base = in_array($env, ['production', 'live', 'prod'], true)
+            ? 'https://connect.squareup.com'
+            : 'https://connect.squareupsandbox.com';
+        $res = $this->curl('GET', $base . '/v2/locations', [], [
+            'Authorization: Bearer ' . $token,
+            'Square-Version: 2024-01-18',
+            'Accept: application/json',
+        ]);
+        if ($res['http_code'] === 200 && !empty($res['data']['locations'])) {
+            $name = $res['data']['locations'][0]['name'] ?? 'location';
+            return ['success' => true, 'message' => '✅ Square متصل — ' . $name];
+        }
+        if ($res['http_code'] === 401) {
+            return ['success' => false, 'message' => '❌ مفتاح Square غير صحيح'];
+        }
+        return ['success' => false, 'message' => '❌ Square: HTTP ' . ($res['http_code'] ?? 0)];
     }
 
     // ── Checkout.com ─────────────────────────────────────────

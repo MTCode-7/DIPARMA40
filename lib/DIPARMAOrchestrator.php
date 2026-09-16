@@ -18,9 +18,9 @@
  * ============================================================
  */
 
-require_once __DIR__ . '/Adapters/NuveiAdapter.php';
 require_once __DIR__ . '/WiseService.php';
 require_once __DIR__ . '/Adapters/GatewayAdapterFactory.php';
+require_once __DIR__ . '/MySystem/ChargeHub.php';
 
 class DIPARMAOrchestrator
 {
@@ -29,13 +29,18 @@ class DIPARMAOrchestrator
 
     /* ── بوابات الدفع المتاحة ─────────────────────────── */
     private array $GATEWAYS = [
-        'nuvei'       => ['name'=>'Nuvei × Mashreq',    'type'=>'card',   'priority'=>1, 'currencies'=>['USD','AED','EUR','GBP','SAR'],'max_amount'=>500000],
-        'stripe'      => ['name'=>'Stripe',              'type'=>'card',   'priority'=>2, 'currencies'=>['USD','EUR','GBP','AED'],     'max_amount'=>999999],
-        'paypal'      => ['name'=>'PayPal',              'type'=>'card',   'priority'=>3, 'currencies'=>['USD','EUR','GBP'],           'max_amount'=>10000],
-        'myfatoorah'  => ['name'=>'MyFatoorah',          'type'=>'card',   'priority'=>4, 'currencies'=>['AED','SAR','KWD','QAR','EGP'],'max_amount'=>100000],
-        'wise'        => ['name'=>'Wise',                'type'=>'bank',   'priority'=>1, 'currencies'=>['USD','EUR','GBP','AED'],     'max_amount'=>1000000],
-        'binance'     => ['name'=>'Binance Pay',         'type'=>'crypto', 'priority'=>1, 'currencies'=>['USD','USDT','BNB'],         'max_amount'=>999999],
-        'gate_io'     => ['name'=>'Gate.io',             'type'=>'crypto', 'priority'=>2, 'currencies'=>['USD','USDT'],               'max_amount'=>999999],
+        'nuvei'       => ['name'=>'Nuvei → Ledger',     'type'=>'card',   'priority'=>1, 'currencies'=>['USD','AED','EUR','GBP','SAR'],'max_amount'=>PHP_FLOAT_MAX],
+        'square'      => ['name'=>'Square → Ledger',    'type'=>'card',   'priority'=>1, 'currencies'=>['USD','EUR','GBP','AED','CAD','AUD','JPY'],'max_amount'=>PHP_FLOAT_MAX],
+        'stripe'      => ['name'=>'Stripe',              'type'=>'card',   'priority'=>2, 'currencies'=>['USD','EUR','GBP','AED'],     'max_amount'=>PHP_FLOAT_MAX],
+        'paypal'      => ['name'=>'PayPal → Ledger',     'type'=>'card',   'priority'=>3, 'currencies'=>['USD','EUR','GBP','AED'],    'max_amount'=>PHP_FLOAT_MAX],
+        'payram'      => ['name'=>'PayRam → Ledger',     'type'=>'crypto', 'priority'=>4, 'currencies'=>['USD','USDT','EUR','GBP','AED'],'max_amount'=>PHP_FLOAT_MAX],
+        'whop'        => ['name'=>'Whop → Ledger',       'type'=>'card',   'priority'=>5, 'currencies'=>['USD','EUR'],                'max_amount'=>PHP_FLOAT_MAX],
+        'diparma'     => ['name'=>'DI PARMA → Ledger',   'type'=>'card',   'priority'=>1, 'currencies'=>['USD','AED','EUR','GBP','SAR'],'max_amount'=>PHP_FLOAT_MAX],
+        'diparma_gateway' => ['name'=>'DIPARMA GATEWAY → Ledger','type'=>'card','priority'=>1, 'currencies'=>['USD','USDT','AED','EUR','GBP','SAR','KWD','QAR','EGP'],'max_amount'=>PHP_FLOAT_MAX],
+        'myfatoorah'  => ['name'=>'MyFatoorah',          'type'=>'card',   'priority'=>4, 'currencies'=>['AED','SAR','KWD','QAR','EGP'],'max_amount'=>PHP_FLOAT_MAX],
+        'wise'        => ['name'=>'Wise',                'type'=>'bank',   'priority'=>1, 'currencies'=>['USD','EUR','GBP','AED'],     'max_amount'=>PHP_FLOAT_MAX],
+        'binance'     => ['name'=>'Binance Pay',         'type'=>'crypto', 'priority'=>1, 'currencies'=>['USD','USDT','BNB'],         'max_amount'=>PHP_FLOAT_MAX],
+        'gate_io'     => ['name'=>'Gate.io',             'type'=>'crypto', 'priority'=>2, 'currencies'=>['USD','USDT'],               'max_amount'=>PHP_FLOAT_MAX],
     ];
 
     /* ── بنوك مباشرة ──────────────────────────────────── */
@@ -51,41 +56,49 @@ class DIPARMAOrchestrator
         'POS-001' => ['name'=>'Terminal Dubai Main',    'type'=>'BITEL_IC3600','location'=>'Dubai HQ',        'status'=>'active','gateway'=>'nuvei'],
         'POS-002' => ['name'=>'Terminal Dubai Branch',  'type'=>'BITEL_IC3600','location'=>'Dubai Branch',    'status'=>'active','gateway'=>'nuvei'],
         'POS-003' => ['name'=>'Terminal Abu Dhabi',     'type'=>'BITEL_IC3600','location'=>'Abu Dhabi',       'status'=>'active','gateway'=>'nuvei'],
-        'POS-004' => ['name'=>'Terminal Sharjah',       'type'=>'BITEL_IC3600','location'=>'Sharjah',         'status'=>'active','gateway'=>'stripe'],
+        'POS-004' => ['name'=>'Terminal Sharjah',       'type'=>'BITEL_IC3600','location'=>'Sharjah',         'status'=>'active','gateway'=>'nuvei'],
         'POS-005' => ['name'=>'Terminal Ajman',         'type'=>'BITEL_IC3600','location'=>'Ajman',           'status'=>'active','gateway'=>'nuvei'],
         'POS-006' => ['name'=>'Terminal RAK',           'type'=>'BITEL_IC3600','location'=>'Ras Al Khaimah',  'status'=>'active','gateway'=>'nuvei'],
         'POS-007' => ['name'=>'Terminal Fujairah',      'type'=>'BITEL_IC3600','location'=>'Fujairah',        'status'=>'active','gateway'=>'nuvei'],
-        'POS-008' => ['name'=>'Terminal Cairo',         'type'=>'BITEL_IC3600','location'=>'Cairo, Egypt',    'status'=>'active','gateway'=>'myfatoorah'],
-        'POS-009' => ['name'=>'Terminal Alexandria',    'type'=>'BITEL_IC3600','location'=>'Alexandria, Egypt','status'=>'active','gateway'=>'myfatoorah'],
-        'POS-010' => ['name'=>'Terminal Riyadh',        'type'=>'BITEL_IC3600','location'=>'Riyadh, KSA',     'status'=>'active','gateway'=>'myfatoorah'],
-        'POS-011' => ['name'=>'Terminal Jeddah',        'type'=>'BITEL_IC3600','location'=>'Jeddah, KSA',     'status'=>'active','gateway'=>'myfatoorah'],
-        'POS-012' => ['name'=>'Terminal Kuwait',        'type'=>'BITEL_IC3600','location'=>'Kuwait City',     'status'=>'active','gateway'=>'myfatoorah'],
-        'POS-013' => ['name'=>'Terminal Doha',          'type'=>'BITEL_IC3600','location'=>'Doha, Qatar',     'status'=>'active','gateway'=>'myfatoorah'],
+        'POS-008' => ['name'=>'Terminal Cairo',         'type'=>'BITEL_IC3600','location'=>'Cairo, Egypt',    'status'=>'active','gateway'=>'nuvei'],
+        'POS-009' => ['name'=>'Terminal Alexandria',    'type'=>'BITEL_IC3600','location'=>'Alexandria, Egypt','status'=>'active','gateway'=>'nuvei'],
+        'POS-010' => ['name'=>'Terminal Riyadh',        'type'=>'BITEL_IC3600','location'=>'Riyadh, KSA',     'status'=>'active','gateway'=>'nuvei'],
+        'POS-011' => ['name'=>'Terminal Jeddah',        'type'=>'BITEL_IC3600','location'=>'Jeddah, KSA',     'status'=>'active','gateway'=>'nuvei'],
+        'POS-012' => ['name'=>'Terminal Kuwait',        'type'=>'BITEL_IC3600','location'=>'Kuwait City',     'status'=>'active','gateway'=>'nuvei'],
+        'POS-013' => ['name'=>'Terminal Doha',          'type'=>'BITEL_IC3600','location'=>'Doha, Qatar',     'status'=>'active','gateway'=>'nuvei'],
         'POS-014' => ['name'=>'Terminal Bahrain',       'type'=>'BITEL_IC3600','location'=>'Manama, Bahrain', 'status'=>'active','gateway'=>'nuvei'],
-        'POS-015' => ['name'=>'Terminal London',        'type'=>'BITEL_IC3600','location'=>'London, UK',      'status'=>'active','gateway'=>'stripe'],
-        'POS-016' => ['name'=>'Terminal New York',      'type'=>'BITEL_IC3600','location'=>'New York, USA',   'status'=>'active','gateway'=>'stripe'],
-        'POS-017' => ['name'=>'Terminal Paris',         'type'=>'BITEL_IC3600','location'=>'Paris, France',   'status'=>'active','gateway'=>'stripe'],
-        'POS-018' => ['name'=>'Terminal Singapore',     'type'=>'BITEL_IC3600','location'=>'Singapore',       'status'=>'active','gateway'=>'stripe'],
+        'POS-015' => ['name'=>'Terminal London',        'type'=>'BITEL_IC3600','location'=>'London, UK',      'status'=>'active','gateway'=>'nuvei'],
+        'POS-016' => ['name'=>'Terminal New York',      'type'=>'BITEL_IC3600','location'=>'New York, USA',   'status'=>'active','gateway'=>'nuvei'],
+        'POS-017' => ['name'=>'Terminal Paris',         'type'=>'BITEL_IC3600','location'=>'Paris, France',   'status'=>'active','gateway'=>'nuvei'],
+        'POS-018' => ['name'=>'Terminal Singapore',     'type'=>'BITEL_IC3600','location'=>'Singapore',       'status'=>'active','gateway'=>'nuvei'],
     ];
 
-    /* ── أنواع العمليات ───────────────────────────────── */
+    /* ── أنواع العمليات المعيارية (POS) ─────────────── */
     private array $TXN_TYPES = [
-        'purchase'          => ['method'=>'purchase',  'needs_orig'=>false],
-        'purchase_2d'       => ['method'=>'purchase',  'needs_orig'=>false],
-        'purchase_offline'  => ['method'=>'purchase',  'needs_orig'=>false],
-        'purchase_online'   => ['method'=>'purchase',  'needs_orig'=>false],
-        'auth'              => ['method'=>'authorize', 'needs_orig'=>false],
-        'auth_hold'         => ['method'=>'authorize', 'needs_orig'=>false],
-        'auth_moto'         => ['method'=>'authorize', 'needs_orig'=>false],
-        'auth_complete'     => ['method'=>'capture',   'needs_orig'=>true ],
-        'auth_capture'      => ['method'=>'capture',   'needs_orig'=>true ],
-        'purchase_advice'   => ['method'=>'purchase',  'needs_orig'=>false],
-        'refund'          => ['method'=>'refund',    'needs_orig'=>true ],
-        'reversal'        => ['method'=>'void',      'needs_orig'=>true ],
-        'balance'         => ['method'=>'balance',   'needs_orig'=>false],
-        'cash_advance'    => ['method'=>'purchase',  'needs_orig'=>false],
-        'void'            => ['method'=>'void',      'needs_orig'=>true ],
-        'settlement'      => ['method'=>'settle',    'needs_orig'=>false],
+        'purchase_2d'         => ['method'=>'purchase',  'needs_orig'=>false],
+        'purchase_3d'         => ['method'=>'purchase',  'needs_orig'=>false],
+        'online_sale_moto'    => ['method'=>'purchase',  'needs_orig'=>false],
+        'offline_sale_moto'   => ['method'=>'purchase',  'needs_orig'=>false],
+        'auth'                => ['method'=>'authorize', 'needs_orig'=>false],
+        'capture'             => ['method'=>'capture',   'needs_orig'=>true ],
+        'purchase_advice'     => ['method'=>'purchase',  'needs_orig'=>true ],
+        'refund'              => ['method'=>'refund',    'needs_orig'=>true ],
+        'avoid'               => ['method'=>'void',      'needs_orig'=>true ],
+        'withdrawal_pos'      => ['method'=>'purchase',  'needs_orig'=>false],
+        'withdrawal_nfc'      => ['method'=>'purchase',  'needs_orig'=>false],
+        // aliases
+        'purchase'            => ['method'=>'purchase',  'needs_orig'=>false],
+        'purchase_offline'    => ['method'=>'purchase',  'needs_orig'=>false],
+        'purchase_online'     => ['method'=>'purchase',  'needs_orig'=>false],
+        'auth_hold'           => ['method'=>'authorize', 'needs_orig'=>false],
+        'auth_moto'           => ['method'=>'authorize', 'needs_orig'=>false],
+        'auth_complete'       => ['method'=>'capture',   'needs_orig'=>true ],
+        'auth_capture'        => ['method'=>'capture',   'needs_orig'=>true ],
+        'cash_advance'        => ['method'=>'purchase',  'needs_orig'=>false],
+        'void'                => ['method'=>'void',      'needs_orig'=>true ],
+        'reversal'            => ['method'=>'void',      'needs_orig'=>true ],
+        'balance'             => ['method'=>'balance',   'needs_orig'=>false],
+        'settlement'          => ['method'=>'settle',    'needs_orig'=>false],
     ];
 
     private function __construct()
@@ -118,8 +131,30 @@ class DIPARMAOrchestrator
         $gateway   = strtolower($input['gateway']   ?? '');
         $secMode   = strtoupper($input['sec_mode']  ?? '3D');
 
-        /* ── 1. اختيار الـ Processor ── */
-        $processor = $this->selectProcessor($gateway, $currency, $amount, $posId, $txnType);
+        /* ── 1. اختيار الـ Processor — بدون تبديل صامت لبوابة أخرى ── */
+        $fromPos = $posId || !empty($input['pos_device']) || strtolower((string)($input['source'] ?? '')) === 'pos';
+        if ($fromPos) {
+            if ($gateway === '') {
+                $gateway = 'nuvei';
+            }
+            $input['gateway'] = $gateway;
+            $input['allow_fallback'] = false;
+            $input['destination'] = 'ledger';
+        }
+        $allowFallback = !$fromPos && !empty($input['allow_fallback']);
+        $processor = $fromPos
+            ? $gateway
+            : $this->selectProcessor($gateway, $currency, $amount, $posId, $txnType, $allowFallback);
+        if ($processor === '') {
+            return [
+                'success' => false,
+                'message' => $gateway !== ''
+                    ? "Gateway '{$gateway}' is not available for this amount/currency"
+                    : 'Gateway is required',
+                'reference' => $reference,
+                'timestamp' => date('c', $ts),
+            ];
+        }
 
         /* ── 2. بناء الـ params ── */
         $params = [
@@ -138,11 +173,11 @@ class DIPARMAOrchestrator
             'pos_id'       => $posId,
         ];
 
-        /* ── 3. تنفيذ العملية ── */
+        /* ── 3. تنفيذ العملية على البوابة المختارة فقط ── */
         $result = $this->execute($processor, $txnType, $params);
 
-        /* ── 4. Fallback إذا فشل ── */
-        if (!$result['success'] && !in_array($txnType, ['refund','void','reversal','auth_complete'])) {
+        /* ── 4. Fallback اختياري فقط (allow_fallback=true) ── */
+        if ($allowFallback && !$result['success'] && !in_array($txnType, ['refund','void','reversal','auth_complete'])) {
             $fallback = $this->selectFallback($processor, $currency, $amount);
             if ($fallback && $fallback !== $processor) {
                 $this->log($reference, 'fallback', "$processor → $fallback");
@@ -153,8 +188,34 @@ class DIPARMAOrchestrator
             }
         }
 
-        /* ── 5. تسجيل في DB ── */
-        $this->save($reference, $input, $result, $processor, $posId, $ts);
+        /* ── 5. تسجيل في DB (تخطي إن ChargeHub حفظ Order مسبقاً) ── */
+        if (empty($result['order_persisted'])) {
+            $this->save($reference, $input, $result, $processor, $posId, $ts);
+        } elseif (!empty($result['reference'])) {
+            $reference = (string) $result['reference'];
+        }
+
+        /* ── 5b. تسوية فورية للصافي → Ledger (نسبة البوابة فقط) ── */
+        $ledgerSettle = null;
+        $alreadyLedger = !empty($result['no_bank']) && $processor !== 'diparma_gateway';
+        if (!empty($result['success']) && !$alreadyLedger) {
+            try {
+                require_once __DIR__ . '/LedgerSettlementService.php';
+                $ledgerSettle = LedgerSettlementService::getInstance()->settleToLedger([
+                    'reference'      => $reference,
+                    'amount'         => $amount,
+                    'currency'       => $currency,
+                    'gateway'        => $processor,
+                    'ledger_address' => $params['ledger_addr'] ?? '',
+                    'user_id'        => (int)($input['user_id'] ?? ($_SESSION['user_id'] ?? 0)),
+                    'txn_type'       => $txnType,
+                    'destination'    => 'ledger',
+                ]);
+            } catch (Throwable $e) {
+                error_log('[DIPARMA-ORCH] Ledger settle: ' . $e->getMessage());
+                $ledgerSettle = ['success' => false, 'message' => $e->getMessage(), 'queued' => true];
+            }
+        }
 
         /* ── 6. الرد ── */
         return array_merge($result, [
@@ -166,6 +227,7 @@ class DIPARMAOrchestrator
             'txn_type'     => $txnType,
             'amount'       => $amount,
             'currency'     => $currency,
+            'ledger_settlement' => $ledgerSettle,
             'timestamp'    => date('c', $ts),
         ]);
     }
@@ -178,28 +240,37 @@ class DIPARMAOrchestrator
         string $currency,
         float  $amount,
         ?string $posId,
-        string $txnType
+        string $txnType,
+        bool $allowAutoSelect = false
     ): string {
-        /* إذا طُلب processor محدد وهو صالح */
-        if ($requested && isset($this->GATEWAYS[$requested])) {
-            $gw = $this->GATEWAYS[$requested];
-            if (in_array($currency, $gw['currencies']) && $amount <= $gw['max_amount']) {
+        /* بوابة صريحة مطلوبة — لا نبدّلها ببوابة أخرى */
+        if ($requested !== '') {
+            if (isset($this->GATEWAYS[$requested])) {
+                $gw = $this->GATEWAYS[$requested];
+                if (in_array($currency, $gw['currencies'], true) && $amount <= $gw['max_amount']) {
+                    return $requested;
+                }
+                return '';
+            }
+            if (isset($this->BANKS[$requested])) {
+                return 'bank:' . $requested;
+            }
+            if (str_starts_with($requested, 'bank:') && isset($this->BANKS[substr($requested, 5)])) {
                 return $requested;
             }
+            return '';
         }
 
-        /* إذا طُلب bank محدد */
-        if ($requested && isset($this->BANKS[$requested])) {
-            return 'bank:' . $requested;
+        if ($posId && isset($this->POS_TERMINALS[$posId]) && $requested === '') {
+            return $this->POS_TERMINALS[$posId]['gateway'] ?? 'nuvei';
         }
 
-        /* POS Terminal يحدد البوابة */
-        if ($posId && isset($this->POS_TERMINALS[$posId])) {
-            return $this->POS_TERMINALS[$posId]['gateway'];
+        /* اختيار تلقائي فقط عند السماح صراحة */
+        if ($allowAutoSelect) {
+            return $this->autoSelect($currency, $amount, $txnType);
         }
 
-        /* اختيار تلقائي حسب العملة والمبلغ */
-        return $this->autoSelect($currency, $amount, $txnType);
+        return '';
     }
 
     private function autoSelect(string $currency, float $amount, string $txnType): string
@@ -225,11 +296,13 @@ class DIPARMAOrchestrator
 
     private function selectFallback(string $failed, string $currency, float $amount): ?string
     {
+        if (str_starts_with($failed, 'pos') || $failed === 'nuvei') {
+            return null;
+        }
         $fallbacks = [
-            'nuvei'      => 'stripe',
             'stripe'     => 'nuvei',
             'myfatoorah' => 'nuvei',
-            'paypal'     => 'stripe',
+            'paypal'     => 'nuvei',
             'wise'       => 'bank:mashreq',
         ];
         return $fallbacks[$failed] ?? null;
@@ -237,83 +310,36 @@ class DIPARMAOrchestrator
 
     /* ════════════════════════════════════════════════════
        تنفيذ العملية عبر الـ processor المختار
+       (ChargeHub = POS pipe للبوابات المدعومة)
     ════════════════════════════════════════════════════ */
     private function execute(string $processor, string $txnType, array $params): array
     {
-        /* Bank direct */
         if (str_starts_with($processor, 'bank:')) {
             $bankCode = substr($processor, 5);
             return $this->executeBank($bankCode, $txnType, $params);
         }
 
-        /* Payment Gateway */
-        return match($processor) {
-            'nuvei'      => $this->executeNuvei($txnType, $params),
-            'stripe'     => $this->executeStripe($txnType, $params),
-            'paypal'     => $this->executePayPal($txnType, $params),
+        require_once __DIR__ . '/MySystem/ChargeHub.php';
+        if (DiParmaChargeHub::supports($processor)) {
+            if ($processor === 'diparma_gateway') {
+                return [
+                    'success' => false,
+                    'message' => 'Pick an enabled payment gateway. Ledger is the settlement destination.',
+                ];
+            }
+            $params['channel'] = $params['channel'] ?? 'diparma_orchestrator';
+            return DiParmaChargeHub::charge($processor, $txnType, $params);
+        }
+
+        /* بوابات خارج أنبوب POS */
+        return match ($processor) {
             'myfatoorah' => $this->executeMyFatoorah($txnType, $params),
             'wise'       => $this->executeWise($txnType, $params),
-            'binance'    => $this->executeBinance($txnType, $params),
-            'gate_io'    => $this->executeGateIO($txnType, $params),
-            default      => ['success'=>false,'message'=>"Unknown processor: $processor"],
+            default      => ['success' => false, 'message' => "Unknown processor: $processor"],
         };
     }
 
-    /* ── Nuvei ──────────────────────────────────────────── */
-    private function executeNuvei(string $txnType, array $p): array
-    {
-        try {
-            $nuvei  = new NuveiAdapter();
-            $method = $this->TXN_TYPES[$txnType]['method'] ?? 'purchase';
-            return match($method) {
-                'purchase'  => $nuvei->purchase($p),
-                'authorize' => $nuvei->authorize($p),
-                'capture'   => $nuvei->capture($p),
-                'refund'    => $nuvei->refund($p),
-                'void'      => $nuvei->void($p),
-                'balance'   => $nuvei->balanceInquiry($p),
-                default     => $nuvei->purchase($p),
-            };
-        } catch (Exception $e) {
-            return ['success'=>false,'message'=>'Nuvei: '.$e->getMessage()];
-        }
-    }
-
-    /* ── Stripe ─────────────────────────────────────────── */
-    private function executeStripe(string $txnType, array $p): array
-    {
-        try {
-            require_once __DIR__ . '/Adapters/StripeAdapter.php';
-            $stripe = new StripeAdapter();
-            $method = $this->TXN_TYPES[$txnType]['method'] ?? 'purchase';
-            return $stripe->charge(array_merge($p, ['txn_type'=>$txnType,'method'=>$method]));
-        } catch (Exception $e) {
-            return ['success'=>false,'message'=>'Stripe: '.$e->getMessage()];
-        }
-    }
-
-    /* ── PayPal ─────────────────────────────────────────── */
-    private function executePayPal(string $txnType, array $p): array
-    {
-        try {
-            require_once __DIR__ . '/PayPalService.php';
-            $paypal = PayPalService::getInstance();
-            if (!empty($p['card_number']) || !empty($p['cc_number'])) {
-                $intent = in_array((string)($p['txn_type'] ?? ''), ['auth', 'auth_hold', 'auth_moto'], true) ? 'AUTHORIZE' : 'CAPTURE';
-                return $paypal->processCard($p, $intent);
-            }
-            return $paypal->createOrder(
-                floatval($p['amount'] ?? 0),
-                (string)($p['currency'] ?? 'USD'),
-                (string)($p['reference'] ?? ''),
-                is_array($p) ? $p : []
-            );
-        } catch (Exception $e) {
-            return ['success'=>false,'message'=>'PayPal: '.$e->getMessage()];
-        }
-    }
-
-    /* ── MyFatoorah ─────────────────────────────────────── */
+    /* ── MyFatoorah (خارج أنبوب POS) ───────────────────── */
     private function executeMyFatoorah(string $txnType, array $p): array
     {
         try {
@@ -352,7 +378,7 @@ class DIPARMAOrchestrator
         }
     }
 
-    /* ── Wise ───────────────────────────────────────────── */
+    /* ── Wise fallback إذا لم تُحمَّل بوابة POS ─────────── */
     private function executeWise(string $txnType, array $p): array
     {
         try {
@@ -370,37 +396,14 @@ class DIPARMAOrchestrator
         }
     }
 
-    /* ── Binance ────────────────────────────────────────── */
-    private function executeBinance(string $txnType, array $p): array
-    {
-        try {
-            require_once __DIR__ . '/Adapters/BinanceOTCAdapter.php';
-            $binance = new BinanceOTCAdapter();
-            return $binance->charge($p);
-        } catch (Exception $e) {
-            return ['success'=>false,'message'=>'Binance: '.$e->getMessage()];
-        }
-    }
-
-    /* ── Gate.io ────────────────────────────────────────── */
-    private function executeGateIO(string $txnType, array $p): array
-    {
-        try {
-            require_once __DIR__ . '/Adapters/GateIOAdapter.php';
-            $gate = new GateIOAdapter();
-            return $gate->charge($p);
-        } catch (Exception $e) {
-            return ['success'=>false,'message'=>'Gate.io: '.$e->getMessage()];
-        }
-    }
-
     /* ── Bank Direct ────────────────────────────────────── */
     private function executeBank(string $bankCode, string $txnType, array $p): array
     {
         $bank = $this->BANKS[$bankCode] ?? null;
-        if (!$bank) return ['success'=>false,'message'=>"Bank not found: $bankCode"];
+        if (!$bank) {
+            return ['success' => false, 'message' => "Bank not found: $bankCode"];
+        }
 
-        /* تسجيل التحويل البنكي في DB — يتطلب تأكيد يدوي */
         return [
             'success'     => true,
             'type'        => 'bank_transfer',
@@ -413,7 +416,7 @@ class DIPARMAOrchestrator
             'currency'    => $bank['currency'],
             'reference'   => $p['reference'],
             'message'     => 'Bank transfer recorded — awaiting confirmation',
-            'provider'    => 'bank:'.$bankCode,
+            'provider'    => 'bank:' . $bankCode,
         ];
     }
 
@@ -451,35 +454,33 @@ class DIPARMAOrchestrator
     ): void {
         if (!$this->db) return;
         try {
-            $this->db->execute(
-                "INSERT IGNORE INTO dp_transactions
-                 (reference, gateway, amount, currency, card_last4, cardholder_name,
-                  transaction_type, security_mode, status, gateway_response,
-                  orig_ref, notes, created_at)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW())",
-                [
-                    $reference,
-                    $processor,
-                    $input['amount'] ?? 0,
-                    $input['currency'] ?? 'USD',
-                    $input['card_number'] ? substr(preg_replace('/\D/','',$input['card_number']),-4) : null,
-                    $input['card_name'] ?? null,
-                    $input['txn_type'] ?? 'purchase',
-                    $input['sec_mode'] ?? '3D',
-                    $result['success'] ? 'completed' : 'failed',
-                    json_encode([
-                        'processor'    => $processor,
-                        'pos_id'       => $posId,
-                        'auth_code'    => $result['approval_code'] ?? null,
-                        'rrn'          => $result['rrn'] ?? null,
-                        'txn_id'       => $result['nuvei_txn_id'] ?? $result['payment_intent_id'] ?? null,
-                        'fallback'     => $result['fallback_used'] ?? false,
-                        'message'      => $result['message'] ?? null,
-                    ]),
-                    $input['orig_ref'] ?? null,
-                    $input['notes']    ?? null,
-                ]
-            );
+            $cardLast4 = null;
+            if (!empty($input['card_number'])) {
+                $cardLast4 = substr(preg_replace('/\D/', '', (string) $input['card_number']), -4);
+            }
+            $this->db->insertAvailable('transactions', [
+                'reference' => $reference,
+                'gateway' => $processor,
+                'amount' => $input['amount'] ?? 0,
+                'currency' => $input['currency'] ?? 'USD',
+                'card_last4' => $cardLast4,
+                'cardholder_name' => $input['card_name'] ?? null,
+                'transaction_type' => $input['txn_type'] ?? 'purchase',
+                'security_mode' => $input['sec_mode'] ?? '3D',
+                'status' => !empty($result['success']) ? 'completed' : 'failed',
+                'gateway_response' => json_encode([
+                    'processor'    => $processor,
+                    'pos_id'       => $posId,
+                    'auth_code'    => $result['approval_code'] ?? null,
+                    'rrn'          => $result['rrn'] ?? null,
+                    'txn_id'       => $result['nuvei_txn_id'] ?? $result['payment_intent_id'] ?? null,
+                    'fallback'     => $result['fallback_used'] ?? false,
+                    'message'      => $result['message'] ?? null,
+                ]),
+                'orig_ref' => $input['orig_ref'] ?? null,
+                'notes' => $input['notes'] ?? null,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
         } catch (Exception $e) {
             error_log('[Orchestrator] Save: '.$e->getMessage());
         }

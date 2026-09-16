@@ -119,9 +119,6 @@ $posQs['line'] = $posMerchant['line'];
 $posQuery = http_build_query($posQs);
 $posGwMeta = $posGw !== '' ? pos_gateway_meta($posGw) : null;
 $posHub = (string)($_GET['op'] ?? '') === '' || (string)($_GET['mode'] ?? '') === '';
-if ($isVerix) {
-    $posHub = $posHub || $posGw === '' || !$posGwMeta;
-}
 $isLedgerGw = false;
 
 // أنواع العمليات المعيارية
@@ -149,12 +146,6 @@ $ledgerAddr = activity_ledger_address();
 $liveGwsPos = activity_connected_gateways('pos');
 $liveGwsLink = activity_connected_gateways('link');
 $execGws = $liveGwsPos;
-if ($isVerix) {
-    $execGws = [];
-    if (isset($liveGwsPos['nuvei'])) {
-        $execGws['nuvei'] = $liveGwsPos['nuvei'];
-    }
-}
 foreach ($execGws as $gwCode => &$gwMetaRow) {
     $gwMetaRow['requires_card'] = pos_gateway_requires_card((string) $gwCode);
 }
@@ -401,16 +392,30 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
   </div>
   <p style="color:var(--muted2);font-size:.82rem;margin-bottom:18px;line-height:1.7">
     <?=$ar
-      ? 'كل الأجهزة مقبولة. 1 النشاط — 2 البوابة — 3 نوع الشراء — 4 تمرير البطاقة أو بدون تمرير. المبلغ يصل لـ Ledger.'
-      : 'All terminals are accepted. 1 Activity — 2 Gateway — 3 Purchase type — 4 Card present or keyed. Amount arrives at Ledger.'?>
+      ? 'الخصم على البوابة المفعّلة التي تختارها. بعد الموافقة يُحسب الصافي ويُرسل USDT TRC20 إلى عنوان Ledger — ليست IBAN بنك.'
+      : 'The card is charged on the enabled gateway you pick. After approval, net USDT TRC20 goes to the Ledger address — not a bank IBAN.'?>
   </p>
   <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);border-radius:14px;padding:12px 14px;margin-bottom:22px;font-size:.78rem;line-height:1.6;color:var(--muted2)">
     <span style="color:var(--green);font-weight:800">LEDGER</span>
     <span style="font-family:monospace;margin-inline-start:8px;color:var(--text);word-break:break-all"><?=htmlspecialchars($ledgerAddr !== '' ? $ledgerAddr : ($ar ? 'غير مضبوط — LEDGER_TRC20_ADDRESS' : 'Not set — LEDGER_TRC20_ADDRESS'))?></span>
   </div>
 
-  <div class="panel-title"><?=$ar?'أجهزة شركاتي':'My company terminals'?></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:18px">
+  <?php
+    $fleetStats = function_exists('pos_company_fleet_stats') ? pos_company_fleet_stats() : ['total' => 0, 'with_tid' => 0, 'missing_tid' => 0, 'target' => 86];
+  ?>
+  <div class="panel-title"><?=$ar?'أجهزة شركاتي':'My company terminals'?>
+    <span style="font-weight:600;color:var(--muted2);font-size:.72rem;margin-inline-start:8px">
+      <?= (int)($fleetStats['with_tid'] ?? 0) ?>/<?= (int)($fleetStats['target'] ?? 86) ?> TID
+      · <?= (int)($fleetStats['missing_tid'] ?? 0) ?> <?=$ar?'بدون TID':'without TID'?>
+    </span>
+  </div>
+  <div style="font-size:.7rem;color:var(--muted2);margin:-8px 0 12px;line-height:1.5">
+    <?=$ar
+      ? 'أسطول ≈ 86 جهاز. الصق باقي الـ TID سطراً بسطر في ملف الاستيراد، أو أضِفها من النموذج أدناه.'
+      : 'Fleet ≈ 86 units. Paste remaining TIDs one-per-line into the import file, or add via the form below.'?>
+    <code style="color:var(--gold);font-size:.65rem"><?=htmlspecialchars(function_exists('pos_company_tids_import_file') ? pos_company_tids_import_file() : 'cache/pos_company_tids.txt')?></code>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:18px;max-height:320px;overflow:auto;padding:2px">
     <?php foreach (pos_company_terminals() as $unit):
         $unitTid = trim((string) ($unit['tid'] ?? ''));
         if ($unitTid !== '' && function_exists('pos_normalize_terminal_id')) {
@@ -425,8 +430,10 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
         }
         $href = '?' . http_build_query($q);
         $active = ($posDevice['model'] === $unit['model'] && ($unitTid === '' || (string) $posDevice['terminal_id'] === $unitTid));
+        $fleetLabel = (string) ($unit['fleet'] ?? '');
     ?>
     <a href="<?=htmlspecialchars($href)?>" style="text-decoration:none;background:var(--card);border:1.5px solid <?=!empty($active)?'var(--gold)':'var(--border)'?>;border-radius:14px;padding:12px;display:block">
+      <div style="font-size:.62rem;color:var(--muted2)"><?=htmlspecialchars($fleetLabel)?></div>
       <div style="font-weight:800;color:var(--text);font-size:.82rem"><?=htmlspecialchars($unit['brand'].' '.$unit['name'])?></div>
       <div style="font-family:monospace;font-size:.72rem;color:var(--gold);margin-top:6px"><?=htmlspecialchars($unitTid !== '' ? $unitTid : ($ar ? 'بدون TID — أضفه' : 'No TID — add it'))?></div>
       <?php if (!empty($unit['note'])): ?>
@@ -551,15 +558,15 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
     $keysOn = !empty($verixCommission['keys_injected']);
   ?>
   <div style="background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.28);border-radius:14px;padding:14px 16px;margin-bottom:22px;font-size:.78rem;line-height:1.7;color:var(--muted2)">
-    <div style="color:var(--gold);font-weight:900;margin-bottom:6px">Verifone VX 675 · Verix V · Nuvei only</div>
+    <div style="color:var(--gold);font-weight:900;margin-bottom:6px">Verifone VX 675 · Verix V</div>
     <div><?=$ar
-      ? 'الجهاز ليس أندرويد. نظام Verix V. تطبيق الدفع: Nuvei Payment App. المفاتيح تُحقن من Nuvei (RKI/KIF) داخل HSM الجهاز — ليست في DIPARMA. بعد التفويض على الجهاز يُسجَّل الناتج ثم USDT → Ledger.'
-      : 'Not Android. Verix V OS. Payment App: Nuvei. Keys are injected by Nuvei (RKI/KIF) into the terminal HSM — never stored in DIPARMA. After on-device authorization, the result is recorded and USDT → Ledger.'?></div>
+      ? 'الجهاز ليس أندرويد. نظام Verix V. على الويب تختار أي بوابة متصلة. إن استخدم تطبيق Nuvei على الجهاز نفسه فالتفويض يتم هناك ثم يُسجَّل الناتج.'
+      : 'Not Android. Verix V OS. On this screen you pick any connected gateway. If the Nuvei app on the device authorizes, the result is recorded after that.'?></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:12px">
       <div style="border:1px solid var(--border);border-radius:10px;padding:8px 10px">Verix V · <?=$ar?'نعم':'Yes'?></div>
       <div style="border:1px solid var(--border);border-radius:10px;padding:8px 10px;color:<?=$appOn?'var(--green)':'#f87171'?>"><?=$ar?'تطبيق الدفع':'Payment App'?> · <?=$appOn?($ar?'مثبّت':'installed'):($ar?'غير مثبّت':'missing')?></div>
       <div style="border:1px solid var(--border);border-radius:10px;padding:8px 10px;color:<?=$keysOn?'var(--green)':'#f87171'?>"><?=$ar?'مفاتيح Nuvei':'Nuvei keys'?> · <?=$keysOn?($ar?'محقونة':'injected'):($ar?'غير محقونة':'not injected')?></div>
-      <div style="border:1px solid var(--border);border-radius:10px;padding:8px 10px">Nuvei · <?=$ar?'فقط':'only'?></div>
+      <div style="border:1px solid var(--border);border-radius:10px;padding:8px 10px"><?=$ar?'البوابات المتصلة':'Connected gateways'?> · <?=count($liveGwsPos)?></div>
     </div>
     <?php if (!$verixReady): ?>
     <div style="margin-top:10px;color:#f87171">
@@ -579,16 +586,26 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
   <?php endif; ?>
 
   <div class="panel-title">1 · <?=$ar?'اختر النشاط':'Choose activity'?></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:22px" id="hubLines">
-    <?php foreach ($activityLines as $lineKey => $lineRow): ?>
-    <button type="button" class="txn-btn" data-line="<?=htmlspecialchars($lineKey)?>" data-suggest="<?=htmlspecialchars($lineRow['suggested_gateway'] ?? '')?>" onclick="hubPick('line','<?=htmlspecialchars($lineKey)?>',this)" style="margin:0;flex-direction:column;padding:14px 10px;gap:6px;text-align:center">
-      <span style="font-weight:800;color:var(--text)"><?=$ar?$lineRow['ar']:$lineRow['en']?></span>
-      <span style="font-size:.62rem;color:var(--muted2)">MCC <?=$lineRow['mcc']?></span>
-    </button>
-    <?php endforeach; ?>
+  <div class="fld" style="margin:0 0 22px;max-width:420px" id="hubLinesWrap">
+    <label for="hubLineSelect"><?=$ar?'نشاط الشركة (يمكن إضافة أنشطة لاحقاً)':'Business activity (add more later)'?></label>
+    <select id="hubLineSelect" onchange="hubPickLine(this)" style="width:100%">
+      <option value=""><?=$ar?'— اختر النشاط —':'— Select activity —'?></option>
+      <?php foreach ($activityLines as $lineKey => $lineRow): ?>
+      <option
+        value="<?=htmlspecialchars($lineKey)?>"
+        data-suggest="<?=htmlspecialchars($lineRow['suggested_gateway'] ?? '')?>"
+        data-mcc="<?=htmlspecialchars($lineRow['mcc'] ?? '')?>"
+      ><?=$ar ? htmlspecialchars($lineRow['ar']) : htmlspecialchars($lineRow['en'])?> · MCC <?=htmlspecialchars($lineRow['mcc'] ?? '')?></option>
+      <?php endforeach; ?>
+    </select>
+    <div style="font-size:.68rem;color:var(--muted2);margin-top:8px;line-height:1.5">
+      <?=$ar
+        ? 'القائمة منسدلة — أضف أنشطة جديدة من النموذج أعلاه عند الحاجة.'
+        : 'Dropdown list — add new activities from the form above when needed.'?>
+    </div>
   </div>
 
-  <div class="panel-title">2 · <?=$ar?'بوابة مقترحة (الاختيار النهائي عند التنفيذ)':'Suggested gateway (final choice at charge)'?></div>
+  <div class="panel-title">2 · <?=$ar?'اختر بوابة من المتصلة':'Choose a connected gateway'?></div>
   <div id="hubGwEmpty" style="border:1px solid var(--border);border-radius:14px;padding:18px;background:var(--card);margin-bottom:22px;<?=empty($hubGwsPos)?'':'display:none'?>">
     <div style="font-weight:800;margin-bottom:8px;color:var(--gold)"><?=$ar?'لا توجد بوابة مفعّلة':'No enabled gateway'?></div>
     <a href="../admin/gateway_manager.php" style="color:var(--gold);font-size:.8rem"><?=$ar?'فتح إدارة البوابات':'Open Gateway Manager'?></a>
@@ -661,12 +678,21 @@ const HUB_READY = true;
 
 function hubPick(field, value, el) {
   HUB[field] = value;
-  const wrap = el.parentElement;
-  wrap.querySelectorAll('.txn-btn').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
+  if (el && el.parentElement) {
+    const wrap = el.parentElement;
+    wrap.querySelectorAll('.txn-btn').forEach(b => b.classList.remove('active'));
+    if (el.classList && el.classList.contains('txn-btn')) el.classList.add('active');
+  }
   if (field === 'line') hubMarkSuggest();
   hubReady();
 }
+function hubPickLine(sel) {
+  const value = (sel && sel.value) ? sel.value : '';
+  HUB.line = value;
+  hubMarkSuggest();
+  hubReady();
+}
+window.hubPickLine = hubPickLine;
 function hubPickArrival(value, el) {
   hubPick('arrival', value, el);
   const wrap = document.getElementById('hubPayoutWrap');
@@ -700,7 +726,8 @@ function hubRenderGws() {
 }
 function hubReady() {
   const arrivalOk = HUB.arrival === 'wallet' || (HUB.arrival === 'payout' && !!HUB.payout);
-  const ok = !!(HUB.line && HUB.op && HUB.mode && arrivalOk);
+  const gwOk = !!(HUB.gw && HUB_GWS[HUB.gw]);
+  const ok = !!(HUB.line && HUB.gw && gwOk && HUB.op && HUB.mode && arrivalOk);
   document.getElementById('hubGo').disabled = !ok;
   hubFillVerix();
 }
@@ -709,7 +736,7 @@ function hubFillVerix() {
   if (!box || !HUB_VERIX) return;
   const entry = HUB.mode === 'physical' ? 'chip' : 'keyed';
   const body = {
-    gateway: HUB.gw || 'nuvei',
+    gateway: HUB.gw || '',
     line: HUB.line || '',
     txn_type: HUB.op || 'purchase_2d',
     tid: HUB_TID,
@@ -734,7 +761,7 @@ function hubTidChange(sel) {
 }
 function hubGo() {
   const arrivalOk = HUB.arrival === 'wallet' || (HUB.arrival === 'payout' && !!HUB.payout);
-  if (!HUB.line || !HUB.op || !HUB.mode || !arrivalOk) return;
+  if (!HUB.line || !HUB.gw || !HUB_GWS[HUB.gw] || !HUB.op || !HUB.mode || !arrivalOk) return;
   if (!HUB_LEDGER) {
     alert(HUB_AR ? 'أضف LEDGER_TRC20_ADDRESS' : 'Set LEDGER_TRC20_ADDRESS');
     return;
@@ -787,7 +814,7 @@ hubReady();
 
   <?php if ($isVerix): ?>
   <div style="margin-bottom:12px;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.3);border-radius:12px;padding:10px;font-size:.7rem;color:var(--gold)">
-    VX 675 · Verix V · Nuvei Payment App · <?=$ar?'مفاتيح محقونة':'keys injected'?>
+    VX 675 · Verix V · <?=$ar?'اختر بوابة متصلة':'pick a connected gateway'?>
   </div>
   <?php elseif ($kiosk): ?>
   <div style="margin-bottom:12px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:12px;padding:10px;font-size:.7rem;color:var(--green)">
@@ -795,17 +822,12 @@ hubReady();
   </div>
   <?php endif; ?>
   <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-    <div class="panel-title"><?=$ar?'البوابة — اختر عند التنفيذ':'Gateway — choose at charge'?></div>
-    <?php if ($isVerix): ?>
-    <div style="background:rgba(255,215,0,.05);border:1px solid var(--border2);border-radius:12px;padding:12px;font-size:.72rem;line-height:1.7;color:var(--muted2);margin-bottom:12px">
-      <?=$ar?'Nuvei فقط على VX 675. تطبيق الدفع مثبّت. المفاتيح محقونة.':'Nuvei only on VX 675. Payment App installed. Keys injected.'?>
-    </div>
-    <?php endif; ?>
+    <div class="panel-title"><?=$ar?'البوابات المتصلة — اختر للتنفيذ':'Connected gateways — pick to charge'?></div>
     <div id="execGwEmpty" style="border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--card);margin-bottom:12px;<?=empty($execGws)?'':'display:none'?>">
-      <div style="font-weight:800;margin-bottom:6px;color:var(--gold)"><?=$ar?'لا توجد بوابة مفعّلة':'No enabled gateway'?></div>
+      <div style="font-weight:800;margin-bottom:6px;color:var(--gold)"><?=$ar?'لا توجد بوابة متصلة':'No connected gateway'?></div>
       <a href="../admin/gateway_manager.php" style="color:var(--gold);font-size:.8rem"><?=$ar?'فتح إدارة البوابات':'Open Gateway Manager'?></a>
     </div>
-    <div id="execGws" style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:12px">
+    <div id="execGws" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px">
       <?php foreach ($execGws as $gwCode => $gwRow): ?>
       <button type="button" class="txn-btn <?=($posGw===$gwCode)?'active':''?>" data-exec-gw="<?=htmlspecialchars($gwCode)?>" onclick="selectPosGateway('<?=htmlspecialchars($gwCode)?>',this)" style="margin:0;flex-direction:column;padding:12px;text-align:start;gap:6px">
         <div style="display:flex;align-items:center;gap:10px">
@@ -818,7 +840,7 @@ hubReady();
     </div>
     <div style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:.72rem;line-height:1.7;color:var(--muted2)">
       <div style="color:var(--gold);font-weight:800;margin-bottom:6px" id="execGwTitle"><?=$ar?'بوابة التنفيذ':'Charge gateway'?></div>
-      <div id="execGwHint"><?=$ar?'اختر البوابة ثم اضغط تنفيذ. عملية واحدة = بوابة واحدة. لا تبديل تلقائي.':'Pick the gateway then Process. One charge = one gateway. No automatic switch.'?></div>
+      <div id="execGwHint"><?=$ar?'اختر من القائمة المتصلة. التنفيذ يذهب للبوابة التي تضغطها فقط.':'Pick from the connected list. The charge goes only to the gateway you tap.'?></div>
       <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
         <div style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.5s infinite"></div>
         <span style="color:var(--green);font-weight:700"><?=htmlspecialchars($posDevice['label'])?> · <?=htmlspecialchars($posDevice['terminal_id'])?></span>
@@ -945,7 +967,7 @@ hubReady();
     <?php if (!empty($hasSquareSdk)): ?>
     <div id="squarePosWrap" style="background:rgba(0,106,255,.08);border:1px solid rgba(0,106,255,.35);border-radius:12px;padding:12px;margin-bottom:12px;<?=($posGw==='square')?'':'display:none'?>">
       <div style="color:#6aa8ff;font-weight:800;font-size:.78rem;margin-bottom:8px">
-        Square Web Payments SDK · <?=!empty($squareSdk['live'])?'LIVE':'SANDBOX'?>
+        Square Web Payments SDK · <?=!empty($squareSdk['live']) ? 'LIVE' : 'LIVE REQUIRED'?>
       </div>
       <div id="square-card-container" style="min-height:48px;background:rgba(0,0,0,.25);border-radius:10px;padding:8px"></div>
       <div id="square-error" style="color:var(--red);font-size:.7rem;margin-top:6px"></div>
@@ -1023,7 +1045,7 @@ hubReady();
     </div>
     <div class="fld" id="posEmailWrap">
       <label><i class="fas fa-envelope"></i> Email</label>
-      <input type="email" id="posEmail" placeholder="pos@diparmas.com">
+      <input type="email" id="posEmail" placeholder="">
     </div>
 
     <!-- حقول خاصة ببعض العمليات -->
@@ -1445,7 +1467,7 @@ function renderExtraFields(type) {
     html += `
     <div class="fld">
       <label><i class="fas fa-map-marker-alt"></i> ${AR?'موقع الـ POS':'POS Location'}</label>
-      <input type="text" id="posLocation" placeholder="${AR?'فرع دبي — كاونتر 1':'Dubai Branch — Counter 1'}">
+      <input type="text" id="posLocation" placeholder="">
     </div>
     <div class="fld">
       <label>TID — Terminal ID</label>
@@ -1453,7 +1475,7 @@ function renderExtraFields(type) {
     </div>
     <div class="fld">
       <label>MID — Merchant ID</label>
-      <input type="text" id="merchantId" placeholder="M000000001">
+      <input type="text" id="merchantId" placeholder="">
     </div>`;
   }
 
@@ -1696,8 +1718,8 @@ window.setInputMode = function(mode) {
 <script>
 // ── Process Transaction ────────────────────────────
 window.processTransaction = async function() {
-  if (!POS_GW) {
-    toast(AR ? 'اختر بوابة الدفع قبل التنفيذ' : 'Choose a payment gateway before charging', 'error');
+  if (!POS_GW || !EXEC_GWS[POS_GW]) {
+    toast(AR ? 'اختر بوابة من القائمة المتصلة' : 'Pick a gateway from the connected list', 'error');
     return;
   }
   if (POS_ARRIVAL === 'payout' && !POS_PAYOUT) {
@@ -1754,7 +1776,7 @@ window.processTransaction = async function() {
     wallet_network: walletOpt?.dataset?.network || undefined,
     pos_model: POS_DEVICE.model,
     pos_type: POS_DEVICE.type,
-    terminal_id: document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || 'T0000001',
+    terminal_id: document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || '',
     arrival: POS_ARRIVAL || 'wallet',
     payout_via: POS_ARRIVAL === 'payout' ? (POS_PAYOUT || '') : '',
   };

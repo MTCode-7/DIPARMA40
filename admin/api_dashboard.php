@@ -11,8 +11,8 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../api/v1/ApiAuth.php';
 requireAdmin();
 
-$lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang']==='ar' ? 'ar' : 'en';
-$ar   = ($lang === 'ar');
+$ar = is_ar();
+$lang = $ar ? 'ar' : 'en';
 $dir  = $ar ? 'rtl' : 'ltr';
 $csrf = generateCsrfToken();
 $db   = db();
@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
         $monthlyLim  = floatval($_POST['monthly_limit'] ?? 500000);
 
         if (empty($name)) {
-            $msg = 'اسم العميل مطلوب'; $msgType = 'error';
+            $msg = dp_t('Client name is required', 'اسم العميل مطلوب'); $msgType = 'error';
         } else {
             $creds = ApiAuth::generateCredentials($name);
             try {
@@ -52,10 +52,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
                     'created_at'     => date('Y-m-d H:i:s'),
                 ]);
                 $newKeys = array_merge($creds, ['name'=>$name]);
-                $msg = 'تم إنشاء العميل بنجاح — احفظ المفاتيح الآن لن تظهر مرة أخرى';
+                $msg = dp_t('Client created — save keys now; they will not be shown again', 'تم إنشاء العميل بنجاح — احفظ المفاتيح الآن لن تظهر مرة أخرى');
                 $msgType = 'success';
             } catch (Exception $e) {
-                $msg = 'خطأ: ' . $e->getMessage(); $msgType = 'error';
+                $msg = dp_t('Error: ', 'خطأ: ') . $e->getMessage(); $msgType = 'error';
             }
         }
     }
@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
         $newStatus = $_POST['new_status'] ?? 'suspended';
         if (in_array($newStatus, ['active','suspended','revoked'])) {
             $db->execute("UPDATE dp_api_clients SET status=? WHERE id=?", [$newStatus, $id]);
-            $msg = 'تم تحديث الحالة'; $msgType = 'success';
+            $msg = dp_t('Status updated', 'تم تحديث الحالة'); $msgType = 'success';
         }
     }
 
@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
     if ($action === 'delete') {
         $id = intval($_POST['client_id'] ?? 0);
         $db->execute("DELETE FROM dp_api_clients WHERE id=?", [$id]);
-        $msg = 'تم الحذف'; $msgType = 'success';
+        $msg = dp_t('Deleted', 'تم الحذف'); $msgType = 'success';
     }
 
     // ── تجديد المفاتيح ───────────────────────────────────────
@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validateCsrfToken($_POST['csrf_toke
                 [$creds['api_key'],$creds['api_secret_enc'],$creds['whs_enc'],$creds['mid'],$creds['tid'],$id]
             );
             $newKeys = array_merge($creds, ['name'=>$row['name']]);
-            $msg = 'تم تجديد المفاتيح — احفظها الآن'; $msgType = 'success';
+            $msg = dp_t('Keys rotated — save them now', 'تم تجديد المفاتيح — احفظها الآن'); $msgType = 'success';
         }
     }
 }
@@ -282,14 +282,14 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <span class="key-label"><?=$label?></span>
       <span class="key-value" id="kval_<?=md5($label)?>"><?=htmlspecialchars($val)?></span>
       <button class="key-copy" onclick="copyKey('<?=htmlspecialchars($val,ENT_QUOTES)?>')">
-        <i class="fas fa-copy"></i> نسخ
+        <i class="fas fa-copy"></i> <?= $ar ? 'نسخ' : 'Copy' ?>
       </button>
     </div>
     <?php endforeach; ?>
 
     <!-- Example Code -->
     <div style="margin-top:16px">
-      <div style="font-size:.72rem;color:var(--muted2);margin-bottom:8px;font-weight:700"><i class="fas fa-code"></i> مثال على الاستخدام</div>
+      <div style="font-size:.72rem;color:var(--muted2);margin-bottom:8px;font-weight:700"><i class="fas fa-code"></i> <?= $ar ? 'مثال على الاستخدام' : 'Usage example' ?></div>
       <div class="code-block" id="exampleCode"><?php
 $exAmt = '100.00';
 $exKey = $newKeys['api_key'];
@@ -302,10 +302,10 @@ echo htmlspecialchars(<<<CODE
 \$body      = json_encode([
     "amount"      => {$exAmt},
     "currency"    => "USD",
-    "card_number" => "4111111111111111",
-    "card_name"   => "JOHN DOE",
-    "card_expiry" => "12/26",
-    "card_cvv"    => "123",
+    "card_number" => "REAL_PAN",
+    "card_name"   => "CARDHOLDER",
+    "card_expiry" => "MM/YY",
+    "card_cvv"    => "CVV",
     "txn_type"    => "purchase",
     "sec_mode"    => "3D"
 ]);
@@ -527,10 +527,10 @@ Content-Type: application/json</div>
         <div class="code-block">{
   "amount":         100.00,
   "currency":       "USD",
-  "card_number":    "4111111111111111",
-  "card_name":      "JOHN DOE",
-  "card_expiry":    "12/26",
-  "card_cvv":       "123",
+  "card_number":    "REAL_PAN",
+  "card_name":      "CARDHOLDER",
+  "card_expiry":    "MM/YY",
+  "card_cvv":       "CVV",
   "txn_type":       "purchase",
   "sec_mode":       "3D",
   "ledger_address": "",
@@ -590,13 +590,13 @@ function showTab(name, btn) {
 }
 
 function copyKey(txt) {
-  navigator.clipboard?.writeText(txt).then(() => toast('✅ تم النسخ','success'));
+  navigator.clipboard?.writeText(txt).then(() => toast(<?= json_encode(dp_t('✅ Copied', '✅ تم النسخ'), JSON_UNESCAPED_UNICODE) ?>,'success'));
 }
 
 function copyAllKeys() {
   const rows = document.querySelectorAll('.key-value');
   const text = Array.from(rows).map(r => r.textContent.trim()).join('\n');
-  navigator.clipboard?.writeText(text).then(() => toast('✅ تم نسخ جميع المفاتيح','success'));
+  navigator.clipboard?.writeText(text).then(() => toast(<?= json_encode(dp_t('✅ All keys copied', '✅ تم نسخ جميع المفاتيح'), JSON_UNESCAPED_UNICODE) ?>,'success'));
 }
 
 function toast(msg, type='info') {

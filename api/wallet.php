@@ -37,7 +37,7 @@ switch($action){
 
         // حفظ طلب الإيداع مؤقتاً
         db()->query(
-            "INSERT INTO wallet_transactions (reference,user_id,type,wallet_type,currency,amount,fee,net_amount,status,gateway,note)
+            "INSERT INTO " . dp_table('wallet_transactions') . " (reference,user_id,type,wallet_type,currency,amount,fee,net_amount,status,gateway,note)
              VALUES (?,?,'deposit','fiat',?,?,?,?,'pending',?,?)",
             [$ref,$userId,$currency,$amount,round($amount*1.5/100,4),round($amount*0.985,4),$gateway,"إيداع معلق — بانتظار الدفع"]
         );
@@ -65,13 +65,13 @@ switch($action){
         $ref = trim($payload['reference']??'');
         if(empty($ref)){ echo json_encode(['success'=>false,'message'=>'reference مطلوب']); break; }
 
-        $txn = db()->fetchOne("SELECT * FROM wallet_transactions WHERE reference=? AND user_id=?",[$ref,$userId]);
+        $txn = db()->fetchOne("SELECT * FROM " . dp_table('wallet_transactions') . " WHERE reference=? AND user_id=?",[$ref,$userId]);
         if(!$txn){ echo json_encode(['success'=>false,'message'=>'معاملة غير موجودة']); break; }
         if($txn['status']==='completed'){ echo json_encode(['success'=>true,'message'=>'مكتمل مسبقاً']); break; }
 
         $result = $wm->depositFiat($userId,$txn['amount'],$txn['currency'],$txn['gateway'],$ref);
         if($result['success']){
-            db()->query("UPDATE wallet_transactions SET status='completed' WHERE reference=?",[$ref]);
+            db()->query("UPDATE " . dp_table('wallet_transactions') . " SET status='completed' WHERE reference=?",[$ref]);
         }
         echo json_encode($result);
         break;

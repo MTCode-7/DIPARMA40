@@ -134,6 +134,26 @@ class GatewayErrorMapper
             ?? 'CARD_DECLINED';
     }
 
+    public static function fromSquare(array $response): string
+    {
+        $code = strtoupper((string) ($response['errors'][0]['code'] ?? ''));
+        $map = [
+            'CARD_DECLINED' => 'CARD_DECLINED',
+            'GENERIC_DECLINE' => 'CARD_DECLINED',
+            'CVV_FAILURE' => 'INVALID_CVV',
+            'INVALID_EXPIRATION' => 'INVALID_CARD',
+            'INVALID_CARD' => 'INVALID_CARD',
+            'INSUFFICIENT_FUNDS' => 'INSUFFICIENT_FUNDS',
+            'VOICE_FAILURE' => 'CARD_DECLINED',
+            'PAN_FAILURE' => 'INVALID_CARD',
+            'UNAUTHORIZED' => 'GATEWAY_ERROR',
+            'FORBIDDEN' => 'GATEWAY_ERROR',
+            'NOT_FOUND' => 'GATEWAY_ERROR',
+            'RATE_LIMITED' => 'NETWORK_ERROR',
+        ];
+        return $map[$code] ?? 'CARD_DECLINED';
+    }
+
     /**
      * تحويل رد Checkout.com إلى رمز موحد
      */

@@ -38,11 +38,58 @@ if (!function_exists('_dp_load_env')) {
 }
 _dp_load_env(ROOT_PATH . '/.env');
 
-// Keep the application language consistent: English is the canonical UI language.
-$_COOKIE['di_parma_lang'] = 'en';
-if (!headers_sent()) {
-    setcookie('di_parma_lang', 'en', time() + (365 * 24 * 3600), '/', '', false, true);
+// ── Language bootstrap: English is default; Arabic only when explicitly chosen ──
+if (!function_exists('dp_bootstrap_lang')) {
+    function dp_bootstrap_lang(): string {
+        static $doneRedirect = false;
+        if (isset($_GET['lang']) && in_array($_GET['lang'], ['ar', 'en'], true)) {
+            $chosen = $_GET['lang'];
+            $_COOKIE['di_parma_lang'] = $chosen;
+            if (!headers_sent()) {
+                setcookie('di_parma_lang', $chosen, [
+                    'expires'  => time() + (365 * 24 * 3600),
+                    'path'     => '/',
+                    'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+                    'httponly' => false,
+                    'samesite' => 'Lax',
+                ]);
+                // Clean URL redirect once (skip CLI / already redirected)
+                if (!$doneRedirect && PHP_SAPI !== 'cli' && !empty($_SERVER['REQUEST_URI'])) {
+                    $doneRedirect = true;
+                    $uri = $_SERVER['REQUEST_URI'];
+                    $parts = parse_url($uri);
+                    $path = $parts['path'] ?? '/';
+                    $q = [];
+                    if (!empty($parts['query'])) {
+                        parse_str($parts['query'], $q);
+                        unset($q['lang']);
+                    }
+                    $clean = $path . (!empty($q) ? ('?' . http_build_query($q)) : '');
+                    header('Location: ' . $clean);
+                    exit;
+                }
+            }
+            return $chosen;
+        }
+        $cookie = $_COOKIE['di_parma_lang'] ?? 'en';
+        if (!in_array($cookie, ['ar', 'en'], true)) {
+            $cookie = 'en';
+            $_COOKIE['di_parma_lang'] = 'en';
+            if (!headers_sent()) {
+                setcookie('di_parma_lang', 'en', [
+                    'expires'  => time() + (365 * 24 * 3600),
+                    'path'     => '/',
+                    'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+                    'httponly' => false,
+                    'samesite' => 'Lax',
+                ]);
+            }
+        }
+        return $cookie;
+    }
 }
+$GLOBALS['dp_lang'] = dp_bootstrap_lang();
+$_COOKIE['di_parma_lang'] = $GLOBALS['dp_lang'];
 
 // دالة مساعدة لقراءة قيمة من .env أو getenv
 if (!function_exists('env')) {
@@ -229,6 +276,24 @@ if (!defined('WEBHOOK_USE_ASYNC_PROCESSING')) {
 }
 if (!defined('WEBHOOK_ACCEPT_ONLY_HOSTS')) {
     define('WEBHOOK_ACCEPT_ONLY_HOSTS', []);
+}
+
+// ── ربط السيرفر المحلي ↔ البعيد (سحب + webhook من كليهما) ──
+if (!defined('PEER_LOCAL_URL')) {
+    define('PEER_LOCAL_URL', rtrim((string) env('PEER_LOCAL_URL', 'http://localhost:8080/DIPARMA40'), '/'));
+}
+if (!defined('PEER_REMOTE_URL')) {
+    define('PEER_REMOTE_URL', rtrim((string) env('PEER_REMOTE_URL', 'https://diparmas.com'), '/'));
+}
+if (!defined('PEER_SYNC_SECRET')) {
+    define('PEER_SYNC_SECRET', (string) env('PEER_SYNC_SECRET', env('WEBHOOK_HMAC_SECRET', '')));
+}
+if (!defined('PEER_SYNC_ENABLED')) {
+    define('PEER_SYNC_ENABLED', filter_var(env('PEER_SYNC_ENABLED', 'true'), FILTER_VALIDATE_BOOLEAN));
+}
+$peerLinkFile = INCLUDES_PATH . '/peer_link.php';
+if (is_file($peerLinkFile)) {
+    require_once $peerLinkFile;
 }
 if (!defined('MOONPAY_WEBHOOK_SIGNING_SECRET')) {
     define('MOONPAY_WEBHOOK_SIGNING_SECRET', env('MOONPAY_WEBHOOK_SIGNING_SECRET', ''));

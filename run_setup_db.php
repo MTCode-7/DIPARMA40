@@ -1,8 +1,8 @@
 <?php
-require_once __DIR__ . '/includes/require_admin_web.php';
-/**
- * Run Database Setup Script
- */
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('Database setup is CLI-only. Use setup_database.sql');
+}
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database.php';
 

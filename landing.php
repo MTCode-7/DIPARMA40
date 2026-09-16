@@ -182,7 +182,7 @@ a{text-decoration:none;color:inherit}
         <div style="font-size:1.2rem;font-weight:900;color:var(--gold);margin-bottom:6px">DI PARMA</div>
         <div style="font-size:.78rem;color:var(--muted);margin-bottom:20px"><?=$ar?'منصة الدفع الشاملة':'Universal Payment Hub'?></div>
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-          <?php foreach(['Visa','Mastercard','USDT','BTC','PayPal','Wise','Gate.io','Binance'] as $b): ?>
+          <?php foreach(['Visa','Mastercard','Amex','UnionPay','Mada','JCB','Discover','USDT'] as $b): ?>
           <span style="background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.18);border-radius:10px;padding:4px 11px;font-size:.7rem;color:var(--gold)"><?=$b?></span>
           <?php endforeach; ?>
         </div>
@@ -204,7 +204,7 @@ a{text-decoration:none;color:inherit}
       <span class="ico">🚀</span>
       <h3>On Ramp</h3>
       <p><?=$ar?'حوّل عملتك التقليدية (USD/AED/EUR/SAR) إلى USDT أو BTC أو ETH فوراً عبر بطاقتك أو حسابك البنكي أو PayPal':'Convert fiat (USD/AED/EUR/SAR) to USDT/BTC/ETH instantly via card, bank, or PayPal'?></p>
-      <div class="tags"><span class="tag">Visa/MC</span><span class="tag">PayPal</span><span class="tag">Bank</span></div>
+      <div class="tags"><span class="tag">All cards</span><span class="tag">PayPal</span><span class="tag">Bank</span></div>
     </div>
     <div class="card" style="--cl:#10B981"><div class="cline"></div>
       <span class="ico">💸</span>

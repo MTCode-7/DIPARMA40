@@ -85,8 +85,9 @@ function pos_terminal_gateways(): array
             'color' => '#E8C547',
             'adapter' => 'nuvei',
             'rail' => 'card',
-            'desc_ar' => 'DIPARMA GATEWAY: ' . $acceptNoteAr . ' بطاقة → Ledger USDT. لا بنك كوجهة.',
-            'desc_en' => 'DIPARMA GATEWAY: ' . $acceptNoteEn . ' Card → Ledger USDT. No bank destination.',
+            'chargeable' => false,
+            'desc_ar' => 'تسوية إلى Ledger بعد موافقة بوابة مفعّلة تختارها أنت.',
+            'desc_en' => 'Settle to Ledger after the enabled gateway you pick approves.',
         ],
         'whop' => [
             'name' => 'Whop',
@@ -185,6 +186,22 @@ function pos_gateway_db_row(string $code): ?array
     return null;
 }
 
+function pos_is_charge_processor(string $code): bool
+{
+    $code = pos_normalize_gateway($code);
+    if ($code === '' || $code === 'diparma_gateway') {
+        return false;
+    }
+    $meta = pos_terminal_gateways()[$code] ?? null;
+    if (!$meta) {
+        return false;
+    }
+    if (array_key_exists('chargeable', $meta) && empty($meta['chargeable'])) {
+        return false;
+    }
+    return ($meta['adapter'] ?? '') !== 'ledger';
+}
+
 function pos_gateway_is_live(string $code): bool
 {
     $code = pos_normalize_gateway($code);
@@ -206,7 +223,7 @@ function pos_live_gateways(): array
 {
     $out = [];
     foreach (pos_terminal_gateways() as $code => $meta) {
-        if (pos_gateway_is_live($code)) {
+        if (pos_is_charge_processor($code) && pos_gateway_is_live($code)) {
             $out[$code] = $meta;
         }
     }
@@ -259,13 +276,89 @@ function pos_format_gateway_result(array $result, string $fallbackMessage = 'DEC
         $result['success'] = false;
         $result['message'] = $result['message'] ?? 'REDIRECT_REQUIRED';
     }
-    $result['rrn'] = $result['rrn'] ?? $result['transaction_id'] ?? $result['reference_id'] ?? $result['payment_id'] ?? '';
+    $result['payment_id'] = $result['payment_id'] ?? $result['transaction_id'] ?? $result['nuvei_txn_id'] ?? '';
+    $result['transaction_id'] = $result['transaction_id'] ?? $result['payment_id'] ?? '';
+    $result['rrn'] = $result['rrn'] ?? '';
     $result['approval_code'] = $result['approval_code'] ?? $result['auth_code'] ?? '';
     return $result;
 }
 
+/**
+ * Direct Advice → البوابة المختارة فقط (بدون افتراض Nuvei).
+ * لا يستدعي purchase_advice من pos_run_standalone_gateway لتفادي الحلقة.
+ */
+function pos_dispatch_direct_advice_to_gateway(string $gateway, array $params): array
+{
+    $gateway = pos_normalize_gateway($gateway);
+    if (!pos_is_charge_processor($gateway) || !pos_gateway_is_live($gateway)) {
+        return ['success' => false, 'message' => 'Pick an enabled payment gateway'];
+    }
+    $meta = pos_gateway_meta($gateway);
+    if (!$meta) {
+        return ['success' => false, 'message' => 'Unknown POS gateway'];
+    }
+    $adapter = $meta['adapter'];
+    $params['card_cvv'] = '';
+    $params['direct_advice'] = true;
+    $params['txn_type'] = 'purchase_advice';
+
+    if ($adapter === 'nuvei') {
+        require_once POS_APP_ROOT . '/lib/Adapters/NuveiAdapter.php';
+        $nuvei = new NuveiAdapter();
+        return method_exists($nuvei, 'purchaseAdvice')
+            ? $nuvei->purchaseAdvice($params)
+            : $nuvei->purchase($params);
+    }
+
+    if ($adapter === 'stripe') {
+        require_once POS_APP_ROOT . '/lib/Adapters/StripeAdapter.php';
+        $stripe = new StripeAdapter();
+        $related = trim((string) ($params['related_transaction_id'] ?? $params['payment_id'] ?? $params['orig_ref'] ?? ''));
+        if ($related !== '') {
+            return $stripe->capture($related, (float) ($params['amount'] ?? 0) ?: null);
+        }
+        return $stripe->charge(array_merge($params, [
+            'name' => $params['card_name'] ?? 'CARDHOLDER',
+            'processing_mode' => '2D',
+        ]));
+    }
+
+    if ($adapter === 'square') {
+        require_once POS_APP_ROOT . '/lib/Adapters/SquareAdapter.php';
+        $square = new SquareAdapter();
+        $related = trim((string) ($params['related_transaction_id'] ?? $params['payment_id'] ?? $params['orig_ref'] ?? ''));
+        if ($related !== '') {
+            return pos_format_gateway_result($square->capture($related, (float) ($params['amount'] ?? 0) ?: null));
+        }
+        return pos_format_gateway_result($square->charge(array_merge($params, [
+            'name' => $params['card_name'] ?? 'CARDHOLDER',
+            'processing_mode' => '2D',
+            'txn_type' => 'purchase_advice',
+        ])));
+    }
+
+    if ($adapter === 'paypal') {
+        require_once POS_APP_ROOT . '/lib/Adapters/PayPalAdapter.php';
+        $paypal = new PayPalAdapter();
+        $related = trim((string) ($params['related_transaction_id'] ?? $params['payment_id'] ?? $params['orig_ref'] ?? ''));
+        if ($related !== '') {
+            return pos_format_gateway_result($paypal->capture($related, (float) ($params['amount'] ?? 0) ?: null));
+        }
+        return pos_format_gateway_result($paypal->charge(array_merge($params, [
+            'name' => $params['card_name'] ?? 'CARDHOLDER',
+            'processing_mode' => '2D',
+            'txn_type' => 'purchase_advice',
+        ])));
+    }
+
+    return ['success' => false, 'message' => 'Direct Advice is not supported on gateway: ' . $gateway];
+}
+
 function pos_run_standalone_gateway(string $gateway, string $txnType, array $params): array
 {
+    if (!pos_is_charge_processor($gateway) || !pos_gateway_is_live($gateway)) {
+        return ['success' => false, 'message' => 'Pick an enabled payment gateway'];
+    }
     $meta = pos_gateway_meta($gateway);
     if (!$meta) {
         return ['success' => false, 'message' => 'Unknown POS gateway'];
@@ -273,45 +366,103 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
     $adapter = $meta['adapter'];
 
     if ($adapter === 'ledger') {
-        $addr = trim((string) ($params['ledger_address'] ?? $params['ledger_addr'] ?? ''));
-        if ($addr === '' && defined('LEDGER_TRC20_ADDRESS')) {
-            $addr = trim((string) LEDGER_TRC20_ADDRESS);
+        return ['success' => false, 'message' => 'Ledger is the settlement destination, not a card gateway. Pick a connected card gateway.'];
+    }
+
+    // Direct Advice — دائماً عبر البوابة المختارة (ليست ثابتة على Nuvei)
+    if ($txnType === 'purchase_advice') {
+        if (!class_exists('DirectAdvicePOSProcessor', false)) {
+            require_once dirname(__DIR__) . '/lib/DirectAdvicePOSProcessor.php';
         }
-        if (!preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $addr)) {
-            return ['success' => false, 'message' => 'LEDGER_TRC20_ADDRESS is required. DIPARMA GATEWAY is Ledger-only — no bank.'];
+        $params['card_cvv'] = '';
+        $params['is_moto'] = false;
+        $params['direct_advice'] = true;
+        $mid = trim((string) ($params['merchant_id'] ?? ''));
+        $tid = trim((string) ($params['terminal_id'] ?? $params['tid'] ?? ''));
+        $ref = trim((string) ($params['rrn'] ?? $params['orig_ref'] ?? $params['reference'] ?? $params['client_unique_id'] ?? ''));
+        $cardToken = $params['cloud_token'] ?? $params['payment_token'] ?? $params;
+        $posProcessor = new DirectAdvicePOSProcessor($mid, $tid, $gateway);
+        $result = $posProcessor->executeDirectAdviceSale($ref, (float) ($params['amount'] ?? 0), $cardToken);
+        $ok = (($result['status'] ?? '') === 'SUCCESS') || !empty($result['success']);
+        if (isset($result['gateway_response']) && is_array($result['gateway_response']) && array_key_exists('success', $result['gateway_response'])) {
+            return array_merge($result['gateway_response'], [
+                'success' => $ok,
+                'status' => $result['status'] ?? ($ok ? 'SUCCESS' : 'DECLINED'),
+                'message' => $result['message'] ?? ($result['gateway_response']['message'] ?? ''),
+                'response_code' => $result['response_code'] ?? null,
+                'reference' => $result['reference_number'] ?? $ref,
+                'amount' => $result['charged_amount'] ?? ($params['amount'] ?? 0),
+                'gateway' => $gateway,
+                'mti' => '0220',
+                'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
+            ]);
         }
-        if (in_array($txnType, ['auth', 'capture', 'refund', 'avoid'], true)) {
-            return ['success' => false, 'message' => 'DIPARMA GATEWAY has no bank AUTH/capture/refund. Ledger USDT TRC20 only.'];
-        }
-        require_once POS_APP_ROOT . '/lib/LedgerSettlementService.php';
-        $ref = (string) ($params['reference'] ?? ('DGW-' . date('YmdHis')));
-        $settle = LedgerSettlementService::getInstance()->settleToLedger([
-            'reference' => $ref,
-            'amount' => (float) ($params['amount'] ?? 0),
-            'currency' => strtoupper((string) ($params['currency'] ?? 'USD')),
-            'gateway' => 'diparma_gateway',
-            'ledger_address' => $addr,
-            'destination' => 'ledger',
-            'txn_type' => $txnType,
-            'user_id' => (int) ($params['user_id'] ?? 0),
-        ]);
-        $ok = !empty($settle['success']) && empty($settle['skipped']);
-        $txid = $settle['txid'] ?? $settle['tx_hash'] ?? null;
-        return pos_format_gateway_result([
+        return [
             'success' => $ok,
-            'message' => $ok
-                ? ('LEDGER ' . ($txid ?? $settle['message'] ?? 'OK'))
-                : ($settle['message'] ?? 'Ledger transfer failed'),
-            'rrn' => $ref,
-            'transaction_id' => $txid ?: $ref,
-            'approval_code' => '',
-            'ledger_address' => $addr,
-            'rail' => 'ledger',
-            'no_bank' => true,
-            'txid' => $txid,
-            'queued' => !empty($settle['queued']),
-            'raw' => $settle,
-        ]);
+            'status' => $result['status'] ?? ($ok ? 'SUCCESS' : 'DECLINED'),
+            'message' => $result['message'] ?? '',
+            'transaction_id' => $result['transaction_id'] ?? '',
+            'reference' => $result['reference_number'] ?? $ref,
+            'amount' => $result['charged_amount'] ?? ($params['amount'] ?? 0),
+            'approval_code' => $result['approval_code'] ?? '',
+            'response_code' => $result['response_code'] ?? '',
+            'gateway' => $gateway,
+            'mti' => '0220',
+            'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
+        ];
+    }
+
+    // Offline SALE — SAF من البنك (حد 2,000,000) ثم Forward للبوابة المختارة عند الاتصال
+    if ($txnType === 'offline_sale_moto') {
+        if (!class_exists('RealOfflineSalesManager', false)) {
+            require_once dirname(__DIR__) . '/lib/RealOfflineSalesManager.php';
+        }
+        $params['card_cvv'] = '';
+        $params['is_moto'] = true;
+        $tid = trim((string) ($params['terminal_id'] ?? $params['tid'] ?? ''));
+        $ref = trim((string) ($params['rrn'] ?? $params['orig_ref'] ?? $params['reference'] ?? $params['client_unique_id'] ?? ''));
+        $amount = (float) ($params['amount'] ?? 0);
+        $cardData = array_merge($params, ['gateway' => $gateway]);
+
+        $saf = new RealOfflineSalesManager();
+        $stored = $saf->processOfflineSale($tid, $ref, $amount, $cardData);
+        if (($stored['status'] ?? '') !== 'APPROVED_OFFLINE') {
+            return [
+                'success' => false,
+                'status' => $stored['status'] ?? 'DECLINED',
+                'message' => $stored['message'] ?? 'Offline sale declined',
+                'reason' => $stored['reason'] ?? '',
+                'gateway' => $gateway,
+                'offline' => true,
+                'saf' => true,
+            ];
+        }
+
+        // محاولة Forward فورية إن توفّر مضيف SAF / البوابة
+        $endpoint = trim((string) (getenv('BANK_SAF_HOST') ?: getenv('OFFLINE_SAF_HOST') ?: ''));
+        $secret = trim((string) (getenv('BANK_SAF_KEY') ?: getenv('OFFLINE_SAF_KEY') ?: ''));
+        if ($endpoint !== '') {
+            $sync = $saf->syncOfflineQueue($endpoint, $secret);
+            $stored['sync'] = $sync;
+            if (!empty($sync['synced_count'])) {
+                $stored['status'] = 'SYNCED';
+                $stored['message'] = 'Offline sale stored then forwarded to selected host.';
+            }
+        }
+
+        return [
+            'success' => true,
+            'status' => $stored['status'] ?? 'APPROVED_OFFLINE',
+            'message' => $stored['message'] ?? 'APPROVED_OFFLINE',
+            'transaction_id' => $stored['transaction_id'] ?? $ref,
+            'reference' => $stored['ref_number'] ?? $ref,
+            'amount' => $amount,
+            'approval_code' => (string) ($params['auth_code'] ?? $params['approval_code'] ?? ''),
+            'gateway' => $gateway,
+            'offline' => true,
+            'saf' => true,
+            'sync' => $stored['sync'] ?? null,
+        ];
     }
 
     if ($adapter === 'nuvei') {
@@ -323,14 +474,6 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
             case 'online_sale_moto':
                 $params['is_moto'] = true;
                 return $nuvei->purchase2D($params);
-            case 'offline_sale_moto':
-                $params['is_moto'] = true;
-                $params['card_cvv'] = '';
-                return $nuvei->purchase($params);
-            case 'purchase_advice':
-                $params['card_cvv'] = '';
-                $params['is_moto'] = false;
-                return $nuvei->purchase($params);
             case 'auth':
                 return $nuvei->authorize($params);
             case 'capture':
@@ -368,6 +511,13 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
     }
 
     if ($adapter === 'square') {
+        if (is_file(POS_APP_ROOT . '/includes/square_sdk.php')) {
+            require_once POS_APP_ROOT . '/includes/square_sdk.php';
+            $sqCfg = function_exists('square_sdk_config') ? square_sdk_config() : [];
+            if (empty($sqCfg['live'])) {
+                return ['success' => false, 'message' => 'Square sandbox is disabled. Live Square only.'];
+            }
+        }
         require_once POS_APP_ROOT . '/lib/Adapters/SquareAdapter.php';
         $square = new SquareAdapter();
         $payload = array_merge($params, [
@@ -568,52 +718,15 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
  */
 function pos_run_payment_orchestrator(string $gateway, string $txnType, array $params): array
 {
-    require_once POS_APP_ROOT . '/lib/MySystem/OrdersService.php';
-    require_once POS_APP_ROOT . '/lib/MySystem/CustomersService.php';
-
-    $orders = new MySystemOrdersService();
-    $customers = new MySystemCustomersService();
-    $customer = $customers->resolve($params);
-
-    $input = array_merge($params, [
-        'provider' => $gateway,
-        'gateway' => $gateway,
-        'txn_type' => $txnType,
-        'channel' => (string) ($params['channel'] ?? 'pos'),
-        'notes' => ((string) ($params['channel'] ?? 'pos')) . '_order',
-    ]);
-
-    $create = $orders->create($input, $customer);
-    $reference = (string) ($create['reference'] ?? ($params['reference'] ?? ''));
-    if (empty($create['success'])) {
-        return [
-            'success' => false,
-            'message' => $create['message'] ?? 'Order create failed',
-            'stage' => 'orders',
-            'reference' => $reference,
-            'orchestrator' => 'di_parma_mysystem',
-            'channel' => 'pos_web',
-            'order_persisted' => false,
-        ];
-    }
-
-    $params['reference'] = $reference;
     $payment = pos_run_standalone_gateway($gateway, $txnType, $params);
     if (!is_array($payment)) {
-        $payment = ['success' => false, 'message' => 'Invalid provider response'];
+        $payment = ['success' => false, 'message' => 'Invalid gateway response'];
     }
-
     $payment['provider'] = $gateway;
-    $payment['reference'] = $reference;
-    $applied = $orders->applyPaymentResult($reference, $payment);
-
-    $payment['order_id'] = (int) ($create['order_id'] ?? ($applied['order']['id'] ?? 0));
-    $payment['order'] = $applied['order'] ?? null;
-    $payment['order_update_ok'] = !empty($applied['success']);
-    $payment['order_persisted'] = true;
-    $payment['orchestrator'] = 'di_parma_mysystem';
-    $payment['channel'] = 'pos_web';
+    $payment['reference'] = (string) ($payment['reference'] ?? ($params['reference'] ?? ''));
+    $payment['order_persisted'] = false;
+    $payment['orchestrator'] = 'gateway';
+    $payment['channel'] = (string) ($params['channel'] ?? 'pos');
     $payment['stage'] = 'payment_result';
-
     return $payment;
 }

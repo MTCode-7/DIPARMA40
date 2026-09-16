@@ -72,7 +72,7 @@ if ($export === 'csv') {
             $r['reference'], $r['created_at'], $r['username'] ?? '',
             $r['customer_name'] ?? '', $r['customer_email'] ?? '',
             $r['amount'], $r['currency'], $r['gateway'],
-            $r['protocol'] ?? '', $r['status'],
+            function_exists('protocol_display_name') ? protocol_display_name($r['protocol'] ?? '') : ($r['protocol'] ?? ''), $r['status'],
             $r['fees'] ?? 0, $r['net_amount'] ?? 0,
             '', $r['card_last4'] ?? ''
         ]);
@@ -266,7 +266,7 @@ tr:hover td { background:rgba(255,215,0,.03); }
         <td><span style="background:rgba(255,215,0,.08);padding:2px 8px;border-radius:6px;font-size:.75rem">
           <?= htmlspecialchars($t['gateway']) ?>
         </span></td>
-        <td style="font-size:.78rem;color:var(--text-muted)"><?= htmlspecialchars($t['protocol'] ?? '—') ?></td>
+        <td style="font-size:.78rem;color:var(--text-muted)"><?= htmlspecialchars(function_exists('protocol_display_name') ? protocol_display_name($t['protocol'] ?? '') : ($t['protocol'] ?? '—')) ?></td>
         <td>
           <span class="badge badge-<?= $t['status'] ?>">
             <?= htmlspecialchars($t['status']) ?>

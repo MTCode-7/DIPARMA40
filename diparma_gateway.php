@@ -148,12 +148,6 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <div class="proc-type">USD/EUR/GBP/AED</div>
       <span class="proc-badge badge-card">CARD</span>
     </div>
-    <div class="proc-card" onclick="selProc('paypal',this)" id="proc-paypal">
-      <div class="proc-icon" style="color:#003087"><i class="fab fa-paypal"></i></div>
-      <div class="proc-name">PayPal</div>
-      <div class="proc-type">USD/EUR/GBP</div>
-      <span class="proc-badge badge-card">CARD</span>
-    </div>
     <div class="proc-card" onclick="selProc('myfatoorah',this)" id="proc-myfatoorah">
       <div class="proc-icon" style="color:#00b09b">⬡</div>
       <div class="proc-name">MyFatoorah</div>
@@ -267,9 +261,9 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <!-- Card -->
     <div class="fld-row">
       <div class="fld" style="grid-column:span 2">
-        <label><?=$ar?'رقم البطاقة':'Card Number'?></label>
-        <input type="tel" id="cardNum" maxlength="19" placeholder="•••• •••• •••• ••••"
-               oninput="let v=this.value.replace(/\D/g,'').substring(0,16);this.value=v.replace(/(.{4})/g,'$1 ').trim()">
+        <label><?=$ar?'رقم البطاقة — كل الشبكات والمُصدرين':'Card Number — all networks and issuers'?></label>
+        <input type="tel" id="cardNum" maxlength="23" placeholder="•••• •••• •••• ••••"
+               oninput="let v=this.value.replace(/\D/g,'').substring(0,19);this.value=v.replace(/(.{4})/g,'$1 ').trim()">
       </div>
     </div>
     <div class="fld-row">
@@ -338,7 +332,13 @@ function selProc(code, el) {
 function selPOS(id, el) {
   S.pos = S.pos === id ? '' : id;
   document.querySelectorAll('.pos-card').forEach(c=>c.classList.remove('selected'));
-  if (S.pos) el.classList.add('selected');
+  if (S.pos) {
+    el.classList.add('selected');
+    S.proc = 'nuvei';
+    document.querySelectorAll('.proc-card').forEach(c=>c.classList.remove('selected'));
+    const nuvei = document.getElementById('proc-nuvei');
+    if (nuvei) nuvei.classList.add('selected');
+  }
 }
 
 function selTxn(code, el) {
@@ -361,7 +361,6 @@ async function runTransaction() {
   const noAmt  = ['balance','settlement'].includes(S.txn);
 
   if (!noAmt && amount <= 0) { toast(AR?'أدخل المبلغ':'Enter amount','error'); return; }
-
   btn.disabled = true;
   document.getElementById('procIco').className = 'fas fa-spinner fa-spin';
   document.getElementById('procLbl').textContent = AR?'جاري التنفيذ...':'Processing...';
@@ -380,6 +379,8 @@ async function runTransaction() {
     orig_ref    : document.getElementById('origRef').value,
     ledger_addr : document.getElementById('ledgerAddr').value,
     pos_id      : S.pos || null,
+    destination : 'ledger',
+    source      : S.pos ? 'pos' : '',
     csrf_token  : document.getElementById('csrf').value,
   };
 

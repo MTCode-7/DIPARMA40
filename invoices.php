@@ -9,6 +9,7 @@ require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
 
+$ar = is_ar();
 $db = db();
 $userId = $_SESSION['user_id'] ?? 0;
 
@@ -24,7 +25,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DI PARMA | الفواتير</title>
+    <title>DI PARMA | <?= dp_t('Invoices', 'الفواتير') ?></title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Cairo', sans-serif; background: #0b0f17; color: #ffdfa0; margin: 0; padding: 20px; } 
@@ -46,29 +47,29 @@ try {
 <body>
 <div class="container">
     <div class="nav">
-        <a href="index.php">&#8962; الرئيسية</a>
-        <a href="dashboard.php">لوحة التحكم</a>
-        <a href="links.php">روابط الدفع</a>
-        <a href="transactions.php">المعاملات</a>
-        <a href="wallets.php">المحفظة</a>
-        <a href="invoices.php" class="active">الفواتير</a>
+        <a href="index.php">&#8962; <?= dp_t('Home', 'الرئيسية') ?></a>
+        <a href="dashboard.php"><?= dp_t('Dashboard', 'لوحة التحكم') ?></a>
+        <a href="links.php"><?= dp_t('Payment Links', 'روابط الدفع') ?></a>
+        <a href="transactions.php"><?= dp_t('Transactions', 'المعاملات') ?></a>
+        <a href="wallets.php"><?= dp_t('Wallets', 'المحفظة') ?></a>
+        <a href="invoices.php" class="active"><?= dp_t('Invoices', 'الفواتير') ?></a>
     </div>
     
     <div class="card">
-        <h2 style="color: #FFD700; margin-bottom: 20px; font-size: 1.3rem;">الفواتير الداخلية</h2>
+        <h2 style="color: #FFD700; margin-bottom: 20px; font-size: 1.3rem;"><?= dp_t('Internal invoices', 'الفواتير الداخلية') ?></h2>
         
         <?php if (empty($invoices)): ?>
-            <div class="empty-state">لا توجد فواتير مسجلة حتى الآن.</div>
+            <div class="empty-state"><?= dp_t('No invoices recorded yet.', 'لا توجد فواتير مسجلة حتى الآن.') ?></div>
         <?php else: ?>
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
                         <tr>
-                            <th>رقم الفاتورة</th>
-                            <th>المرجع</th>
-                            <th>المبلغ</th>
-                            <th>الحالة</th>
-                            <th>التاريخ</th>
+                            <th><?= dp_t('Invoice #', 'رقم الفاتورة') ?></th>
+                            <th><?= dp_t('Reference', 'المرجع') ?></th>
+                            <th><?= dp_t('Amount', 'المبلغ') ?></th>
+                            <th><?= dp_t('Status', 'الحالة') ?></th>
+                            <th><?= dp_t('Date', 'التاريخ') ?></th>
                         </tr>
                     </thead>
                     <tbody>

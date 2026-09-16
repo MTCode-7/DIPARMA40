@@ -1,0 +1,390 @@
+openapi: 3.0.3
+info:
+  title: DI PARMA API
+  version: "1.0.0"
+  description: |
+    Card → gateway → settlement to Ledger TRC20 (USDT).
+
+    Authentication (all `/api/v1/*` except public docs):
+    - `X-Api-Key`: `dpk_...`
+    - `X-Timestamp`: Unix seconds (max skew 300s)
+    - `X-Signature`: `HMAC-SHA256(api_secret, "{api_key}:{timestamp}:{sha256(body)}")`
+  contact:
+    name: DI PARMA
+    url: https://diparmas.com
+servers:
+  - url: https://diparmas.com
+    description: Production
+  - url: http://localhost/DIPARMA40
+    description: Local XAMPP
+tags:
+  - name: Payments
+  - name: Ledger
+  - name: Transactions
+  - name: MySystem
+  - name: Peer
+  - name: Docs
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+    TimestampAuth:
+      type: apiKey
+      in: header
+      name: X-Timestamp
+    SignatureAuth:
+      type: apiKey
+      in: header
+      name: X-Signature
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+        message:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+    ChargeRequest:
+      type: object
+      required: [amount, card_number, card_name, card_expiry, card_cvv]
+      properties:
+        amount:
+          type: number
+          format: float
+          example: 100.0
+        currency:
+          type: string
+          enum: [USD, AED, EUR, GBP, SAR, KWD, QAR, EGP]
+          default: USD
+        card_number:
+          type: string
+          example: "4111111111111111"
+        card_name:
+          type: string
+          example: CARDHOLDER
+        card_expiry:
+          type: string
+          description: MM/YY
+          example: "12/28"
+        card_cvv:
+          type: string
+          example: "123"
+        txn_type:
+          type: string
+          enum: [purchase, auth, refund, void, capture]
+          default: purchase
+        sec_mode:
+          type: string
+          enum: [3D, 2D]
+          default: 3D
+        ledger_address:
+          type: string
+          description: Optional TRC20 destination (defaults to client / company ledger)
+        reference:
+          type: string
+          example: ORDER-001
+        metadata:
+          type: object
+          additionalProperties: true
+    ChargeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        reference:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+        ledger_address:
+          type: string
+    BalanceResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        mid:
+          type: string
+        tid:
+          type: string
+        ledger_address:
+          type: string
+        ledger_trx:
+          type: number
+        ledger_usdt:
+          type: number
+        tronscan:
+          type: string
+        account_stats:
+          type: object
+    MySystemPayRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+        currency:
+          type: string
+          default: USD
+        gateway:
+          type: string
+          description: Selected provider (square, nuvei, stripe, …)
+        customer_id:
+          type: string
+        email:
+          type: string
+        reference:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+security:
+  - ApiKeyAuth: []
+    TimestampAuth: []
+    SignatureAuth: []
+paths:
+  /api/v1/charge:
+    post:
+      tags: [Payments]
+      summary: Charge card and settle toward Ledger
+      operationId: createCharge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChargeRequest'
+      responses:
+        "200":
+          description: Charge accepted / completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChargeResponse'
+        "401":
+          description: Auth failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/balance:
+    get:
+      tags: [Ledger]
+      summary: Ledger TRX/USDT balance and account stats
+      operationId: getBalance
+      responses:
+        "200":
+          description: Balance snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceResponse'
+        "401":
+          description: Auth failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/transactions:
+    get:
+      tags: [Transactions]
+      summary: List account transactions
+      operationId: listTransactions
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, processing, completed, failed]
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [ASC, DESC]
+            default: DESC
+      responses:
+        "200":
+          description: Transaction page
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+                  transactions:
+                    type: array
+                    items:
+                      type: object
+        "401":
+          description: Auth failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/docs:
+    get:
+      tags: [Docs]
+      summary: Built-in API documentation (HTML or JSON)
+      operationId: getDocs
+      security: []
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json]
+      responses:
+        "200":
+          description: Docs payload
+  /api/mysystem.php:
+    post:
+      tags: [MySystem]
+      summary: Orchestrated pay (Orders → Providers → Ledger)
+      operationId: mySystemPay
+      security: []
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum: [pay, order, diagram]
+            default: pay
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MySystemPayRequest'
+      responses:
+        "200":
+          description: Payment / order result
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Session or customer identity required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags: [MySystem]
+      summary: Diagram or order lookup
+      operationId: mySystemGet
+      security: []
+      parameters:
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [diagram, order]
+        - name: reference
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Diagram or order
+  /api/peer.php:
+    get:
+      tags: [Peer]
+      summary: Peer health (local ↔ remote link)
+      operationId: peerHealth
+      security: []
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum: [health]
+            default: health
+      responses:
+        "200":
+          description: Peer status and webhook URLs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  role:
+                    type: string
+                  site:
+                    type: string
+                  enabled:
+                    type: boolean
+                  webhooks:
+                    type: object
+x-webhooks:
+  charge.completed:
+    post:
+      summary: Charge completed webhook
+      description: |
+        Header `X-DiParma-Signature`: HMAC-SHA256(webhook_secret, raw body)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event:
+                  type: string
+                  example: charge.completed
+                reference:
+                  type: string
+                status:
+                  type: string
+      responses:
+        "200":
+          description: Acknowledged

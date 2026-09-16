@@ -73,17 +73,17 @@ $db = db();
 $transaction = null;
 
 if ($id > 0) {
-    $transaction = $db->find('dp_transactions', ['id' => $id]);
+    $transaction = $db->find('transactions', ['id' => $id]);
 }
 
 if (!$transaction && !empty($ref)) {
-    $transaction = $db->find('dp_transactions', ['reference' => $ref]);
+    $transaction = $db->find('transactions', ['reference' => $ref]);
 }
 
 if (!$transaction) {
     try {
         $rows = $db->query(
-            "SELECT * FROM transactions WHERE id = ? OR reference = ? LIMIT 1",
+            "SELECT * FROM " . dp_table('transactions') . " WHERE id = ? OR reference = ? LIMIT 1",
             [$id, $ref]
         );
         if (!empty($rows[0])) {
@@ -748,7 +748,7 @@ if ($updated) {
             $updateData['gateway_response'] = json_encode($liveData, JSON_UNESCAPED_UNICODE);
         }
         
-        $db->update('dp_transactions', $updateData, ['id' => $transaction['id']]);
+        $db->update('transactions', $updateData, ['id' => $transaction['id']]);
         
         try {
             $db->update('transactions', ['status' => $newStatus], ['id' => $transaction['id']]);

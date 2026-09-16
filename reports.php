@@ -63,10 +63,10 @@ $chartLabels = json_encode(array_reverse(array_column($daily,"day")));
 $chartRevenue= json_encode(array_map("floatval", array_reverse(array_column($daily,"revenue"))));
 $chartVol    = json_encode(array_map("floatval", array_reverse(array_column($daily,"total"))));
 ?><!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="<?= htmlspecialchars(dp_lang()) ?>" dir="<?= htmlspecialchars($pageDir) ?>">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DI PARMA | التقارير المالية</title>
+<title>DI PARMA | <?= dp_t('Financial Reports', 'التقارير المالية') ?></title>
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -111,55 +111,55 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;pa
 </head>
 <body>
 <div class="hdr">
-  <h1><i class="fas fa-chart-bar"></i> التقارير المالية الشاملة</h1>
+  <h1><i class="fas fa-chart-bar"></i> <?= dp_t('Comprehensive Financial Reports', 'التقارير المالية الشاملة') ?></h1>
   <div style="display:flex;gap:8px;align-items:center">
     <a href="<?= htmlspecialchars("reports.php?" . http_build_query(array_merge($_GET, ["export"=>"csv"]))) ?>" class="btn btn-csv print-hide">
-      <i class="fas fa-file-csv"></i> تصدير CSV
+      <i class="fas fa-file-csv"></i> <?= dp_t('Export CSV', 'تصدير CSV') ?>
     </a>
-    <button onclick="window.print()" class="btn btn-out print-hide"><i class="fas fa-print"></i> طباعة</button>
-    <a href="dashboard.php" class="btn btn-out print-hide"><i class="fas fa-home"></i> الرئيسية</a>
+    <button onclick="window.print()" class="btn btn-out print-hide"><i class="fas fa-print"></i> <?= dp_t('Print', 'طباعة') ?></button>
+    <a href="dashboard.php" class="btn btn-out print-hide"><i class="fas fa-home"></i> <?= dp_t('Home', 'الرئيسية') ?></a>
   </div>
 </div>
 <div class="wrap">
 <!-- Filters -->
 <form method="GET" class="filters print-hide">
-<div><label>من تاريخ</label><input type="date" name="date_from" value="<?= htmlspecialchars($dateFrom) ?>"></div>
-<div><label>إلى تاريخ</label><input type="date" name="date_to" value="<?= htmlspecialchars($dateTo) ?>"></div>
-<div><label>البوابة</label>
-<select name="gateway"><option value="">كل البوابات</option>
+<div><label><?= dp_t('From date', 'من تاريخ') ?></label><input type="date" name="date_from" value="<?= htmlspecialchars($dateFrom) ?>"></div>
+<div><label><?= dp_t('To date', 'إلى تاريخ') ?></label><input type="date" name="date_to" value="<?= htmlspecialchars($dateTo) ?>"></div>
+<div><label><?= dp_t('Gateway', 'البوابة') ?></label>
+<select name="gateway"><option value=""><?= dp_t('All gateways', 'كل البوابات') ?></option>
 <?php foreach($gateways as $g): ?><option value="<?= htmlspecialchars($g) ?>" <?= $gwFilter===$g?"selected":"" ?>><?= htmlspecialchars(strtoupper($g)) ?></option><?php endforeach; ?>
 </select></div>
-<div><label>العملة</label>
-<select name="currency"><option value="">كل العملات</option>
+<div><label><?= dp_t('Currency', 'العملة') ?></label>
+<select name="currency"><option value=""><?= dp_t('All currencies', 'كل العملات') ?></option>
 <?php foreach($currencies as $c): ?><option value="<?= htmlspecialchars($c) ?>" <?= $curFilter===$c?"selected":"" ?>><?= htmlspecialchars($c) ?></option><?php endforeach; ?>
 </select></div>
-<div><label>الحالة</label>
-<select name="status"><option value="">الكل</option>
-<option value="completed" <?= $stFilter==="completed"?"selected":"" ?>>مكتملة</option>
-<option value="pending"   <?= $stFilter==="pending"  ?"selected":"" ?>>معلقة</option>
-<option value="failed"    <?= $stFilter==="failed"   ?"selected":"" ?>>فاشلة</option>
-<option value="processing"<?= $stFilter==="processing"?"selected":"" ?>>جاري</option>
+<div><label><?= dp_t('Status', 'الحالة') ?></label>
+<select name="status"><option value=""><?= dp_t('All', 'الكل') ?></option>
+<option value="completed" <?= $stFilter==="completed"?"selected":"" ?>><?= dp_t('Completed', 'مكتملة') ?></option>
+<option value="pending"   <?= $stFilter==="pending"  ?"selected":"" ?>><?= dp_t('Pending', 'معلقة') ?></option>
+<option value="failed"    <?= $stFilter==="failed"   ?"selected":"" ?>><?= dp_t('Failed', 'فاشلة') ?></option>
+<option value="processing"<?= $stFilter==="processing"?"selected":"" ?>><?= dp_t('Processing', 'جاري') ?></option>
 </select></div>
 <div style="display:flex;gap:8px;align-items:flex-end">
-<button type="submit" class="btn btn-gold"><i class="fas fa-filter"></i> تطبيق</button>
-<a href="reports.php" class="btn btn-out"><i class="fas fa-undo"></i> إعادة تعيين</a>
+<button type="submit" class="btn btn-gold"><i class="fas fa-filter"></i> <?= dp_t('Apply', 'تطبيق') ?></button>
+<a href="reports.php" class="btn btn-out"><i class="fas fa-undo"></i> <?= dp_t('Reset', 'إعادة تعيين') ?></a>
 </div>
 </form><!-- KPIs -->
 <div class="kpi-grid">
-<div class="kpi"><div class="kpi-lbl">إجمالي المعاملات</div><div class="kpi-val"><?= number_format($s["total"]??0) ?></div>
-<div class="kpi-sub">✅ <?= number_format($s["completed"]??0) ?> مكتملة</div></div>
-<div class="kpi"><div class="kpi-lbl">إجمالي المبالغ</div><div class="kpi-val"><?= number_format($s["total_amount"]??0,2) ?></div>
-<div class="kpi-sub">متوسط <?= number_format($s["avg_amount"]??0,2) ?></div></div>
-<div class="kpi"><div class="kpi-lbl">الإيرادات المكتملة</div><div class="kpi-val" style="color:#4CAF50"><?= number_format($s["revenue"]??0,2) ?></div>
-<div class="kpi-sub">صافي <?= number_format($s["total_net"]??0,2) ?></div></div>
-<div class="kpi"><div class="kpi-lbl">إجمالي الرسوم</div><div class="kpi-val" style="color:#f0ad4e"><?= number_format($s["total_fees"]??0,2) ?></div></div>
-<div class="kpi"><div class="kpi-lbl">USDT المرسل</div><div class="kpi-val" style="color:#9fe870"><?= number_format($s["total_usdt"]??0,4) ?></div></div>
-<div class="kpi"><div class="kpi-lbl">معلقة / فاشلة</div>
+<div class="kpi"><div class="kpi-lbl"><?= dp_t('Total transactions', 'إجمالي المعاملات') ?></div><div class="kpi-val"><?= number_format($s["total"]??0) ?></div>
+<div class="kpi-sub">✅ <?= number_format($s["completed"]??0) ?> <?= dp_t('completed', 'مكتملة') ?></div></div>
+<div class="kpi"><div class="kpi-lbl"><?= dp_t('Total amounts', 'إجمالي المبالغ') ?></div><div class="kpi-val"><?= number_format($s["total_amount"]??0,2) ?></div>
+<div class="kpi-sub"><?= dp_t('Avg', 'متوسط') ?> <?= number_format($s["avg_amount"]??0,2) ?></div></div>
+<div class="kpi"><div class="kpi-lbl"><?= dp_t('Completed revenue', 'الإيرادات المكتملة') ?></div><div class="kpi-val" style="color:#4CAF50"><?= number_format($s["revenue"]??0,2) ?></div>
+<div class="kpi-sub"><?= dp_t('Net', 'صافي') ?> <?= number_format($s["total_net"]??0,2) ?></div></div>
+<div class="kpi"><div class="kpi-lbl"><?= dp_t('Total fees', 'إجمالي الرسوم') ?></div><div class="kpi-val" style="color:#f0ad4e"><?= number_format($s["total_fees"]??0,2) ?></div></div>
+<div class="kpi"><div class="kpi-lbl"><?= dp_t('USDT sent', 'USDT المرسل') ?></div><div class="kpi-val" style="color:#9fe870"><?= number_format($s["total_usdt"]??0,4) ?></div></div>
+<div class="kpi"><div class="kpi-lbl"><?= dp_t('Pending / failed', 'معلقة / فاشلة') ?></div>
 <div class="kpi-val" style="color:#ef5350"><?= number_format(($s["pending"]??0)+($s["failed"]??0)) ?></div>
 <div class="kpi-sub">⏳ <?= $s["pending"]??0 ?> | ❌ <?= $s["failed"]??0 ?></div></div>
 </div><!-- Chart يومي + Security Mode -->
 <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px">
-<div class="section"><h3 class="sec-hdr"><i class="fas fa-chart-line"></i> الإيرادات اليومية (آخر 30 يوم)</h3>
+<div class="section"><h3 class="sec-hdr"><i class="fas fa-chart-line"></i> <?= dp_t('Daily revenue (last 30 days)', 'الإيرادات اليومية (آخر 30 يوم)') ?></h3>
 <div class="chart-wrap"><canvas id="dailyChart"></canvas></div></div>
 <div class="section"><h3 class="sec-hdr"><i class="fas fa-shield-alt"></i> Security Mode</h3>
 <div style="margin-top:10px">
@@ -174,17 +174,17 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;pa
 <span style="color:#aaa;font-size:.8rem"><?= $mr["cnt"] ?> (<?= $pct ?>%)</span>
 </div>
 <div class="progress-bar"><div class="progress-fill" style="width:<?= $pct ?>%;background:<?= $col ?>"></div></div>
-<div style="font-size:.75rem;color:#666;margin-top:3px">✅ <?= $mr["ok"]??0 ?> ناجح — إجمالي <?= number_format($mr["total"]??0,2) ?></div>
+<div style="font-size:.75rem;color:#666;margin-top:3px">✅ <?= $mr["ok"]??0 ?> <?= dp_t('successful', 'ناجح') ?> — <?= dp_t('total', 'إجمالي') ?> <?= number_format($mr["total"]??0,2) ?></div>
 </div>
 <?php endforeach; ?>
-<?php if(empty($modeRpt)): ?><div class="empty">لا بيانات</div><?php endif; ?>
+<?php if(empty($modeRpt)): ?><div class="empty"><?= dp_t('No data', 'لا بيانات') ?></div><?php endif; ?>
 </div></div>
 </div><!-- جدول البوابات -->
-<div class="section"><h3 class="sec-hdr"><i class="fas fa-server"></i> تقرير بوابات الدفع</h3>
-<?php if(empty($gwReport)): ?><div class="empty">لا بيانات</div>
+<div class="section"><h3 class="sec-hdr"><i class="fas fa-server"></i> <?= dp_t('Payment gateway report', 'تقرير بوابات الدفع') ?></h3>
+<?php if(empty($gwReport)): ?><div class="empty"><?= dp_t('No data', 'لا بيانات') ?></div>
 <?php else: ?>
 <div style="overflow-x:auto"><table class="tbl">
-<thead><tr><th>البوابة</th><th>المعاملات</th><th>إجمالي</th><th>إيرادات</th><th>رسوم</th><th>متوسط</th><th>ناجح</th><th>فاشل</th><th>معدل النجاح</th></tr></thead>
+<thead><tr><th><?= dp_t('Gateway', 'البوابة') ?></th><th><?= dp_t('Transactions', 'المعاملات') ?></th><th><?= dp_t('Total', 'إجمالي') ?></th><th><?= dp_t('Revenue', 'إيرادات') ?></th><th><?= dp_t('Fees', 'رسوم') ?></th><th><?= dp_t('Average', 'متوسط') ?></th><th><?= dp_t('Success', 'ناجح') ?></th><th><?= dp_t('Failed', 'فاشل') ?></th><th><?= dp_t('Success rate', 'معدل النجاح') ?></th></tr></thead>
 <tbody>
 <?php foreach($gwReport as $g):
   $rate = ($g["cnt"]??0)>0 ? round((($g["ok"]??0)/($g["cnt"]??1))*100) : 0;
@@ -207,11 +207,11 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;pa
 </div>
 
 <!-- جدول العملات -->
-<div class="section"><h3 class="sec-hdr"><i class="fas fa-coins"></i> تقرير العملات</h3>
-<?php if(empty($curReport)): ?><div class="empty">لا بيانات</div>
+<div class="section"><h3 class="sec-hdr"><i class="fas fa-coins"></i> <?= dp_t('Currency report', 'تقرير العملات') ?></h3>
+<?php if(empty($curReport)): ?><div class="empty"><?= dp_t('No data', 'لا بيانات') ?></div>
 <?php else: ?>
 <div style="overflow-x:auto"><table class="tbl">
-<thead><tr><th>العملة</th><th>المعاملات</th><th>إجمالي</th><th>إيرادات</th></tr></thead>
+<thead><tr><th><?= dp_t('Currency', 'العملة') ?></th><th><?= dp_t('Transactions', 'المعاملات') ?></th><th><?= dp_t('Total', 'إجمالي') ?></th><th><?= dp_t('Revenue', 'إيرادات') ?></th></tr></thead>
 <tbody>
 <?php foreach($curReport as $c): ?>
 <tr>
@@ -226,11 +226,11 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;pa
 </div>
 
 <!-- جدول يومي -->
-<div class="section"><h3 class="sec-hdr"><i class="fas fa-calendar-alt"></i> التقرير اليومي (آخر 30 يوم)</h3>
-<?php if(empty($daily)): ?><div class="empty">لا بيانات</div>
+<div class="section"><h3 class="sec-hdr"><i class="fas fa-calendar-alt"></i> <?= dp_t('Daily report (last 30 days)', 'التقرير اليومي (آخر 30 يوم)') ?></h3>
+<?php if(empty($daily)): ?><div class="empty"><?= dp_t('No data', 'لا بيانات') ?></div>
 <?php else: ?>
 <div style="overflow-x:auto"><table class="tbl">
-<thead><tr><th>التاريخ</th><th>المعاملات</th><th>إجمالي</th><th>إيرادات</th></tr></thead>
+<thead><tr><th><?= dp_t('Date', 'التاريخ') ?></th><th><?= dp_t('Transactions', 'المعاملات') ?></th><th><?= dp_t('Total', 'إجمالي') ?></th><th><?= dp_t('Revenue', 'إيرادات') ?></th></tr></thead>
 <tbody>
 <?php foreach($daily as $d): ?>
 <tr>
@@ -243,11 +243,11 @@ body{background:var(--bg);color:#e0e0e0;font-family:Cairo,sans-serif;margin:0;pa
 </tbody></table></div>
 <?php endif; ?>
 </div><!-- آخر المعاملات -->
-<div class="section"><h3 class="sec-hdr"><i class="fas fa-list"></i> آخر 50 معاملة</h3>
-<?php if(empty($recent)): ?><div class="empty">لا بيانات</div>
+<div class="section"><h3 class="sec-hdr"><i class="fas fa-list"></i> <?= dp_t('Last 50 transactions', 'آخر 50 معاملة') ?></h3>
+<?php if(empty($recent)): ?><div class="empty"><?= dp_t('No data', 'لا بيانات') ?></div>
 <?php else: ?>
 <div style="overflow-x:auto"><table class="tbl">
-<thead><tr><th>#</th><th>المرجع</th><th>البوابة</th><th>المبلغ</th><th>العملة</th><th>الحالة</th><th>Mode</th><th>العميل</th><th>الرسوم</th><th>التاريخ</th></tr></thead>
+<thead><tr><th>#</th><th><?= dp_t('Reference', 'المرجع') ?></th><th><?= dp_t('Gateway', 'البوابة') ?></th><th><?= dp_t('Amount', 'المبلغ') ?></th><th><?= dp_t('Currency', 'العملة') ?></th><th><?= dp_t('Status', 'الحالة') ?></th><th>Mode</th><th><?= dp_t('Customer', 'العميل') ?></th><th><?= dp_t('Fees', 'الرسوم') ?></th><th><?= dp_t('Date', 'التاريخ') ?></th></tr></thead>
 <tbody>
 <?php foreach($recent as $i=>$r):
   $badge = match($r["status"]??""){ "completed"=>"b-ok","pending"=>"b-pen","failed"=>"b-fail",default=>"b-proc" };
@@ -280,8 +280,8 @@ if(ctx){
     data:{
       labels:labels,
       datasets:[
-        {label:"الإيرادات",data:revenue,borderColor:"#ffd700",backgroundColor:"rgba(255,215,0,.08)",tension:.3,fill:true,pointRadius:3},
-        {label:"الحجم الكلي",data:vol,borderColor:"#5bc0de",backgroundColor:"rgba(91,192,222,.06)",tension:.3,fill:false,pointRadius:2,borderDash:[4,4]}
+        {label:<?= json_encode(dp_t('Revenue', 'الإيرادات'), JSON_UNESCAPED_UNICODE) ?>,data:revenue,borderColor:"#ffd700",backgroundColor:"rgba(255,215,0,.08)",tension:.3,fill:true,pointRadius:3},
+        {label:<?= json_encode(dp_t('Total volume', 'الحجم الكلي'), JSON_UNESCAPED_UNICODE) ?>,data:vol,borderColor:"#5bc0de",backgroundColor:"rgba(91,192,222,.06)",tension:.3,fill:false,pointRadius:2,borderDash:[4,4]}
       ]
     },
     options:{

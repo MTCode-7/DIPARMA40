@@ -60,14 +60,18 @@ class StripeAdapter implements GatewayAdapterInterface
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, strtoupper($currency), 'المبلغ غير صالح');
         }
 
+        $cloudPm = trim((string)($payload['cloud_token'] ?? $payload['payment_token'] ?? $payload['payment_method'] ?? ''));
+        $start = microtime(true);
+        try {
+            if ($cloudPm !== '' && preg_match('/^(pm_|tok_|card_)/', $cloudPm)) {
+                $pm = ['id' => $cloudPm];
+            } else {
         $validation = $this->validateCard($payload);
         if (!$validation['valid']) {
             return GatewayErrorMapper::buildErrorResponse('INVALID_CARD', $reference, $amount, strtoupper($currency), $validation['message']);
         }
         [$ccNumber, $expMonth, $expYear, $cvv2] = $validation['data'];
 
-        $start = microtime(true);
-        try {
             // [1] PaymentMethod
             $pm = $this->request('POST', '/v1/payment_methods', [
                 'type'                  => 'card',
@@ -78,6 +82,7 @@ class StripeAdapter implements GatewayAdapterInterface
                 'billing_details[name]' => $payload['name']  ?? 'Customer',
                 'billing_details[email]'=> $payload['email'] ?? '',
             ]);
+            }
 
             if (empty($pm['id'])) {
                 $errCode = $this->normalizeError($pm);
@@ -116,7 +121,7 @@ class StripeAdapter implements GatewayAdapterInterface
 
             // ── نجاح ──────────────────────────────────────────
             if ($status === 'succeeded') {
-                // ── استخراج Approval Code الحقيقي من Visa/Mastercard ──
+                // ── Approval Code from the card network ──
                 // يأتي من: charges.data[0].payment_method_details.card.authorization_code
                 $authCode   = null;
                 $rrn        = null;
@@ -136,7 +141,7 @@ class StripeAdapter implements GatewayAdapterInterface
                 if (is_array($chargeObj)) {
                     $cardDet    = $chargeObj['payment_method_details']['card'] ?? [];
                     $authCode   = $cardDet['authorization_code'] ?? null;  // ← كود الموافقة الحقيقي
-                    $cardNetwork= $cardDet['network']             ?? null;  // visa | mastercard
+                    $cardNetwork= $cardDet['network']             ?? null;
                     $last4      = $cardDet['last4']               ?? null;
                     $rrn        = $chargeObj['balance_transaction'] ?? $chargeObj['id'] ?? null;
                 }
@@ -218,14 +223,18 @@ class StripeAdapter implements GatewayAdapterInterface
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, strtoupper($currency), 'المبلغ غير صالح');
         }
 
+        $cloudPm = trim((string)($payload['cloud_token'] ?? $payload['payment_token'] ?? $payload['payment_method'] ?? ''));
+        $start = microtime(true);
+        try {
+            if ($cloudPm !== '' && preg_match('/^(pm_|tok_|card_)/', $cloudPm)) {
+                $pm = ['id' => $cloudPm];
+            } else {
         $validation = $this->validateCard($payload);
         if (!$validation['valid']) {
             return GatewayErrorMapper::buildErrorResponse('INVALID_CARD', $reference, $amount, strtoupper($currency), $validation['message']);
         }
         [$ccNumber, $expMonth, $expYear, $cvv2] = $validation['data'];
 
-        $start = microtime(true);
-        try {
             $pm = $this->request('POST', '/v1/payment_methods', [
                 'type'                  => 'card',
                 'card[number]'          => $ccNumber,
@@ -234,6 +243,7 @@ class StripeAdapter implements GatewayAdapterInterface
                 'card[cvc]'             => $cvv2,
                 'billing_details[name]' => $payload['name'] ?? 'Customer',
             ]);
+            }
 
             if (empty($pm['id'])) {
                 $errCode = $this->normalizeError($pm);

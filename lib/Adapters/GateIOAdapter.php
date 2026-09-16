@@ -26,8 +26,8 @@ class GateIOAdapter implements GatewayAdapterInterface
 
     public function __construct(string $apiKey = '', string $apiSecret = '')
     {
-        $this->apiKey    = $apiKey    ?: (getenv('GATEIO_API_KEY')    ?: '');
-        $this->apiSecret = $apiSecret ?: (getenv('GATEIO_API_SECRET') ?: '');
+        $this->apiKey    = $apiKey    ?: (getenv('GATEIO_API_KEY')    ?: getenv('GATE_IO_API_KEY')    ?: '');
+        $this->apiSecret = $apiSecret ?: (getenv('GATEIO_API_SECRET') ?: getenv('GATE_IO_SECRET_KEY') ?: getenv('GATEIO_SECRET_KEY') ?: '');
     }
 
     public function getName(): string { return 'gate_io'; }

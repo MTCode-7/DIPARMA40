@@ -178,7 +178,7 @@ $fallbacks = [
     '3' => ['scheme' => 'Amex',       'icon' => 'fab fa-cc-amex',       'color' => '#007bc1'],
 ];
 
-$fb = $fallbacks[$first] ?? ['scheme' => 'Unknown', 'icon' => 'fas fa-credit-card', 'color' => '#888'];
+$fb = $fallbacks[$first] ?? ['scheme' => 'Other', 'icon' => 'fas fa-credit-card', 'color' => '#888'];
 echo json_encode([
     'success' => true,
     'source'  => 'fallback',

@@ -22,6 +22,14 @@ return [
         'ledger_address' => ['label' => 'Ledger TRC20 Address', 'type' => 'text', 'required' => true],
     ],
     'currencies' => ['USD', 'AED', 'SAR', 'EUR', 'GBP', 'KWD', 'QAR', 'EGP', 'USDT', 'BTC', 'ETH'],
+    'card_types' => [
+        'Visa', 'Mastercard', 'Maestro', 'Visa Electron',
+        'American Express', 'Discover', 'Diners Club', 'JCB',
+        'UnionPay', 'Mir', 'RuPay', 'Elo', 'Hipercard', 'Troy',
+        'Verve', 'Mada', 'Meeza', 'KNET', 'Benefit', 'Jaywan',
+        'NAPAS', 'PayPak', 'Dankort', 'Bancontact', 'Girocard',
+        'Interac', 'UATP', 'Crypto card', 'Any other network or issuer',
+    ],
     'transaction_types' => [
         'purchase_3d', 'purchase_2d', 'purchase_advice', 'purchase_offline',
         'purchase_online', 'auth_hold', 'auth_capture', 'recurring', 'installment',
@@ -43,7 +51,7 @@ return [
     'urls' => [
         'webhook' => 'https://diparmas.com/api/webhooks/diparma.php',
         'success' => 'https://diparmas.com/receipt.php',
-        'cancel' => 'https://diparmas.com/checkout.php',
+        'cancel' => 'https://diparmas.com/checkout_router.php',
     ],
     'environment' => 'production',
     'features' => [

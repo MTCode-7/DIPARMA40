@@ -60,10 +60,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
             'created_at' => date('Y-m-d H:i:s')
         ]);
 
-        $message = '✅ تم قبول الطلب وتم إضافة الرصيد إلى المحفظة';
+        $message = dp_t('✅ Request approved and balance added to wallet.', '✅ تم قبول الطلب وتم إضافة الرصيد إلى المحفظة');
         $messageType = 'success';
     } else {
-        $message = 'ℹ️ هذا الطلب لم يعد قابلًا للتعديل';
+        $message = dp_t('ℹ️ This request can no longer be modified.', 'ℹ️ هذا الطلب لم يعد قابلًا للتعديل');
         $messageType = 'info';
     }
 }
@@ -75,10 +75,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reject_request'])) {
         $db->update('approval_requests', ['status' => 'rejected', 'reason' => $reason], ['id' => $id]);
         $db->update('invoices', ['status' => 'cancelled'], ['reference' => $request['reference']]);
         $db->update('transactions', ['status' => 'rejected'], ['reference' => $request['reference']]);
-        $message = '❌ تم رفض الطلب';
+        $message = dp_t('❌ Request rejected.', '❌ تم رفض الطلب');
         $messageType = 'error';
     } else {
-        $message = 'ℹ️ هذا الطلب لم يعد قابلًا للتعديل';
+        $message = dp_t('ℹ️ This request can no longer be modified.', 'ℹ️ هذا الطلب لم يعد قابلًا للتعديل');
         $messageType = 'info';
     }
 }
@@ -124,7 +124,7 @@ if (!$requestRow) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DI PARMA | تفاصيل الطلب</title>
+<title>DI PARMA | <?= dp_t('Request details', 'تفاصيل الطلب') ?></title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
 <style>
 body{font-family:'Cairo',sans-serif;background:#0b0f17;color:#f7d76b;margin:0;padding:20px;}
@@ -147,115 +147,115 @@ textarea{width:100%;min-height:70px;border-radius:8px;padding:8px;margin-top:8px
 <body>
 <div class="container">
   <div class="nav">
-    <a href="index.php">&#8962; الرئيسية</a>
-    <a href="dashboard.php">لوحة التحكم</a>
-    <a href="approvals.php">الموافقات</a>
-    <a href="wallets.php">المحفظة</a>
-    <a href="invoices.php">الفواتير</a>
+    <a href="index.php">&#8962; <?= dp_t('Home', 'الرئيسية') ?></a>
+    <a href="dashboard.php"><?= dp_t('Dashboard', 'لوحة التحكم') ?></a>
+    <a href="approvals.php"><?= dp_t('Approvals', 'الموافقات') ?></a>
+    <a href="wallets.php"><?= dp_t('Wallet', 'المحفظة') ?></a>
+    <a href="invoices.php"><?= dp_t('Invoices', 'الفواتير') ?></a>
   </div>
 
   <div class="card">
-    <h2>تفاصيل الطلب</h2>
+    <h2><?= dp_t('Request details', 'تفاصيل الطلب') ?></h2>
     <?php if ($message): ?><div class="alert" style="color:<?= $messageType === 'success' ? '#7cf2a0' : ($messageType === 'error' ? '#ff8c8c' : '#fff') ?>;"><?= $message ?></div><?php endif; ?>
 
     <div class="grid">
       <div class="item">
-        <div class="label">المرجع</div>
+        <div class="label"><?= dp_t('Reference', 'المرجع') ?></div>
         <div class="value"><?= htmlspecialchars($requestRow['reference']) ?></div>
       </div>
       <div class="item">
-        <div class="label">النوع</div>
+        <div class="label"><?= dp_t('Type', 'النوع') ?></div>
         <div class="value"><?= htmlspecialchars($requestRow['type']) ?></div>
       </div>
       <div class="item">
-        <div class="label">المبلغ</div>
+        <div class="label"><?= dp_t('Amount', 'المبلغ') ?></div>
         <div class="value"><?= number_format((float)$requestRow['amount'], 2) ?> <?= htmlspecialchars($requestRow['currency']) ?></div>
       </div>
       <div class="item">
-        <div class="label">الحالة</div>
+        <div class="label"><?= dp_t('Status', 'الحالة') ?></div>
         <div class="value"><span class="badge"><?= htmlspecialchars($requestRow['status']) ?></span></div>
       </div>
     </div>
 
     <div class="grid" style="margin-top:12px;">
       <div class="item">
-        <div class="label">اسم المستخدم</div>
-        <div class="value"><?= htmlspecialchars($requestRow['username'] ?? 'غير معروف') ?></div>
+        <div class="label"><?= dp_t('Username', 'اسم المستخدم') ?></div>
+        <div class="value"><?= htmlspecialchars($requestRow['username'] ?? dp_t('Unknown', 'غير معروف')) ?></div>
       </div>
       <div class="item">
-        <div class="label">البريد</div>
+        <div class="label"><?= dp_t('Email', 'البريد') ?></div>
         <div class="value"><?= htmlspecialchars($requestRow['email'] ?? '-') ?></div>
       </div>
       <div class="item">
-        <div class="label">الاسم الكامل</div>
+        <div class="label"><?= dp_t('Full name', 'الاسم الكامل') ?></div>
         <div class="value"><?= htmlspecialchars(trim(($requestRow['first_name'] ?? '') . ' ' . ($requestRow['last_name'] ?? ''))) ?></div>
       </div>
       <div class="item">
-        <div class="label">تاريخ الإنشاء</div>
+        <div class="label"><?= dp_t('Created at', 'تاريخ الإنشاء') ?></div>
         <div class="value"><?= htmlspecialchars($requestRow['created_at']) ?></div>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px;">
-      <h3>البيانات المرتبطة بالمعاملة</h3>
+      <h3><?= dp_t('Linked transaction data', 'البيانات المرتبطة بالمعاملة') ?></h3>
       <div class="grid">
         <div class="item">
-          <div class="label">الحالة العامة للمعاملة</div>
+          <div class="label"><?= dp_t('Transaction status', 'الحالة العامة للمعاملة') ?></div>
           <div class="value"><?= htmlspecialchars($transactionRow['status'] ?? '-') ?></div>
         </div>
         <div class="item">
-          <div class="label">البوابة</div>
+          <div class="label"><?= dp_t('Gateway', 'البوابة') ?></div>
           <div class="value"><?= htmlspecialchars($transactionRow['gateway'] ?? '-') ?></div>
         </div>
         <div class="item">
-          <div class="label">طريقة الدفع</div>
+          <div class="label"><?= dp_t('Payment method', 'طريقة الدفع') ?></div>
           <div class="value"><?= htmlspecialchars($transactionRow['payment_method'] ?? '-') ?></div>
         </div>
         <div class="item">
-          <div class="label">رقم الفاتورة</div>
+          <div class="label"><?= dp_t('Invoice #', 'رقم الفاتورة') ?></div>
           <div class="value"><?= htmlspecialchars($invoiceRow['invoice_number'] ?? '-') ?></div>
         </div>
       </div>
       <div class="grid" style="margin-top:12px;">
         <div class="item">
-          <div class="label">حالة الفاتورة</div>
+          <div class="label"><?= dp_t('Invoice status', 'حالة الفاتورة') ?></div>
           <div class="value"><?= htmlspecialchars($invoiceRow['status'] ?? '-') ?></div>
         </div>
         <div class="item">
-          <div class="label">الوصف</div>
+          <div class="label"><?= dp_t('Description', 'الوصف') ?></div>
           <div class="value"><?= htmlspecialchars($transactionRow['description'] ?? $invoiceRow['description'] ?? '-') ?></div>
         </div>
         <div class="item">
-          <div class="label">البريد العميل</div>
+          <div class="label"><?= dp_t('Customer email', 'البريد العميل') ?></div>
           <div class="value"><?= htmlspecialchars($transactionRow['customer_email'] ?? '-') ?></div>
         </div>
         <div class="item">
-          <div class="label">رقم الهاتف</div>
+          <div class="label"><?= dp_t('Phone', 'رقم الهاتف') ?></div>
           <div class="value"><?= htmlspecialchars($transactionRow['customer_phone'] ?? '-') ?></div>
         </div>
       </div>
       <?php if (!empty($transactionRow['contract_service_name']) || !empty($transactionRow['contract_service_description']) || !empty($transactionRow['contract_delivery_method']) || !empty($transactionRow['contract_delivery_notes'])): ?>
         <div class="card" style="margin-top:16px;padding:14px;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);">
-          <h3>العقد الإلكتروني</h3>
-          <?php if (!empty($transactionRow['contract_service_name'])): ?><div class="item" style="margin-bottom:8px;"><div class="label">اسم الخدمة</div><div class="value"><?= htmlspecialchars($transactionRow['contract_service_name']) ?></div></div><?php endif; ?>
-          <?php if (!empty($transactionRow['contract_service_description'])): ?><div class="item" style="margin-bottom:8px;"><div class="label">وصف الخدمة</div><div class="value"><?= htmlspecialchars($transactionRow['contract_service_description']) ?></div></div><?php endif; ?>
-          <?php if (!empty($transactionRow['contract_delivery_method'])): ?><div class="item" style="margin-bottom:8px;"><div class="label">طريقة الاستلام</div><div class="value"><?= htmlspecialchars($transactionRow['contract_delivery_method']) ?></div></div><?php endif; ?>
-          <?php if (!empty($transactionRow['contract_delivery_notes'])): ?><div class="item"><div class="label">ملاحظات الاستلام</div><div class="value"><?= htmlspecialchars($transactionRow['contract_delivery_notes']) ?></div></div><?php endif; ?>
+          <h3><?= dp_t('Electronic contract', 'العقد الإلكتروني') ?></h3>
+          <?php if (!empty($transactionRow['contract_service_name'])): ?><div class="item" style="margin-bottom:8px;"><div class="label"><?= dp_t('Service name', 'اسم الخدمة') ?></div><div class="value"><?= htmlspecialchars($transactionRow['contract_service_name']) ?></div></div><?php endif; ?>
+          <?php if (!empty($transactionRow['contract_service_description'])): ?><div class="item" style="margin-bottom:8px;"><div class="label"><?= dp_t('Service description', 'وصف الخدمة') ?></div><div class="value"><?= htmlspecialchars($transactionRow['contract_service_description']) ?></div></div><?php endif; ?>
+          <?php if (!empty($transactionRow['contract_delivery_method'])): ?><div class="item" style="margin-bottom:8px;"><div class="label"><?= dp_t('Delivery method', 'طريقة الاستلام') ?></div><div class="value"><?= htmlspecialchars($transactionRow['contract_delivery_method']) ?></div></div><?php endif; ?>
+          <?php if (!empty($transactionRow['contract_delivery_notes'])): ?><div class="item"><div class="label"><?= dp_t('Delivery notes', 'ملاحظات الاستلام') ?></div><div class="value"><?= htmlspecialchars($transactionRow['contract_delivery_notes']) ?></div></div><?php endif; ?>
         </div>
       <?php endif; ?>
     </div>
 
     <div class="card" style="margin-top:16px;">
-      <h3>سجل الحركة (Ledger)</h3>
+      <h3><?= dp_t('Ledger', 'سجل الحركة') ?></h3>
       <?php if (!empty($ledgerRows)): ?>
         <table style="width:100%;border-collapse:collapse;margin-top:8px;">
           <thead>
             <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
-              <th style="text-align:right;padding:8px;">النوع</th>
-              <th style="text-align:right;padding:8px;">المبلغ</th>
-              <th style="text-align:right;padding:8px;">العملة</th>
-              <th style="text-align:right;padding:8px;">الوصف</th>
-              <th style="text-align:right;padding:8px;">التاريخ</th>
+              <th style="text-align:<?= is_ar() ? 'right' : 'left' ?>;padding:8px;"><?= dp_t('Type', 'النوع') ?></th>
+              <th style="text-align:<?= is_ar() ? 'right' : 'left' ?>;padding:8px;"><?= dp_t('Amount', 'المبلغ') ?></th>
+              <th style="text-align:<?= is_ar() ? 'right' : 'left' ?>;padding:8px;"><?= dp_t('Currency', 'العملة') ?></th>
+              <th style="text-align:<?= is_ar() ? 'right' : 'left' ?>;padding:8px;"><?= dp_t('Description', 'الوصف') ?></th>
+              <th style="text-align:<?= is_ar() ? 'right' : 'left' ?>;padding:8px;"><?= dp_t('Date', 'التاريخ') ?></th>
             </tr>
           </thead>
           <tbody>
@@ -271,30 +271,30 @@ textarea{width:100%;min-height:70px;border-radius:8px;padding:8px;margin-top:8px
           </tbody>
         </table>
       <?php else: ?>
-        <div class="alert">لا توجد سجلات حركة لهذا الطلب بعد.</div>
+        <div class="alert"><?= dp_t('No ledger entries for this request yet.', 'لا توجد سجلات حركة لهذا الطلب بعد.') ?></div>
       <?php endif; ?>
     </div>
 
     <?php if ($requestRow['status'] === 'pending'): ?>
       <div class="card" style="margin-top:16px;">
-        <h3>الإجراءات المباشرة</h3>
+        <h3><?= dp_t('Quick actions', 'الإجراءات المباشرة') ?></h3>
         <form method="POST" style="margin-bottom:10px;">
           <input type="hidden" name="id" value="<?= (int)$requestRow['id'] ?>">
-          <button class="btn btn-success" name="approve_request">قبول الطلب</button>
+          <button class="btn btn-success" name="approve_request"><?= dp_t('Approve request', 'قبول الطلب') ?></button>
           <?php if (!empty($requestRow['reference'])): ?>
-            <a href="receipt.php?ref=<?= urlencode($requestRow['reference']) ?>" class="btn btn-success" style="display:inline-block;text-decoration:none;">فتح صفحة المعاملة</a>
-            <a href="receipt.php?ref=<?= urlencode($requestRow['reference']) ?>" class="btn btn-danger" style="display:inline-block;text-decoration:none;">فتح الإيصال</a>
+            <a href="receipt.php?ref=<?= urlencode($requestRow['reference']) ?>" class="btn btn-success" style="display:inline-block;text-decoration:none;"><?= dp_t('Open transaction', 'فتح صفحة المعاملة') ?></a>
+            <a href="receipt.php?ref=<?= urlencode($requestRow['reference']) ?>" class="btn btn-danger" style="display:inline-block;text-decoration:none;"><?= dp_t('Open receipt', 'فتح الإيصال') ?></a>
           <?php endif; ?>
-          <a href="wallets.php" class="btn btn-success" style="display:inline-block;text-decoration:none;">فتح المحفظة</a>
-          <a href="invoices.php" class="btn btn-danger" style="display:inline-block;text-decoration:none;">فتح الفواتير</a>
-          <a href="user_profile.php?id=<?= (int)$requestRow['user_id'] ?>" class="btn btn-success" style="display:inline-block;text-decoration:none;">فتح بيانات المستخدم</a>
-          <a href="admin/users.php" class="btn btn-danger" style="display:inline-block;text-decoration:none;">فتح المستخدم في الإدارة</a>
+          <a href="wallets.php" class="btn btn-success" style="display:inline-block;text-decoration:none;"><?= dp_t('Open wallet', 'فتح المحفظة') ?></a>
+          <a href="invoices.php" class="btn btn-danger" style="display:inline-block;text-decoration:none;"><?= dp_t('Open invoices', 'فتح الفواتير') ?></a>
+          <a href="user_profile.php?id=<?= (int)$requestRow['user_id'] ?>" class="btn btn-success" style="display:inline-block;text-decoration:none;"><?= dp_t('Open user profile', 'فتح بيانات المستخدم') ?></a>
+          <a href="admin/users.php" class="btn btn-danger" style="display:inline-block;text-decoration:none;"><?= dp_t('Open user in admin', 'فتح المستخدم في الإدارة') ?></a>
         </form>
         <form method="POST">
           <input type="hidden" name="id" value="<?= (int)$requestRow['id'] ?>">
-          <label>سبب الرفض</label>
-          <textarea name="reason" placeholder="أدخل سبب الرفض..."></textarea>
-          <button class="btn btn-danger" name="reject_request">رفض الطلب</button>
+          <label><?= dp_t('Rejection reason', 'سبب الرفض') ?></label>
+          <textarea name="reason" placeholder="<?= htmlspecialchars(dp_t('Enter rejection reason...', 'أدخل سبب الرفض...')) ?>"></textarea>
+          <button class="btn btn-danger" name="reject_request"><?= dp_t('Reject request', 'رفض الطلب') ?></button>
         </form>
       </div>
     <?php endif; ?>

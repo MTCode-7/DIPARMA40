@@ -90,9 +90,14 @@ final class GatewayResponseFormatter
             'success'        => $success,
             'gateway'        => $gateway,
             'action'         => $action,
-            'protocol'       => $protocol,
+            'protocol'       => $protocol, // داخلي فقط
+            'protocol_label' => function_exists('protocol_display_name')
+                ? protocol_display_name($protocol)
+                : $protocol,
             'status'         => $status,
-            'message'        => $message,
+            'message'        => function_exists('redact_protocol_numbers')
+                ? redact_protocol_numbers($message)
+                : $message,
             // ── المبلغ والعملة ────────────────────────────────
             'amount'         => round($amount, 2),
             'currency'       => $currency,

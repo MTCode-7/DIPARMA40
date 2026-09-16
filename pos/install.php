@@ -64,7 +64,7 @@ window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); defe
 
 function qs() {
   const device = document.getElementById('device').value;
-  const tid = (document.getElementById('tid').value || 'T0000001').toUpperCase();
+  const tid = (document.getElementById('tid').value || '').toUpperCase();
   return 'kiosk=1&device=' + encodeURIComponent(device) + '&tid=' + encodeURIComponent(tid);
 }
 function line(cls, text) {

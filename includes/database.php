@@ -5,6 +5,21 @@
 
 require_once __DIR__ . '/config.php';
 
+if (!function_exists('dp_table')) {
+    function dp_table(string $name): string
+    {
+        $name = preg_replace('/[^A-Za-z0-9_]/', '', $name) ?? '';
+        $pfx = defined('DB_PREFIX') ? (string) DB_PREFIX : 'dp_';
+        if ($name === '') {
+            throw new InvalidArgumentException('Invalid table name');
+        }
+        if ($pfx !== '' && str_starts_with($name, $pfx)) {
+            return '`' . $name . '`';
+        }
+        return '`' . $pfx . $name . '`';
+    }
+}
+
 class Database {
     private static $instance = null;
     private $connection = null;
@@ -51,6 +66,12 @@ class Database {
             }
             $this->connection->exec("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'");
 
+            try {
+                require_once __DIR__ . '/schema_compat.php';
+                dp_ensure_schema_compat($this);
+            } catch (Throwable $e) {
+                error_log('[schema_compat] ' . $e->getMessage());
+            }
 
         } catch (PDOException $e) {
             // عرض صفحة خطأ مناسبة بدلاً من die() المجردة
@@ -123,19 +144,62 @@ p{color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:20px}
         }
     }
 
+    /**
+     * insert/update/find تضيف DB_PREFIX مرة واحدة.
+     * إن مُرّر dp_transactions أو DB_PREFIX.'transactions' لا تُضاف البادئة ثانية.
+     */
+    private function resolveTable($table): string
+    {
+        $table = trim((string) $table, " \t\n\r\0\x0B`");
+        if ($table === '' || !preg_match('/^[A-Za-z0-9_]+$/', $table)) {
+            throw new InvalidArgumentException('Invalid table name');
+        }
+        $pfx = defined('DB_PREFIX') ? (string) DB_PREFIX : '';
+        if ($pfx !== '' && str_starts_with($table, $pfx)) {
+            return '`' . $table . '`';
+        }
+        return '`' . $pfx . $table . '`';
+    }
+
     public function insert($table, $data) {
         $columns = array_keys($data);
         $placeholders = array_fill(0, count($columns), '?');
         
         $sql = sprintf(
             'INSERT INTO %s (%s) VALUES (%s)',
-            DB_PREFIX . $table,
+            $this->resolveTable($table),
             implode(', ', array_map(function($col) { return "`$col`"; }, $columns)),
             implode(', ', $placeholders)
         );
         
         $this->execute($sql, array_values($data));
         return $this->connection->lastInsertId();
+    }
+
+    /** Insert only columns that exist on the table (avoids unknown-column failures). */
+    public function insertAvailable($table, $data) {
+        $existing = [];
+        try {
+            $rows = $this->query('SHOW COLUMNS FROM ' . $this->resolveTable($table));
+            foreach ($rows as $row) {
+                $field = strtolower((string)($row['Field'] ?? ''));
+                if ($field !== '') {
+                    $existing[$field] = true;
+                }
+            }
+        } catch (Throwable $e) {
+            return $this->insert($table, $data);
+        }
+        $filtered = [];
+        foreach ($data as $col => $val) {
+            if (isset($existing[strtolower((string)$col)])) {
+                $filtered[$col] = $val;
+            }
+        }
+        if ($filtered === []) {
+            throw new RuntimeException('No matching columns for insert on ' . $table);
+        }
+        return $this->insert($table, $filtered);
     }
 
     public function update($table, $data, $where) {
@@ -151,7 +215,7 @@ p{color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:20px}
         
         $sql = sprintf(
             'UPDATE %s SET %s WHERE %s',
-            DB_PREFIX . $table,
+            $this->resolveTable($table),
             implode(', ', $set),
             $whereClause
         );
@@ -165,7 +229,7 @@ p{color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:20px}
         
         $sql = sprintf(
             'DELETE FROM %s WHERE %s',
-            DB_PREFIX . $table,
+            $this->resolveTable($table),
             $whereClause
         );
         
@@ -176,7 +240,7 @@ p{color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:20px}
         $params = [];
         $cols = $columns === ['*'] ? '*' : implode(', ', array_map(function($col) { return "`$col`"; }, $columns));
         
-        $sql = sprintf('SELECT %s FROM %s', $cols, DB_PREFIX . $table);
+        $sql = sprintf('SELECT %s FROM %s', $cols, $this->resolveTable($table));
         
         if (!empty($where)) {
             $sql .= ' WHERE ' . $this->buildWhere($where, $params);
@@ -230,6 +294,10 @@ p{color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:20px}
         return $this->connection->lastInsertId();
     }
 
+    public function getPDO() {
+        return $this->connection;
+    }
+
     public function getQueryCount() {
         return $this->queryCount;
     }
@@ -240,6 +308,15 @@ p{color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:20px}
 
     public function getQueries() {
         return $this->queries;
+    }
+
+    public function fetchAll($sql, $params = []) {
+        return $this->query($sql, $params);
+    }
+
+    public function fetchOne($sql, $params = []) {
+        $rows = $this->query($sql, $params);
+        return $rows[0] ?? null;
     }
 }
 

@@ -8,6 +8,11 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+$currentLang = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar') ? 'ar' : 'en';
+$pageDir = $currentLang === 'ar' ? 'rtl' : 'ltr';
+require_once __DIR__ . '/includes/lang.php';
+$ar = is_ar();
+
 // التحقق من تسجيل الدخول وصلاحية المدير
 if (empty($_SESSION['user_id'])) {
     header('Location: ' . SITE_URL . '/login.php');
@@ -27,7 +32,7 @@ $csrfToken = generateCsrfToken();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_password'])) {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $message = 'رمز CSRF غير صالح';
+        $message = dp_t('Invalid CSRF token', 'رمز CSRF غير صالح');
         $messageType = 'error';
     }
     $targetUsername = trim($_POST['username'] ?? 'admin');
@@ -36,20 +41,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_password'])) {
 
     if ($messageType === 'error') {
     } elseif (strlen($newPassword) < 8) {
-        $message = '❌ كلمة المرور يجب أن تكون 8 أحرف على الأقل';
+        $message = dp_t('❌ Password must be at least 8 characters', '❌ كلمة المرور يجب أن تكون 8 أحرف على الأقل');
         $messageType = 'error';
     } elseif ($newPassword !== $confirmPassword) {
-        $message = '❌ كلمتا المرور غير متطابقتين';
+        $message = dp_t('❌ Passwords do not match', '❌ كلمتا المرور غير متطابقتين');
         $messageType = 'error';
     } else {
         $hashed = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 12]);
         $rows   = $db->update('users', ['password_hash' => $hashed], ['username' => $targetUsername]);
 
         if ($rows > 0) {
-            $message = '✅ تم تغيير كلمة المرور بنجاح للمستخدم: ' . htmlspecialchars($targetUsername);
+            $message = dp_t('✅ Password changed successfully for user: ', '✅ تم تغيير كلمة المرور بنجاح للمستخدم: ') . htmlspecialchars($targetUsername);
             $messageType = 'success';
         } else {
-            $message = '❌ لم يتم العثور على المستخدم أو لم تتغير أي بيانات';
+            $message = dp_t('❌ User not found or no data changed', '❌ لم يتم العثور على المستخدم أو لم تتغير أي بيانات');
             $messageType = 'error';
         }
     }
@@ -59,11 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_password'])) {
 $users = $db->query('SELECT username FROM ' . DB_PREFIX . 'users ORDER BY username ASC');
 ?>
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="<?= htmlspecialchars($currentLang) ?>" dir="<?= htmlspecialchars($pageDir) ?>">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DI PARMA | تغيير كلمة المرور</title>
+    <title>DI PARMA | <?= dp_t('Change password', 'تغيير كلمة المرور') ?></title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -156,7 +161,7 @@ $users = $db->query('SELECT username FROM ' . DB_PREFIX . 'users ORDER BY userna
 </head>
 <body>
 <div class="card">
-    <h2>🔑 تغيير كلمة المرور</h2>
+    <h2>🔑 <?= dp_t('Change password', 'تغيير كلمة المرور') ?></h2>
 
     <?php if ($message): ?>
         <div class="alert alert-<?= $messageType ?>">
@@ -167,7 +172,7 @@ $users = $db->query('SELECT username FROM ' . DB_PREFIX . 'users ORDER BY userna
     <form method="POST">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
         <div class="form-group">
-            <label>المستخدم</label>
+            <label><?= dp_t('User', 'المستخدم') ?></label>
             <select name="username">
                 <?php foreach ($users as $u): ?>
                     <option value="<?= htmlspecialchars($u['username']) ?>">
@@ -177,17 +182,17 @@ $users = $db->query('SELECT username FROM ' . DB_PREFIX . 'users ORDER BY userna
             </select>
         </div>
         <div class="form-group">
-            <label>كلمة المرور الجديدة</label>
-            <input type="password" name="new_password" placeholder="8 أحرف على الأقل" required minlength="8">
+            <label><?= dp_t('New password', 'كلمة المرور الجديدة') ?></label>
+            <input type="password" name="new_password" placeholder="<?= dp_t('At least 8 characters', '8 أحرف على الأقل') ?>" required minlength="8">
         </div>
         <div class="form-group">
-            <label>تأكيد كلمة المرور</label>
-            <input type="password" name="confirm_password" placeholder="أعد كتابة كلمة المرور" required>
+            <label><?= dp_t('Confirm password', 'تأكيد كلمة المرور') ?></label>
+            <input type="password" name="confirm_password" placeholder="<?= dp_t('Re-enter password', 'أعد كتابة كلمة المرور') ?>" required>
         </div>
-        <button type="submit" class="btn">تغيير كلمة المرور</button>
+        <button type="submit" class="btn"><?= dp_t('Change password', 'تغيير كلمة المرور') ?></button>
     </form>
-    <a href="index.php" class="back-link" style="margin-bottom:6px;display:block;">← الرئيسية</a>
-    <a href="dashboard.php" class="back-link">← العودة إلى لوحة التحكم</a>
+    <a href="index.php" class="back-link" style="margin-bottom:6px;display:block;">← <?= dp_t('Home', 'الرئيسية') ?></a>
+    <a href="dashboard.php" class="back-link">← <?= dp_t('Back to dashboard', 'العودة إلى لوحة التحكم') ?></a>
 </div>
 </body>
 </html>

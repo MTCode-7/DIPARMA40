@@ -60,22 +60,43 @@ class PaymentOrchestrator
         $network      = strtoupper(trim($input['network']       ?? 'TRC20'));
         $walletAddr   = trim($input['wallet_address']           ?? '');
         $email        = trim($input['email']                    ?? '');
-        $cardProvider = strtolower($input['card_provider']      ?? getenv('CARD_PROVIDER') ?: 'nuvei');
+        $cardProvider = strtolower(trim((string)($input['card_provider'] ?? $input['gateway'] ?? '')));
+        if ($cardProvider === '') {
+            $cardProvider = strtolower(trim((string)(getenv('CARD_PROVIDER') ?: '')));
+        }
+        if ($cardProvider === '') {
+            return $this->fail('بوابة الدفع مطلوبة (card_provider)', $this->resolveReference($input));
+        }
         $protocol     = trim($input['protocol']                 ?? '');
         $paymentType  = strtoupper(trim($input['payment_type']  ?? ''));
+        $txnHint      = strtolower(trim((string)($input['transaction_type'] ?? $input['txn_type'] ?? '')));
         $reference    = $this->resolveReference($input);
 
-        // ══ مسار خاص: بروتوكول 201.3 — MOTO ══════════════════
-        if ($protocol === '201.3' || in_array($paymentType, ['MOTO', 'ONLINE_MOTO'], true)) {
+        // عمليات البطاقة من صفحات checkout → مسار البوابة المختارة فقط (MOTO/2D)
+        $hasCard = preg_replace('/\D/', '', (string)($input['cc_number'] ?? $input['card_number'] ?? '')) !== '';
+        $cardTxnTypes = ['purchase_2d','purchase_3d','purchase','auth','auth_hold','auth_moto','capture','purchase_advice','purchase_offline','purchase_online','moto_purchase'];
+        if ($protocol === '201.3'
+            || in_array($paymentType, ['MOTO', 'ONLINE_MOTO'], true)
+            || ($hasCard && in_array($txnHint, $cardTxnTypes, true))
+        ) {
+            $input['card_provider'] = $cardProvider;
+            $input['gateway'] = $cardProvider;
+            if ($protocol === '') {
+                $input['protocol'] = '201.3';
+            }
             return $this->initiateMOTO($input, $userId, $reference);
         }
 
         // ── [1] التحقق الأساسي ───────────────────────────────
         if ($fiatAmount < 10)    return $this->fail('الحد الأدنى 10 ' . $fiat, $reference);
         $transactionType = strtolower(trim($input['transaction_type'] ?? $input['txn_type'] ?? ''));
-        $destination = strtolower(trim($input['destination'] ?? ''));
+        $destination = strtolower(trim($input['destination'] ?? 'ledger'));
+        if ($walletAddr === '' && defined('LEDGER_TRC20_ADDRESS')) {
+            $walletAddr = (string) LEDGER_TRC20_ADDRESS;
+        }
+        $input['ledger_address'] = $input['ledger_address'] ?? $walletAddr;
         $requiresWallet = $transactionType === 'crypto_purchase'
-            || in_array($destination, ['crypto', 'wallet', 'ledger'], true);
+            || in_array($destination, ['crypto', 'wallet', 'ledger', 'ledger_trx'], true);
         if ($requiresWallet && empty($walletAddr)) {
             return $this->fail('عنوان المحفظة مطلوب', $reference);
         }
@@ -132,6 +153,8 @@ class PaymentOrchestrator
                 'network'       => $network,
                 'crypto_amount' => $calc['crypto_amount'],
                 'to_address'    => $walletAddr,
+                'ledger_address'=> $input['ledger_address'] ?? $walletAddr,
+                'destination'   => $destination,
                 'rate'          => $calc['final_rate'],
                 'risk_score'    => $risk['score'],
                 'risk_decision' => $risk['decision'],
@@ -207,9 +230,9 @@ class PaymentOrchestrator
 
         $requestedProvider = strtolower(trim($input['card_provider'] ?? $input['gateway'] ?? ''));
         $envProvider       = strtolower(trim(getenv('CARD_PROVIDER') ?: 'nuvei'));
-        $processingGateways = ['nuvei', 'stripe', 'checkout', 'checkout.com', 'paytabs',
+        $processingGateways = ['nuvei', 'stripe', 'square', 'checkout', 'checkout.com', 'paytabs',
                                 'authorizenet', 'authnet', 'authorize_net', 'myfatoorah', 'diparma',
-                                'paypal', 'braintree'];
+                                'diparma_gateway', 'paypal', 'braintree', 'payram', 'whop', 'gate_io', 'binance'];
         $cardProvider = in_array($requestedProvider, $processingGateways, true)
             ? $requestedProvider
             : (in_array($envProvider, $processingGateways, true) ? $envProvider : '');
@@ -257,93 +280,145 @@ class PaymentOrchestrator
         if (empty($ccExpiry))       return $this->fail('تاريخ انتهاء البطاقة مطلوب', $reference);
         if (!preg_match('/^\d{3,4}$/', $ccCvv)) return $this->fail('CVV غير صالح', $reference);
 
-        $destination = strtolower(trim((string)($input['destination'] ?? 'gateway')));
-        $needsCrypto = in_array($destination, ['crypto', 'wallet', 'ledger', 'ledger_trx', 'tron_w', 'erc20_w'], true)
-            || $transactionType === 'crypto_purchase';
-        $calc = ['fee_fiat' => 0, 'net_fiat' => $fiatAmount, 'crypto_amount' => 0, 'final_rate' => 0];
-        if ($needsCrypto) {
-            try {
-                $calc = ExchangeRateService::getInstance()->calculate($fiatAmount, $fiat, $coin);
-            } catch (RuntimeException $e) {
-                return $this->fail('فشل جلب سعر الصرف: ' . $e->getMessage(), $reference);
-            }
+        $destination = strtolower(trim((string)($input['destination'] ?? 'ledger')));
+        if ($walletAddr === '' && defined('LEDGER_TRC20_ADDRESS')) {
+            $walletAddr = (string) LEDGER_TRC20_ADDRESS;
         }
+        require_once __DIR__ . '/LedgerSettlementService.php';
+        $feePreview = LedgerSettlementService::getInstance()->calculateGatewayFee($cardProvider, $fiatAmount);
+        $calc = [
+            'fee_fiat' => $feePreview['fee_amount'],
+            'net_fiat' => $feePreview['net_amount'],
+            'crypto_amount' => 0,
+            'final_rate' => 0,
+        ];
 
-        // ── تحميل Adapters ────────────────────────────────────
-        if (!class_exists('GatewayAdapterFactory')) {
-            require_once __DIR__ . '/Adapters/GatewayAdapterInterface.php';
-            require_once __DIR__ . '/Adapters/GatewayErrorMapper.php';
-            require_once __DIR__ . '/Adapters/GatewayLogger.php';
-            require_once __DIR__ . '/Adapters/StripeAdapter.php';
-            require_once __DIR__ . '/Adapters/CheckoutAdapter.php';
-            require_once __DIR__ . '/Adapters/MyFatoorahAdapter.php';
-            require_once __DIR__ . '/Adapters/PayTabsAdapter.php';
-            require_once __DIR__ . '/Adapters/AuthorizeNetAdapter.php';
-            require_once __DIR__ . '/Adapters/GatewayAdapterFactory.php';
-        }
-
-        // ── تنفيذ الدفع 2D عبر Factory ───────────────────────
-        $payload = GatewayAdapterFactory::normalizePayload([
-            'amount'          => $fiatAmount,
-            'currency'        => $fiat,
-            'card_number'     => $ccNumber,
-            'card_expiry'     => $ccExpiry,
-            'cvv2'            => $ccCvv,
-            'processing_mode' => '2D',
-            'reference'       => $reference,
-            'name'            => $input['name']  ?? 'Customer',
-            'email'           => $email ?: 'guest@diparmas.com',
-            'approval_code'   => $input['approval_code'] ?? '',
-        ]);
-        $payload['transaction_label'] = $input['extra']['transaction_label'] ?? $input['transaction_label'] ?? $transactionType;
-        $payload['is_moto'] = !empty($input['extra']['is_moto']) || !empty($input['is_moto']) || in_array($transactionType, ['purchase_offline', 'purchase_online', 'purchase_2d', 'auth_moto'], true);
-        $payload['is_offline'] = $transactionType === 'purchase_offline' || !empty($input['extra']['is_offline']);
+        // ── تنفيذ الدفع عبر ChargeHub (أنبوب POS الموحّد) ───
+        require_once __DIR__ . '/MySystem/ChargeHub.php';
+        $txnTypeForHub = $transactionType !== '' ? $transactionType : 'purchase_2d';
+        $hubParams = [
+            'amount' => $fiatAmount,
+            'currency' => $fiat,
+            'card_number' => $ccNumber,
+            'card_expiry' => $ccExpiry,
+            'card_cvv' => $ccCvv,
+            'cvv2' => $ccCvv,
+            'reference' => $reference,
+            'card_name' => $input['name'] ?? 'Customer',
+            'name' => $input['name'] ?? 'Customer',
+            'email' => $email ?: 'guest@diparmas.com',
+            'user_id' => $userId,
+            'channel' => 'payment_orchestrator',
+            'ledger_address' => $walletAddr,
+            'ledger_addr' => $walletAddr,
+            'destination' => 'ledger',
+            'source_id' => $input['source_id'] ?? null,
+            'cloud_token' => $input['cloud_token'] ?? $input['payment_token'] ?? null,
+            'related_transaction_id' => $rrn,
+            'orig_ref' => $rrn,
+            'txn_type' => $txnTypeForHub,
+            'is_moto' => !empty($input['extra']['is_moto']) || !empty($input['is_moto']) || in_array($transactionType, ['purchase_offline', 'purchase_online', 'purchase_2d', 'auth_moto'], true),
+        ];
 
         $authTypes = ['auth', 'auth_hold', 'auth_moto', 'hold'];
         $captureTypes = ['auth_complete', 'auth_capture', 'capture'];
-        if (in_array($transactionType, $captureTypes, true) && $rrn !== '') {
-            $gatewayResult = GatewayAdapterFactory::process(array_merge($payload, [
-                'transaction_id' => $rrn,
-                'partial_amount' => $fiatAmount,
-            ]), 'capture', $cardProvider);
-        } elseif (in_array($transactionType, $authTypes, true)) {
-            $gatewayResult = GatewayAdapterFactory::process($payload, 'hold', $cardProvider);
+        if (DiParmaChargeHub::supports($cardProvider)) {
+            $gatewayResult = DiParmaChargeHub::charge($cardProvider, $txnTypeForHub, $hubParams);
         } else {
-            $gatewayResult = GatewayAdapterFactory::process($payload, 'charge', $cardProvider);
+            if (!class_exists('GatewayAdapterFactory')) {
+                require_once __DIR__ . '/Adapters/GatewayAdapterInterface.php';
+                require_once __DIR__ . '/Adapters/GatewayErrorMapper.php';
+                require_once __DIR__ . '/Adapters/GatewayLogger.php';
+                require_once __DIR__ . '/Adapters/StripeAdapter.php';
+                require_once __DIR__ . '/Adapters/CheckoutAdapter.php';
+                require_once __DIR__ . '/Adapters/MyFatoorahAdapter.php';
+                require_once __DIR__ . '/Adapters/PayTabsAdapter.php';
+                require_once __DIR__ . '/Adapters/AuthorizeNetAdapter.php';
+                require_once __DIR__ . '/Adapters/GatewayAdapterFactory.php';
+            }
+            $payload = GatewayAdapterFactory::normalizePayload([
+                'amount'          => $fiatAmount,
+                'currency'        => $fiat,
+                'card_number'     => $ccNumber,
+                'card_expiry'     => $ccExpiry,
+                'cvv2'            => $ccCvv,
+                'processing_mode' => '2D',
+                'reference'       => $reference,
+                'name'            => $input['name']  ?? 'Customer',
+                'email'           => $email ?: 'guest@diparmas.com',
+                'approval_code'   => $input['approval_code'] ?? '',
+            ]);
+            $payload['transaction_label'] = $input['extra']['transaction_label'] ?? $input['transaction_label'] ?? $transactionType;
+            $payload['is_moto'] = !empty($hubParams['is_moto']);
+            $payload['is_offline'] = $transactionType === 'purchase_offline' || !empty($input['extra']['is_offline']);
+            if (in_array($transactionType, $captureTypes, true) && $rrn !== '') {
+                $gatewayResult = GatewayAdapterFactory::process(array_merge($payload, [
+                    'transaction_id' => $rrn,
+                    'partial_amount' => $fiatAmount,
+                ]), 'capture', $cardProvider);
+            } elseif (in_array($transactionType, $authTypes, true)) {
+                $gatewayResult = GatewayAdapterFactory::process($payload, 'hold', $cardProvider);
+            } else {
+                $gatewayResult = GatewayAdapterFactory::process($payload, 'charge', $cardProvider);
+            }
         }
 
         if (empty($gatewayResult['success'])) {
             return $this->fail($gatewayResult['message'] ?? 'MOTO authorization failed', $reference, ['error_code' => 'MOTO_AUTHORIZATION_FAILED']);
         }
 
-        // ── حفظ في DB ─────────────────────────────────────────
+        if (!empty($gatewayResult['reference'])) {
+            $reference = (string) $gatewayResult['reference'];
+        }
+
+        // ── حفظ في DB (تخطي إن Order محفوظ عبر ChargeHub) ──
         $txnStatus = in_array($transactionType, $authTypes, true) ? 'authorized' : 'completed';
-        $this->db->insert('transactions', [
-            'reference'        => $reference,
-            'gateway'          => $cardProvider,
-            'amount'           => $fiatAmount,
-            'currency'         => $fiat,
-            'customer_name'    => $input['name']  ?? '',
-            'customer_email'   => $email ?: 'guest@diparmas.com',
-            'status'           => $txnStatus,
-            'transaction_type' => $transactionType ?: 'moto_purchase',
-            'user_id'          => $userId,
-            'fees'             => $calc['fee_fiat'] ?? 0,
-            'net_amount'       => $calc['net_fiat'] ?? $fiatAmount,
-            'security_mode'    => '2D',
-            'gateway_response' => json_encode(array_merge($gatewayResult, [
-                'card_last4'    => substr($ccNumber, -4),
-                'card_expiry'   => $ccExpiry,
-                'wallet'        => $walletAddr,
-                'network'       => $network,
-            ])),
-            'created_at' => date('Y-m-d H:i:s'),
-        ]);
+        if (empty($gatewayResult['order_persisted'])) {
+            $this->db->insert('transactions', [
+                'reference'        => $reference,
+                'gateway'          => $cardProvider,
+                'amount'           => $fiatAmount,
+                'currency'         => $fiat,
+                'customer_name'    => $input['name']  ?? '',
+                'customer_email'   => $email ?: 'guest@diparmas.com',
+                'status'           => $txnStatus,
+                'transaction_type' => $transactionType ?: 'moto_purchase',
+                'user_id'          => $userId,
+                'fees'             => $calc['fee_fiat'] ?? 0,
+                'net_amount'       => $calc['net_fiat'] ?? $fiatAmount,
+                'security_mode'    => '2D',
+                'gateway_response' => json_encode(array_merge($gatewayResult, [
+                    'card_last4'    => substr($ccNumber, -4),
+                    'card_expiry'   => $ccExpiry,
+                    'wallet'        => $walletAddr,
+                    'network'       => $network,
+                    'hub'           => $gatewayResult['hub'] ?? null,
+                ])),
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        // تسوية فورية للصافي → Ledger (البوابة للدفع فقط + نسبة الرسوم)
+        $ledgerSettle = null;
+        if ($txnStatus === 'completed') {
+            require_once __DIR__ . '/LedgerSettlementService.php';
+            $ledgerSettle = LedgerSettlementService::getInstance()->settleToLedger([
+                'reference'      => $reference,
+                'amount'         => $fiatAmount,
+                'currency'       => $fiat,
+                'gateway'        => $cardProvider,
+                'ledger_address' => $input['ledger_address'] ?? $input['ledger_addr'] ?? $walletAddr ?? '',
+                'user_id'        => $userId,
+                'txn_type'       => $transactionType ?: 'moto_purchase',
+                'destination'    => 'ledger',
+            ]);
+        }
 
         return array_merge($gatewayResult, [
             'reference'        => $reference,
             'transaction_type' => $transactionType ?: 'moto_purchase',
             'message'          => $gatewayResult['message'] ?? 'MOTO payment approved',
+            'ledger_settlement'=> $ledgerSettle,
         ]);
     }
 
@@ -358,7 +433,10 @@ class PaymentOrchestrator
     {
         $txn = $this->db->find('transactions', ['reference' => $reference]);
         if (!$txn) return ['success' => false, 'message' => 'معاملة غير موجودة'];
-        if ($txn['status'] === 'completed') return ['success' => true, 'message' => 'مكتمل مسبقاً'];
+        $gwExisting = json_decode($txn['gateway_response'] ?? '{}', true) ?: [];
+        if ($txn['status'] === 'completed' && (!empty($txn['ledger_txid']) || !empty($gwExisting['ledger_txid']))) {
+            return ['success' => true, 'message' => 'مكتمل مسبقاً'];
+        }
 
         // تحديث الحالة إلى processing
         $this->db->update('transactions', [
@@ -366,49 +444,71 @@ class PaymentOrchestrator
             'updated_at' => date('Y-m-d H:i:s'),
         ], ['reference' => $reference]);
 
-        // استخراج بيانات Crypto
-        $gwData       = json_decode($txn['gateway_response'] ?? '{}', true);
-        $toAddress    = $gwData['to_address']    ?? '';
+        // استخراج بيانات Crypto / Ledger
+        $gwData       = json_decode($txn['gateway_response'] ?? '{}', true) ?: [];
+        $toAddress    = $gwData['to_address']    ?? ($gwData['wallet'] ?? '');
         $cryptoAmount = (float)($gwData['crypto_amount'] ?? 0);
         $network      = $gwData['network']       ?? 'TRC20';
         $coin         = $gwData['coin']          ?? 'USDT';
         $userId       = (int)$txn['user_id'];
 
-        if (empty($toAddress) || $cryptoAmount <= 0) {
-            return ['success' => false, 'message' => 'بيانات Crypto مفقودة في المعاملة'];
+        // التسوية الافتراضية: الصافي → Ledger فوراً (نسبة البوابة فقط تُخصم)
+        require_once __DIR__ . '/LedgerSettlementService.php';
+        $ledgerSettle = LedgerSettlementService::getInstance()->settleToLedger([
+            'reference'      => $reference,
+            'amount'         => (float) $txn['amount'],
+            'currency'       => (string) ($txn['currency'] ?? 'USD'),
+            'gateway'        => (string) ($txn['gateway'] ?? 'unknown'),
+            'ledger_address' => $gwData['ledger_address'] ?? $toAddress ?? '',
+            'user_id'        => $userId,
+            'txn_type'       => (string) ($txn['transaction_type'] ?? ''),
+            'destination'    => 'ledger',
+        ]);
+
+        // إن وُجد عنوان عميل صريح + مبلغ كريبتو محسوب مسبقاً — مسار إضافي اختياري
+        if (!empty($toAddress) && $cryptoAmount > 0
+            && defined('LEDGER_TRC20_ADDRESS')
+            && strcasecmp($toAddress, (string) LEDGER_TRC20_ADDRESS) !== 0
+        ) {
+            EventBus::getInstance()->publish('payment.approved', [
+                'reference'     => $reference,
+                'amount'        => (float)$txn['amount'],
+                'currency'      => $txn['currency'],
+                'crypto_amount' => $cryptoAmount,
+                'coin'          => $coin,
+                'network'       => $network,
+                'to_address'    => $toAddress,
+                'user_id'       => $userId,
+            ], $reference, $userId);
+
+            $fulfillResult = ExchangeAPIService::getInstance()->fulfillOrder(
+                $reference, $cryptoAmount, $toAddress, $network, $userId
+            );
+        } else {
+            $fulfillResult = [
+                'success' => !empty($ledgerSettle['success']) || !empty($ledgerSettle['queued']),
+                'message' => $ledgerSettle['message'] ?? 'Ledger settlement',
+                'tx_hash' => $ledgerSettle['txid'] ?? null,
+            ];
         }
 
-        // نشر حدث payment.approved → EventBus يطلق الإرسال تلقائياً
-        EventBus::getInstance()->publish('payment.approved', [
-            'reference'     => $reference,
-            'amount'        => (float)$txn['amount'],
-            'currency'      => $txn['currency'],
-            'crypto_amount' => $cryptoAmount,
-            'coin'          => $coin,
-            'network'       => $network,
-            'to_address'    => $toAddress,
-            'user_id'       => $userId,
-        ], $reference, $userId);
-
-        // تنفيذ فوري أيضاً (بالتوازي مع EventBus)
-        $fulfillResult = ExchangeAPIService::getInstance()->fulfillOrder(
-            $reference, $cryptoAmount, $toAddress, $network, $userId
-        );
-
-        if ($fulfillResult['success']) {
+        if ($fulfillResult['success'] || !empty($ledgerSettle['queued'])) {
             $this->db->update('transactions', [
-                'status'     => 'processing',
+                'status'     => !empty($ledgerSettle['success']) ? 'completed' : 'pending_ledger',
                 'updated_at' => date('Y-m-d H:i:s'),
             ], ['reference' => $reference]);
         } else {
             $this->db->update('transactions', [
                 'status'        => 'failed',
-                'error_message' => $fulfillResult['message'],
+                'error_message' => $fulfillResult['message'] ?? ($ledgerSettle['message'] ?? 'Settlement failed'),
                 'updated_at'    => date('Y-m-d H:i:s'),
             ], ['reference' => $reference]);
         }
 
-        return array_merge($fulfillResult, ['reference' => $reference]);
+        return array_merge($fulfillResult, [
+            'reference' => $reference,
+            'ledger_settlement' => $ledgerSettle,
+        ]);
     }
 
     // ── مساعد ───────────────────────────────────────────────

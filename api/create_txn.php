@@ -211,7 +211,7 @@ switch ($gateway) {
             'CurrencyIso'          => $currency,
             'CustomerEmail'        => $email,
             'CallBackUrl'          => getenv('APP_URL').'/crypto_confirm.php',
-            'ErrorUrl'             => getenv('APP_URL').'/checkout.php',
+            'ErrorUrl'             => getenv('APP_URL').'/checkout_router.php',
             'Language'             => 'en',
             'CustomerReference'    => $ref,
         ]);

@@ -21,6 +21,7 @@ function dp_create_crypto_tables(): void {
         `encrypted_key`   TEXT         DEFAULT NULL COMMENT 'مشفّر بـ AES-256',
         `status`          VARCHAR(20)  NOT NULL DEFAULT 'active',
         `created_at`      DATETIME     NOT NULL,
+        `updated_at`      DATETIME     NULL DEFAULT NULL,
         UNIQUE KEY `uniq_user_network_coin` (`user_id`, `network`, `coin`),
         INDEX `idx_address` (`address`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");

@@ -24,7 +24,7 @@ header('Content-Type: application/json; charset=utf-8');
 // مصادقة
 if (empty($_SESSION['user_id'])) {
     http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'غير مصرّح']);
+    echo json_encode(['success' => false, 'message' => dp_t('Unauthorized', 'غير مصرّح')]);
     exit();
 }
 
@@ -73,12 +73,12 @@ try {
         case 'buy':
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 http_response_code(405);
-                echo json_encode(['success' => false, 'message' => 'POST مطلوب']);
+                echo json_encode(['success' => false, 'message' => dp_t('POST required', 'POST مطلوب')]);
                 break;
             }
             if (!verifyCsrfToken($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) {
                 http_response_code(403);
-                echo json_encode(['success' => false, 'message' => 'رمز CSRF غير صالح']);
+                echo json_encode(['success' => false, 'message' => dp_t('Invalid CSRF token', 'رمز CSRF غير صالح')]);
                 break;
             }
             $payload = json_decode(file_get_contents('php://input'), true) ?: $_POST;
@@ -89,12 +89,12 @@ try {
         case 'sell':
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 http_response_code(405);
-                echo json_encode(['success' => false, 'message' => 'POST مطلوب']);
+                echo json_encode(['success' => false, 'message' => dp_t('POST required', 'POST مطلوب')]);
                 break;
             }
             if (!verifyCsrfToken($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) {
                 http_response_code(403);
-                echo json_encode(['success' => false, 'message' => 'رمز CSRF غير صالح']);
+                echo json_encode(['success' => false, 'message' => dp_t('Invalid CSRF token', 'رمز CSRF غير صالح')]);
                 break;
             }
             $payload = json_decode(file_get_contents('php://input'), true) ?: $_POST;
@@ -105,17 +105,17 @@ try {
         case 'fiat_confirmed':
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
                 http_response_code(405);
-                echo json_encode(['success' => false, 'message' => 'POST مطلوب']);
+                echo json_encode(['success' => false, 'message' => dp_t('POST required', 'POST مطلوب')]);
                 break;
             }
             if (!verifyCsrfToken($_POST['csrf_token'] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) {
                 http_response_code(403);
-                echo json_encode(['success' => false, 'message' => 'رمز CSRF غير صالح']);
+                echo json_encode(['success' => false, 'message' => dp_t('Invalid CSRF token', 'رمز CSRF غير صالح')]);
                 break;
             }
             $reference = trim($_GET['reference'] ?? $_POST['reference'] ?? '');
             if (empty($reference)) {
-                echo json_encode(['success' => false, 'message' => 'reference مطلوب']);
+                echo json_encode(['success' => false, 'message' => dp_t('reference is required', 'reference مطلوب')]);
                 break;
             }
             echo json_encode($gateway->onFiatPaymentConfirmed($reference), JSON_UNESCAPED_UNICODE);
@@ -129,12 +129,12 @@ try {
 
         default:
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'action غير معروف: ' . $action]);
+            echo json_encode(['success' => false, 'message' => dp_t('Unknown action: ', 'action غير معروف: ') . $action]);
     }
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'message' => APP_IS_LOCAL ? $e->getMessage() : 'خطأ داخلي في الخادم',
+        'message' => APP_IS_LOCAL ? $e->getMessage() : dp_t('Internal server error', 'خطأ داخلي في الخادم'),
     ], JSON_UNESCAPED_UNICODE);
 }

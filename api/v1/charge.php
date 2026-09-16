@@ -15,10 +15,10 @@
  * {
  *   "amount":       100.00,
  *   "currency":     "USD",
- *   "card_number":  "4111111111111111",
- *   "card_name":    "JOHN DOE",
- *   "card_expiry":  "12/26",
- *   "card_cvv":     "123",
+ *   "card_number":  "REAL_PAN",
+ *   "card_name":    "CARDHOLDER",
+ *   "card_expiry":  "MM/YY",
+ *   "card_cvv":     "CVV",
  *   "txn_type":     "purchase|auth|refund|void",
  *   "sec_mode":     "3D|2D",
  *   "ledger_address": "TEwLFW...",   // اختياري — يستخدم الـ default
@@ -160,25 +160,37 @@ try {
     error_log('[API/charge] DB: ' . $e->getMessage());
 }
 
-// ── تحويل للـ Ledger بعد النجاح ─────────────────────────────
+// ── تسوية فورية للصافي → Ledger (خصم نسبة البوابة فقط) ──
 $ledgerTxid   = null;
 $ledgerStatus = 'pending';
+$ledgerSettle = null;
 
-if ($success && !empty($ledgerAddr)) {
-    // إضافة لـ queue التحويل
+if ($success && $txnType !== 'auth' && $txnType !== 'void' && $txnType !== 'refund') {
     try {
-        $db->insert('ledger_transfer_queue', [
+        require_once __DIR__ . '/../../lib/LedgerSettlementService.php';
+        $ledgerSettle = LedgerSettlementService::getInstance()->settleToLedger([
             'reference'      => $reference,
+            'amount'         => $amount,
+            'currency'       => $currency,
+            'gateway'        => 'nuvei',
             'ledger_address' => $ledgerAddr,
-            'usdt_amount'    => $amount,
-            'currency_orig'  => $currency,
-            'status'         => 'queued',
-            'txid'           => null,
-            'created_at'     => date('Y-m-d H:i:s'),
+            'user_id'        => (int)($client['user_id'] ?? 0),
+            'txn_type'       => $txnType === 'purchase' ? 'purchase_2d' : $txnType,
+            'destination'    => 'ledger',
         ]);
-        $ledgerStatus = 'queued';
-    } catch (Exception $e) {
-        $ledgerStatus = 'not_queued';
+        $ledgerTxid = $ledgerSettle['txid'] ?? null;
+        if (!empty($ledgerSettle['success']) && empty($ledgerSettle['skipped'])) {
+            $ledgerStatus = 'completed';
+        } elseif (!empty($ledgerSettle['queued'])) {
+            $ledgerStatus = 'queued';
+        } elseif (!empty($ledgerSettle['skipped'])) {
+            $ledgerStatus = 'skipped';
+        } else {
+            $ledgerStatus = 'failed';
+        }
+    } catch (Throwable $e) {
+        $ledgerStatus = 'failed';
+        error_log('[API/charge] Ledger: ' . $e->getMessage());
     }
 }
 
@@ -245,6 +257,10 @@ $response = [
     'message'        => $result['message']        ?? ($success ? 'Approved' : 'Declined'),
     'ledger_address' => $ledgerAddr,
     'ledger_status'  => $ledgerStatus,
+    'ledger_txid'    => $ledgerTxid,
+    'gateway_fee'    => $ledgerSettle['fee'] ?? null,
+    'net_amount'     => $ledgerSettle['net_fiat'] ?? null,
+    'ledger_usdt'    => $ledgerSettle['usdt_amount'] ?? null,
     'duration_ms'    => $durationMs,
     'timestamp'      => date('c'),
 ];

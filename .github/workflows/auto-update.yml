@@ -1,0 +1,23 @@
+name: Auto Update production
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  notify-production:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger diparmas.com auto-update
+        env:
+          AUTO_UPDATE_SECRET: ${{ secrets.AUTO_UPDATE_SECRET }}
+        run: |
+          if [ -z "$AUTO_UPDATE_SECRET" ]; then
+            echo "AUTO_UPDATE_SECRET is not set — skipping live pull ping"
+            exit 0
+          fi
+          curl -fsS -X POST "https://diparmas.com/api/auto_update.php" \
+            -H "Content-Type: application/json" \
+            -H "X-Auto-Update-Token: ${AUTO_UPDATE_SECRET}" \
+            -d "{\"ref\":\"refs/heads/${GITHUB_REF_NAME}\",\"reason\":\"github-actions\",\"sha\":\"${GITHUB_SHA}\"}"

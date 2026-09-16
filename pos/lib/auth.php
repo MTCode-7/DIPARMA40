@@ -140,7 +140,7 @@ function pos_restore_operator(): bool
         pos_clear_device_token();
         return false;
     }
-    pos_bind_session($user, (string)($token['tid'] ?? 'T0000001'), (string)($token['model'] ?? 'bitel_ic3600'));
+    pos_bind_session($user, pos_normalize_terminal_id((string)($token['tid'] ?? '')), (string)($token['model'] ?? ''));
     return true;
 }
 

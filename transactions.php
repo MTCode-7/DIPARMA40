@@ -16,6 +16,7 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/gateways.php';
 requireAdmin();
 
+$ar = function_exists('is_ar') ? is_ar() : (($currentLang ?? 'en') === 'ar');
 $db = db();
 $csrfToken = generateCsrfToken();
 dp_ensure_indexes();
@@ -697,6 +698,11 @@ $totalPages = ceil($totalTransactions / $limit);
                 <span style="font-size:0.7rem;color:#888;">
                     Showing <?= count($transactions) ?> of <?= number_format($totalTransactions) ?>
                 </span>
+                <?php if (($transactionStats['failed'] ?? 0) > 0): ?>
+                <button type="button" class="btn btn-danger btn-sm" onclick="clearFailedTxns()">
+                    <i class="fas fa-trash"></i> Clear Failed (<?= (int)$transactionStats['failed'] ?>)
+                </button>
+                <?php endif; ?>
                 <a href="?export=csv&<?= http_build_query($_GET) ?>" class="btn btn-success btn-sm">
                     <i class="fas fa-file-csv"></i> Export
                 </a>
@@ -719,15 +725,15 @@ $totalPages = ceil($totalTransactions / $limit);
                             <th>Gateway</th>
                             <th>Protocol</th>
                             <th>Status</th>
+                            <th>Operation</th>
                             <th>Date</th>
-                                <th>Operation</th>
-                                <th>Contract</th>
-                                <th>Action</th>
+                            <th>Contract</th>
+                            <th>Edit / Delete</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($transactions as $tx): ?>
-                            <tr>
+                            <tr data-id="<?= (int)$tx['id'] ?>">
                                 <td>
                                     <a href="receipt.php?ref=<?= urlencode($tx['reference']) ?>" class="ref-link">
                                         <?= htmlspecialchars($tx['reference']) ?>
@@ -757,11 +763,11 @@ $totalPages = ceil($totalTransactions / $limit);
                                 </td>
                                 <td>
                                     <span class="protocol-badge" style="font-size:0.6rem;color:var(--gold);">
-                                        <?= htmlspecialchars($tx['protocol']) ?>
+                                        <?= htmlspecialchars(function_exists('protocol_display_name') ? protocol_display_name($tx['protocol'] ?? '') : ($tx['protocol'] ?? '')) ?>
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="status-badge status-<?= $tx['status'] ?>">
+                                    <span class="status-badge status-<?= htmlspecialchars($tx['status']) ?>">
                                         <?= getStatusLabel($tx['status']) ?>
                                     </span>
                                 </td>
@@ -776,28 +782,53 @@ $totalPages = ceil($totalTransactions / $limit);
                                 </td>
                                 <td>
                                     <?php if (!empty($tx['has_contract'])): ?>
-                                        <a href="contract_print.php?ref=<?= urlencode($tx['reference']) ?>" class="btn btn-outline btn-sm" title="عرض العقد">
+                                        <a href="contract_print.php?ref=<?= urlencode($tx['reference']) ?>" class="btn btn-outline btn-sm" title="<?= $ar ? 'عرض العقد' : 'View contract' ?>">
                                             <i class="fas fa-file-contract"></i>
                                         </a>
-                                        <a href="contract_pdf.php?ref=<?= urlencode($tx['reference']) ?>" class="btn btn-outline btn-sm" title="تنزيل PDF">
+                                        <a href="contract_pdf.php?ref=<?= urlencode($tx['reference']) ?>" class="btn btn-outline btn-sm" title="<?= $ar ? 'تنزيل PDF' : 'Download PDF' ?>">
                                             <i class="fas fa-file-pdf"></i>
                                         </a>
                                     <?php else: ?>
                                         —
                                     <?php endif; ?>
-                                    <a href="receipt.php?ref=<?= urlencode($tx['reference']) ?>" class="btn btn-info btn-sm" title="عرض الإيصال">
+                                    <a href="receipt.php?ref=<?= urlencode($tx['reference']) ?>" class="btn btn-info btn-sm" title="<?= $ar ? 'عرض الإيصال' : 'View receipt' ?>">
                                         <i class="fas fa-receipt"></i>
                                     </a>
                                     <?php if ($tx['status'] === 'pending'): ?>
-                                        <button onclick="updateStatus('<?= $tx['reference'] ?>')" class="btn btn-primary btn-sm" title="تحديث الحالة">
+                                        <button type="button" onclick="updateStatus('<?= htmlspecialchars($tx['reference'], ENT_QUOTES) ?>')" class="btn btn-primary btn-sm" title="<?= $ar ? 'تحديث الحالة' : 'Refresh status' ?>">
                                             <i class="fas fa-sync"></i>
                                         </button>
                                     <?php endif; ?>
                                     <?php if (!in_array($tx['status'], ['refunded','chargeback','failed'], true)): ?>
-                                        <button type="button" class="btn btn-danger btn-sm" onclick="processRefund('<?= htmlspecialchars($tx['reference']) ?>', '<?= number_format((float)($tx['amount'] ?? 0), 2, '.', '') ?>')" title="استرداد المبلغ">
+                                        <button type="button" class="btn btn-danger btn-sm" onclick="processRefund('<?= htmlspecialchars($tx['reference'], ENT_QUOTES) ?>', '<?= number_format((float)($tx['amount'] ?? 0), 2, '.', '') ?>')" title="<?= $ar ? 'استرداد المبلغ' : 'Refund' ?>">
                                             <i class="fas fa-undo-alt"></i>
                                         </button>
                                     <?php endif; ?>
+                                </td>
+                                <td>
+                                    <div class="txn-manage" style="display:flex;flex-direction:column;gap:6px;min-width:160px;">
+                                        <select class="txn-edit-status" style="font-size:.7rem;padding:4px;border-radius:6px;background:#0a1020;color:var(--text-gold);border:1px solid rgba(255,215,0,.2);">
+                                            <?php foreach (['pending','authorized','captured','settled','completed','failed','refunded','chargeback','cancelled'] as $stOpt): ?>
+                                                <option value="<?= $stOpt ?>" <?= ($tx['status'] === $stOpt) ? 'selected' : '' ?>><?= htmlspecialchars($stOpt) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <input type="number" step="0.01" class="txn-edit-amount" value="<?= htmlspecialchars((string)$tx['amount']) ?>"
+                                               style="font-size:.7rem;padding:4px;border-radius:6px;background:#0a1020;color:var(--text-gold);border:1px solid rgba(255,215,0,.2);"
+                                               title="Amount">
+                                        <input type="text" class="txn-edit-name" value="<?= htmlspecialchars($tx['customer_name'] ?? '') ?>"
+                                               placeholder="Customer"
+                                               style="font-size:.7rem;padding:4px;border-radius:6px;background:#0a1020;color:var(--text-gold);border:1px solid rgba(255,215,0,.2);">
+                                        <div style="display:flex;gap:4px;">
+                                            <button type="button" class="btn btn-success btn-sm" title="Save"
+                                                    onclick="saveTxnRow(this, <?= (int)$tx['id'] ?>)">
+                                                <i class="fas fa-save"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-danger btn-sm" title="Delete"
+                                                    onclick="deleteTxnRow(<?= (int)$tx['id'] ?>, '<?= htmlspecialchars($tx['reference'], ENT_QUOTES) ?>')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -846,8 +877,9 @@ $totalPages = ceil($totalTransactions / $limit);
 // ============================================================
 // تحديث حالة المعاملة
 // ============================================================
+const UI_AR = <?= $ar ? 'true' : 'false' ?>;
 function updateStatus(reference) {
-    if (!confirm('هل تريد تحديث حالة هذه المعاملة؟')) return;
+    if (!confirm(UI_AR ? 'هل تريد تحديث حالة هذه المعاملة؟' : 'Update this transaction status?')) return;
     
     const btn = event.target.closest('button');
     const originalHtml = btn.innerHTML;
@@ -870,7 +902,7 @@ function updateStatus(reference) {
         }
     })
     .catch(error => {
-        alert('❌ حدث خطأ: ' + error.message);
+        alert('❌ ' + (UI_AR ? 'حدث خطأ: ' : 'Error: ') + error.message);
         btn.innerHTML = originalHtml;
         btn.disabled = false;
     });
@@ -880,7 +912,7 @@ function updateStatus(reference) {
 // استرداد المعاملة
 // ============================================================
 function processRefund(reference, amount) {
-    if (!confirm('هل تريد استرداد مبلغ هذه المعاملة؟')) return;
+    if (!confirm(UI_AR ? 'هل تريد استرداد مبلغ هذه المعاملة؟' : 'Refund this transaction?')) return;
 
     const btn = event.target.closest('button');
     const originalHtml = btn.innerHTML;
@@ -894,7 +926,7 @@ function processRefund(reference, amount) {
     })
     .then(response => response.json())
     .then(data => {
-        alert(data.message || 'تمت العملية');
+        alert(data.message || (UI_AR ? 'تمت العملية' : 'Done'));
         if (data.success) location.reload();
         else {
             btn.innerHTML = originalHtml;
@@ -902,10 +934,65 @@ function processRefund(reference, amount) {
         }
     })
     .catch(error => {
-        alert('❌ حدث خطأ: ' + error.message);
+        alert('❌ ' + (UI_AR ? 'حدث خطأ: ' : 'Error: ') + error.message);
         btn.innerHTML = originalHtml;
         btn.disabled = false;
     });
+}
+
+const TXN_CSRF = <?= json_encode($csrfToken) ?>;
+
+function manageTxn(body) {
+    return fetch('api/manage_transaction.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ csrf_token: TXN_CSRF, ...body }).toString(),
+        credentials: 'same-origin',
+    }).then(r => r.json());
+}
+
+function saveTxnRow(btn, id) {
+    const box = btn.closest('.txn-manage');
+    const status = box.querySelector('.txn-edit-status').value;
+    const amount = box.querySelector('.txn-edit-amount').value;
+    const customer_name = box.querySelector('.txn-edit-name').value;
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    manageTxn({ action: 'update', id: String(id), status, amount, customer_name })
+        .then(data => {
+            if (data.success) location.reload();
+            else {
+                alert('❌ ' + (data.message || 'Update failed'));
+                btn.innerHTML = original;
+                btn.disabled = false;
+            }
+        })
+        .catch(err => {
+            alert('❌ ' + err.message);
+            btn.innerHTML = original;
+            btn.disabled = false;
+        });
+}
+
+function deleteTxnRow(id, reference) {
+    if (!confirm((UI_AR ? 'حذف العملية نهائياً؟\n' : 'Permanently delete this transaction?\n') + reference)) return;
+    manageTxn({ action: 'delete', id: String(id), reference })
+        .then(data => {
+            if (data.success) location.reload();
+            else alert('❌ ' + (data.message || 'Delete failed'));
+        })
+        .catch(err => alert('❌ ' + err.message));
+}
+
+function clearFailedTxns() {
+    if (!confirm(UI_AR ? 'مسح كل العمليات Failed؟' : 'Clear all Failed transactions?')) return;
+    manageTxn({ action: 'clear_failed' })
+        .then(data => {
+            alert(data.message || 'Done');
+            if (data.success) location.reload();
+        })
+        .catch(err => alert('❌ ' + err.message));
 }
 
 // ============================================================
@@ -941,7 +1028,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Disposition: attachment; filename="transactions_' . date('Y-m-d') . '.csv"');
     
     $output = fopen('php://output', 'w');
-    fputcsv($output, ['المرجع', 'العميل', 'البريد', 'المبلغ', 'العملة', 'البوابة', 'العملية', 'البروتوكول', 'الحالة', 'التاريخ']);
+    fputcsv($output, ['Reference', 'Customer', 'Email', 'Amount', 'Currency', 'Gateway', 'Operation', 'Protocol', 'Status', 'Date']);
     
     foreach ($transactions as $tx) {
         fputcsv($output, [
@@ -952,7 +1039,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             $tx['currency'],
             $tx['gateway'],
             $tx['transaction_label'] ?? '',
-            $tx['protocol'],
+            function_exists('protocol_display_name') ? protocol_display_name($tx['protocol'] ?? '') : ($tx['protocol'] ?? ''),
             getStatusLabel($tx['status']),
             $tx['created_at']
         ]);

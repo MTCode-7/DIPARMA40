@@ -57,18 +57,9 @@ $txnType      = trim((string)($payload['txn_type']     ?? 'purchase'));
 $cardNumber   = preg_replace('/\D/', '', $payload['card_number'] ?? '');
 
 try {
-    // ── مسار 2D/MOTO: بطاقة يدوية مباشرة عبر StripeAdapter ──
+    // ── مسار 2D/MOTO: عبر ChargeHub الموحّد (أنبوب POS) ──
     if ($securityMode === '2D' && strlen($cardNumber) >= 13) {
 
-        if (!class_exists('GatewayAdapterFactory')) {
-            require_once __DIR__ . '/../lib/Adapters/GatewayAdapterInterface.php';
-            require_once __DIR__ . '/../lib/Adapters/GatewayErrorMapper.php';
-            require_once __DIR__ . '/../lib/Adapters/GatewayLogger.php';
-            require_once __DIR__ . '/../lib/Adapters/StripeAdapter.php';
-            require_once __DIR__ . '/../lib/Adapters/GatewayAdapterFactory.php';
-        }
-
-        // purchase_advice: تأكيد مسبق بدون تحصيل فعلي
         if (in_array($txnType, ['purchase_advice', 'auth_capture'], true)) {
             $rrn          = trim((string)($payload['orig_ref']      ?? ''));
             $approvalCode = trim((string)($payload['approval_code'] ?? ''));
@@ -98,24 +89,22 @@ try {
             exit;
         }
 
-        // purchase_2d / offline / online: charge مباشر
-        $normalizedPayload = GatewayAdapterFactory::normalizePayload([
-            'amount'          => $amount,
-            'currency'        => $currency,
-            'card_number'     => $cardNumber,
-            'card_expiry'     => trim((string)($payload['card_expiry'] ?? '')),
-            'cvv2'            => trim((string)($payload['card_cvv'] ?? '')),
-            'processing_mode' => '2D',
-            'reference'       => $reference,
-            'name'            => trim((string)($payload['card_name'] ?? 'Customer')),
-            'email'           => $email,
-            'approval_code'   => trim((string)($payload['approval_code'] ?? '')),
+        require_once __DIR__ . '/../lib/MySystem/ChargeHub.php';
+        $result = DiParmaChargeHub::charge('stripe', $txnType !== '' ? $txnType : 'purchase_2d', [
+            'amount' => $amount,
+            'currency' => $currency,
+            'card_number' => $cardNumber,
+            'card_expiry' => trim((string)($payload['card_expiry'] ?? '')),
+            'card_cvv' => trim((string)($payload['card_cvv'] ?? '')),
+            'reference' => $reference,
+            'card_name' => trim((string)($payload['card_name'] ?? 'Customer')),
+            'email' => $email,
+            'user_id' => (int)($_SESSION['user_id'] ?? 0),
+            'channel' => 'stripe_charge_api',
+            'destination' => 'ledger',
         ]);
 
-        $result = GatewayAdapterFactory::process($normalizedPayload, 'charge', 'stripe');
-
-        if ($result['success']) {
-            // حفظ في DB
+        if (!empty($result['success']) && empty($result['order_persisted'])) {
             db()->insert('transactions', [
                 'reference'        => $reference,
                 'gateway'          => 'stripe',
@@ -134,10 +123,28 @@ try {
             ]);
         }
 
+        if (!empty($result['reference'])) {
+            $reference = (string) $result['reference'];
+        }
+
+        if (!empty($result['success'])) {
+            require_once __DIR__ . '/../lib/LedgerSettlementService.php';
+            $ledgerSettle = LedgerSettlementService::getInstance()->settleToLedger([
+                'reference' => $reference,
+                'amount'    => $amount,
+                'currency'  => $currency,
+                'gateway'   => 'stripe',
+                'user_id'   => (int)($_SESSION['user_id'] ?? 0),
+                'txn_type'  => $txnType ?: 'purchase_2d',
+                'destination' => 'ledger',
+            ]);
+            $result['ledger_settlement'] = $ledgerSettle;
+        }
+
         if (ob_get_level() > 0) ob_clean();
         echo json_encode(array_merge($result, [
             'reference'      => $reference,
-            'status_message' => $result['success'] ? 'APPROVED' : ($result['message'] ?? 'DECLINED'),
+            'status_message' => !empty($result['success']) ? 'APPROVED' : ($result['message'] ?? 'DECLINED'),
         ]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }

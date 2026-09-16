@@ -11,7 +11,7 @@ require_once __DIR__ . '/../includes/gateways.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 // ============================================================
-// [A] LIVE Card — بطاقة ائتمان حية (Visa/Mastercard مع CVV)
+// [A] LIVE Card — بطاقة حية (كل الشبكات والمُصدرين مع CVV)
 // ============================================================
 class LiveCardHandler {
     public function process(array $ctx): array {

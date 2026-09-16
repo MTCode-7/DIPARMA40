@@ -5,9 +5,38 @@
  * ============================================================
  */
 
+$method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+$gatewayHint = strtolower(trim((string)($_GET['gateway'] ?? $_POST['gateway'] ?? '')));
+$nuveiDmn = isset($_GET['ppp_status'])
+    || isset($_GET['Status'])
+    || isset($_GET['merchant_unique_id'])
+    || isset($_GET['TransactionId'])
+    || isset($_GET['TransactionID'])
+    || isset($_GET['ppp_TransactionID'])
+    || isset($_GET['clientUniqueId'])
+    || isset($_POST['ppp_status'])
+    || isset($_POST['Status'])
+    || isset($_POST['merchant_unique_id'])
+    || isset($_POST['TransactionId'])
+    || isset($_POST['clientUniqueId']);
+if ($method === 'HEAD' || ($method === 'GET' && !$nuveiDmn && $gatewayHint !== 'nuvei')) {
+    http_response_code(200);
+    header('Content-Type: text/plain; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo 'OK';
+    exit;
+}
+if ($nuveiDmn || $gatewayHint === 'nuvei') {
+    require __DIR__ . '/nuvei_dmn.php';
+    exit;
+}
+
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+if (is_file(__DIR__ . '/../includes/peer_link.php')) {
+    require_once __DIR__ . '/../includes/peer_link.php';
+}
 
 // ── إعداد السجلات ──────────────────────────────────────────
 $logDir  = defined('LOGS_PATH') ? LOGS_PATH : __DIR__ . '/../logs';
@@ -18,7 +47,13 @@ $logFile = $logDir . '/webhook.log';
 
 $rawPayload = file_get_contents('php://input');
 $headers    = function_exists('getallheaders') ? getallheaders() : [];
-$gateway    = strtolower(trim($_GET['gateway'] ?? ''));
+$gateway    = strtolower(trim($_GET['gateway'] ?? $_POST['gateway'] ?? 'nuvei'));
+if ($rawPayload === '' && empty($_POST)) {
+    http_response_code(200);
+    header('Content-Type: text/html; charset=utf-8');
+    echo 'OK';
+    exit;
+}
 
 // تسوية أسماء الهيدرات (case-insensitive)
 $normalizedHeaders = [];
@@ -36,17 +71,26 @@ $logEntry = [
 file_put_contents($logFile, json_encode($logEntry) . "\n", FILE_APPEND);
 
 // ── التحقق من محتوى الطلب ──────────────────────────────────
-if (empty($rawPayload)) {
-    http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Empty payload']);
-    exit();
-}
+if (empty($rawPayload) && !empty($_POST)) {
+    $data = $_POST;
+} else {
+    if (empty($rawPayload)) {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'Empty payload']);
+        exit();
+    }
 
-$data = json_decode($rawPayload, true);
-if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
-    http_response_code(400);
-    echo json_encode(['status' => 'error', 'message' => 'Invalid JSON payload']);
-    exit();
+    $data = json_decode($rawPayload, true);
+    if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
+        parse_str($rawPayload, $form);
+        if (is_array($form) && $form !== []) {
+            $data = $form;
+        } else {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Invalid JSON payload']);
+            exit();
+        }
+    }
 }
 
 // ── التحقق من توقيع MoonPay (Moonpay-Signature-V2) ────────
@@ -114,11 +158,11 @@ if ($gateway !== 'moonpay' && (APP_IS_PROD || (defined('WEBHOOK_VERIFY_SIGNATURE
     }
 
     $valid = false;
+    require_once __DIR__ . '/../lib/Adapters/GatewayWebhookVerifier.php';
     if (!empty($normalizedHeaders['stripe-signature'])) {
-        require_once __DIR__ . '/../lib/Adapters/GatewayWebhookVerifier.php';
-        $valid = GatewayWebhookVerifier::verifyStripeSignature($rawPayload, $signatureHeader, $secret);
+        $stripeSecret = (string)(getenv('STRIPE_WEBHOOK_SECRET') ?: $secret);
+        $valid = GatewayWebhookVerifier::verifyStripe($rawPayload, $signatureHeader, $stripeSecret);
     } else {
-        require_once __DIR__ . '/../lib/Adapters/GatewayWebhookVerifier.php';
         $valid = GatewayWebhookVerifier::verifyGenericSignature($rawPayload, $signatureHeader, $secret, 'sha256');
     }
 
@@ -194,6 +238,23 @@ switch ($gateway) {
         }
         break;
 
+    case 'square':
+        $eventType = $data['type'] ?? ($data['event_type'] ?? '');
+        $obj = $data['data']['object'] ?? $data['data'] ?? [];
+        $payment = $obj['payment'] ?? $obj;
+        $reference = $payment['reference_id']
+            ?? $payment['id']
+            ?? ($data['merchant_id'] ?? null);
+        $sqStatus = strtoupper((string) ($payment['status'] ?? ''));
+        if ($sqStatus === 'COMPLETED' || str_contains(strtolower((string) $eventType), 'payment.updated')) {
+            $rawStatus = ($sqStatus === 'COMPLETED') ? 'completed' : 'pending';
+        } elseif (in_array($sqStatus, ['FAILED', 'CANCELED', 'CANCELLED'], true)) {
+            $rawStatus = 'failed';
+        } else {
+            $rawStatus = 'pending';
+        }
+        break;
+
     case 'paypal':
         $reference = $data['resource']['invoice_id']
             ?? $data['resource']['id']
@@ -204,13 +265,18 @@ switch ($gateway) {
         break;
 
     case 'nuvei':
-        $reference = $data['clientUniqueId']
+        $reference = $data['merchant_unique_id']
+            ?? $data['clientUniqueId']
             ?? $data['clientRequestId']
             ?? $data['merchantUniqueId']
+            ?? $data['customData']
             ?? $data['orderId']
             ?? $data['transactionId']
+            ?? $data['TransactionId']
             ?? null;
-        $rawStatus = $data['transactionStatus']
+        $rawStatus = $data['Status']
+            ?? $data['ppp_status']
+            ?? $data['transactionStatus']
             ?? $data['status']
             ?? $data['transaction']['status']
             ?? null;
@@ -242,6 +308,11 @@ switch ($gateway) {
 }
 
 if (empty($reference)) {
+    if ($gateway === 'nuvei') {
+        http_response_code(200);
+        echo 'OK';
+        exit();
+    }
     http_response_code(400);
     file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] ERROR: Reference not found in payload\n", FILE_APPEND);
     echo json_encode(['status' => 'error', 'message' => 'Transaction reference not found in payload']);
@@ -274,6 +345,11 @@ try {
     $transaction = $db->find('transactions', ['reference' => $reference]);
 
     if (!$transaction) {
+        if ($gateway === 'nuvei') {
+            http_response_code(200);
+            echo 'OK';
+            exit();
+        }
         http_response_code(404);
         echo json_encode(['status' => 'error', 'message' => 'Transaction not found', 'reference' => $reference]);
         exit();
@@ -296,10 +372,12 @@ try {
     // تحديث الحالة فقط إذا تغيرت أو كانت معلقة
     if ($transaction['status'] !== $normalizedStatus) {
         $updateData = [
-            'status'           => $normalizedStatus,
             'gateway_response' => $rawPayload,
         ];
-        // إضافة updated_at إذا كان العمود موجوداً
+        // لا نضع completed قبل الاستدعاء — onPaymentConfirmed هو من يغلق التسوية
+        if ($normalizedStatus !== 'completed') {
+            $updateData['status'] = $normalizedStatus;
+        }
         try {
             $cols = $db->query("SHOW COLUMNS FROM " . DB_PREFIX . "transactions LIKE 'updated_at'");
             if (!empty($cols)) {
@@ -310,6 +388,57 @@ try {
         $db->update('transactions', $updateData, ['reference' => $reference]);
 
         file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Updated {$reference}: {$transaction['status']} → {$normalizedStatus}\n", FILE_APPEND);
+
+        if ($normalizedStatus === 'completed' && $transaction['status'] !== 'completed') {
+            try {
+                require_once __DIR__ . '/../lib/PaymentOrchestrator.php';
+                $confirm = PaymentOrchestrator::getInstance()->onPaymentConfirmed($reference, $data);
+                file_put_contents(
+                    $logFile,
+                    "[" . date('Y-m-d H:i:s') . "] onPaymentConfirmed {$reference}: " . json_encode([
+                        'success' => $confirm['success'] ?? false,
+                        'message' => $confirm['message'] ?? '',
+                    ], JSON_UNESCAPED_UNICODE) . "\n",
+                    FILE_APPEND
+                );
+            } catch (Throwable $e) {
+                file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] onPaymentConfirmed error {$reference}: " . $e->getMessage() . "\n", FILE_APPEND);
+                try {
+                    require_once __DIR__ . '/../lib/LedgerSettlementService.php';
+                    LedgerSettlementService::settleSuccessfulPayment([
+                        'reference' => $reference,
+                        'amount'    => (float)($transaction['amount'] ?? 0),
+                        'currency'  => (string)($transaction['currency'] ?? 'USD'),
+                        'gateway'   => (string)($transaction['gateway'] ?? $gateway ?? 'unknown'),
+                        'user_id'   => (int)($transaction['user_id'] ?? 0),
+                        'txn_type'  => (string)($transaction['transaction_type'] ?? 'purchase'),
+                        'destination' => 'ledger',
+                    ]);
+                } catch (Throwable $e2) {
+                    file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Ledger settle error {$reference}: " . $e2->getMessage() . "\n", FILE_APPEND);
+                }
+                try {
+                    $db->update('transactions', ['status' => 'completed'], ['reference' => $reference]);
+                } catch (Throwable $e3) {
+                }
+            }
+        }
+
+        if (empty($_SERVER['HTTP_X_PEER_ORIGIN']) && function_exists('peer_request')) {
+            try {
+                peer_request('sync_txn', [
+                    'reference'        => $reference,
+                    'gateway'          => (string)($transaction['gateway'] ?? $gateway ?? 'unknown'),
+                    'amount'           => (float)($transaction['amount'] ?? 0),
+                    'currency'         => (string)($transaction['currency'] ?? 'USD'),
+                    'status'           => $normalizedStatus,
+                    'txn_type'         => (string)($transaction['transaction_type'] ?? 'purchase'),
+                    'gateway_response' => ['webhook' => $gateway, 'peer_forward' => true],
+                ], 6);
+            } catch (Throwable $e) {
+                file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Peer sync error {$reference}: " . $e->getMessage() . "\n", FILE_APPEND);
+            }
+        }
     }
 
     $responseCode = defined('WEBHOOK_DEFAULT_RESPONSE_CODE') ? WEBHOOK_DEFAULT_RESPONSE_CODE : 200;

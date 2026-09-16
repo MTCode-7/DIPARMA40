@@ -941,6 +941,124 @@ class NuveiAdapter implements GatewayAdapterInterface {
         return $this->normalizeResponse('purchase', $result, $clientReqId);
     }
 
+    /**
+     * Purchase Advice / Direct Advice (bank MTI 0220, DIRECT_ADVICE_NO_PRE_AUTH).
+     * Live Nuvei only — settle when relatedTransactionId exists, else Sale + bank authCode.
+     */
+    public function purchaseAdvice(array $params): array
+    {
+        if (empty($this->merchantId) || $this->secretKey === '') {
+            return ['success' => false, 'message' => 'NUVEI credentials missing for Direct Advice'];
+        }
+
+        $params['card_cvv'] = '';
+        $params['is_moto'] = false;
+        $params['transactionType'] = 'Sale';
+        $params['direct_advice'] = true;
+
+        $relatedId = trim((string) ($params['related_transaction_id'] ?? $params['payment_id'] ?? $params['nuvei_txn_id'] ?? ''));
+        $authCode = trim((string) ($params['auth_code'] ?? $params['approval_code'] ?? ''));
+        $rrn = trim((string) ($params['rrn'] ?? $params['orig_ref'] ?? $params['reference'] ?? $params['client_unique_id'] ?? ''));
+
+        // Prior host txn → real settleTransaction
+        if ($relatedId !== '' && $authCode !== '') {
+            $settled = $this->captureFromParams(array_merge($params, [
+                'related_transaction_id' => $relatedId,
+                'auth_code' => $authCode,
+                'client_unique_id' => $rrn !== '' ? $rrn : ($params['client_unique_id'] ?? ''),
+            ]));
+            if (!empty($settled['success'])) {
+                $settled['auth_type'] = 'DIRECT_ADVICE_NO_PRE_AUTH';
+                $settled['mti'] = '0220';
+                $settled['response_code'] = '00';
+            }
+            return $settled;
+        }
+
+        if ($authCode === '') {
+            return ['success' => false, 'message' => 'Bank Approval Code is required for Direct Advice (MTI 0220)'];
+        }
+        if ($rrn === '') {
+            return ['success' => false, 'message' => 'Bank reference (RRN) is required for Direct Advice (MTI 0220)'];
+        }
+
+        $params['reference'] = $rrn;
+        $params['client_unique_id'] = $rrn;
+        $params['auth_code'] = $authCode;
+
+        $sessionRes = $this->getSessionToken();
+        if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
+            return ['success' => false, 'message' => 'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')];
+        }
+        $sessionToken = $sessionRes['sessionToken'];
+
+        $ts = date('YmdHis');
+        $clientReqId = 'POS-ADV-' . strtoupper(substr(uniqid(), 0, 8));
+        $amount = number_format((float) ($params['amount'] ?? 0), 2, '.', '');
+        $currency = $params['currency'] ?? 'USD';
+        $userToken = $params['user_token_id'] ?? 'guest_' . date('YmdHis');
+
+        $checksum = $this->buildChecksum([
+            $this->merchantId,
+            $this->siteId,
+            $clientReqId,
+            $amount,
+            $currency,
+            $ts,
+            $this->secretKey,
+        ]);
+
+        $body = [
+            'sessionToken' => $sessionToken,
+            'merchantId' => $this->merchantId,
+            'merchantSiteId' => $this->siteId,
+            'clientRequestId' => $clientReqId,
+            'clientUniqueId' => $rrn,
+            'amount' => $amount,
+            'currency' => $currency,
+            'userTokenId' => $userToken,
+            'transactionType' => 'Sale',
+            'paymentOption' => $this->buildCardPaymentOption($params),
+            'billingAddress' => $this->buildBillingAddress($params),
+            'timeStamp' => $ts,
+            'checksum' => $checksum,
+            'deviceDetails' => $this->buildDeviceDetails($params),
+            'urlDetails' => $this->restUrlDetails($rrn),
+            'isMoto' => '0',
+            'authCode' => $authCode,
+            'merchantDetails' => [
+                'customField1' => 'TRANSCENDIO_FZ_LLC',
+                'customField2' => $params['ledger_addr'] ?? $params['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
+                'customField3' => $params['terminal_id'] ?? $params['pos_device'] ?? 'POS',
+                'customField4' => 'DIRECT_ADVICE_NO_PRE_AUTH',
+                'customField5' => 'MTI0220',
+                'customField6' => (string) ($params['processing_code'] ?? '000000'),
+                'customField7' => (string) ($params['mid'] ?? $params['merchant_id'] ?? $this->merchantId),
+                'customField8' => (string) ($params['tid'] ?? $params['terminal_id'] ?? ''),
+            ],
+        ];
+
+        $result = $this->request('payment', $body);
+        $this->log('purchaseAdvice ' . $clientReqId . ' ' . json_encode([
+            'status' => $result['status'] ?? null,
+            'transactionStatus' => $result['transactionStatus'] ?? null,
+            'errCode' => $result['errCode'] ?? null,
+            'reason' => $result['reason'] ?? null,
+            'gwErrorReason' => $result['gwErrorReason'] ?? null,
+            'transactionId' => $result['transactionId'] ?? null,
+            'mti' => '0220',
+            'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
+        ]));
+
+        $normalized = $this->normalizeResponse('purchase_advice', $result, $clientReqId);
+        $normalized['mti'] = '0220';
+        $normalized['auth_type'] = 'DIRECT_ADVICE_NO_PRE_AUTH';
+        if (!empty($normalized['success'])) {
+            $normalized['response_code'] = '00';
+        }
+        return $normalized;
+    }
+
     // ── Authorization — تفويض (حجز) ───────────────────────
     public function authorize(array $params): array
     {

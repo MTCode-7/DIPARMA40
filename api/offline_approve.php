@@ -33,75 +33,16 @@ $csrfToken = generateCsrfToken();
 // ============================================================
 
 try {
-    // التحقق من جدول user_crypto_wallets
-    $db->query("SELECT 1 FROM user_crypto_wallets LIMIT 1");
-} catch (Exception $e) {
-    // إنشاء الجدول إذا لم يكن موجوداً
-    $db->execute("
-        CREATE TABLE IF NOT EXISTS user_crypto_wallets (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
-            coin VARCHAR(10) NOT NULL,
-            network VARCHAR(20) NOT NULL,
-            balance DECIMAL(20,8) DEFAULT 0,
-            locked DECIMAL(20,8) DEFAULT 0,
-            unlock_at DATETIME NULL,
-            status VARCHAR(20) DEFAULT 'active',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_user_coin_network (user_id, coin, network)
-        )
-    ");
-}
+    $db->query("SELECT 1 FROM " . dp_table('user_crypto_wallets') . " LIMIT 1");
+} catch (Exception $e) {}
 
 try {
-    // التحقق من جدول wallet_transactions
-    $db->query("SELECT 1 FROM wallet_transactions LIMIT 1");
-} catch (Exception $e) {
-    // إنشاء الجدول إذا لم يكن موجوداً
-    $db->execute("
-        CREATE TABLE IF NOT EXISTS wallet_transactions (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            reference VARCHAR(50) NOT NULL,
-            user_id INT NOT NULL,
-            type VARCHAR(20) NOT NULL,
-            wallet_type VARCHAR(20) NOT NULL,
-            coin VARCHAR(10) NOT NULL,
-            network VARCHAR(20) NOT NULL,
-            amount DECIMAL(20,8) NOT NULL,
-            fee DECIMAL(20,8) DEFAULT 0,
-            net_amount DECIMAL(20,8) NOT NULL,
-            status VARCHAR(20) DEFAULT 'pending',
-            note TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_user_id (user_id),
-            INDEX idx_reference (reference)
-        )
-    ");
-}
+    $db->query("SELECT 1 FROM " . dp_table('wallet_transactions') . " LIMIT 1");
+} catch (Exception $e) {}
 
 try {
-    // التحقق من جدول dp_audit_logs
-    $db->query("SELECT 1 FROM dp_audit_logs LIMIT 1");
-} catch (Exception $e) {
-    // إنشاء الجدول إذا لم يكن موجوداً
-    $db->execute("
-        CREATE TABLE IF NOT EXISTS dp_audit_logs (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT,
-            action VARCHAR(100) NOT NULL,
-            resource VARCHAR(100),
-            resource_id VARCHAR(100),
-            details JSON,
-            ip_address VARCHAR(45),
-            user_agent TEXT,
-            status VARCHAR(20) DEFAULT 'success',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_user_id (user_id),
-            INDEX idx_action (action)
-        )
-    ");
-}
+    $db->query("SELECT 1 FROM " . dp_table('audit_logs') . " LIMIT 1");
+} catch (Exception $e) {}
 
 // ============================================================
 // [4] معالجة التنفيذ المباشر
@@ -151,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'direc
                 $db->execute("START TRANSACTION");
                 
                 // 4.6 حفظ المعاملة في قاعدة البيانات
-                $db->insert('dp_transactions', [
+                $db->insert('transactions', [
                     'reference' => $reference,
                     'user_id' => $userId,
                     'gateway' => 'offline',
@@ -233,14 +174,14 @@ function _addCryptoBalance($db, $userId, $coin, $network, $amount, $unlockAt, $r
     try {
         // 8.1 التحقق من وجود محفظة
         $existing = $db->query(
-            "SELECT id FROM user_crypto_wallets WHERE user_id = ? AND coin = ? AND network = ?",
+            "SELECT id FROM " . dp_table('user_crypto_wallets') . " WHERE user_id = ? AND coin = ? AND network = ?",
             [$userId, $coin, $network]
         );
         
         if (!empty($existing)) {
             // تحديث الرصيد
             $db->execute(
-                "UPDATE user_crypto_wallets 
+                "UPDATE " . dp_table('user_crypto_wallets') . "
                  SET balance = balance + ?, 
                      unlock_at = ?,
                      updated_at = NOW()
@@ -250,7 +191,7 @@ function _addCryptoBalance($db, $userId, $coin, $network, $amount, $unlockAt, $r
         } else {
             // إنشاء محفظة جديدة
             $db->execute(
-                "INSERT INTO user_crypto_wallets (user_id, coin, network, balance, locked, unlock_at, status, created_at) 
+                "INSERT INTO " . dp_table('user_crypto_wallets') . " (user_id, coin, network, balance, locked, unlock_at, status, created_at) 
                  VALUES (?, ?, ?, ?, 0, ?, 'active', NOW())",
                 [$userId, $coin, $network, $amount, $unlockAt]
             );
@@ -258,7 +199,7 @@ function _addCryptoBalance($db, $userId, $coin, $network, $amount, $unlockAt, $r
         
         // 8.2 تسجيل حركة المحفظة
         $db->execute(
-            "INSERT INTO wallet_transactions 
+            "INSERT INTO " . dp_table('wallet_transactions') . "
              (reference, user_id, type, wallet_type, coin, network, amount, fee, net_amount, status, note, created_at)
              VALUES (?, ?, 'deposit', 'crypto', ?, ?, ?, 0, ?, 'completed', ?, NOW())",
             [
@@ -285,7 +226,7 @@ function _addCryptoBalance($db, $userId, $coin, $network, $amount, $unlockAt, $r
  */
 function _logAudit($db, $userId, $action, $reference, $amount, $currency) {
     try {
-        $db->insert('dp_audit_logs', [
+        $db->insert('audit_logs', [
             'user_id' => $userId,
             'action' => $action,
             'resource' => 'transaction',

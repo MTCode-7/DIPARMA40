@@ -9,6 +9,7 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/gateways.php';
+require_once __DIR__ . '/includes/lang.php';
 
 $db = db();
 $error = null;
@@ -20,7 +21,7 @@ $showLanding = true;
 // 1. البحث عن الرابط عبر نموذج POST (رمز الرابط أو الـ slug)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_link'])) {
     if (empty($linkInput)) {
-        $error = '❌ الرجاء إدخال رمز الرابط أو slug';
+        $error = dp_t('❌ Please enter a link code or slug.', '❌ الرجاء إدخال رمز الرابط أو slug');
     } else {
         $linkData = $db->find('payment_links', ['link_id' => $linkInput]);
         if (!$linkData) {
@@ -28,9 +29,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_link'])) {
         }
 
         if (!$linkData) {
-            $error = '❌ الرابط غير موجود';
+            $error = dp_t('❌ Link not found.', '❌ الرابط غير موجود');
         } elseif (!isLinkValid($linkData)) {
-            $error = '❌ الرابط منتهي الصلاحية أو غير نشط';
+            $error = dp_t('❌ Link expired or inactive.', '❌ الرابط منتهي الصلاحية أو غير نشط');
         } else {
             $showLanding = false;
         }
@@ -46,11 +47,11 @@ if ($showLanding && !empty($getLinkParam)) {
     }
 
     if (!$linkData) {
-        $error = '❌ الرابط غير موجود';
+        $error = dp_t('❌ Link not found.', '❌ الرابط غير موجود');
     } elseif (!empty($token) && isset($linkData['token']) && $linkData['token'] !== $token) {
-        $error = '❌ رمز أمان غير صحيح';
+        $error = dp_t('❌ Invalid security token.', '❌ رمز أمان غير صحيح');
     } elseif (!isLinkValid($linkData)) {
-        $error = '❌ الرابط منتهي الصلاحية أو غير نشط';
+        $error = dp_t('❌ Link expired or inactive.', '❌ الرابط منتهي الصلاحية أو غير نشط');
     } else {
         $showLanding = false;
         // زيادة عدد استخدامات الرابط بأمان
@@ -62,7 +63,7 @@ if ($showLanding && !empty($getLinkParam)) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay_now'])) {
     $postedLinkId = trim($_POST['link_id'] ?? '');
     if (empty($postedLinkId)) {
-        $error = '❌ لم يتم تحديد الرابط';
+        $error = dp_t('❌ No payment link specified.', '❌ لم يتم تحديد الرابط');
     } else {
         $linkData = $db->find('payment_links', ['link_id' => $postedLinkId]);
         if (!$linkData) {
@@ -70,9 +71,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay_now'])) {
         }
 
         if (!$linkData) {
-            $error = '❌ الرابط غير موجود';
+            $error = dp_t('❌ Link not found.', '❌ الرابط غير موجود');
         } elseif (!isLinkValid($linkData)) {
-            $error = '❌ الرابط منتهي الصلاحية أو غير نشط';
+            $error = dp_t('❌ Link expired or inactive.', '❌ الرابط منتهي الصلاحية أو غير نشط');
         }
     }
 
@@ -99,7 +100,7 @@ if (empty($availableGateways) && function_exists('getGatewaysConfig')) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DI PARMA | الدفع</title>
+    <title>DI PARMA | <?= dp_t('Payment', 'الدفع') ?></title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -187,7 +188,7 @@ if (empty($availableGateways) && function_exists('getGatewaysConfig')) {
         
         <?php if ($showLanding): ?>
             <div style="text-align:center;margin-bottom:15px;color:#DDD;font-size:0.95rem;">
-                <i class="fas fa-credit-card"></i> صفحة الدفع العامة. أدخل رمز الرابط أو slug لبدء الدفع.
+                <i class="fas fa-credit-card"></i> <?= dp_t('Public payment page. Enter a link code or slug to start.', 'صفحة الدفع العامة. أدخل رمز الرابط أو slug لبدء الدفع.') ?>
             </div>
             
             <?php if ($error): ?>
@@ -196,13 +197,13 @@ if (empty($availableGateways) && function_exists('getGatewaysConfig')) {
             
             <div class="search-box">
                 <form method="POST">
-                    <input type="text" name="link_code" value="<?= htmlspecialchars($linkInput) ?>" placeholder="ضع رمز الرابط أو slug هنا">
-                    <button type="submit" name="find_link" class="btn btn-primary" style="margin-top: 5px;">تحقق من الرابط</button>
+                    <input type="text" name="link_code" value="<?= htmlspecialchars($linkInput) ?>" placeholder="<?= htmlspecialchars(dp_t('Enter link code or slug here', 'ضع رمز الرابط أو slug هنا')) ?>">
+                    <button type="submit" name="find_link" class="btn btn-primary" style="margin-top: 5px;"><?= dp_t('Verify link', 'تحقق من الرابط') ?></button>
                 </form>
             </div>
 
             <div class="info-text">
-                يمكنك إدخال رمز الرابط المرسَل إليك، أو استخدام رابط الدفع الخاص بك إذا كان لديك واحد.
+                <?= dp_t('Enter the link code sent to you, or use your payment link if you have one.', 'يمكنك إدخال رمز الرابط المرسَل إليك، أو استخدام رابط الدفع الخاص بك إذا كان لديك واحد.') ?>
             </div>
 
             <?php if (!empty($availableGateways)): ?>
@@ -211,7 +212,7 @@ if (empty($availableGateways) && function_exists('getGatewaysConfig')) {
                         <div class="gateway-card">
                             <div class="icon"><i class="<?= htmlspecialchars($gateway['icon'] ?? 'fas fa-credit-card') ?>"></i></div>
                             <h3><?= htmlspecialchars($gateway['name'] ?? $code) ?></h3>
-                            <p><?= htmlspecialchars($gateway['region'] ?? 'عالمي') ?> · <?= htmlspecialchars(implode(', ', array_slice($gateway['currencies'] ?? ['USD'], 0, 3))) ?></p>
+                            <p><?= htmlspecialchars($gateway['region'] ?? dp_t('Global', 'عالمي')) ?> · <?= htmlspecialchars(implode(', ', array_slice($gateway['currencies'] ?? ['USD'], 0, 3))) ?></p>
                         </div>
                     <?php endforeach; ?>
                 </div>
@@ -219,7 +220,7 @@ if (empty($availableGateways) && function_exists('getGatewaysConfig')) {
 
         <?php elseif ($linkData): ?>
             <div style="text-align:center;margin-bottom:15px;color:#888;font-size:0.9rem;">
-                <i class="fas fa-file-invoice"></i> <?= htmlspecialchars($linkData['title'] ?? 'فاتورة دفع') ?>
+                <i class="fas fa-file-invoice"></i> <?= htmlspecialchars($linkData['title'] ?? dp_t('Payment invoice', 'فاتورة دفع')) ?>
             </div>
             
             <div class="amount-box">
@@ -230,17 +231,17 @@ if (empty($availableGateways) && function_exists('getGatewaysConfig')) {
             <form method="POST">
                 <input type="hidden" name="link_id" value="<?= htmlspecialchars($linkData['link_id'] ?? $linkData['slug']) ?>">
                 <button type="submit" name="pay_now" class="btn btn-primary">
-                    <i class="fas fa-check-circle"></i> دفع الآن
+                    <i class="fas fa-check-circle"></i> <?= dp_t('Pay now', 'دفع الآن') ?>
                 </button>
             </form>
             
             <div style="margin-top:15px;font-size:0.75rem;color:#777;text-align:center;">
-                <i class="fas fa-shield-alt"></i> مدعوم من DI PARMA Gateway
+                <i class="fas fa-shield-alt"></i> <?= dp_t('Powered by DI PARMA Gateway', 'مدعوم من DI PARMA Gateway') ?>
             </div>
         <?php else: ?>
-            <div class="error"><?= htmlspecialchars($error ?? '❌ الرابط غير صالح أو منتهي الصلاحية') ?></div>
+            <div class="error"><?= htmlspecialchars($error ?? dp_t('❌ Invalid or expired link.', '❌ الرابط غير صالح أو منتهي الصلاحية')) ?></div>
             <div class="info-text" style="margin-top:18px;">
-                استخدم صفحة الدفع العامة لإدخال رمز الرابط أو افتح الرابط مباشرة من الرسالة.
+                <?= dp_t('Use this page to enter a link code, or open the payment link directly from your message.', 'استخدم صفحة الدفع العامة لإدخال رمز الرابط أو افتح الرابط مباشرة من الرسالة.') ?>
             </div>
         <?php endif; ?>
     </div>
