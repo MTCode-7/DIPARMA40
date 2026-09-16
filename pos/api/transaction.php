@@ -448,6 +448,7 @@ if ($useCardGateway) {
             'cloud_token' => $cloudToken,
             'payment_token' => $cloudToken,
             'source_id' => $sourceId,
+            'verification_token' => trim((string) ($data['verification_token'] ?? ($extra['verification_token'] ?? ''))),
             'email' => $data['email'] ?? '',
             'phone' => preg_replace('/\D/', '', $data['phone'] ?? '') ?: '',
             'country' => strtoupper($data['country'] ?? 'AE'),

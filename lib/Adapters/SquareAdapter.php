@@ -211,20 +211,45 @@ class SquareAdapter implements GatewayAdapterInterface
         }
 
         $start = microtime(true);
+        $chargeCurrency = $currency;
+        $chargeAmount = $amount;
+        $locCurrency = $this->locationCurrency($locationId);
+        if ($locCurrency === '') {
+            $locCurrency = 'USD';
+        }
+        if ($chargeCurrency !== $locCurrency) {
+            if (in_array($chargeCurrency, ['USDT', 'USDC', 'USD'], true) && $locCurrency === 'USD') {
+                $chargeCurrency = 'USD';
+            } else {
+                return GatewayErrorMapper::buildErrorResponse(
+                    'GATEWAY_ERROR',
+                    $reference,
+                    $amount,
+                    $currency,
+                    'Square location currency is ' . $locCurrency . '; POS sent ' . $currency
+                );
+            }
+        }
+
         $body = [
             'source_id' => $sourceId,
-            'idempotency_key' => $this->buildIdempotencyKey($reference . ($autocomplete ? 'c' : 'h'), $amount),
+            'idempotency_key' => $this->buildIdempotencyKey($reference . ($autocomplete ? 'c' : 'h'), $chargeAmount),
             'amount_money' => [
-                'amount' => (int) round($amount * 100),
-                'currency' => $currency,
+                'amount' => (int) round($chargeAmount * 100),
+                'currency' => $chargeCurrency,
             ],
             'autocomplete' => $autocomplete,
             'location_id' => $locationId,
-            'reference_id' => substr($reference, 0, 40),
-            'note' => 'DIPARMA ' . ($payload['txn_type'] ?? 'sale'),
+            'reference_id' => substr(preg_replace('/[^A-Za-z0-9:_-]/', '', $reference) ?: ('sq' . date('YmdHis')), 0, 40),
+            'note' => 'DIPARMA ' . preg_replace('/[^A-Za-z0-9 _-]/', '', (string) ($payload['txn_type'] ?? 'sale')),
         ];
-        if (!empty($payload['email'])) {
-            $body['buyer_email_address'] = (string) $payload['email'];
+        $verification = trim((string) ($payload['verification_token'] ?? $payload['square_verification'] ?? ''));
+        if ($verification !== '') {
+            $body['verification_token'] = $verification;
+        }
+        $email = trim((string) ($payload['email'] ?? ''));
+        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $body['buyer_email_address'] = $email;
         }
 
         try {
@@ -265,13 +290,38 @@ class SquareAdapter implements GatewayAdapterInterface
 
     private function errorMessage(array $res): string
     {
-        if (!empty($res['errors'][0]['detail'])) {
-            return (string) $res['errors'][0]['detail'];
+        $payment = $res['payment'] ?? [];
+        $cardErr = $payment['card_details']['errors'][0] ?? [];
+        foreach ([
+            $res['errors'][0]['detail'] ?? '',
+            $res['errors'][0]['code'] ?? '',
+            $cardErr['detail'] ?? '',
+            $cardErr['code'] ?? '',
+            $payment['card_details']['card']['card_brand'] ?? '',
+        ] as $candidate) {
+            $candidate = trim((string) $candidate);
+            if ($candidate !== '' && $candidate !== 'VISA' && $candidate !== 'MASTERCARD' && $candidate !== 'AMERICAN_EXPRESS') {
+                $status = strtoupper((string) ($payment['status'] ?? ''));
+                if ($status === 'FAILED' && isset($res['errors'][0]['code'])) {
+                    return trim((string) $res['errors'][0]['code'] . ' ' . (string) ($res['errors'][0]['detail'] ?? ''));
+                }
+                return $candidate;
+            }
         }
-        if (!empty($res['errors'][0]['code'])) {
-            return (string) $res['errors'][0]['code'];
+        $status = strtoupper((string) ($payment['status'] ?? ''));
+        if ($status === 'FAILED') {
+            return 'SQUARE_FAILED';
         }
         return (string) ($res['message'] ?? 'Square error');
+    }
+
+    private function locationCurrency(string $locationId): string
+    {
+        if ($locationId === '') {
+            return '';
+        }
+        $res = $this->request('GET', '/v2/locations/' . rawurlencode($locationId));
+        return strtoupper((string) ($res['location']['currency'] ?? ''));
     }
 
     private function request(string $method, string $path, $body = null): array

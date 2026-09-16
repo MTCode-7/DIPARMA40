@@ -186,6 +186,42 @@
     return state.inflight;
   }
 
+  async function verifyBuyer(sourceId, amount, currency, intent, billing) {
+    if (!state.payments || typeof state.payments.verifyBuyer !== 'function') {
+      return { success: true, token: '' };
+    }
+    var amt = Number(amount);
+    if (!isFinite(amt) || amt <= 0) {
+      return { success: true, token: '' };
+    }
+    var name = String((billing && billing.name) || 'Card Holder').replace(/\s+/g, ' ').trim() || 'Card Holder';
+    var parts = name.split(' ');
+    var given = parts[0] || 'Card';
+    var family = parts.length > 1 ? parts.slice(1).join(' ') : 'Holder';
+    var details = {
+      amount: amt.toFixed(2),
+      currencyCode: String(currency || 'USD').toUpperCase(),
+      intent: intent === 'STORE' ? 'STORE' : 'CHARGE',
+      billingContact: {
+        givenName: given,
+        familyName: family
+      }
+    };
+    if (billing && billing.email && /@/.test(String(billing.email))) {
+      details.billingContact.email = String(billing.email).trim();
+    }
+    try {
+      var result = await state.payments.verifyBuyer(sourceId, details);
+      return { success: true, token: (result && result.token) ? String(result.token) : '' };
+    } catch (e) {
+      var msg = (e && e.message) ? e.message : String(e);
+      if (/missing or invalid|not enabled|not required|unsupported|unable to verify/i.test(msg)) {
+        return { success: true, token: '' };
+      }
+      return { success: false, token: '', message: msg };
+    }
+  }
+
   async function tokenize() {
     if (!state.card) {
       return { success: false, message: state.error || 'Square card form not ready' };
@@ -216,6 +252,7 @@
     init: init,
     tokenize: tokenize,
     isReady: isReady,
-    lastError: lastError
+    lastError: lastError,
+    verifyBuyer: verifyBuyer
   };
 })(window);

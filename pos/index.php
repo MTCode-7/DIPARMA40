@@ -2664,6 +2664,17 @@ window.processTransaction = async function() {
       return;
     }
     squareToken = tok.token;
+    if (typeof DiparmaSquareSdk.verifyBuyer === 'function') {
+      const v = await DiparmaSquareSdk.verifyBuyer(squareToken, amount, currency, 'CHARGE', {
+        name: cardName,
+        email: (document.getElementById('posEmail')?.value || '').trim()
+      });
+      if (v && v.success === false && /cancel/i.test(String(v.message || ''))) {
+        toast(v.message || 'Square 3-D Secure cancelled', 'error');
+        return;
+      }
+      if (v && v.token) extraData.verification_token = v.token;
+    }
   }
   if (cardType === 'CLOUD') {
     if (!cloudToken || cloudToken.length < 8) {
@@ -2700,6 +2711,7 @@ window.processTransaction = async function() {
     card_type: squareToken ? 'CLOUD' : cardType, card_network: cardNetwork, cloud_token: squareToken || cloudToken,
     source_id: squareToken || undefined,
     payment_token: squareToken || cloudToken || undefined,
+    verification_token: extraData.verification_token || undefined,
     orig_ref: origRef,
     rrn: origRef,
     approval_code: approval,
@@ -2770,9 +2782,10 @@ window.processTransaction = async function() {
     } else {
       POS.lastTxn = d;
       updateReceipt(d, type, amount, currency, cardNum);
+      const why = posPlainReason(d.message || d.error_code || d.decline_reason || 'DECLINED');
       showResultModal(false, d);
       setPosStatus('DECLINED');
-      toast('DECLINED', 'error');
+      toast(why, 'error');
     }
   } catch(e) {
     showResultModal(false, { success: false });
