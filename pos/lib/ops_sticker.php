@@ -13,13 +13,14 @@ function pos_ops_sticker_legend(bool $ar): string
 function pos_render_ops_legend(bool $ar): void
 {
     ?>
-    <section class="ops-legend-box" aria-label="أسطورة">
-      <div class="ops-legend-title">أسطورة <span>· Legend</span></div>
-      <div class="ops-legend-chips">
+    <section id="opsLegend" class="ops-legend-box" aria-label="أسطورة" style="display:block!important;visibility:visible!important">
+      <div class="ops-legend-title">أسطورة <span id="opsLegendOpName">· Legend</span></div>
+      <div class="ops-legend-chips" id="opsLegendKey">
         <span class="ops-chip yes"><?=$ar ? 'نعم = مطلوب' : 'Yes = required'?></span>
         <span class="ops-chip no"><?=$ar ? 'لا = لا يُدخل' : 'No = skip'?></span>
         <span class="ops-chip mode"><?=$ar ? 'حسب الوضع' : 'By mode'?></span>
       </div>
+      <div class="ops-legend-chips" id="opsLegendLiveChips"></div>
       <p class="ops-legend-note"><?= htmlspecialchars(pos_ops_sticker_legend($ar)) ?></p>
     </section>
     <?php
@@ -95,7 +96,6 @@ function pos_render_ops_sticker(bool $ar, array $txnTypes): void
     ?>
     <div class="ops-sticker" id="opsSticker">
       <div class="ops-sticker-head"><?=$ar ? 'ملصق التشغيل — الحقول لكل نوع' : 'Operator sticker — fields by type'?></div>
-      <?php pos_render_ops_legend($ar); ?>
       <p class="ops-sticker-wait"><?=$ar
         ? 'زر الدفع: انتظر رد المضيف (Approved / Declined). لا تُغلق الشاشة أثناء المعالجة.'
         : 'Pay button: wait for the host (Approved / Declined). Do not close the screen while processing.'?></p>
@@ -123,7 +123,7 @@ function pos_render_ops_sticker(bool $ar, array $txnTypes): void
                     return $v === true ? ' is-yes' : ($v === false ? ' is-no' : ' is-mode');
                 };
             ?>
-            <tr data-sticker-op="<?= htmlspecialchars($row['op']) ?>">
+            <tr data-sticker-op="<?= htmlspecialchars($row['op']) ?>" style="cursor:pointer" onclick="if(window.selectTxnType)selectTxnType('<?= htmlspecialchars($row['op']) ?>')">
               <td><?= htmlspecialchars($label) ?></td>
               <td class="<?= $yesClass($row['card']) ?>"><?= pos_sticker_cell($row['card'], $ar) ?></td>
               <td class="<?= $yesClass($row['exp']) ?>"><?= pos_sticker_cell($row['exp'], $ar) ?></td>

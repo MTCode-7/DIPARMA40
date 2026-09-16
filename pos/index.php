@@ -221,8 +221,8 @@ try {
 html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);color-scheme:dark}
 /* ── Topbar ── */
 .topbar{background:rgba(2,5,8,.97);border-bottom:1px solid var(--border);
-  height:58px;display:flex;align-items:center;justify-content:space-between;
-  padding:0 24px;position:sticky;top:0;z-index:100}
+  min-height:58px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;
+  padding:8px 16px;position:sticky;top:0;z-index:100}
 .tb-brand{display:flex;align-items:center;gap:10px;color:var(--gold);font-weight:900}
 .tb-badge{background:#000;border:1.5px solid #333;border-radius:8px;
   padding:4px 12px;font-size:.72rem;font-weight:800;color:#fff;
@@ -406,6 +406,8 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
   .left-panel{display:none}
   .right-panel{display:block}
 }
+.tb-legend{flex:1 1 100%;order:5}
+.tb-legend .ops-legend-box{margin:0;display:block!important}
 .ops-legend-box{margin:0 0 12px;padding:12px 12px 10px;background:rgba(255,215,0,.07);border:1.5px solid var(--border2);border-radius:14px}
 .ops-legend-title{font-size:.95rem;font-weight:900;color:var(--gold);margin-bottom:8px;letter-spacing:.02em}
 .ops-legend-title span{font-size:.72rem;font-weight:700;color:var(--muted2)}
@@ -440,6 +442,9 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
     <div class="tb-badge" style="margin-inline-start:8px"><?=htmlspecialchars($posDevice['terminal_id'])?></div>
     <?php endif; ?>
     <a href="?<?=htmlspecialchars(http_build_query(array_merge($_GET, ['lang' => $ar ? 'en' : 'ar'])))?>" class="tb-badge" style="margin-inline-start:8px;text-decoration:none;color:var(--gold)"><?=$ar?'EN':'العربية'?></a>
+  </div>
+  <div class="tb-legend">
+    <?php if (function_exists('pos_render_ops_legend')) pos_render_ops_legend($ar); ?>
   </div>
   <div class="tb-nav">
     <?php if (!$kiosk): ?>
@@ -770,6 +775,35 @@ const HUB_VERIX = <?= $isVerix ? 'true' : 'false' ?>;
 const HUB_HOST = <?=json_encode($verifoneHost)?>;
 const HUB_TID = <?=json_encode($posDevice['terminal_id'])?>;
 const HUB_READY = true;
+const STICKER_ROWS = <?=json_encode(function_exists('pos_ops_sticker_rows') ? pos_ops_sticker_rows() : [], JSON_UNESCAPED_UNICODE)?>;
+const AR = HUB_AR;
+function stickerRule(type) {
+  return (STICKER_ROWS || []).find(r => r.op === type) || null;
+}
+function legendChipHtml(flag, yesLbl, noLbl) {
+  if (flag === 'mode') return `<span class="ops-chip mode">${AR ? 'حسب الوضع' : 'By mode'} · ${yesLbl}</span>`;
+  if (flag === true) return `<span class="ops-chip yes">${yesLbl}: ${AR ? 'نعم' : 'Yes'}</span>`;
+  return `<span class="ops-chip no">${noLbl}: ${AR ? 'لا' : 'No'}</span>`;
+}
+window.applyOpsLegend = function(type) {
+  const row = stickerRule(type) || {};
+  const el = document.getElementById('opsLegendLiveChips');
+  if (!el) return;
+  if (!type || !stickerRule(type)) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = [
+    legendChipHtml(row.card, AR ? 'بطاقة' : 'PAN', AR ? 'بطاقة' : 'PAN'),
+    legendChipHtml(row.exp, AR ? 'انتهاء' : 'Exp', AR ? 'انتهاء' : 'Exp'),
+    legendChipHtml(row.cvv, 'CVV', 'CVV'),
+    legendChipHtml(row.otp, 'OTP', 'OTP'),
+    legendChipHtml(row.rrn, 'RRN', 'RRN'),
+    legendChipHtml(row.appr, 'Approval', 'Approval'),
+    legendChipHtml(row.pid, 'Payment ID', 'Payment ID'),
+  ].join('');
+};
+if (typeof applyOpsLegend === 'function') applyOpsLegend('');
 
 function hubPick(field, value, el) {
   HUB[field] = value;
@@ -801,6 +835,7 @@ function hubPickMode(sel) {
 window.hubPickMode = hubPickMode;
 function hubPickOp(sel) {
   HUB.op = (sel && sel.value) ? sel.value : '';
+  if (typeof applyOpsLegend === 'function') applyOpsLegend(HUB.op);
   hubReady();
 }
 window.hubPickOp = hubPickOp;
@@ -942,7 +977,6 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
 <div class="layout">
 <!-- ══ LEFT: Transaction Types ══ -->
 <div class="left-panel">
-  <?php if (function_exists('pos_render_ops_legend')) pos_render_ops_legend($ar); ?>
   <div class="panel-title"><?=$ar?'نوع العملية':'Transaction Type'?></div>
   <?php foreach($txnTypes as $key => $tx): ?>
   <button class="txn-btn <?=$key===$startOp?'active':''?>"
@@ -1032,6 +1066,10 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       <div class="pos-screen-header">
         <div class="pos-screen-title" id="screenTitle">PURCHASE 2D</div>
         <div class="pos-time" id="posTime">--:--:--</div>
+      </div>
+      <div class="ops-legend-box" style="margin:0 0 10px;padding:8px;background:rgba(0,0,0,.35)">
+        <div class="ops-legend-title" style="margin-bottom:6px">أسطورة <span id="opsLegendOpName"></span></div>
+        <div class="ops-legend-chips" id="opsLegendScreenChips"></div>
       </div>
       <div class="pos-amount-display" onclick="focusPosAmount('amountDisplay')">
         <div class="pos-amount-label"><?=$ar?'المبلغ':'AMOUNT'?></div>
@@ -1482,6 +1520,7 @@ window.syncAmount = function(val, sourceId) {
   });
 })();
 
+const STICKER_ROWS = <?=json_encode(function_exists('pos_ops_sticker_rows') ? pos_ops_sticker_rows() : [], JSON_UNESCAPED_UNICODE)?>;
 const TXN_META = <?=json_encode($txnTypes, JSON_UNESCAPED_UNICODE)?>;
 const TXN_LABELS = {};
 Object.keys(TXN_META).forEach(k => {
@@ -1703,6 +1742,84 @@ updateClock();
 
 // ── Toggle Slider ──────────────────────────────────
 // ── Transaction Type ───────────────────────────────
+function stickerRule(type) {
+  return (STICKER_ROWS || []).find(r => r.op === type) || null;
+}
+
+function legendNeed(v) {
+  return v === true;
+}
+
+function legendChipHtml(flag, yesLbl, noLbl) {
+  if (flag === 'mode') {
+    return `<span class="ops-chip mode">${AR ? 'حسب الوضع' : 'By mode'} · ${yesLbl}</span>`;
+  }
+  if (flag === true) {
+    return `<span class="ops-chip yes">${yesLbl}: ${AR ? 'نعم' : 'Yes'}</span>`;
+  }
+  return `<span class="ops-chip no">${noLbl}: ${AR ? 'لا' : 'No'}</span>`;
+}
+
+function setFieldWrap(id, on, clearId) {
+  const wrap = document.getElementById(id);
+  if (wrap) wrap.style.display = on ? '' : 'none';
+  const inp = clearId ? document.getElementById(clearId) : (wrap && wrap.querySelector('input,select'));
+  if (inp) {
+    inp.required = !!on;
+    if (!on && 'value' in inp) inp.value = '';
+  }
+}
+
+window.applyOpsLegend = function(type) {
+  type = type || (typeof POS !== 'undefined' && POS.txnType) || '';
+  const row = Object.assign({}, stickerRule(type) || {});
+  const meta = (typeof TXN_META !== 'undefined' && TXN_META[type]) || {};
+  const cm = document.getElementById('chargeMode')?.value || '';
+  const modeMeta = (typeof CHARGE_MODES !== 'undefined' && CHARGE_MODES[cm]) || null;
+  if (modeMeta) {
+    row.rrn = !!modeMeta.requires_rrn;
+    row.appr = !!modeMeta.requires_approval;
+    if (modeMeta.requires_cvv != null) row.cvv = !!modeMeta.requires_cvv;
+    if (modeMeta.requires_otp != null) row.otp = !!modeMeta.requires_otp;
+  }
+  if (type === 'auth') {
+    const offline = document.getElementById('authChannel')?.value === 'offline';
+    row.cvv = false;
+    row.otp = false;
+    row.rrn = offline;
+    row.appr = offline;
+    row.pid = false;
+  }
+  const needCard = legendNeed(row.card) || !!meta.requires_card;
+  const needExp = legendNeed(row.exp) || !!meta.requires_expiry;
+  const needCvv = legendNeed(row.cvv) || !!meta.requires_cvv;
+  setFieldWrap('livePanWrap', needCard, 'cardNumber');
+  setFieldWrap('liveNameWrap', needCard, 'cardName');
+  setFieldWrap('liveExpWrap', needExp, 'cardExpiry');
+  setFieldWrap('liveCvvWrap', needCvv, 'cardCVV');
+  const cardSec = document.getElementById('cardSection');
+  if (cardSec) cardSec.style.opacity = needCard ? '1' : '.55';
+  const label = (typeof TXN_LABELS !== 'undefined' && TXN_LABELS[type]) || { ar: type, en: type };
+  const opName = AR ? (label.ar || type) : (label.en || type);
+  const nameEl = document.getElementById('opsLegendOpName');
+  if (nameEl) nameEl.textContent = '· ' + opName;
+  const chips = [
+    legendChipHtml(row.card, AR ? 'بطاقة' : 'PAN', AR ? 'بطاقة' : 'PAN'),
+    legendChipHtml(row.exp, AR ? 'انتهاء' : 'Exp', AR ? 'انتهاء' : 'Exp'),
+    legendChipHtml(row.cvv, 'CVV', 'CVV'),
+    legendChipHtml(row.otp, 'OTP', 'OTP'),
+    legendChipHtml(row.rrn, 'RRN', 'RRN'),
+    legendChipHtml(row.appr, 'Approval', 'Approval'),
+    legendChipHtml(row.pid, 'Payment ID', 'Payment ID'),
+  ].join('');
+  document.querySelectorAll('#opsLegendLiveChips, #opsLegendScreenChips').forEach(el => {
+    el.innerHTML = chips;
+  });
+  document.querySelectorAll('[data-sticker-op]').forEach(r => {
+    r.classList.toggle('is-current', r.getAttribute('data-sticker-op') === type);
+  });
+};
+
 window.selectTxnType = function(type, el) {
   POS.txnType = type;
   document.querySelectorAll('.txn-btn').forEach(b => {
@@ -1714,27 +1831,13 @@ window.selectTxnType = function(type, el) {
   });
 
   const label = TXN_LABELS[type] || { ar: type, en: type };
-  document.getElementById('screenTitle').textContent = (AR ? label.ar : label.en).toUpperCase();
-  document.getElementById('processBtnText').textContent =
-    (AR ? 'تنفيذ ' + label.ar : 'Process ' + label.en);
+  const st = document.getElementById('screenTitle');
+  if (st) st.textContent = (AR ? label.ar : label.en).toUpperCase();
+  const pbt = document.getElementById('processBtnText');
+  if (pbt) pbt.textContent = (AR ? 'تنفيذ ' + label.ar : 'Process ' + label.en);
 
   renderExtraFields(type);
-
-  const meta = TXN_META[type] || {};
-  const noCard = ['refund','avoid'].includes(type) && !meta.requires_card;
-  document.getElementById('cardSection').style.opacity = noCard ? '.55' : '1';
-
-  const cvvEl = document.getElementById('cardCVV');
-  const noCvv = ['capture','purchase_advice','offline_sale_moto','online_sale_moto','avoid','refund','withdrawal_nfc','auth'].includes(type);
-  if (cvvEl) {
-    cvvEl.required = !noCvv;
-    cvvEl.value = noCvv ? '' : cvvEl.value;
-    cvvEl.parentElement.style.opacity = noCvv ? '.45' : '1';
-  }
-  const cvvWrap = document.getElementById('liveCvvWrap');
-  if (cvvWrap) {
-    cvvWrap.style.display = (type === 'purchase_advice' || type === 'capture' || type === 'auth') ? 'none' : '';
-  }
+  applyOpsLegend(type);
 };
 
 function renderExtraFields(type) {
@@ -1964,6 +2067,7 @@ window.onAuthMotoChannel = function() {
   const ch = document.getElementById('authChannel')?.value || 'online';
   const box = document.getElementById('authMotoOffline');
   if (box) box.style.display = ch === 'offline' ? '' : 'none';
+  if (typeof applyOpsLegend === 'function') applyOpsLegend('auth');
 };
 
 window.loadOpenHolds = async function() {
@@ -2033,6 +2137,7 @@ window.onChargeModeChange = function() {
     </div>`;
   }
   box.innerHTML = html;
+  if (typeof applyOpsLegend === 'function') applyOpsLegend(POS.txnType);
 };
 
 window.startNfcScan = async function() {
@@ -2837,7 +2942,8 @@ try { loadLedgerBalance(POS.ledgerAddress); } catch (e) {}
   const wanted = new URLSearchParams(location.search).get('op') || 'purchase_3d';
   const type = TXN_META[wanted] ? wanted : 'purchase_3d';
   const btn = document.querySelector('.txn-btn[data-type="' + type + '"]');
-  if (btn && typeof selectTxnType === 'function') selectTxnType(type, btn);
+  if (typeof selectTxnType === 'function') selectTxnType(type, btn || null);
+  else if (typeof applyOpsLegend === 'function') applyOpsLegend(type);
   const mode = new URLSearchParams(location.search).get('mode') || <?=json_encode($startMode)?>;
   if (typeof setInputMode === 'function' && (mode === 'manual' || mode === 'physical')) {
     setInputMode(mode);
