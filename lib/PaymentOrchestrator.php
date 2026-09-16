@@ -310,7 +310,7 @@ class PaymentOrchestrator
             'approval_code' => $approvalCode,
             'txn_type' => $txnTypeForHub,
             'processing_mode' => '2D',
-            'is_moto' => !empty($input['extra']['is_moto']) || !empty($input['is_moto']) || in_array($transactionType, ['purchase_offline', 'purchase_online', 'purchase_2d', 'auth_moto'], true),
+            'is_moto' => !empty($input['extra']['is_moto']) || !empty($input['is_moto']) || in_array($transactionType, ['purchase_offline', 'purchase_online', 'purchase_2d', 'auth', 'auth_hold', 'auth_moto'], true),
         ];
         $gatewayResult = DiParmaChargeHub::charge($cardProvider, $txnTypeForHub, $hubParams);
 

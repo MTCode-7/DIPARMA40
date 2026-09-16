@@ -458,8 +458,10 @@ if ($useCardGateway) {
             'reference' => $reference,
             'terminal_id' => $terminalId,
             'merchant_id' => $merchantId,
-            'moto_indicator' => $extra['moto_indicator'] ?? (in_array($txnType, ['purchase_advice', 'offline_sale_moto', 'online_sale_moto'], true) ? 'M' : null),
-            'is_moto' => !empty($extra['is_moto']) || !empty($opMeta['is_moto']) || in_array($txnType, ['purchase_advice', 'offline_sale_moto', 'online_sale_moto'], true),
+            'moto_indicator' => $extra['moto_indicator'] ?? (in_array($txnType, ['auth', 'purchase_advice', 'offline_sale_moto', 'online_sale_moto'], true) ? 'M' : null),
+            'is_moto' => !empty($extra['is_moto']) || !empty($opMeta['is_moto']) || in_array($txnType, ['auth', 'purchase_advice', 'offline_sale_moto', 'online_sale_moto'], true),
+            'auth_channel' => $extra['auth_channel'] ?? $data['auth_channel'] ?? '',
+            'moto_channel' => $extra['auth_channel'] ?? $data['auth_channel'] ?? '',
             'entry_mode' => $extra['entry_mode'] ?? ($opMeta['entry_mode'] ?? 'keyed'),
             'scheme_route' => $cardNetwork,
             'allow_amount_override' => !empty($opMeta['amount_flexible']),
@@ -470,6 +472,17 @@ if ($useCardGateway) {
         ];
 
         $runType = $txnType;
+        if ($txnType === 'auth') {
+            $params['is_moto'] = true;
+            $params['moto_indicator'] = 'M';
+            $params['card_cvv'] = '';
+            $params['entry_mode'] = 'keyed';
+            $params['card_present'] = false;
+            $params['auth_channel'] = strtolower((string) ($extra['auth_channel'] ?? $data['auth_channel'] ?? 'online'));
+            if ($params['auth_channel'] === 'offline') {
+                $params['is_offline'] = true;
+            }
+        }
         if (in_array($txnType, ['withdrawal_pos', 'withdrawal_nfc'], true)) {
             $modes = pos_withdrawal_charge_modes();
             $mode = $modes[$chargeMode] ?? null;
@@ -691,7 +704,7 @@ try {
         'currency' => $currency,
         'card_last4' => substr($cardNumber, -4),
         'security_mode' => $secMode,
-        'status' => $requires3ds ? 'pending' : ($success ? 'completed' : 'failed'),
+        'status' => $requires3ds ? 'pending' : ($success ? ($txnType === 'auth' ? 'authorized' : 'completed') : 'failed'),
         'gateway_response' => json_encode([
             'channel' => $entryChannel,
             'orchestrator' => !empty($result['orchestrator']) ? $result['orchestrator'] : null,

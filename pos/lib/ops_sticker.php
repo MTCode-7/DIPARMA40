@@ -33,7 +33,7 @@ function pos_ops_sticker_rows(): array
     return [
         ['op' => 'purchase_3d', 'group' => 'sale', 'card' => true, 'exp' => true, 'cvv' => true, 'otp' => true, 'rrn' => false, 'appr' => false, 'pid' => false, 'amt' => 'fixed', 'ledger' => 'after_sale'],
         ['op' => 'purchase_2d', 'group' => 'sale', 'card' => true, 'exp' => true, 'cvv' => true, 'otp' => false, 'rrn' => false, 'appr' => false, 'pid' => false, 'amt' => 'fixed', 'ledger' => 'after_sale'],
-        ['op' => 'auth', 'group' => 'hold', 'card' => true, 'exp' => true, 'cvv' => true, 'otp' => false, 'rrn' => false, 'appr' => false, 'pid' => false, 'amt' => 'hold', 'ledger' => 'never_hold'],
+        ['op' => 'auth', 'group' => 'hold', 'card' => true, 'exp' => true, 'cvv' => false, 'otp' => false, 'rrn' => 'mode', 'appr' => 'mode', 'pid' => false, 'amt' => 'hold', 'ledger' => 'never_hold'],
         ['op' => 'capture', 'group' => 'hold', 'card' => true, 'exp' => true, 'cvv' => false, 'otp' => false, 'rrn' => true, 'appr' => true, 'pid' => true, 'amt' => 'flex_hold', 'ledger' => 'after_capture'],
         ['op' => 'purchase_advice', 'group' => 'advice', 'card' => true, 'exp' => true, 'cvv' => false, 'otp' => false, 'rrn' => true, 'appr' => true, 'pid' => true, 'amt' => 'cap5m', 'ledger' => 'after_sale'],
         ['op' => 'online_sale_moto', 'group' => 'advice', 'card' => true, 'exp' => true, 'cvv' => false, 'otp' => false, 'rrn' => true, 'appr' => true, 'pid' => true, 'amt' => 'fixed', 'ledger' => 'after_sale'],

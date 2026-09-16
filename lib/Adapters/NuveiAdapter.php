@@ -190,9 +190,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $name     = $payload['name'] ?? 'Customer';
         $nameParts = preg_split('/\s+/', trim($name), 2) ?: ['Customer'];
 
-        if ($ccNum === '' || $ccExp === '' || $ccCvv === '') {
+        if ($ccNum === '' || $ccExp === '') {
             return GatewayErrorMapper::buildErrorResponse('INVALID_CARD', $ref, (float)$amount, $currency, 'بيانات البطاقة غير مكتملة');
         }
+        $isMoto = !empty($payload['is_moto']);
 
         $expParts = explode('/', str_replace('-', '/', $ccExp));
         $expMonth = str_pad($expParts[0] ?? '01', 2, '0', STR_PAD_LEFT);
@@ -213,13 +214,18 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'userTokenId'     => $email,
             'transactionType' => 'Auth',   // ← حجز فقط بدون تحصيل
             'paymentOption'   => [
-                'card' => [
+                'card' => array_filter([
                     'cardNumber'      => $ccNum,
                     'cardHolderName'  => $name,
                     'expirationMonth' => $expMonth,
                     'expirationYear'  => $expYear,
-                    'CVV'             => $ccCvv,
-                ]
+                    'CVV'             => $ccCvv !== '' ? $ccCvv : null,
+                ]),
+            ],
+            'isMoto'          => $isMoto ? '1' : '0',
+            'merchantDetails' => [
+                'customField1' => 'TRANSCENDIO_FZ_LLC',
+                'customField4' => $isMoto ? 'MOTO' : 'ECOM',
             ],
             'billingAddress'  => [
                 'email'     => $email,

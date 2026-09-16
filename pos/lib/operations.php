@@ -70,16 +70,17 @@ function pos_operation_catalog(): array
             'security' => '2D',
             'requires_otp' => false,
             'requires_card' => true,
-            'requires_cvv' => true,
+            'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
             'requires_approval' => false,
-            'approval_len' => null,
+            'approval_len' => 6,
             'linked_to_auth' => false,
             'amount_flexible' => false,
             'method' => 'authorize',
-            'desc_ar' => 'حجز فقط: بطاقة + انتهاء + CVV. لا سحب ولا استرجاع هنا. الإيصال: RRN 12 + Approval. لا Ledger حتى Capture.',
-            'desc_en' => 'Hold only: card + expiry + CVV. No withdraw/refund here. Receipt: RRN 12 + Approval. No Ledger until Capture.',
+            'is_moto' => true,
+            'desc_ar' => 'حجز MOTO فقط: بطاقة + انتهاء. بدون OTP وبدون CVV. Online: الحجز على البوابة بعلامة MOTO. Offline: Approval 4 أو 6 من البنك. لا Ledger حتى Capture.',
+            'desc_en' => 'MOTO hold only: card + expiry. No OTP, no CVV. Online: gateway Auth with MOTO flag. Offline: bank Approval 4 or 6. No Ledger until Capture.',
         ],
         'capture' => [
             'ar' => 'AUTH Capture',
@@ -659,6 +660,15 @@ function pos_validate_operation_fields(string $type, array $data): array
     $requiresCard = !empty($meta['requires_card']) || !empty($modeMeta['requires_card']);
     $requiresExpiry = !empty($meta['requires_expiry']) || !empty($modeMeta['requires_expiry']);
     $approvalLen = $modeMeta['approval_len'] ?? ($meta['approval_len'] ?? null);
+
+    if ($type === 'capture' && pos_is_valid_payment_id($paymentId)) {
+        $requiresRrn = false;
+    }
+    $authCh = strtolower(trim((string) ($data['auth_channel'] ?? $data['moto_channel'] ?? $data['extra']['auth_channel'] ?? '')));
+    if ($type === 'auth' && $authCh === 'offline') {
+        $requiresApproval = true;
+        $approvalLen = 6;
+    }
 
     if ($requiresRrn && !pos_is_valid_rrn($rrn)) {
         $errors[] = 'RRN must be exactly 12 digits.';

@@ -1668,6 +1668,7 @@ function needsRrn(type, chargeMode) {
 
 function needsApproval(type, chargeMode) {
   if (['capture','purchase_advice','online_sale_moto','offline_sale_moto'].includes(type)) return true;
+  if (type === 'auth' && document.getElementById('authChannel')?.value === 'offline') return true;
   if (chargeMode && CHARGE_MODES[chargeMode]) return !!CHARGE_MODES[chargeMode].requires_approval;
   return !!(TXN_META[type]?.requires_approval);
 }
@@ -1705,7 +1706,7 @@ window.selectTxnType = function(type, el) {
   document.getElementById('cardSection').style.opacity = noCard ? '.55' : '1';
 
   const cvvEl = document.getElementById('cardCVV');
-  const noCvv = ['capture','purchase_advice','offline_sale_moto','avoid','refund','withdrawal_nfc'].includes(type);
+  const noCvv = ['capture','purchase_advice','offline_sale_moto','online_sale_moto','avoid','refund','withdrawal_nfc','auth'].includes(type);
   if (cvvEl) {
     cvvEl.required = !noCvv;
     cvvEl.value = noCvv ? '' : cvvEl.value;
@@ -1713,7 +1714,7 @@ window.selectTxnType = function(type, el) {
   }
   const cvvWrap = document.getElementById('liveCvvWrap');
   if (cvvWrap) {
-    cvvWrap.style.display = (type === 'purchase_advice' || type === 'capture') ? 'none' : '';
+    cvvWrap.style.display = (type === 'purchase_advice' || type === 'capture' || type === 'auth') ? 'none' : '';
   }
 };
 
@@ -1742,6 +1743,20 @@ function renderExtraFields(type) {
       </select>
     </div>
     <div id="chargeModeFields"></div>`;
+  }
+
+  if (type === 'capture') {
+    html += `<div class="fld">
+      <label><i class="fas fa-lock"></i> ${AR?'الحجوزات المفتوحة (AUTH)':'Open AUTH holds'} <span style="color:var(--red)">*</span></label>
+      <select id="openHoldSelect" onchange="applyOpenHold(this)">
+        <option value="">${AR?'— اختر حجزاً أو أدخل المراجع يدوياً —':'— Pick a hold or enter refs —'}</option>
+      </select>
+      <div style="font-size:.62rem;color:var(--muted2);margin-top:4px">${AR?'بعد HOLD تظهر هنا. أو من المعاملات: الحالة Authorized ونوع AUTH.':'After HOLD they appear here. Or open Transactions: status Authorized, type AUTH.'}</div>
+    </div>
+    <div class="fld">
+      <label>Payment ID</label>
+      <input type="text" id="paymentId" placeholder="${AR?'معرّف البوابة من إيصال الحجز':'Gateway id from the hold receipt'}">
+    </div>`;
   }
 
   if (type === 'capture' || type === 'purchase_advice' || type === 'refund' || type === 'avoid') {
@@ -1782,11 +1797,25 @@ function renderExtraFields(type) {
 
   if (type === 'auth') {
     html += `<div class="fld">
-      <label><i class="fas fa-signal"></i> ${AR?'قناة AUTH (للإيصال)':'AUTH channel (receipt)'}</label>
-      <select id="authChannel">
-        <option value="online">Online — Approval 4 or 6 + RRN 12</option>
-        <option value="offline">Offline — Approval 4 or 6 + RRN 12</option>
+      <label><i class="fas fa-phone"></i> MOTO ${AR?'للحجز AUTH':'on AUTH hold'} <span style="color:var(--red)">*</span></label>
+      <select id="authChannel" onchange="onAuthMotoChannel()">
+        <option value="online">${AR?'MOTO Online — الحجز على البوابة بدون OTP':'MOTO Online — live hold, no OTP'}</option>
+        <option value="offline">${AR?'MOTO Offline — Approval 4 أو 6 من البنك':'MOTO Offline — bank Approval 4 or 6'}</option>
       </select>
+    </div>
+    <div id="authMotoOffline" style="display:none">
+      <div class="fld">
+        <label><i class="fas fa-key" style="color:var(--gold)"></i> Approval Code <span style="color:var(--red)">*</span>
+          <span style="color:var(--muted);font-weight:600">(4 ${AR?'أو':'or'} 6)</span></label>
+        <input type="text" id="approvalCode" maxlength="6" inputmode="numeric" placeholder="4 or 6"
+          style="letter-spacing:4px;font-weight:800;text-align:center"
+          oninput="this.value=this.value.replace(/\\D/g,'').slice(0,6)">
+      </div>
+      <div class="fld">
+        <label>RRN <span style="color:var(--muted);font-weight:600">(${AR?'اختياري':'optional'})</span></label>
+        <input type="text" id="origRef" maxlength="12" inputmode="numeric" placeholder="000000000000"
+          oninput="this.value=this.value.replace(/\\D/g,'').slice(0,12)">
+      </div>
     </div>`;
   }
 
@@ -1826,6 +1855,8 @@ function renderExtraFields(type) {
   }
 
   el.innerHTML = html;
+  if (type === 'capture') loadOpenHolds();
+  if (type === 'auth' && typeof onAuthMotoChannel === 'function') onAuthMotoChannel();
   if (type === 'purchase_advice' && typeof onAdviceChannelChange === 'function') {
     onAdviceChannelChange();
   }
@@ -1874,6 +1905,56 @@ window.onAdviceChannelChange = function() {
   ap.placeholder = '4 or 6';
   ap.value = (ap.value || '').replace(/\D/g,'').slice(0, 6);
   ap.oninput = function() { this.value = this.value.replace(/\D/g,'').slice(0, 6); };
+};
+
+window.onAuthMotoChannel = function() {
+  const ch = document.getElementById('authChannel')?.value || 'online';
+  const box = document.getElementById('authMotoOffline');
+  if (box) box.style.display = ch === 'offline' ? '' : 'none';
+};
+
+window.loadOpenHolds = async function() {
+  const sel = document.getElementById('openHoldSelect');
+  if (!sel) return;
+  try {
+    const r = await fetch('api/auth_holds.php', { credentials: 'same-origin' });
+    const d = await r.json();
+    const holds = Array.isArray(d.holds) ? d.holds : [];
+    sel.innerHTML = `<option value="">${AR?'— اختر حجزاً أو أدخل المراجع يدوياً —':'— Pick a hold or enter refs —'}</option>`;
+    holds.forEach((h, i) => {
+      const last4 = h.card_last4 ? ('****' + h.card_last4) : '';
+      const amt = Number(h.amount || 0).toFixed(2) + ' ' + (h.currency || '');
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = [h.reference, amt, last4, h.rrn || h.payment_id || ''].filter(Boolean).join(' · ');
+      opt.dataset.hold = JSON.stringify(h);
+      sel.appendChild(opt);
+    });
+    if (!holds.length) {
+      const opt = document.createElement('option');
+      opt.disabled = true;
+      opt.textContent = AR ? 'لا حجوزات مفتوحة — نفّذ AUTH أولاً' : 'No open holds — run AUTH first';
+      sel.appendChild(opt);
+    }
+  } catch (e) {
+    sel.insertAdjacentHTML('beforeend', `<option disabled>${AR?'تعذر تحميل الحجوزات':'Could not load holds'}</option>`);
+  }
+};
+
+window.applyOpenHold = function(sel) {
+  const opt = sel?.selectedOptions?.[0];
+  if (!opt || !opt.dataset.hold) return;
+  let h = {};
+  try { h = JSON.parse(opt.dataset.hold); } catch (e) { return; }
+  const rrn = document.getElementById('origRef');
+  const ap = document.getElementById('approvalCode');
+  const pid = document.getElementById('paymentId');
+  const cap = document.getElementById('captureAmt');
+  if (rrn) rrn.value = String(h.rrn || '').replace(/\D/g, '').slice(0, 12);
+  if (ap) ap.value = String(h.bank_approval || h.gateway_approval || '').replace(/\D/g, '').slice(0, 6);
+  if (pid) pid.value = h.payment_id || h.reference || '';
+  if (cap && !cap.value && h.amount) cap.value = Number(h.amount).toFixed(2);
+  if (typeof syncCaptureSplit === 'function') syncCaptureSplit();
 };
 
 window.onChargeModeChange = function() {
@@ -2221,6 +2302,9 @@ window.processTransaction = async function() {
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     advice_channel: document.getElementById('adviceChannel')?.value || undefined,
     auth_channel: document.getElementById('authChannel')?.value || undefined,
+    is_moto: (type === 'auth' || type === 'online_sale_moto' || type === 'offline_sale_moto') ? true : undefined,
+    moto_indicator: (type === 'auth' || type === 'online_sale_moto' || type === 'offline_sale_moto') ? 'M' : undefined,
+    payment_id: document.getElementById('paymentId')?.value || undefined,
     wallet_address: walletAddr || undefined,
     wallet_provider: walletOpt?.dataset?.provider || undefined,
     wallet_network: walletOpt?.dataset?.network || undefined,
@@ -2260,7 +2344,10 @@ window.processTransaction = async function() {
     toast(AR?'اختر وضع التنفيذ داخل السحب':'Select withdrawal charge mode', 'error'); return;
   }
   if (POS_REQUIRES_CARD && needsRrn(type, chargeMode) && !/^\d{12}$/.test(origRef)) {
-    toast(AR?'RRN يجب أن يكون 12 رقماً':'RRN must be exactly 12 digits', 'error'); return;
+    const pid = (document.getElementById('paymentId')?.value || '').trim();
+    if (!(type === 'capture' && pid.length >= 6)) {
+      toast(AR?'RRN يجب أن يكون 12 رقماً أو اختر الحجز من القائمة':'RRN must be 12 digits, or pick the hold from the list', 'error'); return;
+    }
   }
   if (!POS_REQUIRES_CARD && ['refund','avoid'].includes(type) && !origRef) {
     toast(AR?'أدخل مرجع العملية الأصلية':'Enter original reference', 'error'); return;
@@ -2300,7 +2387,7 @@ window.processTransaction = async function() {
         toast(AR?'بطاقات الاختبار والوهم مرفوضة':'Test and dummy cards are rejected', 'error'); return;
       }
       if (!expiry) { toast(AR?'أدخل تاريخ الانتهاء':'Enter expiry date', 'error'); return; }
-      const noCvv = ['capture','purchase_advice','offline_sale_moto','avoid','refund','withdrawal_nfc'].includes(type);
+      const noCvv = ['capture','purchase_advice','offline_sale_moto','online_sale_moto','avoid','refund','withdrawal_nfc','auth'].includes(type);
       if (!noCvv && (!cvv || cvv.length < 3)) {
         toast(AR?'أدخل CVV':'Enter CVV', 'error'); return;
       }
