@@ -18,22 +18,10 @@ $action = strtolower(trim((string) ($_GET['action'] ?? '')));
 
 if ($method === 'GET' && ($action === 'health' || $action === '')) {
     echo json_encode([
-        'success'     => true,
-        'role'        => peer_this_role(),
-        'site'        => defined('SITE_URL') ? SITE_URL : '',
-        'local_url'   => PEER_LOCAL_URL,
-        'remote_url'  => PEER_REMOTE_URL,
-        'peer_url'    => peer_other_url(),
-        'enabled'     => PEER_SYNC_ENABLED,
-        'secret_set'  => PEER_SYNC_SECRET !== '',
-        'webhooks'    => [
-            'generic' => rtrim((string) SITE_URL, '/') . '/api/webhook.php',
-            'payram'  => rtrim((string) SITE_URL, '/') . '/api/payram_webhook.php',
-            'paypal'  => rtrim((string) SITE_URL, '/') . '/api/paypal.php?action=webhook',
-            'whop'    => rtrim((string) SITE_URL, '/') . '/api/whop_webhook.php',
-            'diparma' => rtrim((string) SITE_URL, '/') . '/api/webhooks/diparma.php',
-        ],
-        'withdraw'    => rtrim((string) SITE_URL, '/') . '/api/pos_transaction.php',
+        'success' => true,
+        'ok'      => true,
+        'role'    => peer_this_role(),
+        'enabled' => PEER_SYNC_ENABLED,
     ]);
     exit;
 }

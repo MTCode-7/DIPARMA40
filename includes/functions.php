@@ -44,14 +44,8 @@ if (!function_exists('verifyCsrfToken')) {
         }
 
         $sessionToken = $_SESSION['csrf_token'] ?? null;
-        $cookieToken = $_COOKIE['diparma_csrf_token'] ?? null;
 
         if ($sessionToken !== null && hash_equals((string) $sessionToken, $candidate)) {
-            return true;
-        }
-
-        if ($cookieToken !== null && hash_equals((string) $cookieToken, $candidate)) {
-            $_SESSION['csrf_token'] = (string) $cookieToken;
             return true;
         }
 
@@ -63,6 +57,13 @@ if (!function_exists('validateCsrfToken')) {
     function validateCsrfToken($token): bool
     {
         return verifyCsrfToken($token);
+    }
+}
+
+if (!function_exists('e')) {
+    function e($value): string
+    {
+        return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
 

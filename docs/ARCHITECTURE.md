@@ -3,23 +3,25 @@
 ## High-level flow
 
 ```
-Dashboard DI PARMA / POS Web / API v1
+Dashboard / POS / API v1
             │
             ▼
-   ChargeHub (DiParmaChargeHub)
+   ChargeHub (DiParmaChargeHub)   ← only charge entry
             │
+     ┌──────┴──────┐
+     ▼             ▼
+ POS live pipe   Adapter factory (checkout gateways)
+     │             │
+     └──────┬──────┘
             ▼
- pos_run_payment_orchestrator  →  pos_run_standalone_gateway
-            │
-            ▼
-     Gateway Adapter (Square / Nuvei / Stripe / …)
-            │
+     Provider (one gateway, no silent switch)
             ▼
      Payment Result → Orders / dp_transactions
-            │
             ▼
-   Ledger settlement (USDT TRC20)  ← caller / queue / webhook confirm
+   LedgerSettlementService (USDT TRC20)
 ```
+
+`diparma_gateway` is settlement destination only — never a card processor.
 
 ## Key modules
 
@@ -33,7 +35,8 @@ Dashboard DI PARMA / POS Web / API v1
 | `lib/DIPARMAOrchestrator.php` | Routing → ChargeHub |
 | `pos/lib/gateways.php` | POS gateway dispatch & live checks |
 | `lib/Adapters/*` | Provider adapters (Nuvei, Square, Stripe, PayPal, Ledger, …) |
-| `lib/LedgerSettlementService.php` | Settlement helpers |
+| `lib/LedgerSettlementService.php` | Only money settlement to Ledger |
+| `gateway/SettlementEngine.php` | Reconcile / receipt after LedgerSettlementService |
 | `lib/HotWalletService.php` / `WalletManager.php` | Wallet ops |
 | `api/peer.php` + `includes/peer_link.php` | Local ↔ remote sync |
 | `api/webhook.php` | Generic provider confirm → orchestrator / Ledger |

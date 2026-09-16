@@ -124,91 +124,31 @@ class MySystemPaymentOrchestrator
     private function chargeProvider(string $provider, array $input, array $customer, string $reference): array
     {
         $txnType = strtolower(trim((string) ($input['txn_type'] ?? 'purchase_2d')));
-        require_once __DIR__ . '/ChargeHub.php';
-
-        if (DiParmaChargeHub::supports($provider)) {
-            // Avoid nested Orders create — ChargeHub/orchestrator already create+apply.
-            // Here we only need standalone when order already exists from pay().
-            DiParmaChargeHub::ensurePosLoaded();
-            $params = array_merge($input, [
-                'amount' => (float) ($input['amount'] ?? 0),
-                'currency' => strtoupper((string) ($input['currency'] ?? 'USD')),
-                'card_number' => preg_replace('/\D/', '', (string) ($input['card_number'] ?? $input['cc_number'] ?? '')),
-                'card_expiry' => (string) ($input['card_expiry'] ?? $input['cc_expiry'] ?? ''),
-                'card_cvv' => (string) ($input['card_cvv'] ?? $input['cc_cvv'] ?? $input['cvv2'] ?? ''),
-                'name' => (string) ($input['card_name'] ?? $customer['name'] ?? 'CARDHOLDER'),
-                'email' => (string) ($input['email'] ?? $customer['email'] ?? ''),
-                'reference' => $reference,
-                'user_id' => (int) ($customer['id'] ?? 0),
-                'source_id' => $input['source_id'] ?? null,
-                'cloud_token' => $input['cloud_token'] ?? $input['payment_token'] ?? null,
-                'destination' => 'ledger',
-                'ledger_address' => $input['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
-                'channel' => (string) ($input['channel'] ?? 'mysystem'),
-            ]);
-            // Order already created in pay() — charge via standalone only
-            $payment = pos_run_standalone_gateway($provider, $txnType, $params);
-            if (!is_array($payment)) {
-                $payment = ['success' => false, 'message' => 'Invalid provider response'];
-            }
-            $payment['provider'] = $provider;
-            $payment['hub'] = 'di_parma_charge_hub';
-            return $payment;
-        }
-
         $mode = (str_contains($txnType, '3d') || strtoupper((string) ($input['sec_mode'] ?? '')) === '3D')
             ? '3D'
             : '2D';
-
-        try {
-            $adapter = GatewayAdapterFactory::make($provider, $mode);
-        } catch (Throwable $e) {
-            return [
-                'success' => false,
-                'status' => 'failed',
-                'message' => 'Provider unavailable: ' . $e->getMessage(),
-                'provider' => $provider,
-            ];
-        }
-
-        $payload = [
+        require_once __DIR__ . '/ChargeHub.php';
+        $payment = DiParmaChargeHub::charge($provider, $txnType, array_merge($input, [
             'amount' => (float) ($input['amount'] ?? 0),
             'currency' => strtoupper((string) ($input['currency'] ?? 'USD')),
             'card_number' => preg_replace('/\D/', '', (string) ($input['card_number'] ?? $input['cc_number'] ?? '')),
             'card_expiry' => (string) ($input['card_expiry'] ?? $input['cc_expiry'] ?? ''),
             'card_cvv' => (string) ($input['card_cvv'] ?? $input['cc_cvv'] ?? $input['cvv2'] ?? ''),
-            'cvv2' => (string) ($input['card_cvv'] ?? $input['cc_cvv'] ?? $input['cvv2'] ?? ''),
             'name' => (string) ($input['card_name'] ?? $customer['name'] ?? 'CARDHOLDER'),
             'email' => (string) ($input['email'] ?? $customer['email'] ?? ''),
             'reference' => $reference,
-            'processing_mode' => $mode,
-            'txn_type' => $txnType,
+            'user_id' => (int) ($customer['id'] ?? 0),
             'source_id' => $input['source_id'] ?? null,
             'cloud_token' => $input['cloud_token'] ?? $input['payment_token'] ?? null,
-            'payment_token' => $input['payment_token'] ?? $input['cloud_token'] ?? null,
+            'processing_mode' => $mode,
             'destination' => 'ledger',
             'ledger_address' => $input['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
-        ];
-
-        try {
-            if (in_array($txnType, ['auth', 'auth_hold', 'auth_moto'], true)) {
-                $result = $adapter->hold($payload);
-            } else {
-                $result = $adapter->charge($payload);
-            }
-        } catch (Throwable $e) {
-            return [
-                'success' => false,
-                'status' => 'failed',
-                'message' => $e->getMessage(),
-                'provider' => $provider,
-            ];
+            'channel' => (string) ($input['channel'] ?? 'mysystem'),
+        ]));
+        if (!is_array($payment)) {
+            $payment = ['success' => false, 'message' => 'Invalid provider response'];
         }
-
-        if (!is_array($result)) {
-            return ['success' => false, 'status' => 'failed', 'message' => 'Invalid provider response', 'provider' => $provider];
-        }
-        $result['provider'] = $provider;
-        return $result;
+        $payment['provider'] = $provider;
+        return $payment;
     }
 }

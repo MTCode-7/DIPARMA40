@@ -60,24 +60,25 @@ try {
     // ── مسار 2D/MOTO: عبر ChargeHub الموحّد (أنبوب POS) ──
     if ($securityMode === '2D' && strlen($cardNumber) >= 13) {
 
-        if (in_array($txnType, ['purchase_advice', 'auth_capture'], true)) {
+        if (in_array($txnType, ['purchase_advice', 'auth_capture', 'capture'], true)) {
             $rrn          = trim((string)($payload['orig_ref']      ?? ''));
             $approvalCode = trim((string)($payload['approval_code'] ?? ''));
 
-            if (!function_exists('gateway_service')) {
-                require_once __DIR__ . '/../includes/gateways.php';
-            }
-            $settlement = gateway_service()->settlePreAuthorization('stripe', [
-                'order_ref'     => $reference,
+            require_once __DIR__ . '/../lib/MySystem/ChargeHub.php';
+            $settlement = DiParmaChargeHub::charge('stripe', $txnType === 'purchase_advice' ? 'purchase_advice' : 'capture', [
                 'amount'        => $amount,
                 'currency'      => $currency,
+                'reference'     => $reference,
                 'rrn'           => $rrn,
+                'orig_ref'      => $rrn,
+                'related_transaction_id' => $rrn,
                 'approval_code' => $approvalCode,
                 'card_number'   => $cardNumber,
                 'card_expiry'   => trim((string)($payload['card_expiry'] ?? '')),
-                'cvv2'          => trim((string)($payload['card_cvv'] ?? '')),
+                'card_cvv'      => trim((string)($payload['card_cvv'] ?? '')),
                 'name'          => trim((string)($payload['card_name'] ?? 'Customer')),
                 'email'         => $email,
+                'channel'       => 'stripe_charge_api',
             ]);
 
             if (ob_get_level() > 0) ob_clean();

@@ -8,6 +8,7 @@ requireAdmin();
 
 $ar = is_ar();
 $db = db();
+$csrfToken = generateCsrfToken();
 dp_ensure_indexes();
 
 try {
@@ -27,7 +28,11 @@ try {
 $message = '';
 $messageType = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['approve_request']) || isset($_POST['reject_request']))) {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $message = dp_t('Security check failed', 'فشل التحقق الأمني');
+        $messageType = 'error';
+    } elseif (isset($_POST['approve_request'])) {
     $id = intval($_POST['id'] ?? 0);
     $request = $db->find('approval_requests', ['id' => $id]);
     if ($request && $request['status'] === 'pending') {
@@ -64,9 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
         $message = dp_t('ℹ️ This request can no longer be changed', 'ℹ️ هذا الطلب لم يعد قابلًا للتعديل');
         $messageType = 'info';
     }
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reject_request'])) {
+    } elseif (isset($_POST['reject_request'])) {
     $id = intval($_POST['id'] ?? 0);
     $reason = trim($_POST['reason'] ?? '');
     $request = $db->find('approval_requests', ['id' => $id]);
@@ -79,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reject_request'])) {
     } else {
         $message = dp_t('ℹ️ This request can no longer be changed', 'ℹ️ هذا الطلب لم يعد قابلًا للتعديل');
         $messageType = 'info';
+    }
     }
 }
 
@@ -105,7 +109,7 @@ body{font-family:'Cairo',sans-serif;background:#0b0f17;color:#f7d76b;margin:0;pa
   </div>
   <div class="card">
     <h2><?= dp_t('Approval requests', 'طلبات الموافقة') ?></h2>
-    <?php if ($message): ?><div style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);"><?= $message ?></div><?php endif; ?>
+    <?php if ($message): ?><div style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);"><?= e($message) ?></div><?php endif; ?>
     <table>
       <thead><tr><th><?= dp_t('Reference', 'المرجع') ?></th><th><?= dp_t('Type', 'النوع') ?></th><th><?= dp_t('Amount', 'المبلغ') ?></th><th><?= dp_t('Status', 'الحالة') ?></th><th><?= dp_t('Reason', 'السبب') ?></th><th><?= dp_t('Action', 'الإجراء') ?></th></tr></thead>
       <tbody>
@@ -119,11 +123,13 @@ body{font-family:'Cairo',sans-serif;background:#0b0f17;color:#f7d76b;margin:0;pa
             <td>
               <?php if ($request['status'] === 'pending'): ?>
                 <form method="POST" style="display:inline-block;">
-                  <input type="hidden" name="id" value="<?= $request['id'] ?>">
+                  <input type="hidden" name="csrf_token" value="<?= e($csrfToken) ?>">
+                  <input type="hidden" name="id" value="<?= (int)$request['id'] ?>">
                   <button class="btn btn-success" name="approve_request"><?= dp_t('Approve', 'قبول') ?></button>
                 </form>
                 <form method="POST" style="display:inline-block;">
-                  <input type="hidden" name="id" value="<?= $request['id'] ?>">
+                  <input type="hidden" name="csrf_token" value="<?= e($csrfToken) ?>">
+                  <input type="hidden" name="id" value="<?= (int)$request['id'] ?>">
                   <textarea name="reason" placeholder="<?= dp_t('Rejection reason...', 'سبب الرفض...') ?>"></textarea>
                   <button class="btn btn-danger" name="reject_request"><?= dp_t('Reject', 'رفض') ?></button>
                 </form>

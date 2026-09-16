@@ -15,6 +15,7 @@ require_once POS_APP_ROOT . '/includes/config.php';
 require_once POS_APP_ROOT . '/includes/database.php';
 require_once POS_APP_ROOT . '/includes/functions.php';
 require_once POS_PATH . '/lib/operations.php';
+require_once POS_PATH . '/lib/ops_sticker.php';
 require_once POS_PATH . '/lib/gateways.php';
 require_once POS_PATH . '/lib/devices.php';
 require_once POS_PATH . '/lib/merchant.php';

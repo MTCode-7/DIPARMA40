@@ -59,7 +59,7 @@ DirectoryIndex landing.php
     RewriteRule ^checkout_bank\.php$ checkout/bank_mashreq.php [R=302,L,QSA]
     RewriteRule ^checkout_gateway\.php$ checkout_router.php [R=302,L,QSA]
     RewriteRule ^checkout_offline\.php$ checkout_router.php [R=302,L,QSA]
-    RewriteRule ^checkout_live\.php$ checkout_ledger.php [R=302,L,QSA]
+    RewriteRule ^checkout_live\.php$ pos/index.php [R=302,L,QSA]
     # checkout.php is the Nuvei Back/Failure URL — do not rewrite it away.
     RewriteRule ^pos\.php$ pos/index.php [R=302,L,QSA]
     RewriteRule ^pos_installer\.php$ pos/install.php [L,QSA]

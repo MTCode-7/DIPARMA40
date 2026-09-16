@@ -410,6 +410,7 @@ if ($txnType === 'capture' && ($origRef !== '' || $paymentId !== '')) {
 $useCardGateway = !in_array($txnType, ['balance', 'settlement']);
 $success = false;
 $message = 'PENDING';
+$responseCode = '';
 $rrn = '';
 $originalRrn = $origRef;
 $stan = '';
@@ -564,10 +565,18 @@ if ($useCardGateway) {
         }
 
         $success = !empty($result['success']);
-        $message = $result['decline_reason'] ?? $result['message'] ?? ($success ? 'APPROVED' : 'DECLINED');
-        if (!$success && ($message === '' || strcasecmp((string)$message, 'DECLINED') === 0 || strcasecmp((string)$message, 'ERROR') === 0)) {
-            $raw = is_array($result['raw'] ?? null) ? $result['raw'] : [];
-            $message = trim((string)($raw['gwErrorReason'] ?? $raw['reason'] ?? $raw['errCode'] ?? 'DECLINED'));
+        $message = $success
+            ? 'APPROVED'
+            : pos_plain_host_message($result['raw'] ?? $result);
+        $responseCode = trim((string) (
+            $result['response_code']
+            ?? $result['errCode']
+            ?? $result['gwErrorCode']
+            ?? (is_array($result['raw'] ?? null) ? ($result['raw']['gwErrorCode'] ?? $result['raw']['errCode'] ?? '') : '')
+            ?? ''
+        ));
+        if ($responseCode === '' && preg_match('/\b(\d{4})\b/', $message, $mRc)) {
+            $responseCode = $mRc[1];
         }
         $approvalCode = $result['approval_code'] ?? '';
         $rrn = $result['rrn'] ?? '';
@@ -587,11 +596,12 @@ if ($useCardGateway) {
     } catch (Exception $e) {
         error_log('[POS][Nuvei] Exception: ' . $e->getMessage());
         http_response_code(500);
+        $gwErr = pos_plain_host_message($e->getMessage());
         echo json_encode([
             'success' => false,
-            'message' => 'Gateway error: ' . $e->getMessage(),
-            'status_message' => 'Gateway error: ' . $e->getMessage(),
-            'decline_reason' => 'Gateway error: ' . $e->getMessage(),
+            'message' => $gwErr,
+            'status_message' => $gwErr,
+            'decline_reason' => $gwErr,
         ]);
         exit;
     }
@@ -612,11 +622,11 @@ if ($txnType === 'balance') {
             $nuvei = new NuveiAdapter();
             $result = $nuvei->balanceInquiry([]);
             $success = !empty($result['success']);
-            $message = $success ? 'BALANCE_INQUIRY_OK' : ($result['message'] ?? 'BALANCE_INQUIRY_FAILED');
+            $message = $success ? 'BALANCE_INQUIRY_OK' : pos_plain_host_message($result['message'] ?? 'BALANCE_INQUIRY_FAILED');
             $gatewayResponse = $result;
         } catch (Exception $e) {
             $success = false;
-            $message = $e->getMessage();
+            $message = pos_plain_host_message($e->getMessage());
         }
     }
 }
@@ -851,6 +861,7 @@ if ($success && pos_is_withdrawal($txnType) && empty($data['_peer_mirror'])) {
 // ============================================================
 
 http_response_code(200);
+$message = pos_plain_host_message($message);
 echo json_encode([
     'success' => $success,
     'reference' => $reference,
@@ -866,6 +877,8 @@ echo json_encode([
     'gateway_details' => $gatewayDetails,
     'amount' => $amount,
     'currency' => $currency,
+    'response_code' => $responseCode,
+    'card_last4' => $cardNumber !== '' ? substr($cardNumber, -4) : '',
     'status_message' => $message,
     'message' => $message,
     'decline_reason' => $success ? null : $message,
@@ -893,4 +906,4 @@ echo json_encode([
     'channel' => $entryChannel,
     'order_id' => $transactionId,
     'timestamp' => date('c'),
-], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+], JSON_UNESCAPED_UNICODE);

@@ -269,7 +269,7 @@ function activity_checkout_route(string $code): string
         'nuvei' => 'checkout/nuvei.php',
         'stripe' => 'checkout/stripe.php',
         'square' => 'checkout/square.php',
-        'diparma_gateway' => 'checkout/diparma_gateway.php',
+        'diparma_gateway' => 'checkout_router.php',
         'paypal' => 'checkout/paypal.php',
         'wise' => 'checkout/wise.php',
         'myfatoorah' => 'checkout/myfatoorah.php',

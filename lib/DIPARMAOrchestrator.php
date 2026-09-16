@@ -18,7 +18,6 @@
  * ============================================================
  */
 
-require_once __DIR__ . '/WiseService.php';
 require_once __DIR__ . '/Adapters/GatewayAdapterFactory.php';
 require_once __DIR__ . '/MySystem/ChargeHub.php';
 
@@ -51,27 +50,8 @@ class DIPARMAOrchestrator
         'jpmorgan' => ['name'=>'JP Morgan Chase Bank N.A.',  'currency'=>'USD','account'=>'663525063665','routing'=>'111000614','swift'=>'CHASUS33','beneficiary'=>'ROBERT VALLES JR IOLTA'],
     ];
 
-    /* ── 18 POS Terminals ─────────────────────────────── */
-    private array $POS_TERMINALS = [
-        'POS-001' => ['name'=>'Terminal Dubai Main',    'type'=>'BITEL_IC3600','location'=>'Dubai HQ',        'status'=>'active','gateway'=>'nuvei'],
-        'POS-002' => ['name'=>'Terminal Dubai Branch',  'type'=>'BITEL_IC3600','location'=>'Dubai Branch',    'status'=>'active','gateway'=>'nuvei'],
-        'POS-003' => ['name'=>'Terminal Abu Dhabi',     'type'=>'BITEL_IC3600','location'=>'Abu Dhabi',       'status'=>'active','gateway'=>'nuvei'],
-        'POS-004' => ['name'=>'Terminal Sharjah',       'type'=>'BITEL_IC3600','location'=>'Sharjah',         'status'=>'active','gateway'=>'nuvei'],
-        'POS-005' => ['name'=>'Terminal Ajman',         'type'=>'BITEL_IC3600','location'=>'Ajman',           'status'=>'active','gateway'=>'nuvei'],
-        'POS-006' => ['name'=>'Terminal RAK',           'type'=>'BITEL_IC3600','location'=>'Ras Al Khaimah',  'status'=>'active','gateway'=>'nuvei'],
-        'POS-007' => ['name'=>'Terminal Fujairah',      'type'=>'BITEL_IC3600','location'=>'Fujairah',        'status'=>'active','gateway'=>'nuvei'],
-        'POS-008' => ['name'=>'Terminal Cairo',         'type'=>'BITEL_IC3600','location'=>'Cairo, Egypt',    'status'=>'active','gateway'=>'nuvei'],
-        'POS-009' => ['name'=>'Terminal Alexandria',    'type'=>'BITEL_IC3600','location'=>'Alexandria, Egypt','status'=>'active','gateway'=>'nuvei'],
-        'POS-010' => ['name'=>'Terminal Riyadh',        'type'=>'BITEL_IC3600','location'=>'Riyadh, KSA',     'status'=>'active','gateway'=>'nuvei'],
-        'POS-011' => ['name'=>'Terminal Jeddah',        'type'=>'BITEL_IC3600','location'=>'Jeddah, KSA',     'status'=>'active','gateway'=>'nuvei'],
-        'POS-012' => ['name'=>'Terminal Kuwait',        'type'=>'BITEL_IC3600','location'=>'Kuwait City',     'status'=>'active','gateway'=>'nuvei'],
-        'POS-013' => ['name'=>'Terminal Doha',          'type'=>'BITEL_IC3600','location'=>'Doha, Qatar',     'status'=>'active','gateway'=>'nuvei'],
-        'POS-014' => ['name'=>'Terminal Bahrain',       'type'=>'BITEL_IC3600','location'=>'Manama, Bahrain', 'status'=>'active','gateway'=>'nuvei'],
-        'POS-015' => ['name'=>'Terminal London',        'type'=>'BITEL_IC3600','location'=>'London, UK',      'status'=>'active','gateway'=>'nuvei'],
-        'POS-016' => ['name'=>'Terminal New York',      'type'=>'BITEL_IC3600','location'=>'New York, USA',   'status'=>'active','gateway'=>'nuvei'],
-        'POS-017' => ['name'=>'Terminal Paris',         'type'=>'BITEL_IC3600','location'=>'Paris, France',   'status'=>'active','gateway'=>'nuvei'],
-        'POS-018' => ['name'=>'Terminal Singapore',     'type'=>'BITEL_IC3600','location'=>'Singapore',       'status'=>'active','gateway'=>'nuvei'],
-    ];
+    /* ── أجهزة POS الحقيقية (TID فعلي فقط) ─────────────── */
+    private array $POS_TERMINALS = [];
 
     /* ── أنواع العمليات المعيارية (POS) ─────────────── */
     private array $TXN_TYPES = [
@@ -106,9 +86,37 @@ class DIPARMAOrchestrator
         try {
             require_once __DIR__ . '/../includes/database.php';
             $this->db = db();
+            $this->loadRealPosTerminals();
         } catch (Exception $e) {
             $this->db = null;
         }
+    }
+
+    private function loadRealPosTerminals(): void
+    {
+        $file = dirname(__DIR__) . '/pos/lib/company_terminals.php';
+        if (!is_file($file)) {
+            return;
+        }
+        require_once $file;
+        if (!function_exists('pos_company_terminals_with_tid')) {
+            return;
+        }
+        $out = [];
+        foreach (pos_company_terminals_with_tid() as $row) {
+            $tid = trim((string) ($row['tid'] ?? ''));
+            if ($tid === '') {
+                continue;
+            }
+            $out[$tid] = [
+                'name' => trim((string) (($row['brand'] ?? '') . ' ' . ($row['name'] ?? $tid))),
+                'type' => (string) ($row['model'] ?? ''),
+                'location' => (string) ($row['line'] ?? ''),
+                'status' => 'active',
+                'gateway' => '',
+            ];
+        }
+        $this->POS_TERMINALS = $out;
     }
 
     public static function getInstance(): self
@@ -167,7 +175,7 @@ class DIPARMAOrchestrator
             'orig_ref'     => $input['orig_ref']     ?? '',
             'ledger_addr'  => $input['ledger_addr']  ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
             'processing_mode' => $secMode,
-            'pos_device'   => $posId ? ($this->POS_TERMINALS[$posId]['type'] ?? 'BITEL_IC3600') : 'WEB',
+            'pos_device'   => $posId ? ($this->POS_TERMINALS[$posId]['type'] ?? '') : 'WEB',
             'pos_id'       => $posId,
         ];
 
@@ -260,7 +268,7 @@ class DIPARMAOrchestrator
         }
 
         if ($posId && isset($this->POS_TERMINALS[$posId]) && $requested === '') {
-            return $this->POS_TERMINALS[$posId]['gateway'] ?? 'nuvei';
+            return $this->POS_TERMINALS[$posId]['gateway'] ?? '';
         }
 
         /* اختيار تلقائي فقط عند السماح صراحة */
@@ -318,87 +326,8 @@ class DIPARMAOrchestrator
         }
 
         require_once __DIR__ . '/MySystem/ChargeHub.php';
-        if (DiParmaChargeHub::supports($processor)) {
-            if ($processor === 'diparma_gateway') {
-                return [
-                    'success' => false,
-                    'message' => 'Pick an enabled payment gateway. Ledger is the settlement destination.',
-                ];
-            }
-            $params['channel'] = $params['channel'] ?? 'diparma_orchestrator';
-            return DiParmaChargeHub::charge($processor, $txnType, $params);
-        }
-
-        /* بوابات خارج أنبوب POS */
-        return match ($processor) {
-            'myfatoorah' => $this->executeMyFatoorah($txnType, $params),
-            'wise'       => $this->executeWise($txnType, $params),
-            default      => ['success' => false, 'message' => "Unknown processor: $processor"],
-        };
-    }
-
-    /* ── MyFatoorah (خارج أنبوب POS) ───────────────────── */
-    private function executeMyFatoorah(string $txnType, array $p): array
-    {
-        try {
-            $apiKey  = defined('MYFAOORAH_API_KEY') ? MYFAOORAH_API_KEY : getenv('MYFAOORAH_API_KEY');
-            $env     = defined('MYFAOORAH_ENVIRONMENT') ? MYFAOORAH_ENVIRONMENT : getenv('MYFAOORAH_ENVIRONMENT');
-            $baseUrl = ($env === 'live') ? 'https://api.myfatoorah.com' : 'https://apitest.myfatoorah.com';
-            $siteUrl = defined('SITE_URL') ? SITE_URL : 'https://diparmas.com';
-
-            $body = [
-                'NotificationOption' => 'LNK',
-                'InvoiceValue'       => $p['amount'],
-                'CurrencyIso'        => $p['currency'],
-                'CustomerEmail'      => $p['email'] ?? '',
-                'CallBackUrl'        => $siteUrl . '/payment_success.php?ref=' . $p['reference'],
-                'ErrorUrl'           => $siteUrl . '/checkout_router.php?error=1',
-                'CustomerReference'  => $p['reference'],
-            ];
-
-            $ch = curl_init($baseUrl . '/v2/SendPayment');
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST           => true,
-                CURLOPT_POSTFIELDS     => json_encode($body),
-                CURLOPT_TIMEOUT        => 15,
-                CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Authorization: Bearer '.$apiKey],
-            ]);
-            $res = json_decode(curl_exec($ch) ?: '{}', true);
-            curl_close($ch);
-
-            if (!empty($res['Data']['InvoiceURL'])) {
-                return [
-                    'success' => false,
-                    'requires_3ds' => true,
-                    'redirect_url' => $res['Data']['InvoiceURL'],
-                    'invoice_id' => $res['Data']['InvoiceId'] ?? '',
-                    'provider' => 'myfatoorah',
-                    'message' => 'Complete MyFatoorah checkout. Ledger after paid webhook only.',
-                ];
-            }
-            return ['success'=>false,'message'=>$res['Message'] ?? 'MyFatoorah error'];
-        } catch (Exception $e) {
-            return ['success'=>false,'message'=>'MyFatoorah: '.$e->getMessage()];
-        }
-    }
-
-    /* ── Wise fallback إذا لم تُحمَّل بوابة POS ─────────── */
-    private function executeWise(string $txnType, array $p): array
-    {
-        try {
-            $wise = WiseService::fromConfig();
-            return $wise->createTransfer([
-                'amount'           => $p['amount'],
-                'source_currency'  => $p['currency'],
-                'target_currency'  => 'USD',
-                'reference'        => $p['reference'],
-                'recipient_name'   => $p['card_name'] ?? 'DI PARMA',
-                'recipient_email'  => $p['email']     ?? '',
-            ]);
-        } catch (Exception $e) {
-            return ['success'=>false,'message'=>'Wise: '.$e->getMessage()];
-        }
+        $params['channel'] = $params['channel'] ?? 'diparma_orchestrator';
+        return DiParmaChargeHub::charge($processor, $txnType, $params);
     }
 
     /* ── Bank Direct ────────────────────────────────────── */

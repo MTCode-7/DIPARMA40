@@ -191,6 +191,32 @@ function pos_company_terminals(): array
     return array_slice($units, 0, $target);
 }
 
+/**
+ * Company terminals that already have a real TID (empty fleet slots are hidden).
+ *
+ * @return list<array<string,mixed>>
+ */
+function pos_company_terminals_with_tid(): array
+{
+    $out = [];
+    foreach (pos_tid_records() as $tid => $rec) {
+        $tid = (string) $tid;
+        if ($tid === '') {
+            continue;
+        }
+        $out[] = [
+            'tid' => $tid,
+            'model' => (string) ($rec['model'] ?? ''),
+            'brand' => (string) ($rec['brand'] ?? ''),
+            'name' => (string) ($rec['name'] ?? ''),
+            'line' => (string) ($rec['line'] ?? ''),
+            'note' => '',
+            'fleet' => (string) ($rec['fleet'] ?? ''),
+        ];
+    }
+    return $out;
+}
+
 function pos_company_terminal_models(): array
 {
     if (!function_exists('pos_m')) {

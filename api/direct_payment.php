@@ -48,7 +48,7 @@ if (str_starts_with($action, 'init_')) {
 }
 $txnType = strtolower(trim((string) ($payload['txn_type'] ?? 'purchase_2d')));
 
-if ($gateway === '' || !DiParmaChargeHub::supports($gateway)) {
+if ($gateway === '' || !DiParmaChargeHub::canCharge($gateway)) {
     http_response_code(410);
     echo json_encode([
         'success' => false,

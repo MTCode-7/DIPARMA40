@@ -208,7 +208,6 @@ tr:hover td { background:rgba(255,255,255,.02); }
     <div class="topbar-links">
         <a href="../index.php"><i class="fas fa-home"></i> الرئيسية</a>
         <a href="gateway_manager.php"><i class="fas fa-cog"></i> البوابات</a>
-        <a href="connection_manager.php"><i class="fas fa-network-wired"></i> الاتصال</a>
         <a href="../admin/users.php"><i class="fas fa-users"></i> المستخدمون</a>
         <a href="../logout.php" style="color:#ef5350"><i class="fas fa-sign-out-alt"></i> خروج</a>
     </div>
@@ -219,7 +218,7 @@ tr:hover td { background:rgba(255,255,255,.02); }
     <p class="subtitle">إدارة طلبات التسجيل الجديدة والمستخدمين</p>
 
     <?php if ($msg): ?>
-        <div class="alert <?= $msgType ?>"><?= $msg ?></div>
+        <div class="alert <?= e($msgType) ?>"><?= e($msg) ?></div>
     <?php endif; ?>
 
     <!-- Tabs -->

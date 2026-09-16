@@ -952,7 +952,6 @@ $csrfToken = generateCsrfToken();
             <a href="bank_gateways.php" class="btn btn-info" style="background:linear-gradient(135deg,#1a6fb5,#1356a0);color:#fff;border:none"><i class="fas fa-university"></i> Bank Gateways</a>
             <a href="performance_monitor.php" class="btn btn-outline" style="border-color:rgba(76,175,80,.5);color:#4CAF50"><i class="fas fa-tachometer-alt"></i> Performance</a>
             <a href="../dashboard.php" class="btn btn-outline"><i class="fas fa-chart-pie"></i> Dashboard</a>
-            <a href="../gateways.php" class="btn btn-success"><i class="fas fa-route"></i> Payment Gateways &amp; Details</a>
             <a href="?profile=true" class="btn btn-info"><i class="fas fa-user-cog"></i> Account Settings</a>
             <a href="?sync=true&token=<?= $csrfToken ?>" class="btn btn-success" onclick="return confirm('Add all missing payment gateways from configuration?')"><i class="fas fa-plus-circle"></i> Add All Gateways</a>
             <a href="?add=true" class="btn btn-primary" onclick="toggleAddForm()"><i class="fas fa-plus"></i> Add Gateway</a>
@@ -965,7 +964,7 @@ $csrfToken = generateCsrfToken();
     </div>
     
     <?php if ($message): ?>
-        <div class="alert alert-<?= $messageType ?>"><?= $message ?></div>
+        <div class="alert alert-<?= e($messageType) ?>"><?= e($message) ?></div>
     <?php endif; ?>
 
     <?php if ($missingGatewayCount > 0): ?>
@@ -1322,7 +1321,7 @@ $csrfToken = generateCsrfToken();
                 }
                 ?>
                 <?php if ($renderDisconnectedDivider): ?>
-                    <div class="gateway-section-divider"><span>Disconnected or Not Ready Gateways</span></div>
+                    <div class="gateway-section-divider"><span>غير متصلة — أضف مفاتيح الاتصال ثم اختبر حتى تظهر في Checkout و POS</span></div>
                 <?php endif; ?>
                 <div class="gateway-card" id="gw-card-<?= $gw['id'] ?>">
                     <div class="header-card">

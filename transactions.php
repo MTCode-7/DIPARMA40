@@ -24,6 +24,10 @@ dp_ensure_indexes();
 $refundMessage = '';
 $refundStatus = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['refund_reference'])) {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $refundMessage = 'Security check failed';
+        $refundStatus = 'error';
+    } else {
     $refundResult = processRefundTransaction(
         trim((string)($_POST['refund_reference'] ?? '')),
         floatval($_POST['refund_amount'] ?? 0),
@@ -31,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['refund_reference']))
     );
     $refundMessage = $refundResult['message'] ?? '';
     $refundStatus = $refundResult['success'] ? 'success' : 'error';
+    }
 }
 
 // ============================================================

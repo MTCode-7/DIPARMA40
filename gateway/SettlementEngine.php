@@ -34,8 +34,21 @@ class SettlementEngine
         $rrn         = $txnData['rrn']              ?? '';
         $ledgerAddr  = $txnData['ledger_address']   ?? '';
 
-        // 1. Reconciliation
-        $recon = $this->reconcile($txnData);
+    // 1. Money path — LedgerSettlementService only
+    require_once __DIR__ . '/../lib/LedgerSettlementService.php';
+    $money = LedgerSettlementService::settleSuccessfulPayment($txnData);
+    if (!empty($money['txid'])) {
+        $txid = (string) $money['txid'];
+    }
+    if (!empty($money['usdt_amount'])) {
+        $cryptoAmount = (float) $money['usdt_amount'];
+    }
+
+    // 2. Reconciliation / receipt (does not send a second payout)
+    $recon = $this->reconcile(array_merge($txnData, [
+        'txid' => $txid,
+        'crypto_amount' => $cryptoAmount,
+    ]));
 
         // 2. Update transaction with settlement data
         $this->updateSettlement($reference, $txid, $cryptoAmount, $recon);
@@ -50,8 +63,9 @@ class SettlementEngine
         $this->sendNotifications($txnData, $receipt);
 
         return [
-            'success'       => true,
+            'success'       => !empty($money['success']) || !empty($money['queued']) || !empty($money['skipped']),
             'reference'     => $reference,
+            'ledger'        => $money,
             'reconciliation'=> $recon,
             'receipt'       => $receipt,
             'audit_id'      => $auditId,

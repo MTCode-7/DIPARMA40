@@ -128,12 +128,26 @@ function dp_paginate(string $table, array $where = [], string $order = 'id DESC'
     $db     = db();
     $pfx    = DB_PREFIX;
     $offset = ($page - 1) * $perPage;
+    if (!preg_match('/^[a-z][a-z0-9_]{0,63}$/', $table)) {
+        throw new InvalidArgumentException('Invalid table');
+    }
+    $allowedOrder = [
+        'id DESC', 'id ASC',
+        'created_at DESC', 'created_at ASC',
+        'updated_at DESC', 'updated_at ASC',
+    ];
+    if (!in_array($order, $allowedOrder, true)) {
+        $order = 'id DESC';
+    }
 
     $whereStr    = '';
     $whereParams = [];
     if (!empty($where)) {
         $parts = [];
         foreach ($where as $col => $val) {
+            if (!preg_match('/^[a-z][a-z0-9_]{0,63}$/', (string) $col)) {
+                throw new InvalidArgumentException('Invalid column');
+            }
             $parts[]       = "`{$col}` = ?";
             $whereParams[] = $val;
         }

@@ -64,11 +64,15 @@ class WhopAdapter {
     // ── معالجة Webhook ────────────────────────────────────
     public function handleWebhook(string $rawBody, string $signature): array {
         // التحقق من التوقيع
-        if (!empty($this->webhookSecret)) {
-            $expected = hash_hmac('sha256', $rawBody, $this->webhookSecret);
-            if (!hash_equals($expected, $signature)) {
-                return ['success' => false, 'message' => 'توقيع غير صالح'];
-            }
+        if ($this->webhookSecret === '') {
+            return ['success' => false, 'message' => 'WHOP_WEBHOOK_SECRET is not configured'];
+        }
+        if ($signature === '') {
+            return ['success' => false, 'message' => 'Missing webhook signature'];
+        }
+        $expected = hash_hmac('sha256', $rawBody, $this->webhookSecret);
+        if (!hash_equals($expected, $signature)) {
+            return ['success' => false, 'message' => 'توقيع غير صالح'];
         }
 
         $event = json_decode($rawBody, true);

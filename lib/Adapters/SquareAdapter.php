@@ -30,7 +30,7 @@ class SquareAdapter implements GatewayAdapterInterface
         $this->locationId = trim((string) ($creds['location_id'] ?? getenv('SQUARE_LOCATION_ID') ?: ''));
         $this->sandbox = empty($creds['live']);
         if ($creds === []) {
-            $env = strtolower(trim((string) (getenv('SQUARE_ENVIRONMENT') ?: 'sandbox')));
+            $env = strtolower(trim((string) (getenv('SQUARE_ENVIRONMENT') ?: 'live')));
             $this->sandbox = !in_array($env, ['production', 'live', 'prod'], true);
         }
         $this->baseUrl = $this->sandbox

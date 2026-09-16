@@ -141,28 +141,54 @@ if ($gateway === 'moonpay') {
     }
 }
 
-// ── التحقق من التوقيع (HMAC أو Stripe signature) إذا كان مفعّلاً ─────
-if ($gateway !== 'moonpay' && (APP_IS_PROD || (defined('WEBHOOK_VERIFY_SIGNATURE') && WEBHOOK_VERIFY_SIGNATURE === true))) {
-    $secret = defined('WEBHOOK_HMAC_SECRET') ? WEBHOOK_HMAC_SECRET : '';
+// ── التحقق من التوقيع دائماً (fail-closed) ─────
+if ($gateway !== 'moonpay') {
     $signatureHeader = $normalizedHeaders['stripe-signature']
+        ?? $normalizedHeaders['x-signature-sha256']
         ?? $normalizedHeaders['x-signature']
         ?? $normalizedHeaders['x-wise-signature']
         ?? $normalizedHeaders['x-hub-signature-256']
+        ?? $normalizedHeaders['x-whop-signature']
         ?? '';
-
-    if (empty($secret) || empty($signatureHeader)) {
-        file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] SECURITY: Missing webhook verification configuration or signature\n", FILE_APPEND);
-        http_response_code(403);
-        echo json_encode(['status' => 'error', 'message' => 'Webhook signature required']);
-        exit();
-    }
 
     $valid = false;
     require_once __DIR__ . '/../lib/Adapters/GatewayWebhookVerifier.php';
-    if (!empty($normalizedHeaders['stripe-signature'])) {
-        $stripeSecret = (string)(getenv('STRIPE_WEBHOOK_SECRET') ?: $secret);
+
+    if ($gateway === 'whop') {
+        $whopSecret = (string) (getenv('WHOP_WEBHOOK_SECRET') ?: '');
+        $whopSig = (string) ($normalizedHeaders['x-whop-signature'] ?? $signatureHeader);
+        if ($whopSecret === '' || $whopSig === '') {
+            http_response_code(503);
+            echo json_encode(['status' => 'error', 'message' => 'Whop webhook is not configured']);
+            exit();
+        }
+        $valid = hash_equals(hash_hmac('sha256', $rawPayload, $whopSecret), $whopSig);
+    } elseif ($gateway === 'wise') {
+        require_once __DIR__ . '/../lib/WiseService.php';
+        $wiseKey = (string) (getenv('WISE_WEBHOOK_PUBLIC_KEY') ?: ($_ENV['WISE_WEBHOOK_PUBLIC_KEY'] ?? ''));
+        if ($wiseKey === '' || $signatureHeader === '') {
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] SECURITY: Wise webhook key or signature missing\n", FILE_APPEND);
+            http_response_code(503);
+            echo json_encode(['status' => 'error', 'message' => 'Wise webhook is not configured']);
+            exit();
+        }
+        $valid = WiseService::verifyWebhookSignature($rawPayload, $signatureHeader, $wiseKey);
+    } elseif ($gateway === 'stripe' || !empty($normalizedHeaders['stripe-signature'])) {
+        $stripeSecret = (string) (getenv('STRIPE_WEBHOOK_SECRET') ?: '');
+        if ($stripeSecret === '' || $signatureHeader === '') {
+            http_response_code(503);
+            echo json_encode(['status' => 'error', 'message' => 'Stripe webhook is not configured']);
+            exit();
+        }
         $valid = GatewayWebhookVerifier::verifyStripe($rawPayload, $signatureHeader, $stripeSecret);
     } else {
+        $secret = defined('WEBHOOK_HMAC_SECRET') ? WEBHOOK_HMAC_SECRET : '';
+        if ($secret === '' || $signatureHeader === '') {
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] SECURITY: Missing webhook verification configuration or signature\n", FILE_APPEND);
+            http_response_code(403);
+            echo json_encode(['status' => 'error', 'message' => 'Webhook signature required']);
+            exit();
+        }
         $valid = GatewayWebhookVerifier::verifyGenericSignature($rawPayload, $signatureHeader, $secret, 'sha256');
     }
 

@@ -22,6 +22,11 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 /* ── GET: status ── */
 if ($method === 'GET') {
+    if (empty($_SESSION['user_id'])) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+        exit;
+    }
     $ref = trim($_GET['ref'] ?? '');
     if (!$ref) { echo json_encode(['success'=>false,'message'=>'ref required']); exit; }
     $result = $payram->getPaymentStatus($ref);
@@ -34,6 +39,12 @@ $body   = json_decode(file_get_contents('php://input'), true) ?: [];
 $action = $body['action'] ?? 'create';
 
 /* CSRF - التحقق الإجباري */
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+    exit;
+}
+
 if (!isset($body['csrf_token']) || empty($body['csrf_token'])) {
     http_response_code(403);
     echo json_encode(['success'=>false,'message'=>'❌ CSRF token مفقود / Missing CSRF token']); 

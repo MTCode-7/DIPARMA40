@@ -893,3 +893,74 @@ function pos_is_blocked_test_card(string $pan): bool
     }
     return in_array(substr($n, 0, 6), ['411111', '424242', '555555', '000000'], true);
 }
+
+/**
+ * Host decline as a short POS-slip line — never dump JSON.
+ */
+function pos_plain_host_message($raw, int $depth = 0): string
+{
+    if ($depth > 5) {
+        return 'DECLINED';
+    }
+    if (is_array($raw)) {
+        $keys = ['gwErrorReason', 'errCode', 'reason', 'gwErrorCode', 'response_code'];
+        $pick = '';
+        foreach ($keys as $k) {
+            if (!isset($raw[$k])) {
+                continue;
+            }
+            $v = $raw[$k];
+            if (is_scalar($v) && trim((string) $v) !== '') {
+                $pick = $v;
+                break;
+            }
+        }
+        if ($pick === '') {
+            foreach (['decline_reason', 'status_message', 'message'] as $k) {
+                if (!isset($raw[$k]) || !is_scalar($raw[$k])) {
+                    continue;
+                }
+                $v = trim((string) $raw[$k]);
+                if ($v === '' || $v[0] === '{' || $v[0] === '[') {
+                    continue;
+                }
+                $pick = $v;
+                break;
+            }
+        }
+        return pos_plain_host_message($pick !== '' ? $pick : 'DECLINED', $depth + 1);
+    }
+    $text = trim((string) $raw);
+    if ($text === '') {
+        return 'DECLINED';
+    }
+    if ($text[0] === '{' || $text[0] === '[') {
+        $decoded = json_decode($text, true);
+        if (is_array($decoded)) {
+            return pos_plain_host_message($decoded, $depth + 1);
+        }
+        if (preg_match('/\b(1507|1011|1007|1106|1019)\b/', $text, $m)) {
+            $text = $m[1];
+        } else {
+            $text = 'DECLINED';
+        }
+    }
+    $text = preg_replace('/\s+/', ' ', strip_tags($text));
+    if (preg_match('/\b(1507|1011|1007|1106|1019)\b/', $text, $m)) {
+        $map = [
+            '1507' => 'DECLINED RC 1507 ISSUER',
+            '1011' => 'DECLINED RC 1011 INVALID CARD',
+            '1007' => 'DECLINED RC 1007 EXPIRED CARD',
+            '1106' => 'DECLINED RC 1106 INSUFFICIENT FUNDS',
+            '1019' => 'DECLINED RC 1019 INVALID URL',
+        ];
+        return $map[$m[1]] ?? $text;
+    }
+    if (preg_match('/generic\s*decline/i', $text)) {
+        return 'DECLINED ISSUER';
+    }
+    if (strlen($text) > 80) {
+        $text = substr($text, 0, 77) . '...';
+    }
+    return $text !== '' ? $text : 'DECLINED';
+}

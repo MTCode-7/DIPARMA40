@@ -381,8 +381,8 @@ class WiseService
         string $signature,
         string $publicKey
     ): bool {
-        if (empty($publicKey) || empty($signature)) {
-            return true; // تخطي التحقق إذا لم يكن مفعّلاً
+        if ($publicKey === '' || $signature === '') {
+            return false;
         }
 
         $decodedSig = base64_decode($signature);

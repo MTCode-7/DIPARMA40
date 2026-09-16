@@ -1,6 +1,15 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
+require_once __DIR__ . '/../includes/config.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+    exit;
+}
 
 function marketGet(string $url): ?array {
     $ch = curl_init($url);

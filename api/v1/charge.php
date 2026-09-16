@@ -32,7 +32,7 @@ require_once __DIR__ . '/../../includes/config.php';
 require_once __DIR__ . '/../../includes/database.php';
 require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/ApiAuth.php';
-require_once __DIR__ . '/../../lib/Adapters/NuveiAdapter.php';
+require_once __DIR__ . '/../../lib/MySystem/ChargeHub.php';
 
 header('Content-Type: application/json');
 header('X-Content-Type-Options: nosniff');
@@ -70,6 +70,7 @@ $secMode     = strtoupper(trim($data['sec_mode']  ?? '3D'));
 $ledgerAddr  = trim($data['ledger_address'] ?? $client['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''));
 $reference   = trim($data['reference'] ?? '') ?: ('API-' . strtoupper(substr(uniqid(), 0, 8)));
 $metadata    = $data['metadata'] ?? [];
+$gateway     = strtolower(trim((string) ($data['gateway'] ?? $data['card_provider'] ?? 'nuvei')));
 
 $errors = [];
 if ($amount <= 0)          $errors[] = 'amount must be > 0';
@@ -90,8 +91,7 @@ if (!empty($errors)) {
     exit;
 }
 
-// ── Process via Nuvei → Mashreq ─────────────────────────────
-$nuvei  = new NuveiAdapter();
+// ── Process via ChargeHub (POS pipe or adapter) ─────────────
 $params = [
     'amount'       => $amount,
     'currency'     => $currency,
@@ -106,17 +106,15 @@ $params = [
     'user_token_id'=> 'api_client_' . $client['id'],
     'pos_device'   => 'API_' . strtoupper($client['mid']),
     'related_transaction_id' => $data['orig_reference'] ?? '',
+    'orig_ref' => $data['orig_reference'] ?? '',
+    'channel' => 'api_v1',
+    'destination' => 'ledger',
+    'ledger_address' => $ledgerAddr,
+    'user_id' => (int) ($client['user_id'] ?? 0),
 ];
 
 try {
-    $result = match($txnType) {
-        'purchase'  => $nuvei->purchase($params),
-        'auth'      => $nuvei->authorize($params),
-        'capture'   => $nuvei->capture($params),
-        'refund'    => $nuvei->refund($params),
-        'void'      => $nuvei->void($params),
-        default     => $nuvei->purchase($params),
-    };
+    $result = DiParmaChargeHub::charge($gateway, $txnType, $params);
 } catch (Exception $e) {
     $resp = json_encode(['success'=>false,'error'=>'gateway_error','message'=>$e->getMessage()]);
     http_response_code(502);
@@ -132,7 +130,7 @@ $db = db();
 try {
     $db->insert('transactions', [
         'reference'       => $reference,
-        'gateway'         => 'nuvei_api',
+        'gateway'         => $gateway,
         'amount'          => $amount,
         'currency'        => $currency,
         'status'          => $success ? 'completed' : 'failed',
@@ -172,7 +170,7 @@ if ($success && $txnType !== 'auth' && $txnType !== 'void' && $txnType !== 'refu
             'reference'      => $reference,
             'amount'         => $amount,
             'currency'       => $currency,
-            'gateway'        => 'nuvei',
+            'gateway'        => $gateway,
             'ledger_address' => $ledgerAddr,
             'user_id'        => (int)($client['user_id'] ?? 0),
             'txn_type'       => $txnType === 'purchase' ? 'purchase_2d' : $txnType,

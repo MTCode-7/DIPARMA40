@@ -118,7 +118,11 @@ $posQs['tid'] = $posDevice['terminal_id'];
 $posQs['line'] = $posMerchant['line'];
 $posQuery = http_build_query($posQs);
 $posGwMeta = $posGw !== '' ? pos_gateway_meta($posGw) : null;
-$posHub = (string)($_GET['op'] ?? '') === '' || (string)($_GET['mode'] ?? '') === '';
+$kioskDeviceReady = $kiosk
+    && trim((string) ($posDevice['terminal_id'] ?? '')) !== ''
+    && trim((string) ($posMerchant['line'] ?? '')) !== ''
+    && trim((string) ($posDevice['model'] ?? '')) !== '';
+$posHub = !$kioskDeviceReady && ((string)($_GET['op'] ?? '') === '' || (string)($_GET['mode'] ?? '') === '');
 $isLedgerGw = false;
 
 // أنواع العمليات المعيارية
@@ -127,7 +131,10 @@ $startOp = pos_normalize_operation((string)($_GET['op'] ?? 'purchase_3d'));
 if (!isset($txnTypes[$startOp])) {
     $startOp = 'purchase_3d';
 }
-$startMode = strtolower(trim((string)($_GET['mode'] ?? 'manual')));
+$startMode = strtolower(trim((string)($_GET['mode'] ?? '')));
+if ($startMode === '' && $kiosk) {
+    $startMode = 'physical';
+}
 if (!in_array($startMode, ['manual', 'physical'], true)) {
     $startMode = 'manual';
 }
@@ -158,6 +165,14 @@ require_once POS_APP_ROOT . '/includes/square_sdk.php';
 $squareSdk = square_sdk_config();
 $hasSquareSdk = !empty($squareSdk['application_id']) && !empty($squareSdk['location_id']);
 $currencies = ['USD','AED','SAR','EUR','GBP','KWD','BHD','QAR','OMR','EGP','USDT'];
+$startAmount = trim((string) ($_GET['amount'] ?? ''));
+if ($startAmount !== '' && !preg_match('/^\d+(\.\d{0,2})?$/', $startAmount)) {
+    $startAmount = '';
+}
+$startCurrency = strtoupper(trim((string) ($_GET['currency'] ?? 'USD')));
+if (!in_array($startCurrency, $currencies, true)) {
+    $startCurrency = 'USD';
+}
 $linkedWallets = [];
 try {
     $uid = (int)($_SESSION['user_id'] ?? 0);
@@ -196,7 +211,7 @@ try {
   --green:#10B981;--red:#EF4444;--blue:#3B82F6;
   --pos-screen:#001a08;--pos-digit:#00FF41;
 }
-html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text)}
+html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);color-scheme:dark}
 /* ── Topbar ── */
 .topbar{background:rgba(2,5,8,.97);border-bottom:1px solid var(--border);
   height:58px;display:flex;align-items:center;justify-content:space-between;
@@ -248,11 +263,16 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
 .pos-screen-title{color:var(--pos-digit);font-family:'Share Tech Mono',monospace;
   font-size:.8rem;letter-spacing:2px;text-transform:uppercase}
 .pos-time{color:rgba(0,255,65,.5);font-family:'Share Tech Mono',monospace;font-size:.7rem}
-.pos-amount-display{text-align:center;padding:10px 0}
+.pos-amount-display{text-align:center;padding:10px 0;position:relative;z-index:6;cursor:text}
 .pos-amount-label{color:rgba(0,255,65,.5);font-family:'Share Tech Mono',monospace;
-  font-size:.68rem;letter-spacing:2px;margin-bottom:6px}
+  font-size:.68rem;letter-spacing:2px;margin-bottom:6px;pointer-events:none}
 .pos-amount-value{font-family:'Share Tech Mono',monospace;font-size:2.4rem;
-  color:var(--pos-digit);letter-spacing:4px;text-shadow:0 0 20px rgba(0,255,65,.4)}
+  color:var(--pos-digit);letter-spacing:4px;text-shadow:0 0 20px rgba(0,255,65,.4);
+  background:transparent;border:0;border-bottom:2px solid transparent;width:100%;text-align:center;outline:none;
+  pointer-events:auto!important;position:relative;z-index:7;cursor:text;
+  caret-color:var(--pos-digit);user-select:text;-webkit-user-select:text;
+  min-height:1.2em;padding:4px 0;-moz-user-select:text}
+.pos-amount-value:focus{border-bottom-color:rgba(0,255,65,.55)}
 .pos-currency{font-family:'Share Tech Mono',monospace;font-size:.8rem;
   color:rgba(0,255,65,.6);margin-top:4px}
 .pos-status{display:flex;align-items:center;justify-content:center;gap:8px;
@@ -279,10 +299,13 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
   display:flex;align-items:center;gap:8px}
 .fld{margin-bottom:13px}
 .fld label{display:block;font-size:.72rem;color:var(--muted2);margin-bottom:5px;font-weight:700}
-.fld input,.fld select{width:100%;background:rgba(255,255,255,.04);border:1.5px solid var(--border);
-  border-radius:10px;padding:10px 14px;color:var(--text);font-family:'Cairo',sans-serif;
-  font-size:.88rem;transition:.2s}
-.fld input:focus,.fld select:focus{outline:none;border-color:var(--gold);background:rgba(255,215,0,.03)}
+.fld input,.fld select{width:100%;background:#141c2e;border:1.5px solid var(--border);
+  border-radius:10px;padding:12px 14px;color:#f4f7fb;font-family:'Cairo',sans-serif;
+  font-size:1rem;font-weight:700;line-height:1.45;transition:.2s;color-scheme:dark;
+  pointer-events:auto!important;position:relative;z-index:2;cursor:text}
+.fld input:focus,.fld select:focus{outline:none;border-color:var(--gold);background:#1a2438}
+.fld select option,.fld select optgroup{
+  background:#141c2e;color:#f4f7fb;font-size:1rem;font-weight:700;font-family:'Cairo',sans-serif}
 .fld-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 /* Card Display */
 .card-display{background:linear-gradient(135deg,#1a1a3e,#0d0d2e);border-radius:14px;
@@ -296,16 +319,30 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
 .card-number-display{font-family:'Share Tech Mono',monospace;font-size:1.05rem;
   letter-spacing:3px;color:rgba(255,255,255,.9);margin-bottom:8px}
 .card-info-row{display:flex;justify-content:space-between;font-size:.7rem;color:rgba(255,255,255,.5)}
+.card-scheme-badge{position:absolute;top:14px;<?=$ar?'left':'right'?>:14px;font-size:.72rem;font-weight:900;letter-spacing:1px;color:#fff}
+.card-auto-box{background:#141c2e;border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;min-height:56px}
+.card-auto-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.card-auto-scheme{font-size:1rem;font-weight:900;color:var(--gold)}
+.card-auto-pills{display:flex;flex-wrap:wrap;gap:6px}
+.card-auto-pill{background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:999px;padding:4px 10px;font-size:.68rem;font-weight:700;color:var(--text)}
+.card-auto-hint{font-size:.68rem;color:var(--muted2);line-height:1.5}
 /* ── Right Panel — Receipt & Ledger ── */
 .right-panel{background:var(--bg2);border-left:1px solid var(--border);padding:16px;overflow-y:auto}
 /* Receipt */
-.receipt{background:#fff;border-radius:12px;padding:16px;color:#000;font-family:'Share Tech Mono',monospace;
-  font-size:.7rem;line-height:1.8;margin-bottom:14px}
-.receipt-header{text-align:center;border-bottom:2px dashed #ccc;margin-bottom:10px;padding-bottom:10px}
-.receipt-row{display:flex;justify-content:space-between;margin-bottom:2px}
-.receipt-total{border-top:2px dashed #ccc;margin-top:8px;padding-top:8px;
-  font-size:.82rem;font-weight:900}
-.receipt-footer{text-align:center;margin-top:10px;font-size:.62rem;color:#666}
+.receipt{background:#fff;border-radius:4px;padding:14px 12px;color:#111;font-family:'Share Tech Mono',ui-monospace,monospace;
+  font-size:.68rem;line-height:1.45;margin-bottom:14px;max-width:280px;letter-spacing:.02em;box-shadow:0 0 0 1px #e5e5e5}
+.receipt-cut{text-align:center;color:#999;font-size:.55rem;letter-spacing:.3em;margin:4px 0}
+.receipt-header{text-align:center;border-bottom:1px dashed #999;margin-bottom:8px;padding-bottom:8px}
+.receipt-merchant{font-weight:900;font-size:.78rem;text-transform:uppercase}
+.receipt-sub{font-size:.6rem;color:#333}
+.receipt-row{display:flex;justify-content:space-between;gap:8px;margin-bottom:1px}
+.receipt-row span:last-child{text-align:end;font-weight:700}
+.receipt-banner{text-align:center;font-size:.95rem;font-weight:900;letter-spacing:.18em;margin:8px 0;padding:6px 0;border-top:1px dashed #999;border-bottom:1px dashed #999}
+.receipt-banner.ok{color:#065f46}
+.receipt-banner.no{color:#991b1b}
+.receipt-reason{text-align:center;font-size:.62rem;font-weight:800;color:#7f1d1d;margin:4px 0 8px;white-space:normal;word-break:break-word;line-height:1.35}
+.receipt-total{border-top:1px dashed #999;margin-top:8px;padding-top:8px;font-size:.78rem;font-weight:900}
+.receipt-footer{text-align:center;margin-top:8px;font-size:.55rem;color:#555;line-height:1.4}
 /* Ledger Card */
 .ledger-card{background:rgba(255,215,0,.04);border:1px solid var(--border2);
   border-radius:14px;padding:14px;margin-bottom:12px}
@@ -362,6 +399,19 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
   .left-panel{display:none}
   .right-panel{display:block}
 }
+.ops-sticker{margin:0 0 14px;background:var(--card);border:1.5px solid var(--border2);border-radius:14px;overflow:hidden}
+.ops-sticker>summary{cursor:pointer;list-style:none;padding:12px 14px;font-weight:900;font-size:.82rem;color:var(--gold);user-select:none}
+.ops-sticker>summary::-webkit-details-marker{display:none}
+.ops-sticker>summary::after{content:'▾';float:<?=$ar?'left':'right'?>;color:var(--muted2)}
+.ops-sticker[open]>summary::after{content:'▴'}
+.ops-sticker-legend{margin:0 14px 6px;font-size:.78rem;line-height:1.65;color:var(--gold);font-weight:800}
+.ops-sticker-wait{margin:0 14px 10px;font-size:.72rem;line-height:1.55;color:var(--muted2)}
+.ops-sticker-wrap{overflow:auto;max-height:280px;padding:0 8px 12px}
+.ops-sticker table{width:100%;border-collapse:collapse;font-size:.68rem}
+.ops-sticker th{position:sticky;top:0;background:var(--card2);color:var(--muted2);text-align:<?=$ar?'right':'left'?>;padding:6px 5px;white-space:nowrap}
+.ops-sticker td{padding:6px 5px;border-top:1px solid var(--border);color:var(--text);white-space:nowrap}
+.ops-sticker tr.is-current{background:rgba(255,215,0,.08)}
+.ops-sticker td.is-yes{color:var(--green);font-weight:800}
 </style>
 
 <nav class="topbar">
@@ -370,187 +420,282 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
       <i class="fas fa-coins"></i> DI PARMA
     </a>
     <span style="color:var(--muted)">|</span>
-    <div class="tb-badge"><i class="fas fa-cash-register"></i> <?= $posHub ? htmlspecialchars($posDevice['label']) : ('POS · ' . htmlspecialchars($posGwMeta['name'] ?? ($ar ? 'اختر البوابة' : 'Choose gateway')) . ' → Ledger') ?></div>
+    <div class="tb-badge"><i class="fas fa-cash-register"></i> <?= $posHub ? 'POS' : ('POS · ' . htmlspecialchars($posGwMeta['name'] ?? ($ar ? 'اختر البوابة' : 'Choose gateway')) . ' → Ledger') ?></div>
+    <?php if (!$posHub): ?>
     <div class="tb-badge" style="margin-inline-start:8px"><?=htmlspecialchars($posDevice['terminal_id'])?></div>
+    <?php endif; ?>
   </div>
   <div class="tb-nav">
     <?php if (!$kiosk): ?>
     <a href="../ledger/"><i class="fas fa-wallet"></i> Ledger</a>
-    <?php endif; ?>
     <a class="tb-dash" href="../dashboard.php"><i class="fas fa-arrow-right" style="transform:<?=$ar?'':'scaleX(-1)'?>"></i> <?=$ar?'عودة للوحة التحكم':'Back to Dashboard'?></a>
+    <?php endif; ?>
   </div>
 </nav>
 
 <?php if ($posHub): ?>
 <?php $hubGwsPos = $liveGwsPos; ?>
-<div style="max-width:1100px;margin:40px auto;padding:0 24px 60px">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px">
-    <h1 style="font-size:1.4rem;font-weight:900;color:var(--gold);margin:0">
-      POS
-    </h1>
-    <a class="tb-dash" href="../dashboard.php"><i class="fas fa-th-large"></i> <?=$ar?'عودة للوحة التحكم':'Back to Dashboard'?></a>
-  </div>
-  <p style="color:var(--muted2);font-size:.82rem;margin-bottom:18px;line-height:1.7">
+<div style="max-width:1280px;margin:40px auto;padding:0 24px 60px">
+  <p style="color:var(--muted2);font-size:.82rem;margin-bottom:14px;line-height:1.7">
     <?=$ar
       ? 'الخصم على البوابة المفعّلة التي تختارها. بعد الموافقة يُحسب الصافي ويُرسل USDT TRC20 إلى عنوان Ledger — ليست IBAN بنك.'
       : 'The card is charged on the enabled gateway you pick. After approval, net USDT TRC20 goes to the Ledger address — not a bank IBAN.'?>
   </p>
+
+  <?php
+    $fleetWithTid = function_exists('pos_company_terminals_with_tid')
+        ? pos_company_terminals_with_tid()
+        : [];
+    $fleetTidCount = count($fleetWithTid);
+    $linkedModels = [];
+    foreach ($fleetWithTid as $unit) {
+        $mk = (string) ($unit['model'] ?? '');
+        if ($mk === '' || isset($linkedModels[$mk])) {
+            continue;
+        }
+        $linkedModels[$mk] = trim(($unit['brand'] ?? '') . ' ' . ($unit['name'] ?? $mk));
+    }
+    $curModel = (string) $posDevice['model'];
+  ?>
+  <style>
+    .hub-add{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+    .hub-add details{flex:1;min-width:200px;background:var(--card);border:1.5px dashed var(--border);border-radius:12px}
+    .hub-add summary{cursor:pointer;padding:11px 14px;font-weight:800;font-size:.78rem;color:var(--gold);list-style:none;user-select:none}
+    .hub-add summary::-webkit-details-marker{display:none}
+    .hub-add summary::after{content:'+';float:<?=$ar?'left':'right'?>;color:var(--muted2);font-weight:700}
+    .hub-add details[open] summary::after{content:'−'}
+    .hub-add details[open] summary{border-bottom:1px solid var(--border)}
+    .hub-add .hub-add-body{padding:12px 14px 14px}
+    .hub-add details:not([open]) > *:not(summary){display:none!important}
+    .hub-flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px;align-items:end;position:relative;z-index:2}
+    .hub-flow .fld{margin:0;position:relative;z-index:2}
+    .hub-flow select,.hub-flow input,.hub-add input,.hub-add select{
+      pointer-events:auto!important;position:relative;z-index:3
+    }
+    @media(max-width:640px){.hub-flow{grid-template-columns:1fr}}
+  </style>
+  <?php if ($catalogMsg !== ''): ?>
+  <div style="margin-bottom:10px;color:#f87171;font-size:.8rem"><?=htmlspecialchars($catalogMsg)?></div>
+  <?php endif; ?>
+  <?php if (!$kiosk): ?>
+  <div class="hub-add">
+    <details>
+      <summary><?=$ar?'إضافة TID جديد':'Add new TID'?></summary>
+      <form method="post" class="hub-add-body">
+        <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($csrf)?>">
+        <input type="hidden" name="pos_catalog" value="add_tid">
+        <input type="hidden" name="device" value="<?=htmlspecialchars($posDevice['model'])?>">
+        <input type="hidden" name="tid" value="<?=htmlspecialchars($posDevice['terminal_id'])?>">
+        <input type="hidden" name="line" value="<?=htmlspecialchars($posMerchant['line'])?>">
+        <div class="fld" style="margin:0 0 8px">
+          <label>TID</label>
+          <input type="text" name="new_tid" maxlength="16" placeholder="16526257" required>
+        </div>
+        <div class="fld" style="margin:0 0 8px">
+          <label><?=$ar?'الجهاز المرتبط':'Linked device'?></label>
+          <select name="new_tid_model">
+            <option value=""><?=$ar?'— اختياري —':'— optional —'?></option>
+            <?php foreach ($linkedModels as $mk => $mlab): ?>
+            <option value="<?=htmlspecialchars($mk)?>" <?=$curModel===$mk?'selected':''?>><?=htmlspecialchars($mlab)?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-gold btn-sm btn-full" style="width:100%;padding:8px;border:0;border-radius:10px;cursor:pointer;font-weight:800"><?=$ar?'حفظ TID':'Save TID'?></button>
+      </form>
+    </details>
+    <details>
+      <summary><?=$ar?'إضافة موديل / تايب جديد':'Add new model / type'?></summary>
+      <form method="post" class="hub-add-body">
+        <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($csrf)?>">
+        <input type="hidden" name="pos_catalog" value="add_device">
+        <input type="hidden" name="device" value="<?=htmlspecialchars($posDevice['model'])?>">
+        <input type="hidden" name="tid" value="<?=htmlspecialchars($posDevice['terminal_id'])?>">
+        <input type="hidden" name="line" value="<?=htmlspecialchars($posMerchant['line'])?>">
+        <div class="fld" style="margin:0 0 8px">
+          <label><?=$ar?'الشركة / البراند':'Brand'?></label>
+          <input type="text" name="new_brand" maxlength="40" placeholder="Bitel" required>
+        </div>
+        <div class="fld" style="margin:0 0 8px">
+          <label><?=$ar?'الموديل':'Model'?></label>
+          <input type="text" name="new_model_name" maxlength="40" placeholder="IC4000" required>
+        </div>
+        <div class="fld" style="margin:0 0 8px">
+          <label><?=$ar?'النوع':'Type'?></label>
+          <select name="new_device_type">
+            <?php foreach (pos_device_types() as $typeKey => $typeLab): ?>
+            <option value="<?=htmlspecialchars($typeKey)?>"><?=htmlspecialchars($ar ? $typeLab['ar'] : $typeLab['en'])?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="fld" style="margin:0 0 8px">
+          <label><?=$ar?'المنطقة':'Region'?></label>
+          <select name="new_device_region">
+            <?php foreach (pos_device_regions() as $regKey => $regLab): ?>
+            <option value="<?=htmlspecialchars($regKey)?>"><?=htmlspecialchars($ar ? $regLab['ar'] : $regLab['en'])?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-gold btn-sm btn-full" style="width:100%;padding:8px;border:0;border-radius:10px;cursor:pointer;font-weight:800"><?=$ar?'حفظ الجهاز':'Save device'?></button>
+      </form>
+    </details>
+    <details>
+      <summary><?=$ar?'إضافة نشاط جديد':'Add new activity'?></summary>
+      <form method="post" class="hub-add-body">
+        <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($csrf)?>">
+        <input type="hidden" name="pos_catalog" value="add_activity">
+        <input type="hidden" name="device" value="<?=htmlspecialchars($posDevice['model'])?>">
+        <input type="hidden" name="tid" value="<?=htmlspecialchars($posDevice['terminal_id'])?>">
+        <input type="hidden" name="line" value="<?=htmlspecialchars($posMerchant['line'])?>">
+        <div class="fld" style="margin:0 0 8px">
+          <label><?=$ar?'الاسم بالإنجليزي':'English name'?></label>
+          <input type="text" name="new_activity_en" maxlength="80" placeholder="Retail" required>
+        </div>
+        <div class="fld" style="margin:0 0 8px">
+          <label><?=$ar?'الاسم بالعربي':'Arabic name'?></label>
+          <input type="text" name="new_activity_ar" maxlength="80" placeholder="تجزئة">
+        </div>
+        <div class="fld" style="margin:0 0 8px">
+          <label>MCC</label>
+          <input type="text" name="new_activity_mcc" maxlength="4" placeholder="5999">
+        </div>
+        <button type="submit" class="btn btn-gold btn-sm btn-full" style="width:100%;padding:8px;border:0;border-radius:10px;cursor:pointer;font-weight:800"><?=$ar?'حفظ النشاط':'Save activity'?></button>
+      </form>
+    </details>
+  </div>
+  <?php endif; ?>
+
   <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);border-radius:14px;padding:12px 14px;margin-bottom:22px;font-size:.78rem;line-height:1.6;color:var(--muted2)">
     <span style="color:var(--green);font-weight:800">LEDGER</span>
     <span style="font-family:monospace;margin-inline-start:8px;color:var(--text);word-break:break-all"><?=htmlspecialchars($ledgerAddr !== '' ? $ledgerAddr : ($ar ? 'غير مضبوط — LEDGER_TRC20_ADDRESS' : 'Not set — LEDGER_TRC20_ADDRESS'))?></span>
   </div>
 
-  <?php
-    $fleetStats = function_exists('pos_company_fleet_stats') ? pos_company_fleet_stats() : ['total' => 0, 'with_tid' => 0, 'missing_tid' => 0, 'target' => 86];
-  ?>
-  <div class="panel-title"><?=$ar?'أجهزة شركاتي':'My company terminals'?>
+  <div class="panel-title"><?=$ar?'إعداد العملية':'Operation setup'?>
     <span style="font-weight:600;color:var(--muted2);font-size:.72rem;margin-inline-start:8px">
-      <?= (int)($fleetStats['with_tid'] ?? 0) ?>/<?= (int)($fleetStats['target'] ?? 86) ?> TID
-      · <?= (int)($fleetStats['missing_tid'] ?? 0) ?> <?=$ar?'بدون TID':'without TID'?>
+      <?=$fleetTidCount?> TID
     </span>
   </div>
-  <div style="font-size:.7rem;color:var(--muted2);margin:-8px 0 12px;line-height:1.5">
-    <?=$ar
-      ? 'أسطول ≈ 86 جهاز. الصق باقي الـ TID سطراً بسطر في ملف الاستيراد، أو أضِفها من النموذج أدناه.'
-      : 'Fleet ≈ 86 units. Paste remaining TIDs one-per-line into the import file, or add via the form below.'?>
-    <code style="color:var(--gold);font-size:.65rem"><?=htmlspecialchars(function_exists('pos_company_tids_import_file') ? pos_company_tids_import_file() : 'cache/pos_company_tids.txt')?></code>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:18px;max-height:320px;overflow:auto;padding:2px">
-    <?php foreach (pos_company_terminals() as $unit):
-        $unitTid = trim((string) ($unit['tid'] ?? ''));
-        if ($unitTid !== '' && function_exists('pos_normalize_terminal_id')) {
-            $unitTid = pos_normalize_terminal_id($unitTid);
-        } else {
-            $unitTid = strtoupper($unitTid);
-        }
-        $q = $posQs;
-        $q['device'] = $unit['model'];
-        if ($unitTid !== '') {
-            $q['tid'] = $unitTid;
-        }
-        $href = '?' . http_build_query($q);
-        $active = ($posDevice['model'] === $unit['model'] && ($unitTid === '' || (string) $posDevice['terminal_id'] === $unitTid));
-        $fleetLabel = (string) ($unit['fleet'] ?? '');
-    ?>
-    <a href="<?=htmlspecialchars($href)?>" style="text-decoration:none;background:var(--card);border:1.5px solid <?=!empty($active)?'var(--gold)':'var(--border)'?>;border-radius:14px;padding:12px;display:block">
-      <div style="font-size:.62rem;color:var(--muted2)"><?=htmlspecialchars($fleetLabel)?></div>
-      <div style="font-weight:800;color:var(--text);font-size:.82rem"><?=htmlspecialchars($unit['brand'].' '.$unit['name'])?></div>
-      <div style="font-family:monospace;font-size:.72rem;color:var(--gold);margin-top:6px"><?=htmlspecialchars($unitTid !== '' ? $unitTid : ($ar ? 'بدون TID — أضفه' : 'No TID — add it'))?></div>
-      <?php if (!empty($unit['note'])): ?>
-      <div style="font-size:.62rem;color:var(--muted2);margin-top:4px"><?=htmlspecialchars($unit['note'])?></div>
-      <?php endif; ?>
-    </a>
-    <?php endforeach; ?>
-  </div>
-  <form method="get" id="hubDeviceForm" style="background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end">
-    <input type="hidden" name="kiosk" value="<?=$kiosk?'1':'0'?>">
-    <div class="fld" style="margin:0">
-      <label><?=$ar?'النوع / الموديل':'Type / model'?></label>
-      <select name="device" onchange="this.form.submit()" size="1" style="max-width:100%">
-        <?=pos_device_select_options((string) $posDevice['model'], $ar)?>
-      </select>
-    </div>
-    <div class="fld" style="margin:0">
-      <label>TID</label>
-      <select name="tid" onchange="hubTidChange(this)">
-        <?php
-          $tidNow = (string) $posDevice['terminal_id'];
-          $tidRecords = function_exists('pos_tid_records') ? pos_tid_records() : [];
-          $tidList = function_exists('pos_saved_tids') ? pos_saved_tids() : [$tidNow];
-          if ($tidNow !== '' && !in_array($tidNow, $tidList, true)) {
-              array_unshift($tidList, $tidNow);
-          }
-          foreach ($tidList as $tidOpt):
-              $rec = $tidRecords[$tidOpt] ?? null;
-              $lab = $rec['label'] ?? $tidOpt;
-        ?>
-        <option value="<?=htmlspecialchars($tidOpt)?>" data-model="<?=htmlspecialchars($rec['model'] ?? '')?>" <?=$tidNow===$tidOpt?'selected':''?>><?=htmlspecialchars($lab)?></option>
+  <div class="hub-flow">
+    <form method="get" id="hubDeviceForm" class="fld">
+      <input type="hidden" name="kiosk" value="<?=$kiosk?'1':'0'?>">
+      <input type="hidden" name="line" value="<?=htmlspecialchars($posMerchant['line'])?>">
+      <input type="hidden" name="device" id="hubDeviceModel" value="<?=htmlspecialchars((string) $posDevice['model'])?>">
+      <label for="hubTidSelect"><?=$ar?'الجهاز / TID':'Device / TID'?></label>
+      <select name="tid" id="hubTidSelect" onchange="hubTidChange(this)">
+          <?php
+            $tidNow = (string) $posDevice['terminal_id'];
+            $tidFound = false;
+            foreach ($fleetWithTid as $unit):
+                $unitTid = (string) ($unit['tid'] ?? '');
+                if ($unitTid === '') {
+                    continue;
+                }
+                $sel = ($tidNow === $unitTid);
+                if ($sel) {
+                    $tidFound = true;
+                }
+                $lab = trim(($unit['fleet'] ?? '') . ' · ' . ($unit['brand'] ?? '') . ' ' . ($unit['name'] ?? '') . ' · ' . $unitTid);
+          ?>
+          <option value="<?=htmlspecialchars($unitTid)?>" data-model="<?=htmlspecialchars((string) ($unit['model'] ?? ''))?>" <?=$sel?'selected':''?>><?=htmlspecialchars($lab)?></option>
+          <?php endforeach;
+            if ($tidNow !== '' && !$tidFound):
+          ?>
+          <option value="<?=htmlspecialchars($tidNow)?>" data-model="<?=htmlspecialchars((string) $posDevice['model'])?>" selected><?=htmlspecialchars(($posDevice['label'] ?? '') . ' · ' . $tidNow)?></option>
+          <?php endif; ?>
+        </select>
+    </form>
+
+    <div class="fld" id="hubLinesWrap">
+      <label for="hubLineSelect"><?=$ar?'نشاط الشركة (يمكن إضافة أنشطة لاحقاً)':'Business activity (add more later)'?></label>
+      <select id="hubLineSelect" onchange="hubPickLine(this)">
+        <option value=""><?=$ar?'— اختر النشاط —':'— Select activity —'?></option>
+        <?php foreach ($activityLines as $lineKey => $lineRow): ?>
+        <option
+          value="<?=htmlspecialchars($lineKey)?>"
+          data-suggest="<?=htmlspecialchars($lineRow['suggested_gateway'] ?? '')?>"
+          data-mcc="<?=htmlspecialchars($lineRow['mcc'] ?? '')?>"
+          <?=($posMerchant['line']===$lineKey)?'selected':''?>
+        ><?=$ar ? htmlspecialchars($lineRow['ar']) : htmlspecialchars($lineRow['en'])?> · MCC <?=htmlspecialchars($lineRow['mcc'] ?? '')?></option>
         <?php endforeach; ?>
       </select>
     </div>
-  </form>
 
-  <?php if ($catalogMsg !== ''): ?>
-  <div style="margin-bottom:14px;color:#f87171;font-size:.8rem"><?=htmlspecialchars($catalogMsg)?></div>
-  <?php endif; ?>
+    <div class="fld" id="hubGwsWrap" style="<?=empty($hubGwsPos)?'display:none':''?>">
+      <label for="hubGwSelect"><?=$ar?'البوابة المتصلة':'Connected gateway'?></label>
+      <select id="hubGwSelect" onchange="hubPickGw(this)">
+        <option value=""><?=$ar?'— اختر بوابة متصلة —':'— Select a connected gateway —'?></option>
+        <?php foreach ($hubGwsPos as $gwCode => $gwRow): ?>
+        <option value="<?=htmlspecialchars((string) $gwCode)?>"
+          data-label="<?=htmlspecialchars((string) ($gwRow['name'] ?? $gwCode))?>"
+          <?=$posGw===(string)$gwCode?'selected':''?>
+        ><?=htmlspecialchars((string) ($gwRow['name'] ?? $gwCode))?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:22px">
-    <form method="post" style="background:var(--card);border:1.5px dashed var(--border);border-radius:16px;padding:14px">
-      <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($csrf)?>">
-      <input type="hidden" name="pos_catalog" value="add_tid">
-      <input type="hidden" name="device" value="<?=htmlspecialchars($posDevice['model'])?>">
-      <input type="hidden" name="tid" value="<?=htmlspecialchars($posDevice['terminal_id'])?>">
-      <input type="hidden" name="line" value="<?=htmlspecialchars($posMerchant['line'])?>">
-      <div class="panel-title" style="margin-bottom:8px"><?=$ar?'إضافة TID جديد':'Add new TID'?></div>
-      <div class="fld" style="margin:0 0 8px">
-        <label>TID</label>
-        <input type="text" name="new_tid" maxlength="16" placeholder="16526257" required>
-      </div>
-      <div class="fld" style="margin:0 0 8px">
-        <label><?=$ar?'الجهاز المرتبط':'Linked device'?></label>
-        <select name="new_tid_model">
-          <option value=""><?=$ar?'— اختياري —':'— optional —'?></option>
-          <?=function_exists('pos_device_select_options') ? pos_device_select_options((string) $posDevice['model'], $ar) : ''?>
-        </select>
-      </div>
-      <button type="submit" class="btn btn-gold btn-sm btn-full" style="width:100%;padding:8px;border:0;border-radius:10px;cursor:pointer;font-weight:800"><?=$ar?'حفظ TID':'Save TID'?></button>
-    </form>
+    <div class="fld">
+      <label for="hubModeSelect"><?=$ar?'طريقة الدفع':'Payment method'?></label>
+      <select id="hubModeSelect" onchange="hubPickMode(this)">
+        <option value=""><?=$ar?'— اختر طريقة الدفع —':'— Select payment method —'?></option>
+        <?php foreach ($cardPresentModes as $modeKey => $mode): ?>
+        <option value="<?=htmlspecialchars($modeKey)?>"><?=$ar ? htmlspecialchars($mode['ar']) : htmlspecialchars($mode['en'])?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
 
-    <form method="post" style="background:var(--card);border:1.5px dashed var(--border);border-radius:16px;padding:14px">
-      <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($csrf)?>">
-      <input type="hidden" name="pos_catalog" value="add_device">
-      <input type="hidden" name="device" value="<?=htmlspecialchars($posDevice['model'])?>">
-      <input type="hidden" name="tid" value="<?=htmlspecialchars($posDevice['terminal_id'])?>">
-      <input type="hidden" name="line" value="<?=htmlspecialchars($posMerchant['line'])?>">
-      <div class="panel-title" style="margin-bottom:8px"><?=$ar?'إضافة موديل / تايب جديد':'Add new model / type'?></div>
-      <div class="fld" style="margin:0 0 8px">
-        <label><?=$ar?'الشركة / البراند':'Brand'?></label>
-        <input type="text" name="new_brand" maxlength="40" placeholder="Bitel" required>
-      </div>
-      <div class="fld" style="margin:0 0 8px">
-        <label><?=$ar?'الموديل':'Model'?></label>
-        <input type="text" name="new_model_name" maxlength="40" placeholder="IC4000" required>
-      </div>
-      <div class="fld" style="margin:0 0 8px">
-        <label><?=$ar?'النوع':'Type'?></label>
-        <select name="new_device_type">
-          <?php foreach (pos_device_types() as $typeKey => $typeLab): ?>
-          <option value="<?=htmlspecialchars($typeKey)?>"><?=htmlspecialchars($ar ? $typeLab['ar'] : $typeLab['en'])?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="fld" style="margin:0 0 8px">
-        <label><?=$ar?'المنطقة':'Region'?></label>
-        <select name="new_device_region">
-          <?php foreach (pos_device_regions() as $regKey => $regLab): ?>
-          <option value="<?=htmlspecialchars($regKey)?>"><?=htmlspecialchars($ar ? $regLab['ar'] : $regLab['en'])?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <button type="submit" class="btn btn-gold btn-sm btn-full" style="width:100%;padding:8px;border:0;border-radius:10px;cursor:pointer;font-weight:800"><?=$ar?'حفظ الجهاز':'Save device'?></button>
-    </form>
+    <div class="fld">
+      <label for="hubOpSelect"><?=$ar?'نوع الشراء':'Purchase type'?></label>
+      <select id="hubOpSelect" onchange="hubPickOp(this)">
+        <option value=""><?=$ar?'— اختر نوع الشراء —':'— Select purchase type —'?></option>
+        <?php foreach ($activityOps as $opKey => $op): ?>
+        <option value="<?=htmlspecialchars($op['pos_key'])?>"><?=$ar ? htmlspecialchars($op['ar']) : htmlspecialchars($op['en'])?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
 
-    <form method="post" style="background:var(--card);border:1.5px dashed var(--border);border-radius:16px;padding:14px">
-      <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($csrf)?>">
-      <input type="hidden" name="pos_catalog" value="add_activity">
-      <input type="hidden" name="device" value="<?=htmlspecialchars($posDevice['model'])?>">
-      <input type="hidden" name="tid" value="<?=htmlspecialchars($posDevice['terminal_id'])?>">
-      <input type="hidden" name="line" value="<?=htmlspecialchars($posMerchant['line'])?>">
-      <div class="panel-title" style="margin-bottom:8px"><?=$ar?'إضافة نشاط جديد':'Add new activity'?></div>
-      <div class="fld" style="margin:0 0 8px">
-        <label><?=$ar?'الاسم بالإنجليزي':'English name'?></label>
-        <input type="text" name="new_activity_en" maxlength="80" placeholder="Retail" required>
-      </div>
-      <div class="fld" style="margin:0 0 8px">
-        <label><?=$ar?'الاسم بالعربي':'Arabic name'?></label>
-        <input type="text" name="new_activity_ar" maxlength="80" placeholder="تجزئة">
-      </div>
-      <div class="fld" style="margin:0 0 8px">
-        <label>MCC</label>
-        <input type="text" name="new_activity_mcc" maxlength="4" placeholder="5999">
-      </div>
-      <button type="submit" class="btn btn-gold btn-sm btn-full" style="width:100%;padding:8px;border:0;border-radius:10px;cursor:pointer;font-weight:800"><?=$ar?'حفظ النشاط':'Save activity'?></button>
-    </form>
+    <div class="fld">
+      <label for="hubAmount"><?=$ar?'المبلغ':'Amount'?></label>
+      <input type="text" id="hubAmount" inputmode="decimal" autocomplete="off" placeholder="0.00" oninput="hubPickAmount(this)">
+    </div>
+
+    <div class="fld">
+      <label for="hubCurrency"><?=$ar?'العملة':'Currency'?></label>
+      <select id="hubCurrency" onchange="hubPickCurrency(this)">
+        <?php foreach ($currencies as $c): ?>
+        <option value="<?=htmlspecialchars($c)?>" <?=$c==='USD'?'selected':''?>><?=htmlspecialchars($c)?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+
+    <div class="fld">
+      <label for="hubArrivalSelect"><?=$ar?'وصول المبلغ':'Where funds arrive'?></label>
+      <select id="hubArrivalSelect" onchange="hubPickArrivalSel(this)">
+        <?php foreach ($arrivalOptions as $arrKey => $arr): ?>
+        <option value="<?=htmlspecialchars($arrKey)?>" <?=$arrKey==='wallet'?'selected':''?>>
+          <?=$ar ? htmlspecialchars($arr['ar']) : htmlspecialchars($arr['en'])?><?=!empty($arr['preferred'])?' ★':''?>
+        </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+
+    <div id="hubPayoutWrap" class="fld" style="display:none">
+      <label for="hubPayoutSelect"><?=$ar?'تحويل الصافي إلى Ledger':'Move net to Ledger'?></label>
+      <select id="hubPayoutSelect" onchange="hubPickPayout(this)">
+        <option value=""><?=$ar?'— اختر بوابة أو بنكاً —':'— Pick a gateway or bank —'?></option>
+        <?php foreach ($payoutRails as $railKey => $rail): ?>
+        <option value="<?=htmlspecialchars($railKey)?>"><?=$ar ? htmlspecialchars($rail['ar']) : htmlspecialchars($rail['en'])?> · <?=$rail['kind']==='bank'?($ar?'بنك':'Bank'):($ar?'بوابة':'Gateway')?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+  </div>
+
+  <div id="hubGwEmpty" style="border:1px solid var(--border);border-radius:14px;padding:18px;background:var(--card);margin-bottom:18px;<?=empty($hubGwsPos)?'':'display:none'?>">
+    <div style="font-weight:800;margin-bottom:8px;color:var(--gold)"><?=$ar?'لا توجد بوابة مفعّلة ومتصلة':'No enabled connected gateway'?></div>
+    <div style="font-size:.78rem;color:var(--muted2);margin-bottom:8px;line-height:1.5">
+      <?=$ar
+        ? 'البوابات غير المتصلة تظهر في إدارة بوابات الدفع فقط. اختبر الاتصال هناك ثم عد إلى هنا.'
+        : 'Disconnected gateways appear only in Payment Gateway Manager. Test the connection there, then return here.'?>
+    </div>
+    <a href="../admin/gateway_manager.php" style="color:var(--gold);font-size:.8rem"><?=$ar?'فتح إدارة البوابات':'Open Gateway Manager'?></a>
   </div>
   <?php if ($isVerix): ?>
   <?php
@@ -585,87 +730,21 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
   </div>
   <?php endif; ?>
 
-  <div class="panel-title">1 · <?=$ar?'اختر النشاط':'Choose activity'?></div>
-  <div class="fld" style="margin:0 0 22px;max-width:420px" id="hubLinesWrap">
-    <label for="hubLineSelect"><?=$ar?'نشاط الشركة (يمكن إضافة أنشطة لاحقاً)':'Business activity (add more later)'?></label>
-    <select id="hubLineSelect" onchange="hubPickLine(this)" style="width:100%">
-      <option value=""><?=$ar?'— اختر النشاط —':'— Select activity —'?></option>
-      <?php foreach ($activityLines as $lineKey => $lineRow): ?>
-      <option
-        value="<?=htmlspecialchars($lineKey)?>"
-        data-suggest="<?=htmlspecialchars($lineRow['suggested_gateway'] ?? '')?>"
-        data-mcc="<?=htmlspecialchars($lineRow['mcc'] ?? '')?>"
-      ><?=$ar ? htmlspecialchars($lineRow['ar']) : htmlspecialchars($lineRow['en'])?> · MCC <?=htmlspecialchars($lineRow['mcc'] ?? '')?></option>
-      <?php endforeach; ?>
-    </select>
-    <div style="font-size:.68rem;color:var(--muted2);margin-top:8px;line-height:1.5">
-      <?=$ar
-        ? 'القائمة منسدلة — أضف أنشطة جديدة من النموذج أعلاه عند الحاجة.'
-        : 'Dropdown list — add new activities from the form above when needed.'?>
-    </div>
-  </div>
-
-  <div class="panel-title">2 · <?=$ar?'اختر بوابة من المتصلة':'Choose a connected gateway'?></div>
-  <div id="hubGwEmpty" style="border:1px solid var(--border);border-radius:14px;padding:18px;background:var(--card);margin-bottom:22px;<?=empty($hubGwsPos)?'':'display:none'?>">
-    <div style="font-weight:800;margin-bottom:8px;color:var(--gold)"><?=$ar?'لا توجد بوابة مفعّلة':'No enabled gateway'?></div>
-    <a href="../admin/gateway_manager.php" style="color:var(--gold);font-size:.8rem"><?=$ar?'فتح إدارة البوابات':'Open Gateway Manager'?></a>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:22px" id="hubGws"></div>
-
-  <div class="panel-title">3 · <?=$ar?'اختر نوع الشراء':'Choose purchase type'?></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:22px" id="hubOps">
-    <?php foreach ($activityOps as $opKey => $op): ?>
-    <button type="button" class="txn-btn" data-op="<?=htmlspecialchars($op['pos_key'])?>" onclick="hubPick('op','<?=htmlspecialchars($op['pos_key'])?>',this)" style="margin:0;flex-direction:column;text-align:center;padding:10px 6px;gap:6px">
-      <div class="t-icon" style="background:<?=$op['color']?>22;color:<?=$op['color']?>;margin:0 auto"><i class="fas <?=$op['icon']?>"></i></div>
-      <span style="font-size:.68rem;line-height:1.25"><?=$ar?$op['ar']:$op['en']?></span>
-    </button>
-    <?php endforeach; ?>
-  </div>
-
-  <div class="panel-title">4 · <?=$ar?'طريقة الدفع':'Payment method'?></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px" id="hubModes">
-    <?php foreach ($cardPresentModes as $modeKey => $mode): ?>
-    <button type="button" class="txn-btn" data-mode="<?=htmlspecialchars($modeKey)?>" onclick="hubPick('mode','<?=htmlspecialchars($modeKey)?>',this)" style="margin:0;padding:16px;gap:12px">
-      <div class="t-icon" style="background:<?=$mode['color']?>22;color:<?=$mode['color']?>"><i class="fas <?=$mode['icon']?>"></i></div>
-      <div>
-        <div style="font-weight:800;color:var(--text)"><?=$ar?$mode['ar']:$mode['en']?></div>
-        <div style="font-size:.68rem;color:var(--muted2);margin-top:4px;line-height:1.5"><?=$ar?$mode['desc_ar']:$mode['desc_en']?></div>
-      </div>
-    </button>
-    <?php endforeach; ?>
-  </div>
-
-  <div class="panel-title">5 · <?=$ar?'وصول المبلغ':'Where funds arrive'?></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px" id="hubArrival">
-    <?php foreach ($arrivalOptions as $arrKey => $arr): ?>
-    <button type="button" class="txn-btn" data-arrival="<?=htmlspecialchars($arrKey)?>" onclick="hubPickArrival('<?=htmlspecialchars($arrKey)?>',this)" style="margin:0;padding:16px;gap:12px">
-      <div class="t-icon" style="background:<?=$arr['color']?>22;color:<?=$arr['color']?>"><i class="fas <?=$arr['icon']?>"></i></div>
-      <div>
-        <div style="font-weight:800;color:var(--text)"><?=$ar?$arr['ar']:$arr['en']?><?=!empty($arr['preferred'])?' ★':''?></div>
-        <div style="font-size:.68rem;color:var(--muted2);margin-top:4px;line-height:1.5"><?=$ar?$arr['desc_ar']:$arr['desc_en']?></div>
-      </div>
-    </button>
-    <?php endforeach; ?>
-  </div>
-  <div id="hubPayoutWrap" style="display:none;margin-bottom:22px">
-    <div style="font-size:.72rem;color:var(--gold);font-weight:800;margin-bottom:8px"><?=$ar?'اختر بوابة أو بنكاً لتحويل الصافي إلى Ledger':'Pick a gateway or bank to move the net to Ledger'?></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px" id="hubPayouts">
-      <?php foreach ($payoutRails as $railKey => $rail): ?>
-      <button type="button" class="txn-btn" data-payout="<?=htmlspecialchars($railKey)?>" onclick="hubPick('payout','<?=htmlspecialchars($railKey)?>',this)" style="margin:0;flex-direction:column;padding:12px;text-align:center;gap:6px">
-        <div class="t-icon" style="background:<?=$rail['color']?>22;color:<?=$rail['color']?>;margin:0 auto"><i class="fas <?=$rail['icon']?>"></i></div>
-        <span style="font-size:.72rem;font-weight:800"><?=$ar?$rail['ar']:$rail['en']?></span>
-        <span style="font-size:.58rem;color:var(--muted2)"><?=$rail['kind']==='bank'?($ar?'بنك':'Bank'):($ar?'بوابة':'Gateway')?></span>
-      </button>
-      <?php endforeach; ?>
-    </div>
-  </div>
-
   <button type="button" class="key-btn key-enter" id="hubGo" onclick="hubGo()" disabled style="width:100%;height:48px;border-radius:14px;font-size:1rem">
     <?=$ar?'فتح POS':'Open POS'?>
   </button>
 </div>
 <script>
-const HUB = { line:'', gw:'', op:'', mode:'', arrival:'wallet', payout:'' };
+const HUB = {
+  line: <?=json_encode((string) ($posMerchant['line'] ?? ''))?>,
+  gw: <?=json_encode((string) $posGw)?>,
+  op: '',
+  mode: '',
+  arrival: 'wallet',
+  payout: '',
+  amount: '',
+  currency: 'USD'
+};
 const HUB_GWS = <?=json_encode($hubGwsPos, JSON_UNESCAPED_UNICODE)?>;
 const HUB_SUGGEST = <?=json_encode($activitySuggest, JSON_UNESCAPED_UNICODE)?>;
 const HUB_LEDGER = <?=json_encode($ledgerAddr)?>;
@@ -693,36 +772,70 @@ function hubPickLine(sel) {
   hubReady();
 }
 window.hubPickLine = hubPickLine;
-function hubPickArrival(value, el) {
-  hubPick('arrival', value, el);
+function hubPickGw(sel) {
+  const value = (sel && sel.value) ? sel.value : '';
+  HUB.gw = value;
+  hubReady();
+}
+window.hubPickGw = hubPickGw;
+function hubPickMode(sel) {
+  HUB.mode = (sel && sel.value) ? sel.value : '';
+  hubReady();
+}
+window.hubPickMode = hubPickMode;
+function hubPickOp(sel) {
+  HUB.op = (sel && sel.value) ? sel.value : '';
+  hubReady();
+}
+window.hubPickOp = hubPickOp;
+function hubPickAmount(el) {
+  HUB.amount = (el && el.value) ? String(el.value).replace(/[^\d.]/g, '') : '';
+  if (el && el.value !== HUB.amount) el.value = HUB.amount;
+}
+window.hubPickAmount = hubPickAmount;
+function hubPickCurrency(sel) {
+  HUB.currency = (sel && sel.value) ? sel.value : 'USD';
+}
+window.hubPickCurrency = hubPickCurrency;
+function hubPickArrivalSel(sel) {
+  const value = (sel && sel.value) ? sel.value : 'wallet';
+  HUB.arrival = value;
   const wrap = document.getElementById('hubPayoutWrap');
   if (wrap) wrap.style.display = value === 'payout' ? '' : 'none';
-  if (value !== 'payout') HUB.payout = '';
+  if (value !== 'payout') {
+    HUB.payout = '';
+    const p = document.getElementById('hubPayoutSelect');
+    if (p) p.value = '';
+  }
+  hubReady();
 }
+window.hubPickArrivalSel = hubPickArrivalSel;
+function hubPickPayout(sel) {
+  HUB.payout = (sel && sel.value) ? sel.value : '';
+  hubReady();
+}
+window.hubPickPayout = hubPickPayout;
 function hubMarkSuggest() {
   const want = (HUB_SUGGEST[HUB.line] || '').toLowerCase();
-  document.querySelectorAll('#hubGws .txn-btn').forEach(b => {
-    const code = (b.dataset.gw || '').toLowerCase();
-    b.style.borderColor = (want && code === want) ? 'var(--gold)' : '';
+  const sel = document.getElementById('hubGwSelect');
+  if (!sel) return;
+  Array.from(sel.options).forEach(function (o) {
+    const label = o.getAttribute('data-label') || o.value;
+    if (!o.value) return;
+    o.textContent = (want && o.value === want) ? ('★ ' + label) : label;
   });
+  if (want && HUB_GWS[want] && !HUB.gw) {
+    sel.value = want;
+    HUB.gw = want;
+  }
 }
 function hubRenderGws() {
-  const box = document.getElementById('hubGws');
   const list = HUB_GWS || {};
   const codes = Object.keys(list);
-  document.getElementById('hubGwEmpty').style.display = codes.length ? 'none' : '';
-  box.innerHTML = '';
-  codes.forEach(code => {
-    const g = list[code];
-    const a = document.createElement('button');
-    a.type = 'button';
-    a.className = 'txn-btn';
-    a.dataset.gw = code;
-    a.style.cssText = 'margin:0;flex-direction:column;padding:16px;text-align:start;gap:8px';
-    a.innerHTML = '<div class="t-icon" style="background:'+g.color+'22;color:'+g.color+'"><i class="'+g.icon+'"></i></div><div style="font-weight:800;color:var(--text)">'+g.name+'</div><div style="font-size:.68rem;color:var(--muted2);line-height:1.5">'+(HUB_AR?(g.desc_ar||''):(g.desc_en||''))+'</div>';
-    a.onclick = function(){ hubPick('gw', code, a); };
-    box.appendChild(a);
-  });
+  const empty = document.getElementById('hubGwEmpty');
+  const wrap = document.getElementById('hubGwsWrap');
+  if (empty) empty.style.display = codes.length ? 'none' : '';
+  if (wrap) wrap.style.display = codes.length ? '' : 'none';
 }
 function hubReady() {
   const arrivalOk = HUB.arrival === 'wallet' || (HUB.arrival === 'payout' && !!HUB.payout);
@@ -740,8 +853,8 @@ function hubFillVerix() {
     line: HUB.line || '',
     txn_type: HUB.op || 'purchase_2d',
     tid: HUB_TID,
-    amount: '0.00',
-    currency: 'USD',
+    amount: HUB.amount || '0.00',
+    currency: HUB.currency || 'USD',
     entry_mode: entry,
     pos_model: 'verifone_vx675',
     approval_code: '',
@@ -754,10 +867,14 @@ function hubTidChange(sel) {
   const opt = sel.options[sel.selectedIndex];
   const model = opt ? (opt.getAttribute('data-model') || '') : '';
   const f = document.getElementById('hubDeviceForm');
+  const hid = document.getElementById('hubDeviceModel');
+  if (hid && model) {
+    hid.value = model;
+  }
   if (f && model && f.device) {
     f.device.value = model;
   }
-  sel.form.submit();
+  if (sel.form) sel.form.submit();
 }
 function hubGo() {
   const arrivalOk = HUB.arrival === 'wallet' || (HUB.arrival === 'payout' && !!HUB.payout);
@@ -783,15 +900,25 @@ function hubGo() {
   } else {
     q.delete('gw');
   }
-  if (f) {
-    q.set('device', f.device.value);
-    q.set('tid', f.tid.value);
+  if (HUB.amount) {
+    q.set('amount', HUB.amount);
+  } else {
+    q.delete('amount');
   }
+  q.set('currency', HUB.currency || 'USD');
+  const tidEl = document.getElementById('hubTidSelect');
+  const devEl = document.getElementById('hubDeviceModel');
+  if (devEl && devEl.value) q.set('device', devEl.value);
+  if (tidEl && tidEl.value) q.set('tid', tidEl.value);
   location.href = 'index.php?' + q.toString();
 }
 hubRenderGws();
 hubFillVerix();
 hubReady();
+const _lineSel = document.getElementById('hubLineSelect');
+if (_lineSel && _lineSel.value) hubPickLine(_lineSel);
+const _gwSel = document.getElementById('hubGwSelect');
+if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
 </script>
 </body></html>
 <?php exit; endif; ?>
@@ -825,6 +952,7 @@ hubReady();
     <div class="panel-title"><?=$ar?'البوابات المتصلة — اختر للتنفيذ':'Connected gateways — pick to charge'?></div>
     <div id="execGwEmpty" style="border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--card);margin-bottom:12px;<?=empty($execGws)?'':'display:none'?>">
       <div style="font-weight:800;margin-bottom:6px;color:var(--gold)"><?=$ar?'لا توجد بوابة متصلة':'No connected gateway'?></div>
+      <div style="font-size:.78rem;color:var(--muted2);line-height:1.6;margin-bottom:8px"><?=$ar?'أضف مفاتيح الاتصال واختبر البوابة من إدارة بوابات الدفع. غير المتصلة لا تظهر هنا.':'Add connection keys and test the gateway in Payment Gateway Manager. Disconnected gateways stay there.'?></div>
       <a href="../admin/gateway_manager.php" style="color:var(--gold);font-size:.8rem"><?=$ar?'فتح إدارة البوابات':'Open Gateway Manager'?></a>
     </div>
     <div id="execGws" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px">
@@ -864,6 +992,7 @@ hubReady();
 
 <!-- ══ CENTER: POS Screen ══ -->
 <div class="center-panel">
+  <?php if (function_exists('pos_render_ops_sticker')) pos_render_ops_sticker($ar, $txnTypes); ?>
   <div class="form-section" style="margin-top:0;margin-bottom:16px;max-width:720px;margin-left:auto;margin-right:auto">
     <div class="form-title"><i class="fas fa-sliders-h"></i> <?=$ar?'نوع العملية':'Transaction Type'?></div>
     <div class="txn-grid" id="centerTxnGrid">
@@ -887,10 +1016,12 @@ hubReady();
         <div class="pos-screen-title" id="screenTitle">PURCHASE 2D</div>
         <div class="pos-time" id="posTime">--:--:--</div>
       </div>
-      <div class="pos-amount-display">
+      <div class="pos-amount-display" onclick="focusPosAmount('amountDisplay')">
         <div class="pos-amount-label"><?=$ar?'المبلغ':'AMOUNT'?></div>
-        <div class="pos-amount-value" id="amountDisplay">0.00</div>
-        <div class="pos-currency" id="currencyDisplay">USD</div>
+        <input type="text" class="pos-amount-value" id="amountDisplay" inputmode="decimal" autocomplete="off"
+          value="<?=htmlspecialchars($startAmount !== '' ? $startAmount : '0.00')?>"
+          oninput="window.syncAmount && syncAmount(this.value, 'amountDisplay')">
+        <div class="pos-currency" id="currencyDisplay"><?=htmlspecialchars($startCurrency)?></div>
       </div>
       <div class="pos-status">
         <div class="pos-status-dot"></div>
@@ -975,12 +1106,14 @@ hubReady();
     <?php endif; ?>
     <!-- Card Visual -->
     <div class="card-display" id="cardDisplay">
+      <div class="card-scheme-badge" id="cardSchemeBadge">AUTO</div>
       <div class="card-chip"><span></span><span></span><span></span><span></span></div>
       <div class="card-number-display" id="cardNumDisplay">•••• •••• •••• ••••</div>
       <div class="card-info-row">
         <span id="cardNameDisplay">CARDHOLDER NAME</span>
         <span id="cardExpDisplay">MM/YY</span>
       </div>
+      <div id="cardIssuerDisplay" style="margin-top:8px;font-size:.68rem;color:rgba(255,255,255,.55);min-height:1.1em"></div>
     </div>
 
     <div class="fld-row">
@@ -991,15 +1124,18 @@ hubReady();
           <option value="CLOUD" id="optCloudGw">CLOUD — <?=htmlspecialchars($posGwMeta['name'] ?? '')?></option>
         </select>
       </div>
-      <div class="fld" style="grid-column:span 2">
-        <label><?=$ar?'نوع البطاقة — كل الشبكات':'Card Type — all networks'?></label>
-        <select id="cardNetwork" onchange="this.dataset.autolock='0'">
-          <?php foreach (pos_card_networks() as $netCode => $net): ?>
-          <option value="<?=htmlspecialchars($netCode)?>"><?=$ar?$net['ar']:$net['en']?></option>
-          <?php endforeach; ?>
-        </select>
-        <div style="font-size:.62rem;color:var(--muted2);margin-top:4px">
-          <?=$ar?'على كل بوابة (PayPal، Stripe، PayRam، Wise، وغيرها): كل أنواع الكروت وكل الشركات. لا رفض حسب الشبكة.':'On every gateway (PayPal, Stripe, PayRam, Wise, and others): all card types and issuers. No brand block.'?>
+      <div class="fld" style="grid-column:1/-1">
+        <label><?=$ar?'نوع البطاقة — تلقائي':'Card Type — AUTO'?></label>
+        <input type="hidden" id="cardNetwork" value="auto">
+        <div class="card-auto-box" id="cardAutoBox">
+          <div class="card-auto-head">
+            <i class="fas fa-credit-card" id="cardAutoIcon" style="color:var(--gold)"></i>
+            <span class="card-auto-scheme" id="cardAutoScheme">AUTO</span>
+          </div>
+          <div class="card-auto-pills" id="cardAutoPills"></div>
+          <div class="card-auto-hint" id="cardAutoHint"><?=$ar
+            ? 'أدخل رقم البطاقة. النوع والمصدر والدولة واسم المنتج يظهرون تلقائياً من الـ BIN. اسم الحامل يُكتب كما على البطاقة.'
+            : 'Enter the card number. Type, issuer, country, and product name fill automatically from the BIN. Cardholder name is typed as on the card.'?></div>
         </div>
       </div>
       <div class="fld" style="grid-column:span 2" id="liveNameWrap">
@@ -1015,6 +1151,7 @@ hubReady();
       <div class="fld" id="liveExpWrap">
         <label><?=$ar?'تاريخ الانتهاء':'Expiry'?></label>
         <input type="text" id="cardExpiry" maxlength="5" placeholder="MM/YY"
+          inputmode="numeric" autocomplete="cc-exp"
           oninput="formatExp(this)">
       </div>
       <div class="fld" id="liveCvvWrap">
@@ -1031,14 +1168,15 @@ hubReady();
     <div class="fld-row">
       <div class="fld">
         <label><?=$ar?'المبلغ':'Amount'?></label>
-        <input type="number" id="txnAmount" min="0.01" step="0.01" placeholder="0.00"
-          oninput="syncAmount(this.value)">
+        <input type="text" id="txnAmount" inputmode="decimal" autocomplete="off" placeholder="0.00"
+          value="<?=htmlspecialchars($startAmount)?>"
+          oninput="window.syncAmount && syncAmount(this.value, 'txnAmount')">
       </div>
       <div class="fld">
         <label><?=$ar?'العملة':'Currency'?></label>
         <select id="txnCurrency" onchange="document.getElementById('currencyDisplay').textContent=this.value">
           <?php foreach($currencies as $c): ?>
-          <option value="<?=$c?>" <?=$c==='USD'?'selected':''?>><?=$c?></option>
+          <option value="<?=$c?>" <?=$c===$startCurrency?'selected':''?>><?=$c?></option>
           <?php endforeach; ?>
         </select>
       </div>
@@ -1119,31 +1257,43 @@ hubReady();
   </div>
 
   <!-- Receipt -->
-  <div class="panel-title"><?=$ar?'الإيصال':'Receipt'?></div>
+  <div class="panel-title"><?=$ar?'إيصال POS':'POS Receipt'?></div>
   <div class="receipt" id="receiptBox">
+    <div class="receipt-cut">••••••••••••••••••••</div>
     <div class="receipt-header">
-      <div style="font-size:.9rem;font-weight:900">DI PARMA</div>
+      <div class="receipt-merchant">DI PARMA POS</div>
       <div><?=htmlspecialchars($posMerchant['legal_name'])?></div>
-      <div style="font-size:.62rem"><?=htmlspecialchars($ar ? $posMerchant['line_ar'] : $posMerchant['line_en'])?> · MCC <?=htmlspecialchars($posMerchant['mcc'])?></div>
-      <div id="receiptDate"><?=date('d/m/Y H:i')?></div>
+      <div class="receipt-sub"><?=htmlspecialchars($ar ? $posMerchant['line_ar'] : $posMerchant['line_en'])?></div>
+      <div class="receipt-sub">MCC <?=htmlspecialchars($posMerchant['mcc'])?></div>
     </div>
-    <div class="receipt-row"><span><?=$ar?'النوع':'Type'?></span><span id="rType">—</span></div>
-    <div class="receipt-row"><span><?=$ar?'المبلغ':'Amount'?></span><span id="rAmount">—</span></div>
-    <div class="receipt-row"><span><?=$ar?'العملة':'Currency'?></span><span id="rCurrency">—</span></div>
-    <div class="receipt-row"><span><?=$ar?'البطاقة':'Card'?></span><span id="rCard">—</span></div>
-    <div class="receipt-row"><span>Ref</span><span id="rRef">—</span></div>
+    <div class="receipt-row"><span>DATE</span><span id="rDate"><?=date('d/m/Y')?></span></div>
+    <div class="receipt-row"><span>TIME</span><span id="rTime"><?=date('H:i:s')?></span></div>
+    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars((string)($posDevice['terminal_id'] ?? ''))?></span></div>
+    <div class="receipt-row"><span>MID</span><span id="rMid"><?=htmlspecialchars((string)($posDevice['merchant_id'] ?? $posMerchant['brand'] ?? 'DIPARMA'))?></span></div>
+    <div class="receipt-row"><span>BATCH</span><span id="rBatch">000001</span></div>
+    <div class="receipt-row"><span>STAN</span><span id="rStan">—</span></div>
+    <div class="receipt-cut">------------------------</div>
+    <div class="receipt-row"><span>TRANS</span><span id="rType">SALE</span></div>
+    <div class="receipt-row"><span>ENTRY</span><span id="rEntry">—</span></div>
+    <div class="receipt-row"><span>PAN</span><span id="rCard">**** ****</span></div>
+    <div class="receipt-row"><span>AMOUNT</span><span id="rAmount">—</span></div>
+    <div class="receipt-row"><span>CURR</span><span id="rCurrency">—</span></div>
+    <div class="receipt-banner" id="rBanner">READY</div>
+    <div class="receipt-reason" id="rReason" style="display:none"></div>
+    <div class="receipt-row"><span>RC</span><span id="rRc">—</span></div>
+    <div class="receipt-row"><span>AUTH</span><span id="rApproval">—</span></div>
     <div class="receipt-row"><span>RRN</span><span id="rRRN">—</span></div>
-    <div class="receipt-row"><span>Approval</span><span id="rApproval">—</span></div>
-    <div class="receipt-row"><span><?=$isLedgerGw?'TxID':'Nuvei'?></span><span id="rNuvei">—</span></div>
-    <div class="receipt-row" id="rReasonRow" style="display:none;align-items:flex-start"><span><?=$ar?'سبب الرفض':'Decline reason'?></span><span id="rReason" style="color:#b91c1c;max-width:180px;text-align:end;white-space:normal;word-break:break-word">—</span></div>
-    <div class="receipt-row"><span>Ledger</span><span id="rLedger">—</span></div>
+    <div class="receipt-row"><span>TRACE</span><span id="rRef">—</span></div>
+    <div class="receipt-row" id="rHostRow"><span>HOST</span><span id="rNuvei">—</span></div>
+    <div class="receipt-row" id="rLedgerRow" style="display:none"><span>LEDGER</span><span id="rLedger">—</span></div>
     <div class="receipt-total">
-      <div class="receipt-row"><span><?=$ar?'الحالة':'Status'?></span><span id="rStatus">PENDING</span></div>
+      <div class="receipt-row"><span>STATUS</span><span id="rStatus">PENDING</span></div>
     </div>
-    <div class="receipt-footer">
-      <?=$ar?'شكراً لاستخدام DI PARMA':'Thank you for using DI PARMA'?>
-      <br>diparmas.com
+    <div class="receipt-footer" id="receiptFooter">
+      <?=$ar?'احتفظ بالإيصال':'PLEASE RETAIN THIS COPY'?>
+      <br>*** CUSTOMER COPY ***
     </div>
+    <div class="receipt-cut">••••••••••••••••••••</div>
   </div>
 
   <button class="btn btn-dark btn-full" onclick="printReceipt()" style="font-size:.76rem;margin-bottom:8px">
@@ -1193,15 +1343,129 @@ const POS = {
   txnType: <?=json_encode($startOp)?>,
   inputMode: <?=json_encode($startMode)?>,
   cardInserted: false,
-  amount: '',
-  currency: 'USD',
+  amount: <?=json_encode((string)$startAmount)?>,
+  replaceAmount: <?= $startAmount !== '' ? 'true' : 'false' ?>,
+  currency: <?=json_encode($startCurrency)?>,
   ledgerConnected: false,
   ledgerTransport: null,
   ledgerDeviceAddress: '',
   ledgerAddress: <?=json_encode(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '')?>,
   lastTxn: null,
   nfcSupported: !!(window.NDEFReader),
+  cardBin: null,
 };
+
+// Amount editors must bind before any later ReferenceError (POS_GW / CARD_NETWORKS)
+function sanitizeAmt(val) {
+  const s = String(val || '').replace(/[^\d.]/g, '');
+  const dot = s.indexOf('.');
+  if (dot === -1) return s;
+  return s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, '');
+}
+function formatAmt(v) {
+  const n = parseFloat(String(v).replace(/[^\d.]/g, ''));
+  return isNaN(n) ? '0.00' : n.toFixed(2);
+}
+function paintAmount(raw, sourceId) {
+  const v = String(raw || '');
+  const show = v === '' ? '0.00' : v;
+  const amtEl = document.getElementById('txnAmount');
+  const disp = document.getElementById('amountDisplay');
+  if (amtEl && sourceId !== 'txnAmount') amtEl.value = v;
+  if (disp && sourceId !== 'amountDisplay') disp.value = show;
+}
+window.focusPosAmount = function(id) {
+  const el = document.getElementById(id || 'amountDisplay');
+  if (!el) return;
+  el.readOnly = false;
+  el.disabled = false;
+  if (document.activeElement === el) return;
+  el.focus();
+  try { el.select(); } catch (e) {}
+};
+window.keyPress = function(key) {
+  const amtEl = document.getElementById('txnAmount');
+  const disp = document.getElementById('amountDisplay');
+  const active = document.activeElement;
+  if (active === amtEl || active === disp) {
+    try { active.blur(); } catch (e) {}
+  }
+  POS.amount = String(POS.amount || '');
+  if (key === 'cancel') {
+    POS.amount = '';
+    POS.replaceAmount = true;
+    paintAmount('');
+    return;
+  }
+  if (key === 'clear') {
+    POS.amount = POS.amount.slice(0, -1);
+    POS.replaceAmount = false;
+    paintAmount(POS.amount);
+    return;
+  }
+  if (POS.replaceAmount) {
+    POS.amount = '';
+    POS.replaceAmount = false;
+  }
+  if (key === '.' && POS.amount.includes('.')) return;
+  if (POS.amount.replace('.', '').length >= 14) return;
+  POS.amount += key;
+  paintAmount(POS.amount);
+};
+function updateDisplay(val) {
+  const el = document.getElementById('amountDisplay');
+  if (!el) return;
+  if (el.tagName === 'INPUT') el.value = val;
+  else el.textContent = val;
+}
+window.syncAmount = function(val, sourceId) {
+  const raw = sanitizeAmt(val);
+  POS.amount = raw;
+  POS.replaceAmount = false;
+  const src = sourceId || (document.activeElement && document.activeElement.id) || '';
+  paintAmount(raw, src);
+};
+(function bindAmountEditors() {
+  ['amountDisplay', 'txnAmount'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.readOnly = false;
+    el.disabled = false;
+    el.removeAttribute('readonly');
+    el.removeAttribute('disabled');
+    el.addEventListener('focus', function () {
+      if (POS.replaceAmount) {
+        try { this.select(); } catch (e) {}
+      }
+    });
+    el.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        POS.amount = '';
+        POS.replaceAmount = true;
+        this.value = id === 'amountDisplay' ? '0.00' : '';
+        paintAmount('', id);
+      }
+    });
+    el.addEventListener('input', function () {
+      window.syncAmount(this.value, id);
+    });
+    el.addEventListener('blur', function () {
+      const raw = sanitizeAmt(this.value);
+      if (raw === '' || raw === '.') {
+        POS.amount = '';
+        POS.replaceAmount = true;
+        paintAmount('');
+        return;
+      }
+      POS.amount = raw;
+      POS.replaceAmount = true;
+      if (this.value !== raw) this.value = raw;
+      paintAmount(raw, id);
+    });
+  });
+})();
 
 const TXN_META = <?=json_encode($txnTypes, JSON_UNESCAPED_UNICODE)?>;
 const TXN_LABELS = {};
@@ -1228,6 +1492,7 @@ function selectPayoutRail(code, el) {
   POS_PAYOUT = String(code || '');
   document.querySelectorAll('[data-payout]').forEach(b => b.classList.toggle('active', b.dataset.payout === POS_PAYOUT));
 }
+let POS_GW = <?= json_encode((string)$posGw) ?>;
 let POS_REQUIRES_CARD = <?= !empty($posGw) && pos_gateway_requires_card($posGw) ? 'true' : 'false' ?>;
 const EXEC_GWS = <?=json_encode($execGws ?? [], JSON_UNESCAPED_UNICODE)?>;
 const SQUARE_CFG = <?=json_encode([
@@ -1319,6 +1584,49 @@ const POS_DEVICE = <?=json_encode([
     'wedge' => !empty($posDevice['wedge']),
 ], JSON_UNESCAPED_UNICODE)?>;
 const CARD_NETWORKS = <?=json_encode(pos_card_networks(), JSON_UNESCAPED_UNICODE)?>;
+window.CARD_NETWORKS = CARD_NETWORKS;
+
+function posPlainReason(raw) {
+  if (raw == null) return '';
+  if (typeof raw === 'object') {
+    const pick = raw.gwErrorReason || raw.errCode || raw.reason || raw.response_code
+      || ((typeof raw.decline_reason === 'string' && raw.decline_reason[0] !== '{') ? raw.decline_reason : '')
+      || ((typeof raw.status_message === 'string' && raw.status_message[0] !== '{') ? raw.status_message : '')
+      || ((typeof raw.message === 'string' && raw.message[0] !== '{') ? raw.message : '');
+    if (pick) return posPlainReason(pick);
+    const dumped = JSON.stringify(raw);
+    const rc = dumped.match(/\b(1507|1011|1007|1106|1019)\b/);
+    return rc ? posPlainReason(rc[1]) : (AR ? 'رُفضت العملية' : 'DECLINED');
+  }
+  let text = String(raw).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  if (text[0] === '{' || text[0] === '[') {
+    try { return posPlainReason(JSON.parse(text)); } catch (e) {
+      const rc = text.match(/\b(1507|1011|1007|1106|1019)\b/);
+      if (rc) text = rc[1];
+      else {
+        const quoted = text.match(/"(?:gwErrorReason|errCode|reason|decline_reason)"\s*:\s*"((?:\\.|[^"\\])*)"/);
+        if (quoted) return posPlainReason(quoted[1].replace(/\\"/g, '"'));
+        return AR ? 'رُفضت العملية' : 'DECLINED';
+      }
+    }
+  }
+  if (/1507/.test(text)) return AR ? 'رفض المصدر RC 1507' : 'DECLINED RC 1507 ISSUER';
+  if (/1011/.test(text)) return AR ? 'بطاقة غير صحيحة RC 1011' : 'DECLINED RC 1011 INVALID CARD';
+  if (/1007/.test(text)) return AR ? 'بطاقة منتهية RC 1007' : 'DECLINED RC 1007 EXPIRED CARD';
+  if (/1106/.test(text)) return AR ? 'رصيد غير كافٍ RC 1106' : 'DECLINED RC 1106 INSUFFICIENT FUNDS';
+  if (/1019/.test(text)) return AR ? 'رابط غير مقبول RC 1019' : 'DECLINED RC 1019 INVALID URL';
+  if (/generic\s*decline/i.test(text)) return AR ? 'رفض المصدر' : 'DECLINED ISSUER';
+  if (text.length > 64) text = text.slice(0, 61) + '...';
+  return text;
+}
+
+function posResponseCode(d, why) {
+  const from = String(d && (d.response_code || d.errCode || d.gwErrorCode) || '');
+  if (/^\d{3,4}$/.test(from)) return from;
+  const m = String(why || '').match(/\b(1507|1011|1007|1106|1019|\d{4})\b/);
+  return m ? m[1] : '';
+}
 
 function isBankApproval(code) {
   const d = String(code || '').replace(/\D/g, '');
@@ -1364,6 +1672,9 @@ window.selectTxnType = function(type, el) {
     b.classList.toggle('active', b.getAttribute('data-type') === type);
   });
   if (el && !el.classList.contains('active')) el.classList.add('active');
+  document.querySelectorAll('[data-sticker-op]').forEach(r => {
+    r.classList.toggle('is-current', r.getAttribute('data-sticker-op') === type);
+  });
 
   const label = TXN_LABELS[type] || { ar: type, en: type };
   document.getElementById('screenTitle').textContent = (AR ? label.ar : label.en).toUpperCase();
@@ -1600,38 +1911,6 @@ window.startNfcScan = async function() {
   }
 };
 
-// ── Keypad ─────────────────────────────────────────
-window.keyPress = function(key) {
-  if (key === 'cancel') { POS.amount = ''; updateDisplay('0.00'); return; }
-  if (key === 'clear') {
-    POS.amount = POS.amount.slice(0,-1) || '';
-    updateDisplay(POS.amount ? formatAmt(POS.amount) : '0.00');
-    document.getElementById('txnAmount').value = POS.amount;
-    return;
-  }
-  if (key === '.' && POS.amount.includes('.')) return;
-  // بدون حد مبلغ على مستوى الواجهة
-  if (POS.amount.replace('.','').length >= 14) return;
-  POS.amount += key;
-  const val = formatAmt(POS.amount);
-  updateDisplay(val);
-  document.getElementById('txnAmount').value = POS.amount;
-};
-
-function formatAmt(v) {
-  const n = parseFloat(v);
-  return isNaN(n) ? '0.00' : n.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
-}
-
-function updateDisplay(val) {
-  document.getElementById('amountDisplay').textContent = val;
-}
-
-window.syncAmount = function(val) {
-  POS.amount = val;
-  updateDisplay(formatAmt(val));
-};
-
 // ── Card Formatting ────────────────────────────────
 function detectCardNetwork(pan) {
   const n = String(pan || '').replace(/\D/g,'');
@@ -1669,25 +1948,171 @@ function detectCardNetwork(pan) {
   return 'other';
 }
 
-window.formatCardNum = function(el) {
+window.formatCardNum = formatCardNum;
+function formatCardNum(el) {
   const v = el.value.replace(/\D/g,'').substring(0,19);
   el.value = v.replace(/(.{4})/g,'$1 ').trim();
   document.getElementById('cardNumDisplay').textContent =
     v.length < 4 ? '•••• •••• •••• ••••' : (v.substring(0,4) + ' •••• •••• ' + (v.slice(-4)||'••••'));
   document.getElementById('cardExpDisplay').textContent = document.getElementById('cardExpiry').value || 'MM/YY';
-  const netEl = document.getElementById('cardNetwork');
-  if (netEl && (netEl.value === 'auto' || netEl.dataset.autolock === '1') && v.length >= 4) {
-    const detected = detectCardNetwork(v);
-    netEl.value = detected;
-    netEl.dataset.autolock = '1';
-  }
+  applyAutoCardFromPan(v);
 };
 
+function schemeToNetwork(scheme) {
+  return (typeof pos_normalize_card_network === 'function')
+    ? pos_normalize_card_network(String(scheme || ''))
+    : String(scheme || 'auto').toLowerCase().replace(/\s+/g, '_');
+}
+
+function mapBinScheme(scheme) {
+  const s = String(scheme || '').toLowerCase().replace(/[\s-]+/g, '_');
+  const aliases = {
+    visa: 'visa', visa_electron: 'visa_electron', mastercard: 'mastercard', master_card: 'mastercard',
+    amex: 'amex', american_express: 'amex', discover: 'discover', diners: 'diners', diners_club: 'diners',
+    jcb: 'jcb', unionpay: 'unionpay', union_pay: 'unionpay', mir: 'mir', rupay: 'rupay', mada: 'mada',
+    meeza: 'meeza', knet: 'knet', troy: 'troy', verve: 'verve', elo: 'elo', hipercard: 'hipercard',
+    maestro: 'maestro', other: 'other'
+  };
+  if (aliases[s]) return aliases[s];
+  const detected = detectCardNetwork(String(scheme || ''));
+  return (window.CARD_NETWORKS || {})[s] ? s : (detected !== 'auto' ? detected : 'other');
+}
+
+function flagEmoji(code) {
+  if (!code || String(code).length !== 2) return '';
+  const c = String(code).toUpperCase();
+  return String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)
+    + String.fromCodePoint(0x1F1E6 + c.charCodeAt(1) - 65);
+}
+
+function renderCardAuto(info) {
+  const netEl = document.getElementById('cardNetwork');
+  const schemeEl = document.getElementById('cardAutoScheme');
+  const pills = document.getElementById('cardAutoPills');
+  const hint = document.getElementById('cardAutoHint');
+  const icon = document.getElementById('cardAutoIcon');
+  const badge = document.getElementById('cardSchemeBadge');
+  const issuerDisp = document.getElementById('cardIssuerDisplay');
+  const net = info.network || 'auto';
+      const netMeta = (window.CARD_NETWORKS || {})[net] || { ar: 'AUTO', en: 'AUTO' };
+  const label = AR ? (netMeta.ar || net) : (netMeta.en || net);
+  if (netEl) netEl.value = net;
+  if (schemeEl) schemeEl.textContent = (info.brand || label || 'AUTO').toUpperCase();
+  if (badge) badge.textContent = (info.brand || label || 'AUTO').toUpperCase();
+  if (icon) {
+    icon.className = info.icon || 'fas fa-credit-card';
+    icon.style.color = info.color || 'var(--gold)';
+  }
+  const items = [];
+  items.push(AR ? 'تلقائي' : 'AUTO');
+  if (info.type) items.push((AR ? 'النوع: ' : 'Type: ') + info.type);
+  if (info.prepaid) items.push(AR ? 'مسبقة الدفع' : 'Prepaid');
+  if (info.bank) items.push((AR ? 'المصدر: ' : 'Issuer: ') + info.bank);
+  if (info.country_name || info.country) {
+    items.push((AR ? 'الدولة: ' : 'Country: ') + (flagEmoji(info.country) + ' ' + (info.country_name || info.country)).trim());
+  }
+  if (info.brand && info.brand !== label) items.push((AR ? 'الاسم: ' : 'Name: ') + info.brand);
+  if (pills) {
+    pills.innerHTML = items.map(function (t) {
+      const s = String(t).replace(/[&<>"']/g, function (c) {
+        return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);
+      });
+      return '<span class="card-auto-pill">' + s + '</span>';
+    }).join('');
+  }
+  if (hint) {
+    hint.textContent = info.waiting
+      ? (AR ? 'أدخل رقم البطاقة. النوع والمصدر والدولة واسم المنتج يظهرون تلقائياً من الـ BIN.' : 'Enter the card number. Type, issuer, country, and product name fill automatically from the BIN.')
+      : (AR ? 'تم التعرف تلقائياً من رقم البطاقة. اسم الحامل يُكتب كما على البطاقة.' : 'Detected automatically from the card number. Type the cardholder name as on the card.');
+  }
+  if (issuerDisp) {
+    const bits = [info.brand, info.bank, info.country_name || info.country].filter(Boolean);
+    issuerDisp.textContent = bits.join(' · ');
+  }
+  POS.cardBin = info;
+}
+
+function resetCardAuto() {
+  renderCardAuto({ network: 'auto', brand: 'AUTO', waiting: true, icon: 'fas fa-credit-card', color: '#FFD700' });
+}
+
+let _binTimer = null;
+let _binLast = '';
+function applyAutoCardFromPan(digits) {
+  const nets = window.CARD_NETWORKS || {};
+  const net = detectCardNetwork(digits);
+  const netLab = (nets[net] && (AR ? nets[net].ar : nets[net].en)) || net;
+  renderCardAuto({
+    network: digits.length >= 4 ? net : 'auto',
+    brand: digits.length >= 4 ? netLab : 'AUTO',
+    waiting: digits.length < 6,
+    icon: 'fas fa-credit-card',
+    color: '#FFD700'
+  });
+  if (digits.length < 6) {
+    _binLast = '';
+    return;
+  }
+  const bin6 = digits.substring(0, 6);
+  if (bin6 === _binLast) return;
+  clearTimeout(_binTimer);
+  _binTimer = setTimeout(function () {
+    _binLast = bin6;
+    fetch('../api/bin_lookup.php?bin=' + encodeURIComponent(bin6), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.success) return;
+        const network = mapBinScheme(d.scheme || d.brand || net);
+        renderCardAuto({
+          network: network,
+          brand: d.brand || d.scheme || '',
+          type: d.type || '',
+          bank: d.bank || '',
+          country: d.country || '',
+          country_name: d.country_name || '',
+          prepaid: !!d.prepaid,
+          icon: d.icon || 'fas fa-credit-card',
+          color: d.color || '#FFD700',
+          bin: d.bin || bin6
+        });
+      })
+      .catch(function () {});
+  }, 280);
+}
+
 window.formatExp = function(el) {
-  let v = el.value.replace(/\D/g,'');
-  if (v.length >= 2) v = v.substring(0,2) + '/' + v.substring(2,4);
-  el.value = v;
-  document.getElementById('cardExpDisplay').textContent = v || 'MM/YY';
+  if (!el) return;
+  const prev = el.dataset.prevExp || '';
+  const raw = String(el.value || '');
+  const deleting = raw.length < prev.length;
+  let digits = raw.replace(/\D/g, '').substring(0, 4);
+
+  // Backspace across the synthetic slash: "12/" → "1"
+  if (deleting && prev.length === 3 && prev.charAt(2) === '/' && digits.length === 2) {
+    digits = digits.substring(0, 1);
+  }
+
+  if (digits.length >= 2) {
+    let mm = parseInt(digits.substring(0, 2), 10);
+    if (!mm || mm < 1) mm = 1;
+    if (mm > 12) mm = 12;
+    digits = ('0' + mm).slice(-2) + digits.substring(2);
+  }
+
+  // Always show MM/ immediately once 2 month digits exist (even with no year yet)
+  const formatted = digits.length >= 2
+    ? digits.substring(0, 2) + '/' + digits.substring(2, 4)
+    : digits;
+
+  el.value = formatted;
+  el.dataset.prevExp = formatted;
+
+  if (!deleting && digits.length === 2) {
+    try { el.setSelectionRange(3, 3); } catch (e) {}
+  }
+
+  const disp = document.getElementById('cardExpDisplay');
+  if (disp) disp.textContent = formatted || 'MM/YY';
 };
 
 window.toggleCloudCard = function() {
@@ -1713,6 +2138,7 @@ window.setInputMode = function(mode) {
     ? (AR ? 'بانتظار تمرير البطاقة (شريحة أو NFC)' : 'WAITING CARD TAP / CHIP')
     : (AR ? 'مانول — بدون تمرير البطاقة' : 'MANUAL — NO CARD TAP REQUIRED'));
 };
+if (typeof resetCardAuto === 'function') resetCardAuto();
 </script>
 
 <script>
@@ -1764,8 +2190,15 @@ window.processTransaction = async function() {
     merchant_line: POS_MERCHANT.line,
     mcc: POS_MERCHANT.mcc,
     item_name: POS_MERCHANT.item_name,
-    scheme_route: cardNetwork === 'auto' ? detectCardNetwork(cardNum) : cardNetwork,
-    card_network: cardNetwork,
+    scheme_route: (document.getElementById('cardNetwork')?.value && document.getElementById('cardNetwork').value !== 'auto')
+      ? document.getElementById('cardNetwork').value
+      : detectCardNetwork(cardNum),
+    card_network: document.getElementById('cardNetwork')?.value || detectCardNetwork(cardNum),
+    card_type: cardType,
+    card_bin: POS.cardBin || undefined,
+    bin_bank: (POS.cardBin && POS.cardBin.bank) || undefined,
+    bin_country: (POS.cardBin && (POS.cardBin.country_name || POS.cardBin.country)) || undefined,
+    bin_brand: (POS.cardBin && POS.cardBin.brand) || undefined,
     card_type: cardType,
     cloud_token: cloudToken || undefined,
     charge_mode: chargeMode || undefined,
@@ -1909,10 +2342,11 @@ window.processTransaction = async function() {
     const text = await r.text();
     let d = {};
     try { d = JSON.parse(text); } catch (parseErr) {
-      const why = (text || '').replace(/<[^>]+>/g, ' ').trim().slice(0, 280) || (AR ? 'السيرفر لم يرجع سبب الرفض' : 'Server returned no decline reason');
+      const why = posPlainReason(text) || (AR ? 'السيرفر لم يرجع سبب الرفض' : 'DECLINED');
       showResultModal(false, { success: false, message: why, decline_reason: why });
+      updateReceipt({ success: false, message: why, decline_reason: why }, type, amount, currency, cardNum);
       setPosStatus(AR ? 'مرفوضة ✗' : 'DECLINED ✗');
-      toast((AR ? 'سبب الرفض: ' : 'Decline reason: ') + why, 'error');
+      toast((AR ? 'سبب الرفض: ' : 'Decline: ') + why, 'error');
       return;
     }
 
@@ -1946,12 +2380,12 @@ window.processTransaction = async function() {
       POS.lastTxn = d;
       updateReceipt(d, type, amount, currency, cardNum);
       showResultModal(false, d);
-      const why = String(d.decline_reason || d.status_message || d.message || '').trim();
+      const why = posPlainReason(d);
       setPosStatus(AR ? ('مرفوضة ✗ ' + (why || '')) : ('DECLINED ✗ ' + (why || '')));
-      toast((AR ? 'سبب الرفض: ' : 'Decline reason: ') + (why || (AR ? 'البنك رفض العملية' : 'The bank declined the payment')), 'error');
+      toast((AR ? 'سبب الرفض: ' : 'Decline: ') + (why || (AR ? 'رفض المصدر' : 'ISSUER DECLINED')), 'error');
     }
   } catch(e) {
-    const why = (e && e.message) ? e.message : (AR ? 'خطأ في الاتصال بالسيرفر' : 'Server connection error');
+    const why = posPlainReason((e && e.message) ? e.message : (AR ? 'خطأ في الاتصال' : 'HOST TIMEOUT'));
     showResultModal(false, { success: false, message: why, decline_reason: why });
     toast((AR ? 'سبب الرفض: ' : 'Decline reason: ') + why, 'error');
     setPosStatus(AR ? ('مرفوضة ✗ ' + why) : ('ERROR ✗ ' + why));
@@ -1973,36 +2407,69 @@ function setPosStatus(msg) {
 
 // ── Update Receipt ────────────────────────────────
 function updateReceipt(d, type, amount, currency, cardNum) {
-  const label = TXN_LABELS[type];
-  document.getElementById('rType').textContent     = AR ? label.ar : label.en;
-  document.getElementById('rAmount').textContent   = parseFloat(amount).toFixed(2);
+  const label = TXN_LABELS[type] || { ar: 'SALE', en: 'SALE' };
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const dateEl = document.getElementById('rDate');
+  const timeEl = document.getElementById('rTime');
+  if (dateEl) dateEl.textContent = pad(now.getDate()) + '/' + pad(now.getMonth() + 1) + '/' + now.getFullYear();
+  if (timeEl) timeEl.textContent = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+  const tidEl = document.getElementById('rTid');
+  if (tidEl) tidEl.textContent = (document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || d.terminal_id || '—');
+  document.getElementById('rType').textContent = (d.operation_name || (AR ? label.ar : label.en) || 'SALE').toString().toUpperCase();
+  document.getElementById('rAmount').textContent = parseFloat(amount).toFixed(2);
   document.getElementById('rCurrency').textContent = currency;
-  document.getElementById('rCard').textContent     = cardNum ? '**** ' + cardNum.slice(-4) : '—';
-  document.getElementById('rRef').textContent      = d.reference || '—';
-  document.getElementById('rRRN').textContent      = d.rrn || '—';
+  const last4 = d.card_last4 || (cardNum ? cardNum.slice(-4) : '');
+  document.getElementById('rCard').textContent = last4 ? ('**** **** **** ' + last4) : '****';
+  const entry = document.getElementById('posInputMode')?.value || POS.inputMode || '';
+  const entryMap = { chip: 'CHIP', contactless: 'CONTACTLESS', swipe: 'SWIPE', manual: 'MANUAL', nfc: 'CONTACTLESS' };
+  const rEntry = document.getElementById('rEntry');
+  if (rEntry) rEntry.textContent = entryMap[String(entry).toLowerCase()] || (POS.inputMode === 'physical' ? 'CHIP' : 'MANUAL');
+  document.getElementById('rRef').textContent = d.reference || '—';
+  document.getElementById('rRRN').textContent = d.rrn || '—';
   document.getElementById('rApproval').textContent = d.approval_code || '—';
+  const stanEl = document.getElementById('rStan');
+  if (stanEl) stanEl.textContent = d.stan || '—';
   const nuveiEl = document.getElementById('rNuvei');
   const ledEl = document.getElementById('rLedger');
+  const ledRow = document.getElementById('rLedgerRow');
   const reasonEl = document.getElementById('rReason');
-  const reasonRow = document.getElementById('rReasonRow');
-  const why = String(d.decline_reason || d.status_message || d.message || '').trim();
+  const banner = document.getElementById('rBanner');
+  const why = posPlainReason(d);
+  const rc = posResponseCode(d, why);
+  const rcEl = document.getElementById('rRc');
+  if (rcEl) rcEl.textContent = rc || (d.success ? '00' : '05');
   if (nuveiEl) nuveiEl.textContent = d.nuvei_txn_id || '—';
-  if (reasonEl && reasonRow) {
+  if (reasonEl) {
     if (!d.success && why) {
       reasonEl.textContent = why;
-      reasonRow.style.display = 'flex';
+      reasonEl.style.display = 'block';
     } else {
-      reasonEl.textContent = '—';
-      reasonRow.style.display = 'none';
+      reasonEl.textContent = '';
+      reasonEl.style.display = 'none';
     }
   }
-  if (ledEl) {
-    if (d.ledger_txid) ledEl.textContent = String(d.ledger_txid).substring(0, 16) + '…';
-    else if (d.ledger_usdt) ledEl.textContent = d.ledger_usdt + ' USDT · ' + (d.ledger_status || '');
-    else ledEl.textContent = d.ledger_status || '—';
+  if (banner) {
+    banner.textContent = d.success ? 'APPROVED' : 'DECLINED';
+    banner.className = 'receipt-banner ' + (d.success ? 'ok' : 'no');
   }
-  document.getElementById('rStatus').textContent   = d.success ? 'APPROVED' : 'DECLINED';
-  document.getElementById('receiptDate').textContent = new Date().toLocaleString('en-GB');
+  if (ledEl && ledRow) {
+    if (d.success && (d.ledger_txid || d.ledger_usdt || d.ledger_status)) {
+      ledRow.style.display = 'flex';
+      if (d.ledger_txid) ledEl.textContent = String(d.ledger_txid).substring(0, 16) + '…';
+      else if (d.ledger_usdt) ledEl.textContent = d.ledger_usdt + ' USDT';
+      else ledEl.textContent = d.ledger_status || '—';
+    } else {
+      ledRow.style.display = 'none';
+    }
+  }
+  document.getElementById('rStatus').textContent = d.success ? 'APPROVED' : 'DECLINED';
+  const foot = document.getElementById('receiptFooter');
+  if (foot) {
+    foot.innerHTML = d.success
+      ? (AR ? 'شكراً<br>*** CUSTOMER COPY ***' : 'THANK YOU<br>*** CUSTOMER COPY ***')
+      : (AR ? 'راجع المصدر أو جرّب بطاقة أخرى<br>*** MERCHANT COPY ***' : 'REFER TO ISSUER<br>*** MERCHANT COPY ***');
+  }
 }
 
 // ── Result Modal ──────────────────────────────────
@@ -2012,39 +2479,25 @@ function showResultModal(success, d) {
   document.getElementById('modalTitle').textContent =
     success ? (AR?'تمت العملية بنجاح':'Transaction Approved') : (AR?'رُفضت العملية':'Transaction Declined');
   document.getElementById('modalTitle').style.color = success ? 'var(--green)' : 'var(--red)';
-  document.getElementById('modalRef').textContent   = 'REF: ' + (d.reference || '—');
+  document.getElementById('modalRef').textContent   = (d.terminal_id || POS_DEVICE.terminal_id || '') + (d.reference ? '  ' + d.reference : '');
 
-  const label = TXN_LABELS[POS.txnType];
-  const why = String(d.decline_reason || d.status_message || d.message || '').trim();
-  const whyAr = (function (text) {
-    if (/1507/.test(text)) {
-      return AR
-        ? 'البنك المصدر رفض العملية (Nuvei 1507). استخدم شراء 3D بمبلغ صغير حتى يصل OTP.'
-        : 'Issuer declined (Nuvei 1507). Use Purchase 3D with a small amount so the bank can send OTP.';
-    }
-    if (/1011/.test(text)) return AR ? 'رقم البطاقة غير صحيح (Nuvei 1011).' : 'Invalid card number (Nuvei 1011).';
-    if (/1007/.test(text)) return AR ? 'البطاقة منتهية (Nuvei 1007).' : 'Expired card (Nuvei 1007).';
-    if (/1106/.test(text)) return AR ? 'الرصيد غير كافٍ (Nuvei 1106).' : 'Insufficient funds (Nuvei 1106).';
-    if (/1019/.test(text)) return AR ? 'رابط الفشل غير مقبول من Nuvei (1019).' : 'Invalid failure URL (Nuvei 1019).';
-    if (/generic\s*decline/i.test(text)) {
-      return AR
-        ? 'البنك رفض 2D/MOTO بدون OTP. استخدم شراء 3D بمبلغ صغير.'
-        : 'The bank refused 2D/MOTO without OTP. Use Purchase 3D with a small amount.';
-    }
-    return text.replace(/transCode=0/ig, '').replace(/transDeclineAmount=-1/ig, '').replace(/\s+/g, ' ').trim();
-  })(why);
+  const label = TXN_LABELS[POS.txnType] || { ar: 'شراء', en: 'SALE' };
+  const why = posPlainReason(d);
+  const rc = posResponseCode(d, why);
   document.getElementById('modalDetails').innerHTML = `
-    ${!success ? `<div style="background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.4);border-radius:12px;padding:12px;margin-bottom:12px;color:#fecaca;font-size:.82rem;line-height:1.6;white-space:normal;word-break:break-word"><strong style="display:block;margin-bottom:4px">${AR?'سبب الرفض':'Decline reason'}</strong>${whyAr || (AR?'البنك رفض العملية':'The bank declined the payment')}</div>` : ''}
-    <div class="modal-row"><span>${AR?'النوع':'Type'}</span><span>${AR?label.ar:label.en}</span></div>
-    <div class="modal-row"><span>${AR?'المبلغ':'Amount'}</span><span>${parseFloat(document.getElementById('txnAmount').value||0).toFixed(2)} ${document.getElementById('txnCurrency').value}</span></div>
+    ${!success ? `<div style="background:#fff;color:#111;border-radius:4px;padding:12px;margin-bottom:12px;font-family:ui-monospace,monospace;font-size:.78rem;letter-spacing:.04em;text-align:center">
+      <div style="font-weight:900;letter-spacing:.2em;color:#991b1b">DECLINED</div>
+      <div style="margin-top:6px">RC ${rc || '05'}</div>
+      <div style="margin-top:6px;font-size:.72rem">${why || (AR?'رفض المصدر':'ISSUER DECLINED')}</div>
+    </div>` : ''}
+    <div class="modal-row"><span>TRANS</span><span>${(d.operation_name || (AR?label.ar:label.en) || 'SALE')}</span></div>
+    <div class="modal-row"><span>AMOUNT</span><span>${parseFloat(document.getElementById('txnAmount').value||0).toFixed(2)} ${document.getElementById('txnCurrency').value}</span></div>
+    <div class="modal-row"><span>TID</span><span>${d.terminal_id||POS_DEVICE.terminal_id||'—'}</span></div>
     <div class="modal-row"><span>RRN</span><span>${d.rrn||'—'}</span></div>
-    <div class="modal-row"><span>Path</span><span>${(POS_GW||'nuvei').toUpperCase()} → Ledger</span></div>
-    <div class="modal-row"><span>${POS_LEDGER_ONLY ? 'TxID' : 'Nuvei'}</span><span>${d.nuvei_txn_id||d.txid||d.ledger_txid||'—'}</span></div>
-    <div class="modal-row"><span>Approval</span><span>${d.approval_code||'—'}</span></div>
-    ${d.ledger_usdt ? `<div class="modal-row"><span>Ledger USDT</span><span>${d.ledger_usdt}</span></div>` : ''}
-    ${d.ledger_transfer ? `<div class="modal-row"><span>Ledger TX</span><span style="color:var(--green)">${d.ledger_txid?.substring(0,16)||'Sent'}…</span></div>` : `<div class="modal-row"><span>Ledger</span><span>${d.ledger_status||'—'}</span></div>`}
-    ${d.peer_sync ? `<div class="modal-row"><span>${AR?'مزامنة الندّ':'Peer sync'}</span><span style="color:${d.peer_sync.success?'var(--green)':'var(--red)'}">${d.peer_sync.success ? (AR?'تم':'OK') : (d.peer_sync.message||'fail')}</span></div>` : ''}
-    ${d.saved === false ? `<div class="modal-row"><span>DB</span><span style="color:var(--red)">${AR?'لم يُحفظ السجل — راجع السجل':'Record not saved — check logs'}</span></div>` : ''}
+    <div class="modal-row"><span>AUTH</span><span>${d.approval_code||'—'}</span></div>
+    ${d.ledger_usdt && success ? `<div class="modal-row"><span>Ledger USDT</span><span>${d.ledger_usdt}</span></div>` : ''}
+    ${success && d.ledger_transfer ? `<div class="modal-row"><span>Ledger TX</span><span style="color:var(--green)">${d.ledger_txid?.substring(0,16)||'Sent'}…</span></div>` : ''}
+    ${d.saved === false ? `<div class="modal-row"><span>DB</span><span style="color:var(--red)">${AR?'لم يُحفظ السجل':'NOT SAVED'}</span></div>` : ''}
   `;
 
   const ltBtn = document.getElementById('ledgerTransferBtn');
@@ -2070,7 +2523,7 @@ window.closeModal = function() {
 window.retryAs3d = function() {
   closeModal();
   const btn = document.querySelector('.txn-btn[data-type="purchase_3d"]');
-  if (btn) selectTxnType('purchase_3d', btn);
+  if (btn && typeof selectTxnType === 'function') selectTxnType('purchase_3d', btn);
   toast(AR ? 'شراء 3D — أكمل OTP من بنك البطاقة. استخدم مبلغاً صغيراً.' : 'Purchase 3D — complete the card-bank OTP. Use a small amount.', 'info');
 };
 
@@ -2190,12 +2643,15 @@ async function loadLedgerBalance(address) {
 // ── Print Receipt ─────────────────────────────────
 window.printReceipt = function() {
   const content = document.getElementById('receiptBox').innerHTML;
-  const w = window.open('','_blank','width=400,height=600');
-  w.document.write(`<html><head><style>
-    body{font-family:monospace;padding:20px;font-size:12px}
+  const w = window.open('','_blank','width=320,height=640');
+  w.document.write(`<html><head><title>POS RECEIPT</title><style>
+    @page{size:58mm auto;margin:4mm}
+    body{font-family:"Courier New",ui-monospace,monospace;padding:8px;font-size:12px;width:58mm;color:#000}
     .receipt-row{display:flex;justify-content:space-between}
-    .receipt-total{border-top:2px dashed #000;margin-top:8px;padding-top:8px}
-    .receipt-footer{text-align:center;margin-top:10px;font-size:10px;color:#666}
+    .receipt-banner{text-align:center;font-weight:900;letter-spacing:.2em;margin:8px 0;border-top:1px dashed #000;border-bottom:1px dashed #000;padding:6px 0}
+    .receipt-reason{text-align:center;font-size:11px;margin:6px 0}
+    .receipt-header,.receipt-footer,.receipt-cut{text-align:center}
+    .receipt-total{border-top:1px dashed #000;margin-top:8px;padding-top:8px;font-weight:900}
   </style></head><body>${content}</body></html>`);
   w.document.close();
   w.print();
@@ -2239,7 +2695,9 @@ function toast(msg, type='info') {
     toast(AR ? 'تم التقاط البطاقة من القارئ' : 'Card captured from reader', 'success');
   };
   document.addEventListener('keydown', function (e) {
-    if (POS.inputMode !== 'physical' && !KIOSK) return;
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (POS.inputMode !== 'physical' && !(typeof KIOSK !== 'undefined' && KIOSK)) return;
     if (e.key === 'Enter') {
       if (buf.length >= 13) {
         e.preventDefault();
@@ -2261,7 +2719,7 @@ try { loadLedgerBalance(POS.ledgerAddress); } catch (e) {}
   const wanted = new URLSearchParams(location.search).get('op') || 'purchase_3d';
   const type = TXN_META[wanted] ? wanted : 'purchase_3d';
   const btn = document.querySelector('.txn-btn[data-type="' + type + '"]');
-  if (btn) selectTxnType(type, btn);
+  if (btn && typeof selectTxnType === 'function') selectTxnType(type, btn);
   const mode = new URLSearchParams(location.search).get('mode') || <?=json_encode($startMode)?>;
   if (typeof setInputMode === 'function' && (mode === 'manual' || mode === 'physical')) {
     setInputMode(mode);

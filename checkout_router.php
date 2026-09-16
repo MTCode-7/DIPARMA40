@@ -114,6 +114,7 @@ $destinations = [
   }
 
   $gateways = $filteredGateways;
+  $gatewayRoutes = array_intersect_key($gatewayRoutes, $gateways);
   $activityLines = pos_merchant_lines();
   $activityChannels = activity_channels();
   $activityOps = activity_operations();
@@ -281,12 +282,12 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <?php if (empty($gateways)): ?>
     <div style="border:1px solid var(--border);border-radius:14px;padding:22px;background:var(--card);margin:12px 0 18px;text-align:center">
       <div style="font-weight:800;margin-bottom:8px;color:var(--gold)">
-        <?=$ar?'لا توجد بوابات مفعّلة':'No enabled gateways'?>
+        <?=$ar?'لا توجد بوابة متصلة للعمل الحقيقي':'No live connected gateway'?>
       </div>
       <div style="font-size:.82rem;color:var(--muted2);line-height:1.7">
         <?=$ar
-          ? 'لا توجد بوابات مفعّلة. فعّل البوابة من إدارة بوابات الدفع لتظهر هنا في Checkout وفي POS.'
-          : 'No enabled gateways. Enable a gateway in Payment Gateway Manager to show it here and on POS.'?>
+          ? 'البوابات غير المتصلة تبقى في إدارة بوابات الدفع إلى أن تضيف مفاتيح الاتصال وتختبرها. بعد الاتصال تظهر هنا وفي POS فقط.'
+          : 'Disconnected gateways stay in Payment Gateway Manager until you add connection keys and test them. After that they appear here and on POS.'?>
       </div>
       <a href="admin/gateway_manager.php" style="display:inline-block;margin-top:14px;color:#000;background:var(--gold);padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:800;font-size:.82rem">
         <?=$ar?'فتح إدارة البوابات':'Open Gateway Manager'?>

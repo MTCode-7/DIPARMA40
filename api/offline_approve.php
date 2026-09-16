@@ -331,7 +331,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 
   <?php if ($msg): ?>
-  <div class="msg <?=$msgType?>"><?=$msg?></div>
+  <div class="msg <?=$msgType?>"><?=e($msg)?></div>
   <?php endif; ?>
 
   <div class="grid2">

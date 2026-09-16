@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/functions.php';
 requireAdmin();
 
 $db = db();
+$csrfToken = generateCsrfToken();
 
 try {
     $db->execute("CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "approval_requests` (
@@ -30,7 +31,11 @@ if ($id <= 0) {
     exit();
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['approve_request']) || isset($_POST['reject_request']))) {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $message = dp_t('Security check failed', 'فشل التحقق الأمني');
+        $messageType = 'error';
+    } elseif (isset($_POST['approve_request'])) {
     $request = $db->find('approval_requests', ['id' => $id]);
     if ($request && $request['status'] === 'pending') {
         $db->update('approval_requests', ['status' => 'approved'], ['id' => $id]);
@@ -66,9 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['approve_request'])) {
         $message = dp_t('ℹ️ This request can no longer be modified.', 'ℹ️ هذا الطلب لم يعد قابلًا للتعديل');
         $messageType = 'info';
     }
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reject_request'])) {
+    } elseif (isset($_POST['reject_request'])) {
     $reason = trim($_POST['reason'] ?? '');
     $request = $db->find('approval_requests', ['id' => $id]);
     if ($request && $request['status'] === 'pending') {
@@ -80,6 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reject_request'])) {
     } else {
         $message = dp_t('ℹ️ This request can no longer be modified.', 'ℹ️ هذا الطلب لم يعد قابلًا للتعديل');
         $messageType = 'info';
+    }
     }
 }
 
@@ -156,7 +160,7 @@ textarea{width:100%;min-height:70px;border-radius:8px;padding:8px;margin-top:8px
 
   <div class="card">
     <h2><?= dp_t('Request details', 'تفاصيل الطلب') ?></h2>
-    <?php if ($message): ?><div class="alert" style="color:<?= $messageType === 'success' ? '#7cf2a0' : ($messageType === 'error' ? '#ff8c8c' : '#fff') ?>;"><?= $message ?></div><?php endif; ?>
+    <?php if ($message): ?><div class="alert" style="color:<?= $messageType === 'success' ? '#7cf2a0' : ($messageType === 'error' ? '#ff8c8c' : '#fff') ?>;"><?= e($message) ?></div><?php endif; ?>
 
     <div class="grid">
       <div class="item">
@@ -279,6 +283,7 @@ textarea{width:100%;min-height:70px;border-radius:8px;padding:8px;margin-top:8px
       <div class="card" style="margin-top:16px;">
         <h3><?= dp_t('Quick actions', 'الإجراءات المباشرة') ?></h3>
         <form method="POST" style="margin-bottom:10px;">
+          <input type="hidden" name="csrf_token" value="<?= e($csrfToken) ?>">
           <input type="hidden" name="id" value="<?= (int)$requestRow['id'] ?>">
           <button class="btn btn-success" name="approve_request"><?= dp_t('Approve request', 'قبول الطلب') ?></button>
           <?php if (!empty($requestRow['reference'])): ?>
@@ -291,6 +296,7 @@ textarea{width:100%;min-height:70px;border-radius:8px;padding:8px;margin-top:8px
           <a href="admin/users.php" class="btn btn-danger" style="display:inline-block;text-decoration:none;"><?= dp_t('Open user in admin', 'فتح المستخدم في الإدارة') ?></a>
         </form>
         <form method="POST">
+          <input type="hidden" name="csrf_token" value="<?= e($csrfToken) ?>">
           <input type="hidden" name="id" value="<?= (int)$requestRow['id'] ?>">
           <label><?= dp_t('Rejection reason', 'سبب الرفض') ?></label>
           <textarea name="reason" placeholder="<?= htmlspecialchars(dp_t('Enter rejection reason...', 'أدخل سبب الرفض...')) ?>"></textarea>

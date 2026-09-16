@@ -12,7 +12,7 @@ function square_sdk_config(): array
     $appId = trim((string) (getenv('SQUARE_APPLICATION_ID') ?: getenv('SQUARE_API_KEY') ?: ''));
     $locationId = trim((string) (getenv('SQUARE_LOCATION_ID') ?: ''));
     $token = trim((string) (getenv('SQUARE_ACCESS_TOKEN') ?: getenv('SQUARE_SECRET_KEY') ?: ''));
-    $env = strtolower(trim((string) (getenv('SQUARE_ENVIRONMENT') ?: 'sandbox')));
+    $env = strtolower(trim((string) (getenv('SQUARE_ENVIRONMENT') ?: 'live')));
     $live = in_array($env, ['production', 'live', 'prod'], true);
 
     try {
@@ -73,7 +73,7 @@ function square_runtime_credentials(): array
         'location_id' => (string) ($cfg['location_id'] ?? ''),
         'access_token' => $token,
         'live' => !empty($cfg['live']),
-        'environment' => (string) ($cfg['environment'] ?? 'sandbox'),
+        'environment' => (string) ($cfg['environment'] ?? 'production'),
     ];
 }
 

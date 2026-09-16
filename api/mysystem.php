@@ -31,6 +31,11 @@ if (!is_array($payload)) {
 try {
     switch ($action) {
         case 'diagram':
+            if (empty($_SESSION['user_id'])) {
+                http_response_code(401);
+                echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+                break;
+            }
             echo json_encode([
                 'system' => 'DI_PARMA_MYSYSTEM',
                 'flow' => [

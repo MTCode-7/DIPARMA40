@@ -1,8 +1,3 @@
 <?php
-/**
- * DI PARMA | صفحة بوابة مستقلة: diparma_gateway
- * العرض: DIPARMA GATEWAY → Ledger. الخصم يتم عبر بوابة مفعّلة (ليست Ledger).
- */
-$gwCode = 'diparma_gateway';
-$checkoutBase = '../';
-require __DIR__ . '/../includes/start_gateway_checkout.php';
+header('Location: ../checkout_router.php', true, 302);
+exit;

@@ -7,7 +7,7 @@
  * يوزّع العمليات تلقائياً على:
  * ─ بوابات: Nuvei, Stripe, PayPal, MyFatoorah, Wise
  * ─ بنوك: Mashreq, HSBC, NBE, JP Morgan
- * ─ 18 POS Terminal
+ * ─ أجهزة POS ذات TID حقيقي فقط
  * ─ Crypto: Binance, Gate.io, Ledger TRX
  * ============================================================
  */

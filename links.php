@@ -684,7 +684,7 @@ $csrfToken = generateCsrfToken();
     <!-- ===== رسائل ===== -->
     <?php if ($message): ?>
         <div class="toast <?= $messageType ?>" style="display:block;position:static;margin-bottom:20px;">
-            <?= $message ?>
+            <?= e($message) ?>
         </div>
     <?php endif; ?>
 

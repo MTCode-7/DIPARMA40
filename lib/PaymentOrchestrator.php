@@ -1,22 +1,8 @@
 <?php
 /**
- * ============================================================
  * DI PARMA | PaymentOrchestrator
- * التدفق الكامل: البطاقة → فيات → USDT → محفظة العميل
- * ============================================================
- *
- * المسار الكامل:
- *  1. العميل يُدخل بيانات البطاقة + عنوان المحفظة
- *  2. RiskEngine يفحص العملية
- *  3. KYCService يتحقق من الحدود
- *  4. CardPaymentService ينشئ Payment Intent
- *  5. العميل يدفع عبر Stripe/Checkout
- *  6. Webhook يصل → payment.approved
- *  7. EventBus ينشر الحدث
- *  8. ExchangeAPIService يرسل USDT
- *  9. BlockchainMonitor يتابع التأكيد
- * 10. إشعار للعميل
- * ============================================================
+ * Compat layer: risk/KYC/hosted checkout + webhook confirm.
+ * Card charges go through DiParmaChargeHub (no parallel adapter path).
  */
 
 require_once __DIR__ . '/RiskEngine.php';
@@ -163,25 +149,50 @@ class PaymentOrchestrator
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
-        // ── [6] إنشاء Payment Intent ─────────────────────────
-        $paymentResult = CardPaymentService::getInstance()->createPayment([
-            'reference'     => $reference,
-            'amount'        => $fiatAmount,
-            'currency'      => strtolower($fiat),
-            'email'         => $email,
-            'user_id'       => $userId,
-            'card_provider' => $cardProvider,
-            'metadata'      => [
-                'crypto'        => $coin,
-                'network'       => $network,
-                'crypto_amount' => $calc['crypto_amount'],
-                'to_address'    => $walletAddr,
-            ],
-        ]);
+        $hasToken = strlen(trim((string)($input['cloud_token'] ?? $input['source_id'] ?? $input['payment_token'] ?? ''))) >= 8;
+        $hasCardPan = strlen(preg_replace('/\D/', '', (string)($input['cc_number'] ?? $input['card_number'] ?? ''))) >= 13;
+        if ($hasCardPan || $hasToken) {
+            require_once __DIR__ . '/MySystem/ChargeHub.php';
+            $paymentResult = DiParmaChargeHub::charge($cardProvider, 'purchase_3d', [
+                'amount' => $fiatAmount,
+                'currency' => $fiat,
+                'card_number' => preg_replace('/\D/', '', (string)($input['cc_number'] ?? $input['card_number'] ?? '')),
+                'card_expiry' => (string)($input['cc_expiry'] ?? $input['card_expiry'] ?? ''),
+                'card_cvv' => (string)($input['cc_cvv'] ?? $input['card_cvv'] ?? $input['cvv2'] ?? ''),
+                'reference' => $reference,
+                'card_name' => $input['name'] ?? 'Customer',
+                'email' => $email,
+                'user_id' => $userId,
+                'channel' => 'payment_orchestrator_hosted',
+                'processing_mode' => '3D',
+                'cloud_token' => $input['cloud_token'] ?? $input['payment_token'] ?? null,
+                'source_id' => $input['source_id'] ?? null,
+                'destination' => 'ledger',
+                'ledger_address' => $walletAddr,
+            ]);
+        } else {
+            $paymentResult = CardPaymentService::getInstance()->createPayment([
+                'reference'     => $reference,
+                'amount'        => $fiatAmount,
+                'currency'      => strtolower($fiat),
+                'email'         => $email,
+                'user_id'       => $userId,
+                'card_provider' => $cardProvider,
+                'metadata'      => [
+                    'crypto'        => $coin,
+                    'network'       => $network,
+                    'crypto_amount' => $calc['crypto_amount'],
+                    'to_address'    => $walletAddr,
+                ],
+            ]);
+        }
 
-        if (!$paymentResult['success']) {
+        $pending3ds = !empty($paymentResult['requires_3ds'])
+            || !empty($paymentResult['redirect_url'])
+            || !empty($paymentResult['checkout_url']);
+        if (empty($paymentResult['success']) && !$pending3ds) {
             $this->db->update('transactions', ['status' => 'failed'], ['reference' => $reference]);
-            return $this->fail($paymentResult['message'], $reference);
+            return $this->fail($paymentResult['message'] ?? 'Charge failed', $reference);
         }
 
         // نشر حدث: payment.created
@@ -248,31 +259,6 @@ class PaymentOrchestrator
         // ── تحقق أساسي ───────────────────────────────────────
         if ($fiatAmount < 1)   return $this->fail('المبلغ غير صالح', $reference);
 
-        if (in_array($transactionType, ['purchase_advice', 'capture', 'auth_capture'], true)
-            && $rrn !== '' && $approvalCode !== '') {
-            // تأكد من تحميل gateway_service إذا لم تكن محمّلة بعد
-            if (!function_exists('gateway_service')) {
-                require_once __DIR__ . '/../includes/gateways.php';
-            }
-            $settlement = gateway_service()->settlePreAuthorization($cardProvider, [
-                'order_ref' => $reference,
-                'amount' => $fiatAmount,
-                'currency' => $fiat,
-                'rrn' => $rrn,
-                'approval_code' => $approvalCode,
-                'customer_name' => $input['name'] ?? 'Customer',
-                'card_number' => $input['cc_number'] ?? $input['card_number'] ?? '',
-                'cc_number' => $input['cc_number'] ?? $input['card_number'] ?? '',
-                'card_expiry' => $input['cc_expiry'] ?? $input['card_expiry'] ?? '',
-                'cvv2' => $input['cc_cvv'] ?? $input['cvv2'] ?? '',
-                'transaction_id' => $rrn,
-            ]);
-
-            return !empty($settlement['success'])
-                ? array_merge($settlement, ['reference' => $reference, 'transaction_type' => 'purchase_advice'])
-                : $this->fail($settlement['message'] ?? 'Authorization settlement failed', $reference, ['error_code' => 'ADVICE_SETTLEMENT_FAILED']);
-        }
-
         $ccNumber = preg_replace('/\D/', '', $input['cc_number'] ?? $input['card_number'] ?? '');
         $ccExpiry = trim($input['cc_expiry'] ?? $input['card_expiry'] ?? '');
         $ccCvv    = trim((string)($input['cc_cvv'] ?? $input['cvv2'] ?? $input['card_cvv'] ?? ''));
@@ -298,8 +284,8 @@ class PaymentOrchestrator
             'final_rate' => 0,
         ];
 
-        // ── تنفيذ الدفع عبر ChargeHub (أنبوب POS الموحّد) ───
         require_once __DIR__ . '/MySystem/ChargeHub.php';
+        $authTypes = ['auth', 'auth_hold', 'auth_moto', 'hold'];
         $txnTypeForHub = $transactionType !== '' ? $transactionType : 'purchase_2d';
         $hubParams = [
             'amount' => $fiatAmount,
@@ -321,52 +307,12 @@ class PaymentOrchestrator
             'cloud_token' => $cloudToken !== '' ? $cloudToken : ($input['cloud_token'] ?? $input['payment_token'] ?? null),
             'related_transaction_id' => $rrn,
             'orig_ref' => $rrn,
+            'approval_code' => $approvalCode,
             'txn_type' => $txnTypeForHub,
+            'processing_mode' => '2D',
             'is_moto' => !empty($input['extra']['is_moto']) || !empty($input['is_moto']) || in_array($transactionType, ['purchase_offline', 'purchase_online', 'purchase_2d', 'auth_moto'], true),
         ];
-
-        $authTypes = ['auth', 'auth_hold', 'auth_moto', 'hold'];
-        $captureTypes = ['auth_complete', 'auth_capture', 'capture'];
-        if (DiParmaChargeHub::supports($cardProvider)) {
-            $gatewayResult = DiParmaChargeHub::charge($cardProvider, $txnTypeForHub, $hubParams);
-        } else {
-            if (!class_exists('GatewayAdapterFactory')) {
-                require_once __DIR__ . '/Adapters/GatewayAdapterInterface.php';
-                require_once __DIR__ . '/Adapters/GatewayErrorMapper.php';
-                require_once __DIR__ . '/Adapters/GatewayLogger.php';
-                require_once __DIR__ . '/Adapters/StripeAdapter.php';
-                require_once __DIR__ . '/Adapters/CheckoutAdapter.php';
-                require_once __DIR__ . '/Adapters/MyFatoorahAdapter.php';
-                require_once __DIR__ . '/Adapters/PayTabsAdapter.php';
-                require_once __DIR__ . '/Adapters/AuthorizeNetAdapter.php';
-                require_once __DIR__ . '/Adapters/GatewayAdapterFactory.php';
-            }
-            $payload = GatewayAdapterFactory::normalizePayload([
-                'amount'          => $fiatAmount,
-                'currency'        => $fiat,
-                'card_number'     => $ccNumber,
-                'card_expiry'     => $ccExpiry,
-                'cvv2'            => $ccCvv,
-                'processing_mode' => '2D',
-                'reference'       => $reference,
-                'name'            => $input['name']  ?? 'Customer',
-                'email'           => $email ?: 'guest@diparmas.com',
-                'approval_code'   => $input['approval_code'] ?? '',
-            ]);
-            $payload['transaction_label'] = $input['extra']['transaction_label'] ?? $input['transaction_label'] ?? $transactionType;
-            $payload['is_moto'] = !empty($hubParams['is_moto']);
-            $payload['is_offline'] = $transactionType === 'purchase_offline' || !empty($input['extra']['is_offline']);
-            if (in_array($transactionType, $captureTypes, true) && $rrn !== '') {
-                $gatewayResult = GatewayAdapterFactory::process(array_merge($payload, [
-                    'transaction_id' => $rrn,
-                    'partial_amount' => $fiatAmount,
-                ]), 'capture', $cardProvider);
-            } elseif (in_array($transactionType, $authTypes, true)) {
-                $gatewayResult = GatewayAdapterFactory::process($payload, 'hold', $cardProvider);
-            } else {
-                $gatewayResult = GatewayAdapterFactory::process($payload, 'charge', $cardProvider);
-            }
-        }
+        $gatewayResult = DiParmaChargeHub::charge($cardProvider, $txnTypeForHub, $hubParams);
 
         if (!empty($gatewayResult['requires_3ds']) || !empty($gatewayResult['redirect_url']) || !empty($gatewayResult['checkout_url'])) {
             $redir = (string)($gatewayResult['redirect_url'] ?? $gatewayResult['checkout_url'] ?? '');

@@ -394,7 +394,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
             'cancel' => getenv('SQUARE_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('SQUARE_WEBHOOK_URL') ?: '/api/webhook.php?gateway=square',
         ],
-        'environment' => getenv('SQUARE_ENVIRONMENT') ?: 'sandbox',
+        'environment' => getenv('SQUARE_ENVIRONMENT') ?: 'live',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'CAD', 'AUD', 'JPY'],
         'fees' => ['percentage' => 2.6, 'fixed' => 0.10],
         'limits' => ['min' => 0.5, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -1591,6 +1591,7 @@ function dp_publish_saved_gateway(int $id): array
 
 /**
  * POS and Checkout pick from gateways enabled in Payment Gateway Manager (status = active).
+ * Unconnected rows stay in Gateway Manager until connection keys are saved and tested.
  */
 function dp_gateway_is_enabled(array $row): bool
 {
@@ -1598,14 +1599,41 @@ function dp_gateway_is_enabled(array $row): bool
     return in_array($status, ['active', 'enabled', 'live'], true);
 }
 
+function dp_gateway_is_connected(array $row): bool
+{
+    $conn = strtolower(trim((string) ($row['connection_status'] ?? '')));
+    return in_array($conn, ['verified', 'connected', 'ok', 'success'], true);
+}
+
+function dp_gateway_has_connection_keys(array $row): bool
+{
+    $creds = function_exists('dp_gateway_effective_credentials')
+        ? dp_gateway_effective_credentials($row)
+        : [];
+    return !empty($creds);
+}
+
+function dp_gateway_is_live_for_charge(array $row): bool
+{
+    $code = function_exists('dp_gateway_normalize_code')
+        ? dp_gateway_normalize_code((string) ($row['code'] ?? ''))
+        : strtolower(trim((string) ($row['code'] ?? '')));
+    if ($code === '' || $code === 'diparma_gateway' || $code === 'ledger') {
+        return false;
+    }
+    return dp_gateway_is_enabled($row)
+        && dp_gateway_is_connected($row)
+        && dp_gateway_has_connection_keys($row);
+}
+
 function isGatewayVisibleInCheckout(array $row): bool
 {
-    return dp_gateway_is_enabled($row);
+    return dp_gateway_is_live_for_charge($row);
 }
 
 function isGatewayVisibleInPos(array $row): bool
 {
-    return dp_gateway_is_enabled($row);
+    return dp_gateway_is_live_for_charge($row);
 }
 
 function getConfiguredGateways() {
@@ -1640,43 +1668,34 @@ function getSupportedExternalGateways() {
 function gateway_service() {
     return new class {
         public function createPaymentIntent($gateway, $payload) {
+            $gatewayName = strtolower(trim((string) $gateway));
+            $reference = $payload['reference'] ?? $payload['order_ref'] ?? (function_exists('generateReference') ? generateReference('TXN') : ('TXN' . bin2hex(random_bytes(4))));
+            if ($gatewayName === '' || $gatewayName === 'integrated' || $gatewayName === 'diparma_gateway') {
+                return [
+                    'success' => false,
+                    'message' => 'Use an enabled live payment gateway. Local/integrated success is disabled.',
+                    'reference' => $reference,
+                    'provider' => $gatewayName,
+                ];
+            }
+            require_once dirname(__DIR__) . '/lib/MySystem/ChargeHub.php';
+            $txnType = strtolower(trim((string) ($payload['txn_type'] ?? $payload['transaction_type'] ?? 'purchase')));
+            if ($txnType === '' || $txnType === 'payment via ' . $gatewayName) {
+                $txnType = 'purchase';
+            }
+            $payload['reference'] = $reference;
+            $payload['channel'] = $payload['channel'] ?? 'gateway_service';
+            return DiParmaChargeHub::charge($gatewayName, $txnType, $payload);
+        }
+
+        public function createPaymentIntentLegacyUnused($gateway, $payload) {
+            return [
+                'success' => false,
+                'message' => 'Local simulated payment path removed. Charge goes through ChargeHub only.',
+            ];
             $db = db();
             $reference = generateReference('TXN');
-            
-            $transactionData = [
-                'reference' => $reference,
-                'gateway' => $gateway,
-                'protocol' => $payload['protocol'] ?? 'SIMPLE_WITHDRAWAL',
-                'amount' => floatval($payload['amount'] ?? 0),
-                'currency' => strtoupper($payload['currency'] ?? 'USD'),
-                'customer_name' => $payload['customer_name'] ?? 'Customer',
-                'customer_email' => $payload['customer_email'] ?? '',
-                'customer_phone' => $payload['customer_phone'] ?? '',
-                'status' => 'pending',
-                'transaction_type' => $payload['description'] ?? 'Payment via ' . $gateway,
-                'user_id' => $_SESSION['user_id'] ?? 0,
-                'fees' => ($payload['amount'] ?? 0) * 0.025,
-                'net_amount' => ($payload['amount'] ?? 0) * 0.975,
-                'security_mode' => strtoupper(trim($payload['security_mode'] ?? $payload['secure_mode'] ?? '2D')),
-                'gateway_response' => null,
-                'error_message' => null,
-                'created_at' => date('Y-m-d H:i:s')
-            ];
-            
             try {
-                $securityMode = strtoupper(trim($payload['security_mode'] ?? $payload['secure_mode'] ?? '2D'));
-                $requestedMode = ($securityMode === '3D') ? '3ds' : '2d';
-                $payload['security_mode'] = $securityMode;
-                $payload['secure_mode'] = $requestedMode;
-                $gatewayResponse = [
-                    'success' => false,
-                    'message' => 'Awaiting response from the configured payment gateway.',
-                    'reference' => $reference,
-                    'provider' => strtoupper($gateway),
-                    'security_mode' => $securityMode,
-                    'secure_mode' => $requestedMode
-                ];
-
                 $gatewayName = strtolower(trim($gateway));
                 if ($gatewayName === 'integrated') {
                     return [
@@ -1967,9 +1986,9 @@ function gateway_service() {
             ]);
 
             return [
-                'success' => true,
+                'success' => false,
                 'status' => 'pending',
-                'message' => 'Integrated payment created and awaiting approval.',
+                'message' => 'Integrated local payment is disabled. Use a live gateway.',
                 'provider' => 'integrated',
                 'invoice_id' => $invoiceId,
                 'invoice_number' => $invoiceNumber,
@@ -2061,10 +2080,12 @@ function gateway_service() {
                         'onramp_url' => $config['urls']['success'] ?? '/payment_success.php'];
                     break;
                 case 'quickbooks':
-                    $message = 'QuickBooks is configured for accounting sync. This gateway will sync invoices and payments to QuickBooks.';
-                    $response['integration'] = 'quickbooks';
-                    $status = 'completed';
-                    break;
+                    return [
+                        'success' => false,
+                        'status' => 'failed',
+                        'message' => 'QuickBooks is accounting sync only — not a live card charge.',
+                        'provider' => $gateway,
+                    ];
                 case 'bank_transfer':
                 case 'bank':
                     $message = 'Bank transfer gateway is configured. Provide bank account details to the payer and mark payment as pending until funds arrive.';
@@ -2090,8 +2111,12 @@ function gateway_service() {
                     $gatewayResponse['gateway'] = $gateway;
                     return $gatewayResponse;
                 default:
-                    $message = 'External gateway ' . $gateway . ' is configured and ready. Implement provider-specific adapter for live API calls.';
-                    break;
+                    return [
+                        'success' => false,
+                        'status' => 'failed',
+                        'message' => 'No live charge adapter for ' . $gateway . '. Charge only via ChargeHub on an enabled connected gateway.',
+                        'provider' => $gateway,
+                    ];
             }
 
             if (!empty($paymentInstructions)) {
@@ -2170,9 +2195,9 @@ function gateway_service() {
 
             // Fallback: Apple Pay pending (ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ JS token ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½)
             return [
-                'success'              => true,
-                'status'               => 'pending',
-                'message'              => 'Apple Pay: ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½. ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½.',
+                'success'              => false,
+                'status'               => 'failed',
+                'message'              => 'Apple Pay requires a live PSP token. Local pending success is disabled.',
                 'provider'             => 'apple_pay',
                 'reference'            => $reference,
                 'payment_method'       => 'apple_pay',
@@ -2243,9 +2268,9 @@ function gateway_service() {
 
             // Fallback: Google Pay pending
             return [
-                'success'              => true,
-                'status'               => 'pending',
-                'message'              => 'Google Pay: ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ Google. ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½.',
+                'success'              => false,
+                'status'               => 'failed',
+                'message'              => 'Google Pay requires a live PSP token. Local pending success is disabled.',
                 'provider'             => 'google_pay',
                 'reference'            => $reference,
                 'payment_method'       => 'google_pay',

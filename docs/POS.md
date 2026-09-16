@@ -43,6 +43,6 @@
 
 ## Related admin / ops
 
-- Connection & gateway credentials: `admin/connection_manager.php`, `admin/api_dashboard.php`
+- Connection & gateway credentials: `admin/gateway_manager.php`, `admin/api_dashboard.php`
 - Company wallet / Ledger: `admin/company_wallet.php`, `admin/wallets.php`
 - Reports UI: `reports.php`

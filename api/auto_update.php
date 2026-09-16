@@ -30,9 +30,7 @@ $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 $action = strtolower(trim((string) ($_GET['action'] ?? '')));
 
 if ($method === 'GET' || $method === 'HEAD' || $action === 'health') {
-    $st = AutoUpdateService::status(false);
-    unset($st['sha']);
-    echo json_encode($st, JSON_UNESCAPED_UNICODE);
+    echo json_encode(['success' => true, 'ok' => true], JSON_UNESCAPED_UNICODE);
     exit;
 }
 

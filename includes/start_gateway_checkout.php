@@ -25,16 +25,9 @@ if (empty($gwCode)) {
 
 $gwCode = strtolower(trim((string)$gwCode));
 
-// منع الوصول المباشر لصفحة بوابة غير مفعّلة/غير متصلة
+// منع الوصول المباشر لصفحة بوابة غير مفعّلة أو غير متصلة أو بلا مفاتيح
 try {
     $gwRow = db()->find('payment_gateways', ['code' => $gwCode]);
-    if (!$gwRow && $gwCode === 'diparma_gateway') {
-        $gwRow = db()->find('payment_gateways', ['code' => 'diparma']);
-        if ($gwRow) {
-            $gwRow['code'] = 'diparma_gateway';
-            $gwRow['name'] = 'DIPARMA GATEWAY';
-        }
-    }
     if (!$gwRow || !isGatewayVisibleInCheckout(array_merge($gwRow, ['code' => $gwCode]))) {
         header('Location: ' . (isset($checkoutBase) ? $checkoutBase : '') . 'checkout_router.php?error=gateway_not_ready');
         exit;
@@ -162,7 +155,7 @@ if ($gwCode === 'stripe' && empty($stripeKey)) {
 $squareSdk = [
     'application_id' => '',
     'location_id' => '',
-    'environment' => 'sandbox',
+    'environment' => 'production',
     'live' => false,
     'script_url' => '',
     'ready' => false,

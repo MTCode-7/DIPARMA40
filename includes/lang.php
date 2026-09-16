@@ -239,7 +239,7 @@ function globalNav(string $activePage = ''): string {
         'wallets'    => ['icon'=>'fas fa-wallet',        'url'=>'wallets.php',                   'label_ar'=>'المحافظ',       'label_en'=>'Wallets'],
         'history'    => ['icon'=>'fas fa-history',       'url'=>'transactions.php',              'label_ar'=>'السجل',         'label_en'=>'History'],
         'reports'    => ['icon'=>'fas fa-chart-bar',     'url'=>'reports.php',                   'label_ar'=>'التقارير',      'label_en'=>'Reports'],
-        'connection' => ['icon'=>'fas fa-network-wired', 'url'=>'admin/connection_manager.php',  'label_ar'=>'إدارة الاتصال','label_en'=>'Connections'],
+        'connection' => ['icon'=>'fas fa-cog', 'url'=>'admin/gateway_manager.php',  'label_ar'=>'بوابات الدفع','label_en'=>'Gateways'],
     ];
 
     $navLinks = '';
@@ -278,8 +278,7 @@ function globalNav(string $activePage = ''): string {
         ['url'=>'transactions.php','icon'=>'fas fa-exchange-alt','label'=>'المعاملات'],
         ['url'=>'approvals.php','icon'=>'fas fa-check-circle','label'=>'الموافقات'],
         ['url'=>'kyc.php','icon'=>'fas fa-id-card','label'=>'KYC — التحقق من الهوية'],
-        ['url'=>'admin/connection_manager.php','icon'=>'fas fa-network-wired','label'=>'إدارة الاتصال'],
-        ['url'=>'admin/gateway_manager.php','icon'=>'fas fa-cog','label'=>'إعدادات البوابات'],
+        ['url'=>'admin/gateway_manager.php','icon'=>'fas fa-cog','label'=>'إدارة بوابات الدفع'],
         ['url'=>'admin/auto_update.php','icon'=>'fas fa-sync-alt','label'=>'التحديث التلقائي — Auto Update'],
         ['url'=>'dashboard.php','icon'=>'fas fa-tachometer-alt','label'=>'لوحة التحكم'],
         ['url'=>'change_password.php','icon'=>'fas fa-lock','label'=>'تغيير كلمة المرور'],
@@ -297,8 +296,7 @@ function globalNav(string $activePage = ''): string {
         ['url'=>'transactions.php','icon'=>'fas fa-exchange-alt','label'=>'Transactions'],
         ['url'=>'approvals.php','icon'=>'fas fa-check-circle','label'=>'Approvals'],
         ['url'=>'kyc.php','icon'=>'fas fa-id-card','label'=>'KYC Verification'],
-        ['url'=>'admin/connection_manager.php','icon'=>'fas fa-network-wired','label'=>'Connections'],
-        ['url'=>'admin/gateway_manager.php','icon'=>'fas fa-cog','label'=>'Gateway Settings'],
+        ['url'=>'admin/gateway_manager.php','icon'=>'fas fa-cog','label'=>'Payment Gateway Manager'],
         ['url'=>'admin/auto_update.php','icon'=>'fas fa-sync-alt','label'=>'Auto Update'],
         ['url'=>'dashboard.php','icon'=>'fas fa-tachometer-alt','label'=>'Dashboard'],
         ['url'=>'change_password.php','icon'=>'fas fa-lock','label'=>'Change Password'],

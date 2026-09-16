@@ -9,6 +9,7 @@
  */
 
 require_once __DIR__ . '/Adapters/GatewayAdapterFactory.php';
+require_once __DIR__ . '/MySystem/ChargeHub.php';
 
 class HoldCaptureService
 {
@@ -52,9 +53,14 @@ class HoldCaptureService
         ]));
 
         // تنفيذ الحجز عبر Factory
-        $result = GatewayAdapterFactory::process($payload, 'hold', $gateway ?: null);
+        $gw = $gateway !== '' ? $gateway : (string) (getenv('CARD_PROVIDER') ?: 'nuvei');
+        $result = DiParmaChargeHub::charge($gw, 'auth_hold', array_merge($payload, [
+            'channel' => 'hold_capture',
+            'user_id' => $userId,
+        ]));
 
-        if ($result['success'] || $result['status'] === 'requires_3ds') {
+        $status = (string) ($result['status'] ?? '');
+        if (!empty($result['success']) || $status === 'requires_3ds') {
             // حفظ الحجز في DB
             $holdId = $this->db->insert('holds', [
                 'reference'          => $reference,
@@ -62,8 +68,8 @@ class HoldCaptureService
                 'payment_intent_id'  => $result['transaction_id'] ?? '',
                 'amount'             => $amount,
                 'currency'           => strtoupper($currency),
-                'status'             => $result['status'] === 'authorized' ? 'authorized' : 'pending',
-                'gateway'            => $gateway ?: (getenv('CARD_PROVIDER') ?: 'nuvei'),
+                'status'             => $status === 'authorized' ? 'authorized' : 'pending',
+                'gateway'            => $gw,
                 'expires_at'         => date('Y-m-d H:i:s', strtotime('+7 days')),
                 'meta'               => json_encode($meta),
                 'created_at'         => date('Y-m-d H:i:s'),
@@ -73,7 +79,7 @@ class HoldCaptureService
             $result['public_key'] = getenv('STRIPE_PUBLIC_KEY') ?: '';
         }
 
-        $this->log("createHold: ref=$reference status={$result['status']} amount=$amount $currency");
+        $this->log("createHold: ref=$reference status={$status} amount=$amount $currency");
         return $result;
     }
 
@@ -146,7 +152,16 @@ class HoldCaptureService
             'partial_amount' => $partialAmount,
         ]);
 
-        $result = GatewayAdapterFactory::process($payload, 'capture', $gateway);
+        $result = DiParmaChargeHub::charge($gateway, 'capture', [
+            'transaction_id' => $paymentIntentId,
+            'orig_ref' => $paymentIntentId,
+            'related_transaction_id' => $paymentIntentId,
+            'partial_amount' => $partialAmount,
+            'amount' => $partialAmount ?? (float) ($hold['amount'] ?? 0),
+            'currency' => $hold['currency'] ?? 'USD',
+            'reference' => $hold['reference'] ?? '',
+            'channel' => 'hold_capture',
+        ]);
 
         if ($result['success']) {
             $captured = $result['amount'] ?? ($hold['amount']);
@@ -177,7 +192,14 @@ class HoldCaptureService
             'reason'         => $reason,
         ]);
 
-        $result = GatewayAdapterFactory::process($payload, 'cancel', $gateway);
+        $result = DiParmaChargeHub::charge($gateway, 'void', [
+            'transaction_id' => $paymentIntentId,
+            'orig_ref' => $paymentIntentId,
+            'related_transaction_id' => $paymentIntentId,
+            'reason' => $reason,
+            'reference' => $hold['reference'] ?? '',
+            'channel' => 'hold_capture',
+        ]);
 
         if ($result['success']) {
             $this->db->execute(
@@ -216,10 +238,13 @@ class HoldCaptureService
         }
 
         // اختيار البوابة — Stripe أولاً لأنها الأكثر دعماً لـ 2D
-        $gw     = $gateway ?: (getenv('CARD_PROVIDER') ?: 'nuvei');
-        $result = GatewayAdapterFactory::process($payload, 'charge', $gw);
+        $gw = $gateway ?: (getenv('CARD_PROVIDER') ?: 'nuvei');
+        $result = DiParmaChargeHub::charge($gw, 'purchase_2d', array_merge($payload, [
+            'processing_mode' => '2D',
+            'channel' => 'hold_capture',
+        ]));
 
-        $this->log("directCharge2D: ref={$payload['reference']} status={$result['status']} gateway=$gw");
+        $this->log("directCharge2D: ref={$payload['reference']} status=" . ($result['status'] ?? '') . " gateway=$gw");
         return $result;
     }
 
@@ -233,8 +258,10 @@ class HoldCaptureService
     {
         $payload = GatewayAdapterFactory::normalizePayload($context);
         $gw      = $gateway ?: (getenv('CARD_PROVIDER') ?: 'nuvei');
-        $result  = GatewayAdapterFactory::process($payload, 'charge', $gw);
-        $this->log("charge[{$payload['processing_mode']}]: ref={$payload['reference']} status={$result['status']}");
+        $result  = DiParmaChargeHub::charge($gw, 'purchase', array_merge($payload, [
+            'channel' => 'hold_capture',
+        ]));
+        $this->log("charge[{$payload['processing_mode']}]: ref={$payload['reference']} status=" . ($result['status'] ?? ''));
         return $result;
     }
 

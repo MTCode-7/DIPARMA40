@@ -2,6 +2,7 @@
 /**
  * BIN Lookup API — يكشف معلومات البطاقة من أول 6-8 أرقام
  */
+require_once __DIR__ . '/../includes/config.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Methods: GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
@@ -15,6 +16,15 @@ if ($requestOrigin !== '' && in_array($requestOrigin, $allowedOrigins, true)) {
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     http_response_code(204);
+    exit;
+}
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (empty($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Unauthorized'], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -157,6 +167,7 @@ if ($resp) {
             'bin'          => $bin6,
             'scheme'       => $brand,
             'brand'        => $brand,
+            'type'         => $type,
             'bank'         => $bank,
             'country'      => $country,
             'country_name' => $countryName,

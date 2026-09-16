@@ -165,7 +165,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 
   <?php if ($msg): ?>
-  <div class="msg <?=$msg['type']?>"><?=$msg['text']?></div>
+  <div class="msg <?=$msg['type']?>"><?=e($msg['text'])?></div>
   <?php endif; ?>
 
   <!-- إحصاءات -->

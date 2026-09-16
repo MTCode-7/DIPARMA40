@@ -97,7 +97,10 @@ $bank = $banks[$selectedBank];
 
 // معالجة الإرسال
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    validateCsrfToken($_POST['csrf_token'] ?? '');
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $msg = $ar ? 'فشل التحقق الأمني' : 'Security check failed';
+        $msgType = 'error';
+    } else {
 
     $name      = trim($_POST['customer_name'] ?? '');
     $email     = trim($_POST['customer_email'] ?? '');
@@ -111,18 +114,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // رفع الإثبات
     $proofFile = null;
     if (!empty($_FILES['proof']['name'])) {
-        $ext = strtolower(pathinfo($_FILES['proof']['name'], PATHINFO_EXTENSION));
-        if (in_array($ext, ['jpg','jpeg','png','pdf','heic'])) {
-            $dir2 = '/var/www/diparma/uploads/bank_proofs/';
-            if (!is_dir($dir2)) mkdir($dir2, 0755, true);
-            $fname = 'proof_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-            if (move_uploaded_file($_FILES['proof']['tmp_name'], $dir2 . $fname)) {
-                $proofFile = $fname;
-            }
+        try {
+            $dest = (defined('ROOT_PATH') ? ROOT_PATH : dirname(__DIR__)) . '/private_uploads/bank_proofs';
+            $proofFile = basename(storeUploadedDocument($_FILES['proof'], $dest, ['jpg', 'jpeg', 'png', 'pdf']));
+        } catch (Throwable $e) {
+            $msg = $ar ? 'ملف الإثبات غير صالح' : 'Invalid proof file';
+            $msgType = 'error';
         }
     }
 
-    if (!$name || !$email || $amount < 1) {
+    if ($msgType === 'error') {
+        // proof rejected
+    } elseif (!$name || !$email || $amount < 1) {
         $msg = $ar ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill all required fields';
         $msgType = 'error';
     } else {
@@ -148,6 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = 'Error: ' . $e->getMessage();
             $msgType = 'error';
         }
+    }
     }
 }
 ?><!DOCTYPE html>

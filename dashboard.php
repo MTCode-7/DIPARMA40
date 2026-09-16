@@ -436,8 +436,7 @@ foreach ($dailyStats as $day) {
             </a>
             <a href="kyc.php" class="nav-link"><i class="fas fa-id-card"></i> KYC</a>
             <?php if (isAdmin()): ?>
-            <a href="gateways.php" class="nav-link"><i class="fas fa-route"></i> <?= $currentLang==='en'?'Payment Gateways':'بوابات الدفع' ?></a>
-            <a href="admin/connection_manager.php" class="nav-link"><i class="fas fa-network-wired"></i> <?= $currentLang==='en'?'Connection':'إدارة الاتصال' ?></a>
+            <a href="admin/gateway_manager.php" class="nav-link"><i class="fas fa-route"></i> <?= $currentLang==='en'?'Payment Gateways':'بوابات الدفع' ?></a>
             <a href="admin/auto_update.php" class="nav-link"><i class="fas fa-sync-alt"></i> Auto Update</a>
             <a href="approvals.php" class="nav-link"><i class="fas fa-check-double"></i> <?= $currentLang==='en'?'Approvals':'الموافقات' ?></a>
             <a href="admin/gateway_manager.php?profile=true" class="nav-link"><i class="fas fa-user-cog"></i> <?= $currentLang==='en'?'Settings':'تغيير الحساب' ?></a>
@@ -572,7 +571,7 @@ foreach ($dailyStats as $day) {
 
     <!-- ===== إجراءات سريعة ===== -->
     <div class="quick-actions fade-in">
-        <a href="admin/connection_manager.php" class="quick-btn">
+        <a href="admin/gateway_manager.php?add=true" class="quick-btn">
             <i class="fas fa-plus-circle"></i>
             <?= $currentLang==='en'?'Add Gateway':'إضافة بوابة' ?>
         </a>

@@ -340,7 +340,7 @@ function dp_seed_square_gateway(Database $db): void
             'application_id' => getenv('SQUARE_APPLICATION_ID') ?: (getenv('SQUARE_API_KEY') ?: ''),
             'access_token' => getenv('SQUARE_ACCESS_TOKEN') ?: (getenv('SQUARE_SECRET_KEY') ?: ''),
             'location_id' => getenv('SQUARE_LOCATION_ID') ?: '',
-            'environment' => getenv('SQUARE_ENVIRONMENT') ?: 'sandbox',
+            'environment' => getenv('SQUARE_ENVIRONMENT') ?: 'live',
         ];
         $ready = $creds['application_id'] !== '' && $creds['access_token'] !== '' && $creds['location_id'] !== '';
         $payload = [

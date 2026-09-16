@@ -165,7 +165,7 @@ $users = $db->query('SELECT username FROM ' . DB_PREFIX . 'users ORDER BY userna
 
     <?php if ($message): ?>
         <div class="alert alert-<?= $messageType ?>">
-            <?= $message ?>
+            <?= e($message) ?>
         </div>
     <?php endif; ?>
 
