@@ -1580,6 +1580,7 @@ const SQUARE_CFG = <?=json_encode([
     'application_id' => $squareSdk['application_id'] ?? '',
     'location_id' => $squareSdk['location_id'] ?? '',
     'live' => !empty($squareSdk['live']),
+    'config_error' => $squareSdk['config_error'] ?? '',
 ], JSON_UNESCAPED_UNICODE)?>;
 function selectPosGateway(code, el) {
   code = String(code || '').toLowerCase();
@@ -1635,18 +1636,17 @@ function selectPosGateway(code, el) {
   } catch (e) {}
 }
 async function initSquarePos() {
-  if (!SQUARE_CFG.enabled || !window.DiparmaSquareSdk) return false;
-  if (DiparmaSquareSdk.isReady()) return true;
+  const err = document.getElementById('square-error');
   const wrap = document.getElementById('squarePosWrap');
   if (wrap) wrap.style.display = '';
-  const ok = await DiparmaSquareSdk.init(SQUARE_CFG.application_id, SQUARE_CFG.location_id, '#square-card-container');
-  const err = document.getElementById('square-error');
-  if (err) {
-    err.textContent = ok ? '' : ((DiparmaSquareSdk.lastError() || 'Square SDK init failed')
-      + (AR
-        ? ' — طابق Application ID مع بيئة SDK، وLocation ID، وأضف الدومين في Square Dashboard → Web Payments SDK.'
-        : ' — Match Application ID to the SDK environment, confirm Location ID, and allow this domain in Square Dashboard → Web Payments SDK.'));
+  if (SQUARE_CFG.config_error) {
+    if (err) err.textContent = SQUARE_CFG.config_error;
+    return false;
   }
+  if (!SQUARE_CFG.enabled || !window.DiparmaSquareSdk) return false;
+  if (DiparmaSquareSdk.isReady()) return true;
+  const ok = await DiparmaSquareSdk.init(SQUARE_CFG.application_id, SQUARE_CFG.location_id, '#square-card-container');
+  if (err) err.textContent = ok ? '' : (DiparmaSquareSdk.lastError() || 'Square SDK init failed');
   return ok;
 }
 document.addEventListener('DOMContentLoaded', function() {

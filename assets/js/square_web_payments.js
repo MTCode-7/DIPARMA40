@@ -44,7 +44,7 @@
       return 'Square sandbox application ID was loaded with the LIVE SDK. Use sandbox.web.squarecdn.com.';
     }
     if (/unexpected error occurred while initializing/i.test(msg)) {
-      return msg + ' — Application ID, Location ID, and SDK environment must match; add this exact domain (diparmas.com) under Square Dashboard → Applications → Web Payments SDK.';
+      return 'Square rejected this domain or credential pair. In Square Dashboard open the LIVE application → Credentials (Production) and Locations, then add diparmas.com under Web Payments SDK. localhost is allowed automatically; the live domain is not.';
     }
     return msg;
   }
