@@ -29,6 +29,10 @@ require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 // ============================================================
 // [2] ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ط±ط£ط³
 // ============================================================

@@ -64,6 +64,11 @@ try {
             break;
 
         case 'order':
+            if (empty($_SESSION['user_id'])) {
+                http_response_code(401);
+                echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+                break;
+            }
             $ref = trim((string) ($payload['reference'] ?? $_GET['reference'] ?? ''));
             $orders = new MySystemOrdersService();
             $order = $orders->getByReference($ref);
@@ -76,12 +81,12 @@ try {
 
         case 'pay':
         default:
-            if (empty($_SESSION['user_id']) && empty($payload['customer_id']) && empty($payload['email'])) {
+            if (empty($_SESSION['user_id'])) {
                 http_response_code(401);
-                echo json_encode(['success' => false, 'message' => 'Unauthorized — login or pass customer_id/email']);
+                echo json_encode(['success' => false, 'message' => 'Unauthorized']);
                 break;
             }
-            if (!empty($payload['csrf_token']) && function_exists('verifyCsrfToken') && !verifyCsrfToken((string) $payload['csrf_token'])) {
+            if (!function_exists('verifyCsrfToken') || !verifyCsrfToken((string) ($payload['csrf_token'] ?? ''))) {
                 echo json_encode(['success' => false, 'message' => 'Invalid CSRF']);
                 break;
             }

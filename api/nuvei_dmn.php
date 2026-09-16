@@ -100,6 +100,24 @@ try {
     require_once __DIR__ . '/../includes/config.php';
     require_once __DIR__ . '/../includes/database.php';
     require_once __DIR__ . '/../includes/functions.php';
+    require_once __DIR__ . '/../lib/Adapters/GatewayWebhookVerifier.php';
+
+    $secret = trim((string) (getenv('NUVEI_SECRET_KEY') ?: ''));
+    if ($secret === '') {
+        try {
+            $row = db()->find('payment_gateways', ['code' => 'nuvei']);
+            $creds = json_decode((string) ($row['credentials'] ?? '{}'), true) ?: [];
+            $secret = trim((string) ($creds['secret_key'] ?? $creds['merchant_secret'] ?? ''));
+        } catch (Throwable $e) {
+            $secret = '';
+        }
+    }
+    if (!GatewayWebhookVerifier::verifyNuveiDmn($data, $secret)) {
+        @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . "] NUVEI DMN rejected checksum\n", FILE_APPEND);
+        echo 'OK';
+        exit;
+    }
+
     $db = db();
     $transaction = $db->find('transactions', ['reference' => $reference]);
     if (!$transaction && isset($data['ppp_TransactionID'])) {

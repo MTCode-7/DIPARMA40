@@ -134,9 +134,7 @@ class DIPARMAOrchestrator
         /* ── 1. اختيار الـ Processor — بدون تبديل صامت لبوابة أخرى ── */
         $fromPos = $posId || !empty($input['pos_device']) || strtolower((string)($input['source'] ?? '')) === 'pos';
         if ($fromPos) {
-            if ($gateway === '') {
-                $gateway = 'nuvei';
-            }
+            $gateway = strtolower(trim((string) ($input['gateway'] ?? $input['card_provider'] ?? $gateway)));
             $input['gateway'] = $gateway;
             $input['allow_fallback'] = false;
             $input['destination'] = 'ledger';

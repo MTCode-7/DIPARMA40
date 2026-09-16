@@ -60,7 +60,7 @@ if ($gateway === '' || !DiParmaChargeHub::supports($gateway)) {
     exit;
 }
 
-if (!empty($payload['csrf_token']) && function_exists('verifyCsrfToken') && !verifyCsrfToken((string) $payload['csrf_token'])) {
+if (!function_exists('verifyCsrfToken') || !verifyCsrfToken((string) ($payload['csrf_token'] ?? ''))) {
     echo json_encode(['success' => false, 'message' => 'Invalid CSRF']);
     exit;
 }

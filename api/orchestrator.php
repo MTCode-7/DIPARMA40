@@ -70,6 +70,10 @@ try {
 
         // ── تأكيد دفع (يُستدعى بعد Webhook أو يدوياً) ────────
         case 'confirm':
+            if (!verifyCsrfToken($payload['csrf_token'] ?? '')) {
+                echo json_encode(['success'=>false,'message'=>'CSRF غير صالح']);
+                break;
+            }
             $reference = trim($payload['reference'] ?? $_GET['ref'] ?? '');
             if (empty($reference)) {
                 echo json_encode(['success'=>false,'message'=>'reference مطلوب']);

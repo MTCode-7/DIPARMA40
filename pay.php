@@ -10,6 +10,12 @@ require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/gateways.php';
 require_once __DIR__ . '/includes/lang.php';
+require_once __DIR__ . '/includes/activity_flow.php';
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+$payCsrf = generateCsrfToken();
 
 $db = db();
 $error = null;
@@ -20,7 +26,9 @@ $showLanding = true;
 
 // 1. البحث عن الرابط عبر نموذج POST (رمز الرابط أو الـ slug)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['find_link'])) {
-    if (empty($linkInput)) {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $error = dp_t('❌ Invalid security token.', '❌ رمز أمان غير صالح');
+    } elseif (empty($linkInput)) {
         $error = dp_t('❌ Please enter a link code or slug.', '❌ الرجاء إدخال رمز الرابط أو slug');
     } else {
         $linkData = $db->find('payment_links', ['link_id' => $linkInput]);
@@ -61,33 +69,46 @@ if ($showLanding && !empty($getLinkParam)) {
 
 // 3. معالجة إتمام الدفع النهائي عند الضغط على زر (دفع الآن)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay_now'])) {
-    $postedLinkId = trim($_POST['link_id'] ?? '');
-    if (empty($postedLinkId)) {
-        $error = dp_t('❌ No payment link specified.', '❌ لم يتم تحديد الرابط');
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $error = dp_t('❌ Invalid security token.', '❌ رمز أمان غير صالح');
+        $showLanding = false;
     } else {
-        $linkData = $db->find('payment_links', ['link_id' => $postedLinkId]);
-        if (!$linkData) {
-            $linkData = $db->find('payment_links', ['slug' => $postedLinkId]);
+        $postedLinkId = trim($_POST['link_id'] ?? '');
+        if (empty($postedLinkId)) {
+            $error = dp_t('❌ No payment link specified.', '❌ لم يتم تحديد الرابط');
+        } else {
+            $linkData = $db->find('payment_links', ['link_id' => $postedLinkId]);
+            if (!$linkData) {
+                $linkData = $db->find('payment_links', ['slug' => $postedLinkId]);
+            }
+
+            if (!$linkData) {
+                $error = dp_t('❌ Link not found.', '❌ الرابط غير موجود');
+            } elseif (!isLinkValid($linkData)) {
+                $error = dp_t('❌ Link expired or inactive.', '❌ الرابط منتهي الصلاحية أو غير نشط');
+            }
         }
 
-        if (!$linkData) {
-            $error = dp_t('❌ Link not found.', '❌ الرابط غير موجود');
-        } elseif (!isLinkValid($linkData)) {
-            $error = dp_t('❌ Link expired or inactive.', '❌ الرابط منتهي الصلاحية أو غير نشط');
+        if (!$error && $linkData) {
+            $gw = function_exists('dp_gateway_normalize_code')
+                ? dp_gateway_normalize_code((string) ($linkData['gateway'] ?? 'paypal'))
+                : strtolower((string) ($linkData['gateway'] ?? 'paypal'));
+            $route = activity_checkout_route($gw);
+            if ($route === '') {
+                $route = 'checkout_router.php';
+            }
+            $qs = http_build_query([
+                'gateway'  => $gw,
+                'amount'   => $linkData['amount'] ?? 0,
+                'currency' => $linkData['currency'] ?? 'USD',
+                'link'     => $linkData['link_id'] ?? $postedLinkId,
+                'channel'  => 'link',
+            ]);
+            header('Location: ' . $route . '?' . $qs);
+            exit();
         }
+        $showLanding = false;
     }
-
-    if (!$error && $linkData) {
-        $qs = http_build_query([
-            'gateway'  => $linkData['gateway'] ?? 'paypal',
-            'amount'   => $linkData['amount'] ?? 0,
-            'currency' => $linkData['currency'] ?? 'USD',
-            'link'     => $linkData['link_id'] ?? $postedLinkId,
-        ]);
-        header('Location: checkout_router.php?' . $qs);
-        exit();
-    }
-    $showLanding = false;
 }
 
 $availableGateways = function_exists('getConfiguredGateways') ? getConfiguredGateways() : [];
@@ -197,6 +218,7 @@ if (empty($availableGateways) && function_exists('getGatewaysConfig')) {
             
             <div class="search-box">
                 <form method="POST">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($payCsrf) ?>">
                     <input type="text" name="link_code" value="<?= htmlspecialchars($linkInput) ?>" placeholder="<?= htmlspecialchars(dp_t('Enter link code or slug here', 'ضع رمز الرابط أو slug هنا')) ?>">
                     <button type="submit" name="find_link" class="btn btn-primary" style="margin-top: 5px;"><?= dp_t('Verify link', 'تحقق من الرابط') ?></button>
                 </form>
@@ -229,6 +251,7 @@ if (empty($availableGateways) && function_exists('getGatewaysConfig')) {
             </div>
             
             <form method="POST">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($payCsrf) ?>">
                 <input type="hidden" name="link_id" value="<?= htmlspecialchars($linkData['link_id'] ?? $linkData['slug']) ?>">
                 <button type="submit" name="pay_now" class="btn btn-primary">
                     <i class="fas fa-check-circle"></i> <?= dp_t('Pay now', 'دفع الآن') ?>

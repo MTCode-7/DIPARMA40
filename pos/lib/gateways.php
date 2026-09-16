@@ -511,13 +511,6 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
     }
 
     if ($adapter === 'square') {
-        if (is_file(POS_APP_ROOT . '/includes/square_sdk.php')) {
-            require_once POS_APP_ROOT . '/includes/square_sdk.php';
-            $sqCfg = function_exists('square_sdk_config') ? square_sdk_config() : [];
-            if (empty($sqCfg['live'])) {
-                return ['success' => false, 'message' => 'Square sandbox is disabled. Live Square only.'];
-            }
-        }
         require_once POS_APP_ROOT . '/lib/Adapters/SquareAdapter.php';
         $square = new SquareAdapter();
         $payload = array_merge($params, [

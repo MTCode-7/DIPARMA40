@@ -889,7 +889,7 @@ function updateStatus(reference) {
     fetch('api/update_transaction.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'action=check_status&reference=' + encodeURIComponent(reference)
+        body: 'action=check_status&csrf_token=' + encodeURIComponent('<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>') + '&reference=' + encodeURIComponent(reference)
     })
     .then(response => response.json())
     .then(data => {

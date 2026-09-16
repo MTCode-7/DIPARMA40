@@ -367,12 +367,13 @@
             }
 
             try {
+                const csrf = document.querySelector('input[name="csrf_token"]')?.value || '';
                 const response = await fetch('api/update_transaction.php', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: 'action=check_status&reference=' + encodeURIComponent(reference)
+                    body: 'action=check_status&csrf_token=' + encodeURIComponent(csrf) + '&reference=' + encodeURIComponent(reference)
                 });
 
                 const data = await response.json();
@@ -672,6 +673,7 @@
                 formData.append('action', 'extend');
                 formData.append('id', id);
                 formData.append('days', days);
+                formData.append('csrf_token', document.querySelector('input[name="csrf_token"]')?.value || '');
 
                 const response = await fetch('api/extend_link.php', {
                     method: 'POST',
@@ -726,6 +728,7 @@
                     formData.append(key, value);
                 }
                 formData.append('action', 'create');
+                formData.append('csrf_token', document.querySelector('input[name="csrf_token"]')?.value || '');
 
                 const response = await fetch('api/create_link.php', {
                     method: 'POST',

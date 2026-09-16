@@ -79,8 +79,6 @@ if (!in_array($txnType, $noAmountTypes) && $amount <= 0) {
 }
 
 if (!empty($body['pos_id']) || !empty($body['pos_device']) || strtolower((string)($body['source'] ?? '')) === 'pos') {
-    $body['gateway'] = 'nuvei';
-    $body['card_provider'] = 'nuvei';
     $body['allow_fallback'] = false;
     $body['source'] = 'pos';
 }

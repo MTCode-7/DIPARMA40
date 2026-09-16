@@ -618,6 +618,11 @@ function setTx(type, el) {
       if (type === 'purchase_3d' && stripe) { sw.classList.remove('hidden'); initStripe(); }
       else sw.classList.add('hidden');
     }
+    var localFields = document.getElementById('localCardFields');
+    if (localFields) {
+      if ((CHARGE_GW || GW) === 'square' && SQUARE_CFG.enabled) localFields.classList.add('hidden');
+      else if (typeof GW !== 'undefined' && GW !== 'payram') localFields.classList.remove('hidden');
+    }
     var sq = document.getElementById('squareWrap');
     if (sq) {
       if ((CHARGE_GW || GW) === 'square' && SQUARE_CFG.enabled && ['purchase_2d','purchase_3d','online_sale_moto','auth','purchase'].indexOf(type) >= 0) {

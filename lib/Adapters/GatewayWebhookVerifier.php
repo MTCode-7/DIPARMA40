@@ -246,6 +246,48 @@ class GatewayWebhookVerifier
     }
 
     /**
+     * Nuvei DMN checksum (advanceResponseChecksum).
+     */
+    public static function verifyNuveiDmn(array $data, string $secretKey): bool
+    {
+        if ($secretKey === '') {
+            self::log('nuvei', 'missing_secret', '');
+            return false;
+        }
+        $received = trim((string) (
+            $data['advanceResponseChecksum']
+            ?? $data['advanceChecksum']
+            ?? $data['checksum']
+            ?? ''
+        ));
+        if ($received === '') {
+            self::log('nuvei', 'missing_checksum', '');
+            return false;
+        }
+
+        $total = (string) ($data['totalAmount'] ?? $data['amount'] ?? '');
+        $currency = (string) ($data['currency'] ?? '');
+        $ts = (string) ($data['responseTimeStamp'] ?? $data['responseTimestamp'] ?? $data['timeStamp'] ?? '');
+        $ppp = (string) ($data['PPP_TransactionID'] ?? $data['ppp_TransactionID'] ?? $data['TransactionID'] ?? $data['TransactionId'] ?? '');
+        $status = (string) ($data['Status'] ?? $data['ppp_status'] ?? '');
+        $productId = (string) ($data['productId'] ?? '');
+
+        $candidates = [
+            hash('sha256', $secretKey . $total . $currency . $ts . $ppp . $status . $productId),
+            hash('sha256', $secretKey . $total . $currency . $ts . $ppp . $status),
+        ];
+        $got = strtolower($received);
+        foreach ($candidates as $expected) {
+            if (hash_equals(strtolower($expected), $got)) {
+                self::log('nuvei', 'verified', 'dmn');
+                return true;
+            }
+        }
+        self::log('nuvei', 'invalid_sig', 'dmn mismatch');
+        return false;
+    }
+
+    /**
      * قراءة الـ headers الحالية من PHP
      * مساعد للاستخدام في ملفات webhook.php
      */

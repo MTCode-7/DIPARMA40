@@ -53,6 +53,30 @@ function square_sdk_config(): array
     ];
 }
 
+function square_runtime_credentials(): array
+{
+    $cfg = square_sdk_config();
+    $token = trim((string) (getenv('SQUARE_ACCESS_TOKEN') ?: getenv('SQUARE_SECRET_KEY') ?: ''));
+    try {
+        $row = function_exists('db') ? db()->find('payment_gateways', ['code' => 'square']) : null;
+        $creds = json_decode((string) ($row['credentials'] ?? '{}'), true) ?: [];
+        if ($token === '' && !empty($creds['access_token'])) {
+            $token = trim((string) $creds['access_token']);
+        }
+        if ($token === '' && !empty($creds['secret_key'])) {
+            $token = trim((string) $creds['secret_key']);
+        }
+    } catch (Throwable $e) {
+    }
+    return [
+        'application_id' => (string) ($cfg['application_id'] ?? ''),
+        'location_id' => (string) ($cfg['location_id'] ?? ''),
+        'access_token' => $token,
+        'live' => !empty($cfg['live']),
+        'environment' => (string) ($cfg['environment'] ?? 'sandbox'),
+    ];
+}
+
 function square_sdk_script_tag(): string
 {
     $cfg = square_sdk_config();

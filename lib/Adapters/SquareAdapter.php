@@ -21,11 +21,19 @@ class SquareAdapter implements GatewayAdapterInterface
 
     public function __construct()
     {
-        $this->accessToken = trim((string) (getenv('SQUARE_ACCESS_TOKEN') ?: getenv('SQUARE_SECRET_KEY') ?: ''));
-        $this->applicationId = trim((string) (getenv('SQUARE_APPLICATION_ID') ?: getenv('SQUARE_API_KEY') ?: ''));
-        $this->locationId = trim((string) (getenv('SQUARE_LOCATION_ID') ?: ''));
-        $env = strtolower(trim((string) (getenv('SQUARE_ENVIRONMENT') ?: 'sandbox')));
-        $this->sandbox = !in_array($env, ['production', 'live', 'prod'], true);
+        $sdkFile = dirname(__DIR__, 2) . '/includes/square_sdk.php';
+        if (is_file($sdkFile)) {
+            require_once $sdkFile;
+        }
+        $creds = function_exists('square_runtime_credentials') ? square_runtime_credentials() : [];
+        $this->accessToken = trim((string) ($creds['access_token'] ?? getenv('SQUARE_ACCESS_TOKEN') ?: getenv('SQUARE_SECRET_KEY') ?: ''));
+        $this->applicationId = trim((string) ($creds['application_id'] ?? getenv('SQUARE_APPLICATION_ID') ?: getenv('SQUARE_API_KEY') ?: ''));
+        $this->locationId = trim((string) ($creds['location_id'] ?? getenv('SQUARE_LOCATION_ID') ?: ''));
+        $this->sandbox = empty($creds['live']);
+        if ($creds === []) {
+            $env = strtolower(trim((string) (getenv('SQUARE_ENVIRONMENT') ?: 'sandbox')));
+            $this->sandbox = !in_array($env, ['production', 'live', 'prod'], true);
+        }
         $this->baseUrl = $this->sandbox
             ? 'https://connect.squareupsandbox.com'
             : 'https://connect.squareup.com';

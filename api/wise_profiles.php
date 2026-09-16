@@ -26,6 +26,31 @@ if (!$isAdmin) {
     exit();
 }
 
+$csrfToken = generateCsrfToken();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['profile_id'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!verifyCsrfToken((string) ($_POST['csrf_token'] ?? ''))) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Invalid CSRF token']);
+        exit;
+    }
+    $pid = preg_replace('/\D/', '', (string) $_POST['profile_id']);
+    try {
+        $row = $db->find('payment_gateways', ['code' => 'wise']);
+        $creds = json_decode((string) ($row['credentials'] ?? '{}'), true) ?: [];
+        $creds['profile_id'] = $pid;
+        if (!empty($row['id'])) {
+            $db->update('payment_gateways', ['credentials' => json_encode($creds, JSON_UNESCAPED_UNICODE)], ['id' => $row['id']]);
+        }
+        echo json_encode(['success' => true, 'profile_id' => $pid]);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Could not save profile']);
+    }
+    exit;
+}
+
 // ── طلب JSON مباشر (للـ AJAX) ──────────────────────────────
 if (isset($_GET['json'])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -116,6 +141,7 @@ body{font-family:'Cairo',sans-serif;background:#0a0f1e;color:#FFDFA0;min-height:
 </style>
 </head>
 <body>
+<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
 <div class="wrap">
 
   <!-- Header -->
@@ -272,7 +298,8 @@ async function setProfile(id) {
     // تحديث Profile ID في النظام
     const body = new FormData();
     body.append('profile_id', id);
-    await fetch('wise_set_profile.php', { method: 'POST', body });
+    body.append('csrf_token', document.querySelector('input[name="csrf_token"]')?.value || '');
+    await fetch('wise_profiles.php', { method: 'POST', body });
     alert('تم تعيين Profile ID: ' + id + '\nأعد تشغيل الصفحة لرؤية التغييرات.');
     location.reload();
 }
