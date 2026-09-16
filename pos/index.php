@@ -416,6 +416,10 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
 .ops-chip.yes{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.4)}
 .ops-chip.no{background:rgba(239,68,68,.12);color:#fca5a5;border:1px solid rgba(239,68,68,.35)}
 .ops-chip.mode{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.35)}
+.cap-cmp{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 12px;font-size:.72rem;font-weight:800;border:1.5px solid var(--border);background:rgba(255,255,255,.03);color:var(--muted2);cursor:pointer;font-family:inherit}
+.cap-cmp.is-on[data-cap-cmp="less"]{border-color:rgba(251,191,36,.55);color:#fbbf24;background:rgba(251,191,36,.12)}
+.cap-cmp.is-on[data-cap-cmp="same"]{border-color:rgba(16,185,129,.55);color:var(--green);background:rgba(16,185,129,.12)}
+.cap-cmp.is-on[data-cap-cmp="more"]{border-color:rgba(59,130,246,.55);color:#93c5fd;background:rgba(59,130,246,.12)}
 .ops-legend-note{margin:0;font-size:.68rem;line-height:1.55;color:var(--muted2)}
 .ops-sticker{margin:0 0 14px;background:var(--card);border:1.5px solid var(--border2);border-radius:14px;overflow:hidden}
 .ops-sticker-head{padding:12px 14px 0;font-weight:900;font-size:.82rem;color:var(--gold)}
@@ -1220,12 +1224,12 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     </div>
     </div>
 
-    <div class="fld-row">
-      <div class="fld">
-        <label><?=$ar?'المبلغ':'Amount'?></label>
+    <div class="fld-row" id="txnAmountRow">
+      <div class="fld" id="txnAmountFieldWrap">
+        <label id="txnAmountLabel"><?=$ar?'المبلغ':'Amount'?></label>
         <input type="text" id="txnAmount" inputmode="decimal" autocomplete="off" placeholder="0.00"
           value="<?=htmlspecialchars($startAmount)?>"
-          oninput="window.syncAmount && syncAmount(this.value, 'txnAmount')">
+          oninput="window.syncAmount && syncAmount(this.value, 'txnAmount'); window.syncCaptureSplit && syncCaptureSplit()">
       </div>
       <div class="fld">
         <label><?=$ar?'العملة':'Currency'?></label>
@@ -1235,6 +1239,22 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
           <?php endforeach; ?>
         </select>
       </div>
+    </div>
+    <div id="captureCompareBox" style="display:none;background:rgba(159,232,112,.06);border:1px solid rgba(159,232,112,.28);border-radius:12px;padding:12px;margin-bottom:12px">
+      <div style="font-weight:800;color:#9fe870;margin-bottom:4px"><?=$ar?'تكملة الحجز — إيجار منزل / سيارة / فندق':'Complete hold — home / car / hotel rental'?></div>
+      <div style="font-size:.7rem;color:var(--muted2);line-height:1.55;margin-bottom:8px"><?=$ar?'الفرق عن الحجز شائع بسبب التمديد أو الخروج المبكر ويُقبل دائماً. حد البنك للكابتشر فقط: 5,000,000 دولار.':'The amount often differs from the hold because of an extension or early return — always accepted. Bank cap for Capture only: 5,000,000 USD.'?></div>
+      <div id="holdAmtLine" style="font-size:.75rem;color:var(--muted2);margin-bottom:8px"><?=$ar?'اختر حجز AUTH أولاً ليظهر مبلغ الحجز.':'Pick an AUTH hold first to show the hold amount.'?></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <button type="button" class="cap-cmp" data-cap-cmp="less" onclick="setCaptureCompare('less')"><?=$ar?'نقص (خروج مبكر)':'Less (early return)'?></button>
+        <button type="button" class="cap-cmp" data-cap-cmp="same" onclick="setCaptureCompare('same')"><?=$ar?'مساوٍ (بدون تمديد)':'Same (no extra nights)'?></button>
+        <button type="button" class="cap-cmp" data-cap-cmp="more" onclick="setCaptureCompare('more')"><?=$ar?'زيادة (تمديد)':'More (extension)'?></button>
+      </div>
+      <div class="fld" id="captureCustomAmtWrap" style="display:none;margin:0">
+        <label id="captureCustomAmtLabel"><?=$ar?'أدخل مبلغ الكابتشر النهائي':'Enter final capture amount'?> <span style="color:var(--red)">*</span></label>
+        <input type="text" id="captureCustomAmt" inputmode="decimal" autocomplete="off" placeholder="0.00"
+          oninput="window.onCaptureCustomAmt()">
+      </div>
+      <div id="captureCompareHint" style="font-size:.7rem;color:var(--muted2);line-height:1.55;margin-top:8px"></div>
     </div>
     <div class="fld" id="posEmailWrap">
       <label><i class="fas fa-envelope"></i> Email</label>
@@ -1406,6 +1426,8 @@ const POS = {
   lastTxn: null,
   nfcSupported: !!(window.NDEFReader),
   cardBin: null,
+  holdAmount: 0,
+  captureMode: '',
 };
 
 // Amount editors must bind before any later ReferenceError (POS_GW / CARD_NETWORKS)
@@ -1840,8 +1862,22 @@ window.selectTxnType = function(type, el) {
   const pbt = document.getElementById('processBtnText');
   if (pbt) pbt.textContent = (AR ? 'تنفيذ ' + label.ar : 'Process ' + label.en);
 
+  const amtLbl = document.getElementById('txnAmountLabel');
+  if (amtLbl) amtLbl.textContent = AR ? 'المبلغ' : 'Amount';
+  const amtWrap = document.getElementById('txnAmountFieldWrap');
+  if (amtWrap) amtWrap.style.display = type === 'capture' ? 'none' : '';
+  const cmpBox = document.getElementById('captureCompareBox');
+  if (cmpBox) cmpBox.style.display = type === 'capture' ? '' : 'none';
+  if (type !== 'capture') {
+    POS.holdAmount = 0;
+    POS.captureMode = '';
+    const customWrap = document.getElementById('captureCustomAmtWrap');
+    if (customWrap) customWrap.style.display = 'none';
+  }
+
   renderExtraFields(type);
   applyOpsLegend(type);
+  if (type === 'capture' && typeof syncCaptureSplit === 'function') syncCaptureSplit();
 };
 
 function renderExtraFields(type) {
@@ -1853,7 +1889,7 @@ function renderExtraFields(type) {
     html += `<div class="info-banner" style="background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.18);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.72rem;color:var(--muted2);line-height:1.7">
       <strong style="color:var(--gold)">${AR?meta.ar:meta.en}</strong><br>
       ${AR?(meta.desc_ar||''):(meta.desc_en||'')}
-      ${type === 'capture' ? '<br>• '+(AR?'حقلا السحب والاسترجاع على نفس الحجز. يمكن سحب جزء وإرجاع جزء، أو سحب أكثر من الحجز.':'Withdraw and refund fields on the same hold. Partial capture+refund, or capture more than the hold.') : ''}
+      ${type === 'capture' ? '<br>• '+(AR?'الفرق عن الحجز مقبول دائماً (تمديد إيجار منزل/سيارة/فندق أو خروج مبكر). حد البنك للكابتشر فقط: 5,000,000 دولار.':'Amount difference is always accepted (home/car/hotel extension or early return). Bank cap for Capture only: 5,000,000 USD.') : ''}
       ${type === 'purchase_advice' ? '<br>• '+(AR?'الحجز من مكينة أخرى أو البنك. RRN 12 + Approval 4 أو 6 + بطاقة + انتهاء. بدون CVV. ثم Ledger.':'Hold from another terminal or the bank. RRN 12 + Approval 4 or 6 + card + expiry. No CVV. Then Ledger.') : ''}
       ${type !== 'purchase_advice' ? '<br>• RRN = 12 '+(AR?'رقم':'digits')+' · Online Approval = 4 · Offline Approval = 6' : '<br>• RRN = 12 · Approval = 6'}
     </div>`;
@@ -1904,19 +1940,12 @@ function renderExtraFields(type) {
   }
 
   if (type === 'capture') {
-    html += `<div class="fld-row">
-      <div class="fld">
-        <label><i class="fas fa-arrow-down" style="color:var(--green)"></i> ${AR?'مبلغ السحب من الحجز':'Withdraw from hold'} <span style="color:var(--red)">*</span></label>
-        <input type="number" id="captureAmt" min="0" step="0.01" placeholder="0.00"
-          oninput="syncCaptureSplit()">
-        <div style="font-size:.62rem;color:var(--muted2);margin-top:4px">${AR?'أقل أو مساوٍ أو أكثر من مبلغ AUTH':'Less, same, or more than AUTH'}</div>
-      </div>
-      <div class="fld">
-        <label><i class="fas fa-undo" style="color:var(--gold)"></i> ${AR?'مبلغ الاسترجاع (إن وجد)':'Refund amount (if any)'}</label>
-        <input type="number" id="refundAmt" min="0" step="0.01" placeholder="0.00"
-          oninput="syncCaptureSplit()">
-        <div style="font-size:.62rem;color:var(--muted2);margin-top:4px">${AR?'اتركه صفراً إن لا يوجد إرجاع':'Leave 0 if no refund'}</div>
-      </div>
+    html += `<input type="hidden" id="captureAmt" value="">
+    <div class="fld">
+      <label><i class="fas fa-undo" style="color:var(--gold)"></i> ${AR?'مبلغ الاسترجاع (إن وجد)':'Refund amount (if any)'}</label>
+      <input type="number" id="refundAmt" min="0" step="0.01" placeholder="0.00"
+        oninput="syncCaptureSplit()">
+      <div style="font-size:.62rem;color:var(--muted2);margin-top:4px">${AR?'اتركه صفراً إن لا يوجد إرجاع. الكابتشر من حقل المبلغ أعلى.':'Leave 0 if no refund. Capture uses the amount field above.'}</div>
     </div>
     <div id="captureSplitHint" style="font-size:.68rem;color:var(--muted2);margin:0 0 12px;line-height:1.6"></div>`;
   }
@@ -2025,37 +2054,113 @@ window.fillWithdrawalFields = function() {
   updateReceipt(last.success != null ? last : { success: null }, POS.txnType, amt, document.getElementById('txnCurrency')?.value || 'USD', document.getElementById('cardNumber')?.value || '');
 };
 
-window.syncCaptureSplit = function() {
-  const cap = parseFloat(document.getElementById('captureAmt')?.value) || 0;
-  const ref = parseFloat(document.getElementById('refundAmt')?.value) || 0;
-  const hint = document.getElementById('captureSplitHint');
+window.captureCompareMode = function() {
+  return POS.captureMode || '';
+};
+
+window.resolveCaptureAmount = function() {
+  const hold = parseFloat(POS.holdAmount || 0) || 0;
+  const mode = POS.captureMode || '';
+  if (mode === 'same') return hold;
+  const typed = parseFloat(document.getElementById('captureCustomAmt')?.value || 0) || 0;
+  return typed;
+};
+
+window.setCaptureCompare = function(mode) {
+  const hold = parseFloat(POS.holdAmount || 0) || 0;
+  if (hold <= 0 && mode !== '') {
+    toast(AR ? 'اختر الحجز السابق أولاً' : 'Pick the previous hold first', 'error');
+    return;
+  }
+  POS.captureMode = mode;
+  const wrap = document.getElementById('captureCustomAmtWrap');
+  const inp = document.getElementById('captureCustomAmt');
+  const lbl = document.getElementById('captureCustomAmtLabel');
+  const needField = mode === 'less' || mode === 'more';
+  if (wrap) wrap.style.display = needField ? '' : 'none';
+  if (lbl) {
+    lbl.textContent = mode === 'more'
+      ? (AR ? 'المبلغ النهائي بعد التمديد' : 'Final amount after extension')
+      : (mode === 'less'
+        ? (AR ? 'المبلغ النهائي بعد الخروج المبكر' : 'Final amount after early return')
+        : (AR ? 'مبلغ الكابتشر' : 'Capture amount'));
+  }
+  if (inp) {
+    inp.placeholder = hold > 0 ? hold.toFixed(2) : '0.00';
+    if (needField) {
+      inp.value = '';
+      setTimeout(function() { try { inp.focus(); } catch (e) {} }, 0);
+    } else {
+      inp.value = '';
+    }
+  }
+  const cap = mode === 'same' ? hold : 0;
   const amtEl = document.getElementById('txnAmount');
-  if (amtEl && cap > 0) {
-    amtEl.value = cap.toFixed(2);
-    if (typeof syncAmount === 'function') syncAmount(cap);
+  const hid = document.getElementById('captureAmt');
+  if (amtEl) amtEl.value = cap > 0 ? cap.toFixed(2) : '';
+  if (hid) hid.value = cap > 0 ? cap.toFixed(2) : '';
+  if (typeof syncAmount === 'function' && cap > 0) syncAmount(cap.toFixed(2), 'txnAmount');
+  if (typeof syncCaptureSplit === 'function') syncCaptureSplit();
+};
+
+window.onCaptureCustomAmt = function() {
+  const inp = document.getElementById('captureCustomAmt');
+  const raw = sanitizeAmt(inp?.value || '');
+  if (inp && inp.value !== raw) inp.value = raw;
+  const n = parseFloat(raw) || 0;
+  const amtEl = document.getElementById('txnAmount');
+  const hid = document.getElementById('captureAmt');
+  if (amtEl) amtEl.value = n > 0 ? n.toFixed(2) : raw;
+  if (hid) hid.value = n > 0 ? n.toFixed(2) : '';
+  if (typeof syncAmount === 'function') syncAmount(raw, 'captureCustomAmt');
+  if (typeof syncCaptureSplit === 'function') syncCaptureSplit();
+};
+
+window.syncCaptureSplit = function() {
+  if (POS.txnType !== 'capture') return;
+  const hold = parseFloat(POS.holdAmount || 0) || 0;
+  const mode = POS.captureMode || '';
+  const cap = window.resolveCaptureAmount();
+  const ref = parseFloat(document.getElementById('refundAmt')?.value) || 0;
+  const hid = document.getElementById('captureAmt');
+  if (hid) hid.value = cap > 0 ? cap.toFixed(2) : '';
+  document.querySelectorAll('.cap-cmp').forEach(b => {
+    b.classList.toggle('is-on', b.getAttribute('data-cap-cmp') === mode);
+  });
+  const holdLine = document.getElementById('holdAmtLine');
+  const cur = document.getElementById('txnCurrency')?.value || 'USD';
+  if (holdLine) {
+    holdLine.textContent = hold > 0
+      ? (AR ? `مبلغ الحجز السابق: ${hold.toFixed(2)} ${cur}` : `Previous hold: ${hold.toFixed(2)} ${cur}`)
+      : (AR ? 'اختر حجز AUTH أولاً ليظهر مبلغ الحجز.' : 'Pick an AUTH hold first to show the hold amount.');
   }
+  const hint = document.getElementById('captureCompareHint') || document.getElementById('captureSplitHint');
   if (!hint) return;
-  if (cap <= 0 && ref <= 0) {
+  if (!mode) {
     hint.textContent = AR
-      ? 'أدخل مبلغ السحب و/أو مبلغ الاسترجاع على حجز AUTH.'
-      : 'Enter withdraw and/or refund against the AUTH hold.';
+      ? 'نقص = خروج مبكر. مساوٍ = بدون تمديد. زيادة = تمديد إيجار (منزل / سيارة / فندق). الفرق مقبول دائماً.'
+      : 'Less = early return. Same = no extra nights. More = rental extension (home / car / hotel). Difference always accepted.';
     return;
   }
-  if (cap > 0 && ref > 0) {
+  if (mode === 'same') {
     hint.textContent = AR
-      ? `سحب ${cap.toFixed(2)} من الحجز + استرجاع ${ref.toFixed(2)}. المسحوب فقط يذهب إلى Ledger.`
-      : `Withdraw ${cap.toFixed(2)} from hold + refund ${ref.toFixed(2)}. Only the captured amount goes to Ledger.`;
+      ? `بدون تمديد — الكابتشر ${hold.toFixed(2)} ${cur}.`
+      : `No extension — capture ${hold.toFixed(2)} ${cur}.`;
     return;
   }
-  if (cap > 0) {
+  if (cap <= 0) {
+    hint.textContent = AR ? 'أدخل المبلغ النهائي. الفرق عن الحجز مقبول.' : 'Enter the final amount. Difference from the hold is accepted.';
+    return;
+  }
+  if (ref > 0) {
     hint.textContent = AR
-      ? `سحب ${cap.toFixed(2)} من الحجز (يمكن أن يكون أكثر من AUTH). لا استرجاع.`
-      : `Withdraw ${cap.toFixed(2)} from hold (may exceed AUTH). No refund.`;
+      ? `كابتشر ${cap.toFixed(2)} + استرجاع ${ref.toFixed(2)}. المسحوب فقط → Ledger.`
+      : `Capture ${cap.toFixed(2)} + refund ${ref.toFixed(2)}. Captured amount only → Ledger.`;
     return;
   }
   hint.textContent = AR
-    ? `استرجاع ${ref.toFixed(2)} من الحجز بدون سحب.`
-    : `Refund ${ref.toFixed(2)} from hold with no capture.`;
+    ? `كابتشر ${cap.toFixed(2)} مقابل حجز ${hold.toFixed(2)} — الفرق مقبول (تمديد أو خروج مبكر).`
+    : `Capture ${cap.toFixed(2)} vs hold ${hold.toFixed(2)} — difference accepted (extension or early return).`;
 };
 
 window.onAdviceChannelChange = function() {
@@ -2110,12 +2215,13 @@ window.applyOpenHold = function(sel) {
   const rrn = document.getElementById('origRef');
   const ap = document.getElementById('approvalCode');
   const pid = document.getElementById('paymentId');
-  const cap = document.getElementById('captureAmt');
   if (rrn) rrn.value = String(h.rrn || '').replace(/\D/g, '').slice(0, 12);
   if (ap) ap.value = String(h.bank_approval || h.gateway_approval || '').replace(/\D/g, '').slice(0, 6);
   if (pid) pid.value = h.payment_id || h.reference || '';
-  if (cap && !cap.value && h.amount) cap.value = Number(h.amount).toFixed(2);
-  if (typeof syncCaptureSplit === 'function') syncCaptureSplit();
+  POS.holdAmount = Number(h.amount || 0) || 0;
+  if (!POS.captureMode) POS.captureMode = 'same';
+  if (typeof setCaptureCompare === 'function') setCaptureCompare(POS.captureMode);
+  else if (typeof syncCaptureSplit === 'function') syncCaptureSplit();
 };
 
 window.onChargeModeChange = function() {
@@ -2413,11 +2519,33 @@ window.processTransaction = async function() {
     return;
   }
   const type     = POS.txnType;
-  const captureAmt = parseFloat(document.getElementById('captureAmt')?.value) || 0;
   const refundAmt  = parseFloat(document.getElementById('refundAmt')?.value) || 0;
+  const holdAmt = parseFloat(POS.holdAmount || 0) || 0;
+  const capMode = POS.captureMode || '';
+  let captureAmt = parseFloat(document.getElementById('captureAmt')?.value) || 0;
   let amount   = parseFloat(document.getElementById('txnAmount').value) || parseFloat(POS.amount) || 0;
   if (type === 'capture') {
+    if (!capMode) {
+      toast(AR ? 'اختر نقص أو مساوٍ أو زيادة' : 'Choose less, same, or more', 'error');
+      return;
+    }
+    captureAmt = typeof resolveCaptureAmount === 'function' ? resolveCaptureAmount() : captureAmt;
+    if (capMode === 'same') {
+      captureAmt = holdAmt;
+    } else {
+      if (captureAmt <= 0) {
+        toast(AR ? 'أدخل مبلغ الكابتشر' : 'Enter the capture amount', 'error');
+        document.getElementById('captureCustomAmt')?.focus();
+        return;
+      }
+    }
     amount = captureAmt > 0 ? captureAmt : refundAmt;
+    const capMax = Number((TXN_META.capture && TXN_META.capture.max_amount) || 5000000);
+    if (amount > capMax) {
+      toast(AR ? 'حد البنك للكابتشر 5,000,000 دولار' : 'Bank capture limit is 5,000,000 USD', 'error');
+      document.getElementById('captureCustomAmt')?.focus();
+      return;
+    }
   }
   const currency = document.getElementById('txnCurrency').value;
   const cardNum  = document.getElementById('cardNumber').value.replace(/\s/g,'');

@@ -267,6 +267,15 @@ if ($txnType === 'purchase_advice') {
         $errors[] = 'Bank account limit: amount cannot exceed ' . number_format($bankCap, 2, '.', ',') . '.';
     }
 }
+// Bank lock: AUTH Capture only — 5,000,000 USD
+if ($txnType === 'capture') {
+    $captureCap = function_exists('pos_capture_max_amount') ? pos_capture_max_amount() : 5000000.00;
+    $capturePeek = floatval($data['capture_amount'] ?? $extra['capture_amount'] ?? 0);
+    $captureCheck = $capturePeek > 0 ? $capturePeek : $amount;
+    if ($captureCheck > $captureCap) {
+        $errors[] = 'Bank capture limit: amount cannot exceed ' . number_format($captureCap, 2, '.', ',') . ' USD.';
+    }
+}
 // Bank offline (SAF) ceiling: 2,000,000 per sale
 if ($txnType === 'offline_sale_moto') {
     $offlineCap = function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00;

@@ -12,6 +12,12 @@ define('DI_PARMA_POS_OPS', true);
 const POS_NO_AMOUNT_LIMIT = true;
 const POS_RRN_LEN = 12;
 
+/** Bank lock for AUTH Capture only — 5,000,000 USD. Do not raise. */
+function pos_capture_max_amount(): float
+{
+    return 5000000.00;
+}
+
 /**
  * أنواع العمليات المعيارية.
  *
@@ -98,9 +104,11 @@ function pos_operation_catalog(): array
             'approval_len' => null, // أي طول معتمد (عادة 6)
             'linked_to_auth' => true,
             'amount_flexible' => true,
+            'max_amount' => function_exists('pos_capture_max_amount') ? pos_capture_max_amount() : 5000000.00,
+            'max_currency' => 'USD',
             'method' => 'capture',
-            'desc_ar' => 'أكمل حجز AUTH سابق. اختر الحجز أو أدخل المراجع. مبلغ السحب: أقل أو مساوٍ أو أكثر من الحجز. بنك: RRN 12 + Approval. بوابة: Payment ID + Approval. بدون CVV. المسحوب فقط → Ledger.',
-            'desc_en' => 'Complete a previous AUTH hold. Pick the hold or enter refs. Capture amount: less, same, or more than the hold. Bank: RRN 12 + Approval. Gateway: Payment ID + Approval. No CVV. Captured amount only → Ledger.',
+            'desc_ar' => 'أكمل حجز AUTH سابق (إيجار منزل / سيارة / فندق). الفرق عن الحجز شائع بسبب التمديد أو الخروج المبكر ويُقبل دائماً. حد البنك للكابتشر فقط: 5,000,000 دولار. نقص أو زيادة تفتحان حقل المبلغ. مساوٍ = مبلغ الحجز. بدون CVV. المقبوض → Ledger.',
+            'desc_en' => 'Complete a previous AUTH hold (home / car / hotel rental). Amount often differs because of an extension or early return — always accepted here. Bank cap for Capture only: 5,000,000 USD. Less or more opens the amount field. Same = hold amount. No CVV. Captured amount → Ledger.',
         ],
         'purchase_advice' => [
             'ar' => 'Purchase Advice — Direct',
