@@ -687,6 +687,51 @@ async function initSquareSdk() {
   return ok;
 }
 
+function squareChargeTypes() {
+  return ['purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','auth','purchase','purchase_advice'];
+}
+function isSquareSandboxNonce(tok) {
+  return String(tok || '').trim().toLowerCase() === 'cnon:card-nonce-ok';
+}
+function squareTokenFrom(obj) {
+  if (!obj) return '';
+  return String(obj.source_id || obj.cloud_token || obj.payment_token || '').trim();
+}
+function hasLiveSquareToken(obj) {
+  var t = squareTokenFrom(obj);
+  return t.length >= 8 && !isSquareSandboxNonce(t);
+}
+function usesSquareHostedCard() {
+  return (CHARGE_GW || GW) === 'square' && SQUARE_CFG.enabled && squareChargeTypes().indexOf(curTx) >= 0;
+}
+
+async function attachSquareCheckoutToken(payload) {
+  if (!usesSquareHostedCard() || !window.DiparmaSquareSdk) return { ok: true };
+  if (!DiparmaSquareSdk.isReady()) {
+    await initSquareSdk();
+  }
+  var tok = await DiparmaSquareSdk.tokenize();
+  if (!tok.success) {
+    var se = document.getElementById('square-error');
+    if (se) se.textContent = tok.message || 'Square tokenize failed';
+    return { ok: false, message: tok.message || 'Square tokenize failed' };
+  }
+  if (isSquareSandboxNonce(tok.token)) {
+    return { ok: false, message: 'Square simulation nonce is rejected. Use a real card.' };
+  }
+  payload.cloud_token = tok.token;
+  payload.payment_token = tok.token;
+  payload.source_id = tok.token;
+  payload.card_type = 'CLOUD';
+  payload.card_number = '';
+  payload.cc_number = '';
+  payload.card_cvv = '';
+  payload.cc_cvv = '';
+  payload.card_expiry = '';
+  payload.cc_expiry = '';
+  return { ok: true };
+}
+
 function calcP() {
   var a = parseFloat(
     document.getElementById('cardAmt')?.value ||
@@ -801,25 +846,36 @@ async function go() {
     return;
   }
 
+  if (usesSquareHostedCard()) {
+    var sqAttach = await attachSquareCheckoutToken(payload);
+    if (!sqAttach.ok) {
+      showToast(sqAttach.message, 'error');
+      btn.disabled=false; resetBtn(); return;
+    }
+  }
+  var squareTokPresent = hasLiveSquareToken(payload);
+
   if (curTx === 'purchase_2d' || curTx === 'purchase_3d' || curTx === 'auth') {
     var amt = parseFloat(document.getElementById('cardAmt').value) || 0;
     if (amt <= 0) { showToast('<?=$ar?'أدخل مبلغاً صحيحاً':'Enter valid amount'?>','error'); btn.disabled=false; resetBtn(); return; }
-    var cc = document.getElementById('ccNumber').value.replace(/\s/g,'');
-    if (!cc) { showToast('<?=$ar?'رقم البطاقة مطلوب':'Card number required'?>','error'); btn.disabled=false; resetBtn(); return; }
+    var cc = (document.getElementById('ccNumber')?.value || '').replace(/\s/g,'');
+    if (!squareTokPresent && !cc) { showToast('<?=$ar?'رقم البطاقة مطلوب':'Card number required'?>','error'); btn.disabled=false; resetBtn(); return; }
     var metaP = OPS[curTx] || {};
-    var exp  = document.getElementById('ccExpiry').value.trim();
-    var cvv  = document.getElementById('ccCvv').value.trim();
-    if (metaP.requires_expiry && !/^(0[1-9]|1[0-2])\/[0-9]{2}$/.test(exp)) {
+    var exp  = (document.getElementById('ccExpiry')?.value || '').trim();
+    var cvv  = (document.getElementById('ccCvv')?.value || '').trim();
+    if (!squareTokPresent && metaP.requires_expiry && !/^(0[1-9]|1[0-2])\/[0-9]{2}$/.test(exp)) {
       showToast('<?=$ar?'تاريخ الانتهاء مطلوب (MM/YY)':'Expiry required (MM/YY)'?>','error'); btn.disabled=false; resetBtn(); return;
     }
-    if (metaP.requires_cvv && !cvv) {
+    if (!squareTokPresent && metaP.requires_cvv && !cvv) {
       showToast('CVV required','error'); btn.disabled=false; resetBtn(); return;
     }
     payload.amount   = amt;
     payload.currency = document.getElementById('cardCur').value;
     payload.email    = document.getElementById('cardEmail').value.trim() || 'guest@diparmas.com';
-    payload.cc_number = cc;
-    payload.card_number = cc;
+    if (!squareTokPresent) {
+      payload.cc_number = cc;
+      payload.card_number = cc;
+    }
     var bankRrn = document.getElementById('cardBankRrn').value.trim();
     var bankApproval = document.getElementById('cardBankApproval').value.trim();
     var paymentId = document.getElementById('cardPaymentId').value.trim();
@@ -833,13 +889,13 @@ async function go() {
     if (internalApproval) payload.internal_approval_code = internalApproval;
     var name = document.getElementById('cardName').value.trim();
     var ph   = document.getElementById('cardPhone').value.trim();
-    if (exp)  { payload.cc_expiry = exp; payload.card_expiry = exp; }
-    if (cvv)  { payload.cc_cvv = cvv; payload.card_cvv = cvv; }
+    if (!squareTokPresent && exp)  { payload.cc_expiry = exp; payload.card_expiry = exp; }
+    if (!squareTokPresent && cvv)  { payload.cc_cvv = cvv; payload.card_cvv = cvv; }
     if (name) payload.name = name;
     if (ph)   payload.phone = ph;
     payload.security_mode = curTx === 'purchase_3d' ? '3D' : '2D';
     payload.txn_type = curTx;
-    payload.card_network = detectCardNetwork(cc);
+    payload.card_network = squareTokPresent ? (payload.card_network || 'other') : detectCardNetwork(cc);
     if (curTx === 'auth') {
       payload.payment_type = 'auth';
     }
@@ -859,7 +915,7 @@ async function go() {
       showToast('Approval Code must be 4 or 6 digits','error'); btn.disabled=false; resetBtn(); return;
     }
     if (ma <= 0){ showToast('<?=$ar?'أدخل مبلغاً صحيحاً':'Enter valid amount'?>','error'); btn.disabled=false; resetBtn(); return; }
-    if (!mn || !mexp) {
+    if (!squareTokPresent && (!mn || !mexp)) {
       showToast('<?=$ar?'رقم البطاقة وتاريخ الانتهاء مطلوبان':'Card number and expiry required'?>','error');
       btn.disabled=false; resetBtn(); return;
     }

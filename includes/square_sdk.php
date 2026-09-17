@@ -12,6 +12,22 @@ function square_is_application_id(string $id): bool
     return (bool) preg_match('/^(sandbox-)?sq0id[bp]-/i', $id);
 }
 
+/** Square Web Payments sandbox simulation nonce — never charge. */
+function square_is_simulation_nonce(string $token): bool
+{
+    return strcasecmp(trim($token), 'cnon:card-nonce-ok') === 0;
+}
+
+/** Real Square card nonce / source_id from Web Payments SDK (not PAN, not simulation). */
+function square_is_real_card_nonce(string $token): bool
+{
+    $token = trim($token);
+    if ($token === '' || square_is_simulation_nonce($token)) {
+        return false;
+    }
+    return strlen($token) >= 8;
+}
+
 function square_token_live_flag(string $token): ?bool
 {
     $t = strtolower(trim($token));
