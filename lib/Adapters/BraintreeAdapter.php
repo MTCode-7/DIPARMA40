@@ -33,10 +33,8 @@ final class BraintreeAdapter implements GatewayAdapterInterface
         $this->merchantId  = getenv('BRAINTREE_MERCHANT_ID')  ?: '';
         $this->publicKey   = getenv('BRAINTREE_PUBLIC_KEY')   ?: '';
         $this->privateKey  = getenv('BRAINTREE_PRIVATE_KEY')  ?: '';
-        $this->environment = getenv('BRAINTREE_ENVIRONMENT')  ?: '';
-        $this->baseUrl     = $this->environment === 'production'
-            ? 'https://api.braintreegateway.com:443'
-            : 'https://api.sandbox.braintreegateway.com:443';
+        $this->environment = strtolower(trim((string)(getenv('BRAINTREE_ENVIRONMENT') ?: 'production')));
+        $this->baseUrl     = 'https://api.braintreegateway.com:443';
     }
 
     public function getName(): string { return 'braintree'; }
@@ -61,6 +59,11 @@ final class BraintreeAdapter implements GatewayAdapterInterface
     // ══════════════════════════════════════════════════════════
     public function charge(array $payload): array
     {
+        if (in_array($this->environment, ['sandbox', 'test'], true)) {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR',
+                $payload['reference'] ?? '', 0, '',
+                'Braintree sandbox مرفوض. استخدم production.');
+        }
         if (empty($this->merchantId) || empty($this->publicKey) || empty($this->privateKey)) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR',
                 $payload['reference'] ?? '', 0, '',
@@ -144,6 +147,9 @@ final class BraintreeAdapter implements GatewayAdapterInterface
     // ══════════════════════════════════════════════════════════
     public function hold(array $payload): array
     {
+        if (in_array($this->environment, ['sandbox', 'test'], true)) {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '', 0, '', 'Braintree sandbox مرفوض. استخدم production.');
+        }
         if (empty($this->merchantId)) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '');
         }

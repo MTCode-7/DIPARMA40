@@ -23,6 +23,9 @@ class StripeAdapter implements GatewayAdapterInterface
     {
         $this->secretKey = getenv('STRIPE_SECRET_KEY') ?: '';
         $this->publicKey = getenv('STRIPE_PUBLIC_KEY')  ?: '';
+        if (str_starts_with($this->secretKey, 'sk_test_')) {
+            $this->secretKey = '';
+        }
     }
 
     public function getName(): string { return 'stripe'; }
@@ -48,7 +51,7 @@ class StripeAdapter implements GatewayAdapterInterface
     public function charge(array $payload): array
     {
         if (empty($this->secretKey)) {
-            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '');
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '', 0, '', 'Stripe live secret required (sk_live_). Test keys are rejected.');
         }
 
         $mode      = strtoupper($payload['processing_mode'] ?? '3D');
@@ -214,7 +217,7 @@ class StripeAdapter implements GatewayAdapterInterface
     public function hold(array $payload): array
     {
         if (empty($this->secretKey)) {
-            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '');
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '', 0, '', 'Stripe live secret required (sk_live_). Test keys are rejected.');
         }
 
         $amount    = floatval($payload['amount']   ?? 0);

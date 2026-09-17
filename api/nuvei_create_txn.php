@@ -38,11 +38,7 @@ if ($merchantId === '' || $siteId === '' || $secretKey === '') {
     echo json_encode(['success' => false, 'message' => 'Nuvei credentials are not configured']);
     exit;
 }
-// Environment: sandbox أو live
-$nuveiEnv = strtolower(trim(getenv('NUVEI_ENVIRONMENT') ?: 'live'));
-$baseUrl = ($nuveiEnv === 'sandbox' || $nuveiEnv === 'test')
-    ? 'https://ppp-test.nuvei.com/ppp/api/v1'
-    : 'https://secure.nuvei.com/ppp/api/v1';
+$baseUrl = 'https://secure.nuvei.com/ppp/api/v1';
 
 $ref  = 'TXN' . strtoupper(bin2hex(random_bytes(5))) . date('Ymd');
 $ts   = date('YmdHis');

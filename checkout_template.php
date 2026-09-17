@@ -724,7 +724,8 @@ function squareChargeTypes() {
   return ['purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','auth','purchase','purchase_advice'];
 }
 function isSquareSandboxNonce(tok) {
-  return String(tok || '').trim().toLowerCase() === 'cnon:card-nonce-ok';
+  var t = String(tok || '').trim().toLowerCase();
+  return t.indexOf('cnon:card-nonce') === 0;
 }
 function squareTokenFrom(obj) {
   if (!obj) return '';

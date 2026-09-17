@@ -123,7 +123,7 @@ try {
     exit;
 }
 
-$success = $result['success'] ?? false;
+$success = !empty($result['success']) && empty($result['requires_3ds']) && empty($result['redirect_url']) && empty($result['checkout_url']);
 
 // ── حفظ في DB ────────────────────────────────────────────────
 $db = db();

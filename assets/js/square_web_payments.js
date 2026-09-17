@@ -229,7 +229,7 @@
     try {
       var result = await state.card.tokenize();
       if (result.status === 'OK' && result.token) {
-        if (String(result.token).trim().toLowerCase() === 'cnon:card-nonce-ok') {
+        if (String(result.token).trim().toLowerCase().indexOf('cnon:card-nonce') === 0) {
           return { success: false, message: 'Square simulation nonce is rejected. Use a real Web Payments SDK token.' };
         }
         return { success: true, token: result.token, details: result.details || {} };

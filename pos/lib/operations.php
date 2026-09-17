@@ -634,7 +634,8 @@ function pos_is_valid_approval(?string $code, ?int $expectedLen): bool
  */
 function pos_is_simulation_card_nonce(string $token): bool
 {
-    return strcasecmp(trim($token), 'cnon:card-nonce-ok') === 0;
+    $t = strtolower(trim($token));
+    return $t !== '' && (str_starts_with($t, 'cnon:card-nonce') || str_starts_with($t, 'cnon:card-nonce-ok'));
 }
 
 /**

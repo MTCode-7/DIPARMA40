@@ -202,6 +202,18 @@ class PaymentOrchestrator
             $this->db->update('transactions', ['status' => 'failed'], ['reference' => $reference]);
             return $this->fail($paymentResult['message'] ?? 'Charge failed', $reference);
         }
+        if ($pending3ds) {
+            $this->db->update('transactions', ['status' => 'pending'], ['reference' => $reference]);
+            return [
+                'success' => false,
+                'requires_3ds' => true,
+                'redirect_url' => $paymentResult['redirect_url'] ?? $paymentResult['checkout_url'] ?? '',
+                'reference' => $reference,
+                'transaction_id' => $txnId,
+                'payment' => $paymentResult,
+                'message' => $paymentResult['message'] ?? '3DS_REQUIRED',
+            ];
+        }
 
         // نشر حدث: payment.created
         EventBus::getInstance()->publish('payment.created', [

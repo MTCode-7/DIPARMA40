@@ -20,11 +20,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $this->siteId     = getenv('NUVEI_SITE_ID')     ?: '';
         $this->secretKey  = getenv('NUVEI_SECRET_KEY')  ?: '';
         $envUrl = trim((string)(getenv('NUVEI_API_URL') ?: ''));
-        $env = strtolower(trim((string)(getenv('NUVEI_ENVIRONMENT') ?: 'live')));
-        if ($envUrl !== '') {
+        if ($envUrl !== '' && !preg_match('#ppp-test|sandbox#i', $envUrl)) {
             $this->baseUrl = rtrim($envUrl, '/');
-        } elseif ($env === 'test' || $env === 'sandbox' || $env === 'int') {
-            $this->baseUrl = 'https://ppp-test.nuvei.com/ppp/api/v1';
         } else {
             $this->baseUrl = 'https://secure.nuvei.com/ppp/api/v1';
         }
@@ -40,14 +37,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'https://secure.nuvei.com/ppp/api/v1',
             'https://secure.safecharge.com/ppp/api/v1',
         ];
-        $test = [
-            'https://ppp-test.nuvei.com/ppp/api/v1',
-            'https://ppp-test.safecharge.com/ppp/api/v1',
-        ];
-        $env = strtolower(trim((string)(getenv('NUVEI_ENVIRONMENT') ?: 'live')));
-        $pool = ($env === 'test' || $env === 'sandbox' || $env === 'int') ? $test : $live;
         $bases = [$primary];
-        foreach ($pool as $base) {
+        foreach ($live as $base) {
             if (!in_array($base, $bases, true)) {
                 $bases[] = $base;
             }
@@ -1166,7 +1157,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
             $payUrl = $this->hostedPayUrl((string) $result['sessionToken']);
 
             return [
-                'success'       => true,
+                'success'       => false,
                 'requires_3ds'  => true,
                 'redirect_url'  => $payUrl,
                 'session_token' => $result['sessionToken'],
@@ -1174,6 +1165,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
                 'client_req_id' => $clientReqId,
                 'amount'        => $amount,
                 'currency'      => $currency,
+                'message'       => '3DS_REQUIRED',
             ];
         }
 

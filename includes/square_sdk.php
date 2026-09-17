@@ -15,7 +15,8 @@ function square_is_application_id(string $id): bool
 /** Square Web Payments sandbox simulation nonce — never charge. */
 function square_is_simulation_nonce(string $token): bool
 {
-    return strcasecmp(trim($token), 'cnon:card-nonce-ok') === 0;
+    $t = strtolower(trim($token));
+    return $t !== '' && str_starts_with($t, 'cnon:card-nonce');
 }
 
 /** Real Square card nonce / source_id from Web Payments SDK (not PAN, not simulation). */

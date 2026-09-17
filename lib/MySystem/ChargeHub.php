@@ -163,7 +163,7 @@ class DiParmaChargeHub
         if (in_array($t, ['auth', 'auth_hold', 'auth_moto', 'hold', 'authorize'], true)) {
             return 'hold';
         }
-        if (in_array($t, ['capture', 'auth_complete', 'auth_capture', 'purchase_advice'], true)) {
+        if (in_array($t, ['capture', 'auth_complete', 'auth_capture'], true)) {
             return 'capture';
         }
         if (in_array($t, ['void', 'avoid', 'reversal', 'cancel', 'refund'], true)) {
@@ -180,6 +180,13 @@ class DiParmaChargeHub
     {
         if (!is_array($result)) {
             $result = ['success' => false, 'message' => 'Invalid hub response'];
+        }
+        if (!empty($result['requires_3ds']) || !empty($result['redirect_url']) || !empty($result['checkout_url'])) {
+            $result['success'] = false;
+            $result['requires_3ds'] = true;
+            if (trim((string)($result['message'] ?? '')) === '') {
+                $result['message'] = '3DS_REQUIRED';
+            }
         }
         $result['hub'] = 'di_parma_charge_hub';
         $result['hub_path'] = $path;

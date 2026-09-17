@@ -22,10 +22,7 @@ class PayPalService
     {
         $this->clientId  = getenv('PAYPAL_CLIENT_ID') ?: '';
         $this->secretKey = getenv('PAYPAL_CLIENT_SECRET') ?: (getenv('PAYPAL_SECRET') ?: '');
-        $env             = strtolower(trim(getenv('PAYPAL_ENVIRONMENT') ?: 'live'));
-        $this->baseUrl   = in_array($env, ['live', 'production'], true)
-            ? 'https://api-m.paypal.com'
-            : 'https://api-m.sandbox.paypal.com';
+        $this->baseUrl   = 'https://api-m.paypal.com';
         $this->logFile   = defined('LOGS_PATH') ? LOGS_PATH . '/paypal.log' : __DIR__ . '/../logs/paypal.log';
         if (!is_dir(dirname($this->logFile))) @mkdir(dirname($this->logFile), 0755, true);
     }
@@ -289,6 +286,10 @@ class PayPalService
     {
         if (empty($this->clientId) || empty($this->secretKey)) {
             return ['success' => false, 'message' => 'PayPal credentials غير مضبوطة', 'error_code' => 'GATEWAY_ERROR'];
+        }
+        $ppEnv = strtolower(trim((string)(getenv('PAYPAL_ENVIRONMENT') ?: 'live')));
+        if (in_array($ppEnv, ['sandbox', 'test'], true)) {
+            return ['success' => false, 'message' => 'PayPal sandbox مرفوض. استخدم بيئة live.', 'error_code' => 'GATEWAY_ERROR'];
         }
 
         $intent = strtoupper($intent) === 'AUTHORIZE' ? 'AUTHORIZE' : 'CAPTURE';

@@ -251,9 +251,7 @@ if (in_array($currentStatus, ['pending', 'processing'], true)) {
             
             if (!empty($clientId) && !empty($clientSecret)) {
                 $auth = base64_encode($clientId . ':' . $clientSecret);
-                $url = $env === 'production' 
-                    ? 'https://api-m.paypal.com/v1/oauth2/token'
-                    : 'https://api-m.sandbox.paypal.com/v1/oauth2/token';
+                $url = 'https://api-m.paypal.com/v1/oauth2/token';
                 
                 $ch = curl_init($url);
                 curl_setopt_array($ch, [
@@ -274,9 +272,7 @@ if (in_array($currentStatus, ['pending', 'processing'], true)) {
                 $accessToken = $tokenData['access_token'] ?? '';
                 
                 if (!empty($accessToken)) {
-                    $paypalUrl = $env === 'production'
-                        ? 'https://api-m.paypal.com/v2/checkout/orders/' . $reference
-                        : 'https://api-m.sandbox.paypal.com/v2/checkout/orders/' . $reference;
+                    $paypalUrl = 'https://api-m.paypal.com/v2/checkout/orders/' . $reference;
                     
                     $ch = curl_init($paypalUrl);
                     curl_setopt_array($ch, [
@@ -427,9 +423,7 @@ if (in_array($currentStatus, ['pending', 'processing'], true)) {
                     'orderId' => $reference,
                 ];
                 
-                $url = getenv('NUVEI_ENVIRONMENT') === 'live'
-                    ? 'https://api.nuvei.com/v1/getTransactionStatus'
-                    : 'https://sandbox.api.nuvei.com/v1/getTransactionStatus';
+                $url = 'https://secure.nuvei.com/ppp/api/v1/getTransactionDetails.do';
                 
                 $ch = curl_init($url);
                 curl_setopt_array($ch, [

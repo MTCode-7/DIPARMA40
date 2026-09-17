@@ -336,8 +336,11 @@ class CardPaymentService
         $clientId  = getenv('PAYPAL_CLIENT_ID')     ?: '';
         $secret    = getenv('PAYPAL_CLIENT_SECRET') ?: getenv('PAYPAL_SECRET') ?: '';
         $siteUrl   = defined('SITE_URL') ? SITE_URL : 'https://diparmas.com';
-        $sandbox   = (getenv('PAYPAL_ENVIRONMENT') ?: 'live') === 'sandbox';
-        $base      = $sandbox ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com';
+        $ppEnv     = strtolower(trim((string)(getenv('PAYPAL_ENVIRONMENT') ?: 'live')));
+        if (in_array($ppEnv, ['sandbox', 'test'], true)) {
+            return ['success' => false, 'message' => 'PayPal sandbox مرفوض. استخدم live.'];
+        }
+        $base      = 'https://api-m.paypal.com';
 
         if (empty($clientId) || empty($secret)) {
             return ['success' => false, 'message' => 'PayPal credentials غير مضبوطة في .env'];

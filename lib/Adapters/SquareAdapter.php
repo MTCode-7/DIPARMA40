@@ -34,9 +34,7 @@ class SquareAdapter implements GatewayAdapterInterface
         } else {
             $this->sandbox = empty($creds['live']);
         }
-        $this->baseUrl = $this->sandbox
-            ? 'https://connect.squareupsandbox.com'
-            : 'https://connect.squareup.com';
+        $this->baseUrl = 'https://connect.squareup.com';
     }
 
     public function getName(): string
@@ -180,6 +178,9 @@ class SquareAdapter implements GatewayAdapterInterface
         $reference = (string) ($payload['reference'] ?? uniqid('sq_', true));
         $amount = (float) ($payload['amount'] ?? 0);
         $currency = strtoupper((string) ($payload['currency'] ?? 'USD'));
+        if ($this->sandbox) {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, $currency, 'Square sandbox is rejected. Use production keys.');
+        }
         if ($this->accessToken === '') {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, $currency, 'SQUARE_ACCESS_TOKEN missing');
         }
@@ -194,7 +195,7 @@ class SquareAdapter implements GatewayAdapterInterface
             ?? $payload['payment_method']
             ?? ''
         ));
-        if ($sourceId === '' || strcasecmp($sourceId, 'cnon:card-nonce-ok') === 0) {
+        if ($sourceId === '' || strncasecmp($sourceId, 'cnon:card-nonce', 15) === 0) {
             return GatewayErrorMapper::buildErrorResponse(
                 'INVALID_CARD',
                 $reference,
