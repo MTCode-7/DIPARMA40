@@ -1694,10 +1694,13 @@ function posSlipStatus(d) {
 function posPlainReason(raw) {
   if (raw == null) return '';
   if (typeof raw === 'object') {
-    const pick = raw.gwErrorReason || raw.errCode || raw.reason || raw.response_code
+    const sq = (raw.errors && raw.errors[0]) || (raw.payment && raw.payment.card_details && raw.payment.card_details.errors && raw.payment.card_details.errors[0]) || {};
+    const pick = raw.raw_message || raw.gwErrorReason || raw.errCode || raw.reason || raw.response_code
+      || sq.detail || sq.code
       || ((typeof raw.decline_reason === 'string' && raw.decline_reason[0] !== '{') ? raw.decline_reason : '')
       || ((typeof raw.status_message === 'string' && raw.status_message[0] !== '{') ? raw.status_message : '')
-      || ((typeof raw.message === 'string' && raw.message[0] !== '{') ? raw.message : '');
+      || ((typeof raw.message === 'string' && raw.message[0] !== '{') ? raw.message : '')
+      || raw.error_code;
     if (pick) return posPlainReason(pick);
     const dumped = JSON.stringify(raw);
     const rc = dumped.match(/\b(1507|1011|1007|1106|1019)\b/);
@@ -1710,7 +1713,7 @@ function posPlainReason(raw) {
       const rc = text.match(/\b(1507|1011|1007|1106|1019)\b/);
       if (rc) text = rc[1];
       else {
-        const quoted = text.match(/"(?:gwErrorReason|errCode|reason|decline_reason)"\s*:\s*"((?:\\.|[^"\\])*)"/);
+        const quoted = text.match(/"(?:gwErrorReason|errCode|reason|decline_reason|detail|code)"\s*:\s*"((?:\\.|[^"\\])*)"/);
         if (quoted) return posPlainReason(quoted[1].replace(/\\"/g, '"'));
         return AR ? 'رُفضت العملية' : 'DECLINED';
       }
@@ -1721,8 +1724,7 @@ function posPlainReason(raw) {
   if (/1007/.test(text)) return AR ? 'بطاقة منتهية RC 1007' : 'DECLINED RC 1007 EXPIRED CARD';
   if (/1106/.test(text)) return AR ? 'رصيد غير كافٍ RC 1106' : 'DECLINED RC 1106 INSUFFICIENT FUNDS';
   if (/1019/.test(text)) return AR ? 'رابط غير مقبول RC 1019' : 'DECLINED RC 1019 INVALID URL';
-  if (/generic\s*decline/i.test(text)) return AR ? 'رفض المصدر' : 'DECLINED ISSUER';
-  if (text.length > 64) text = text.slice(0, 61) + '...';
+  if (text.length > 96) text = text.slice(0, 93) + '...';
   return text;
 }
 
@@ -2782,7 +2784,7 @@ window.processTransaction = async function() {
     } else {
       POS.lastTxn = d;
       updateReceipt(d, type, amount, currency, cardNum);
-      const why = posPlainReason(d.message || d.error_code || d.decline_reason || 'DECLINED');
+      const why = posPlainReason(d.raw_message || d.message || d.error_code || d.decline_reason || 'DECLINED');
       showResultModal(false, d);
       setPosStatus('DECLINED');
       toast(why, 'error');
@@ -2840,7 +2842,16 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const merch = document.getElementById('rMerchantSeal');
   if (merch) merch.textContent = posSeal((POS_MERCHANT && POS_MERCHANT.legal_name) || 'MERCHANT');
   const reasonEl = document.getElementById('rReason');
-  if (reasonEl) { reasonEl.textContent = ''; reasonEl.style.display = 'none'; }
+  const why = posPlainReason(d && (d.raw_message || d.message || d.error_code) || '');
+  if (reasonEl) {
+    if (status === 'DECLINED' && why) {
+      reasonEl.textContent = why;
+      reasonEl.style.display = '';
+    } else {
+      reasonEl.textContent = '';
+      reasonEl.style.display = 'none';
+    }
+  }
   const banner = document.getElementById('rBanner');
   if (banner) {
     banner.textContent = status;
@@ -2865,10 +2876,12 @@ function showResultModal(success, d) {
   document.getElementById('modalTitle').textContent = status;
   document.getElementById('modalTitle').style.color = status === 'APPROVED' ? 'var(--green)' : (status === 'DECLINED' ? 'var(--red)' : 'var(--gold)');
   document.getElementById('modalRef').textContent = '';
+  const why = posPlainReason(d && (d.raw_message || d.message || d.error_code) || '');
   document.getElementById('modalDetails').innerHTML = `
     <div style="background:#fff;color:#111;border-radius:4px;padding:16px;font-family:ui-monospace,monospace;text-align:center">
       <div style="font-weight:900;letter-spacing:.2em;margin-bottom:10px">${status}</div>
       <div style="font-size:1.4rem;font-weight:900">${amt} ${cur}</div>
+      ${status !== 'APPROVED' && why ? `<div style="margin-top:10px;font-size:.78rem;font-weight:700;color:#b42318">${why}</div>` : ''}
     </div>
   `;
 

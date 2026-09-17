@@ -258,7 +258,7 @@ class SquareAdapter implements GatewayAdapterInterface
             $status = strtoupper((string) ($payment['status'] ?? ''));
             $duration = microtime(true) - $start;
 
-            if (in_array($status, ['COMPLETED', 'APPROVED'], true)) {
+            if (in_array($status, ['COMPLETED', 'APPROVED', 'AUTHORIZED'], true)) {
                 $auth = (string) ($payment['card_details']['auth_result_code'] ?? '');
                 $result = [
                     'success' => true,
@@ -291,22 +291,23 @@ class SquareAdapter implements GatewayAdapterInterface
     private function errorMessage(array $res): string
     {
         $payment = $res['payment'] ?? [];
-        $cardErr = $payment['card_details']['errors'][0] ?? [];
-        foreach ([
-            $res['errors'][0]['detail'] ?? '',
-            $res['errors'][0]['code'] ?? '',
-            $cardErr['detail'] ?? '',
-            $cardErr['code'] ?? '',
-            $payment['card_details']['card']['card_brand'] ?? '',
-        ] as $candidate) {
-            $candidate = trim((string) $candidate);
-            if ($candidate !== '' && $candidate !== 'VISA' && $candidate !== 'MASTERCARD' && $candidate !== 'AMERICAN_EXPRESS') {
-                $status = strtoupper((string) ($payment['status'] ?? ''));
-                if ($status === 'FAILED' && isset($res['errors'][0]['code'])) {
-                    return trim((string) $res['errors'][0]['code'] . ' ' . (string) ($res['errors'][0]['detail'] ?? ''));
-                }
-                return $candidate;
+        $cardErr = is_array($payment['card_details']['errors'][0] ?? null)
+            ? $payment['card_details']['errors'][0]
+            : [];
+        $apiErr = is_array($res['errors'][0] ?? null) ? $res['errors'][0] : [];
+        $code = trim((string) ($apiErr['code'] ?? $cardErr['code'] ?? ''));
+        $detail = trim((string) ($apiErr['detail'] ?? $cardErr['detail'] ?? ''));
+        if ($code !== '' && $detail !== '') {
+            if (stripos($detail, $code) !== false) {
+                return $detail;
             }
+            return $code . ' — ' . $detail;
+        }
+        if ($detail !== '') {
+            return $detail;
+        }
+        if ($code !== '') {
+            return $code;
         }
         $status = strtoupper((string) ($payment['status'] ?? ''));
         if ($status === 'FAILED') {

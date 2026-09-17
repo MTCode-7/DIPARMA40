@@ -595,7 +595,12 @@ if ($useCardGateway) {
         $success = !empty($result['success']);
         $message = $success
             ? 'APPROVED'
-            : pos_plain_host_message($result['raw'] ?? $result);
+            : pos_plain_host_message(
+                $result['raw_message']
+                ?? $result['message']
+                ?? $result['error_code']
+                ?? ($result['raw'] ?? $result)
+            );
         $responseCode = trim((string) (
             $result['response_code']
             ?? $result['errCode']
@@ -910,6 +915,8 @@ echo json_encode([
     'status_message' => $message,
     'message' => $message,
     'decline_reason' => $success ? null : $message,
+    'raw_message' => $success ? null : ($result['raw_message'] ?? $message),
+    'error_code' => $success ? null : ($result['error_code'] ?? $result['decline_code'] ?? null),
     'pos_device' => $posDevice,
     'pos_model' => $posModel,
     'pos_type' => $posType,

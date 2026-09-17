@@ -913,7 +913,7 @@ function pos_plain_host_message($raw, int $depth = 0): string
         return 'DECLINED';
     }
     if (is_array($raw)) {
-        $keys = ['gwErrorReason', 'errCode', 'reason', 'gwErrorCode', 'response_code'];
+        $keys = ['gwErrorReason', 'errCode', 'reason', 'gwErrorCode', 'response_code', 'raw_message', 'error_code', 'detail', 'code'];
         $pick = '';
         foreach ($keys as $k) {
             if (!isset($raw[$k])) {
@@ -924,6 +924,18 @@ function pos_plain_host_message($raw, int $depth = 0): string
                 $pick = $v;
                 break;
             }
+        }
+        if ($pick === '' && isset($raw['errors'][0]) && is_array($raw['errors'][0])) {
+            $err0 = $raw['errors'][0];
+            $detail = trim((string) ($err0['detail'] ?? ''));
+            $code = trim((string) ($err0['code'] ?? ''));
+            $pick = $detail !== '' ? $detail : $code;
+        }
+        if ($pick === '' && isset($raw['payment']['card_details']['errors'][0]) && is_array($raw['payment']['card_details']['errors'][0])) {
+            $err0 = $raw['payment']['card_details']['errors'][0];
+            $detail = trim((string) ($err0['detail'] ?? ''));
+            $code = trim((string) ($err0['code'] ?? ''));
+            $pick = $detail !== '' ? $detail : $code;
         }
         if ($pick === '') {
             foreach (['decline_reason', 'status_message', 'message'] as $k) {
@@ -966,8 +978,8 @@ function pos_plain_host_message($raw, int $depth = 0): string
         ];
         return $map[$m[1]] ?? $text;
     }
-    if (preg_match('/generic\s*decline/i', $text)) {
-        return 'DECLINED ISSUER';
+    if (preg_match('/GENERIC_DECLINE/i', $text)) {
+        return strlen($text) > 16 ? $text : 'GENERIC_DECLINE';
     }
     if (strlen($text) > 80) {
         $text = substr($text, 0, 77) . '...';
