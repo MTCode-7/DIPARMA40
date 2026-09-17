@@ -22,6 +22,7 @@
  *
  * ============================================================
  * نقاط النهاية (Endpoints):
+ *   POST /api/checkout_charge.php
  *   POST /api/pos_transaction.php
  *   POST /pos/api/transaction.php
  *
@@ -183,11 +184,22 @@ if ($entryChannel === 'pos_web' || $entryChannel === 'web_pos') {
 if (!in_array($entryChannel, ['pos', 'checkout', 'link', 'web'], true)) {
     if (!empty($data['link_id']) || !empty($extra['link_id']) || !empty($extraEarly['link_id'])) {
         $entryChannel = 'link';
-    } elseif ($posType === 'web' || stripos((string) $posDevice, 'web') !== false) {
+    } elseif ($posType === 'web' || $posType === 'desktop_browser' || stripos((string) $posDevice, 'web') !== false) {
         $entryChannel = 'web';
     } else {
         $entryChannel = 'pos';
     }
+}
+$isWebCharge = in_array($entryChannel, ['checkout', 'link', 'web'], true);
+if ($isWebCharge && ($posModel === '' || empty($resolvedDevice['accepted']))) {
+    $resolvedDevice = pos_device_resolve([
+        'pos_model' => 'web_pos',
+        'pos_device' => 'web_pos',
+        'terminal_id' => (string) ($resolvedDevice['terminal_id'] ?? ''),
+    ]);
+    $posDevice = $resolvedDevice['code'];
+    $posModel = $resolvedDevice['model'];
+    $posType = $resolvedDevice['type'];
 }
 $cardNetwork = pos_normalize_card_network((string)($data['card_network'] ?? $data['card_scheme'] ?? ($extra['card_network'] ?? $cardNetwork ?? 'auto')));
 if ($cardNetwork === 'auto' && $cardNumber !== '') {
@@ -241,6 +253,10 @@ if ($bankRrn !== '') {
 }
 $manualNotes = trim((string)($extra['notes'] ?? ''));
 $terminalId = $resolvedDevice['terminal_id'] ?? pos_normalize_terminal_id((string)($extra['terminal_id'] ?? $data['tid'] ?? ''));
+if ($isWebCharge && ($terminalId === '' || (function_exists('pos_dummy_terminal_ids') && in_array($terminalId, pos_dummy_terminal_ids(), true)))) {
+    $terminalId = 'WEB' . strtoupper(bin2hex(random_bytes(4)));
+    $resolvedDevice['terminal_id'] = $terminalId;
+}
 $merchantId = trim((string)($extra['merchant_id'] ?? $resolvedDevice['merchant_id'] ?? 'DIPARMA'));
 if ($merchantId === '') {
     $merchantId = 'DIPARMA';
@@ -299,11 +315,13 @@ if ($txnType === 'offline_sale_moto') {
 if ($cardNumber !== '' && pos_is_blocked_test_card($cardNumber)) {
     $errors[] = 'Test and dummy cards are blocked. Use a real card.';
 }
-if ($terminalId === '' || (function_exists('pos_dummy_terminal_ids') && in_array($terminalId, pos_dummy_terminal_ids(), true))) {
-    $errors[] = 'Real Terminal ID (TID) is required. Dummy TIDs are rejected.';
-}
-if (empty($resolvedDevice['model']) || empty($resolvedDevice['accepted'])) {
-    $errors[] = 'Select a real POS model from the catalog.';
+if (!$isWebCharge) {
+    if ($terminalId === '' || (function_exists('pos_dummy_terminal_ids') && in_array($terminalId, pos_dummy_terminal_ids(), true))) {
+        $errors[] = 'Real Terminal ID (TID) is required. Dummy TIDs are rejected.';
+    }
+    if (empty($resolvedDevice['model']) || empty($resolvedDevice['accepted'])) {
+        $errors[] = 'Select a real POS model from the catalog.';
+    }
 }
 
 if (!preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $ledgerAddr)) {
@@ -399,11 +417,12 @@ if ($cardRail && $cardType !== 'CLOUD' && $requiresCvv && (empty($cardCVV) || st
 
 if (!empty($errors)) {
     http_response_code(422);
+    $uniq = array_values(array_unique($errors));
     echo json_encode([
         'success' => false,
-        'message' => 'Validation failed',
-        'errors' => array_values(array_unique($errors))
-    ]);
+        'message' => implode(' · ', $uniq),
+        'errors' => $uniq,
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 

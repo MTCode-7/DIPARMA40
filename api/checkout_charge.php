@@ -1,7 +1,8 @@
-﻿<?php
+<?php
 /**
- * Thin wrapper — POS / checkout charge API lives in /pos/api.
- * POST /api/pos_transaction.php
+ * Checkout charge endpoint — live gateways only (Square, Nuvei, Stripe, …).
+ * POST /api/checkout_charge.php
+ * Same pipe as /api/pos_transaction.php and /pos/api/transaction.php
  */
 while (ob_get_level() > 0) {
     ob_end_clean();

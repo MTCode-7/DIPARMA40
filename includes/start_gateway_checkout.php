@@ -124,6 +124,16 @@ $prefillOp = '';
 if (function_exists('pos_normalize_operation')) {
     $prefillOp = pos_normalize_operation((string)($_GET['op'] ?? $_GET['txn_type'] ?? ''));
 }
+$secQ = strtoupper(trim((string)($_GET['sec'] ?? $_GET['sec_mode'] ?? $_GET['security'] ?? '')));
+if ($secQ === '2D' && isset($checkoutOps['purchase_2d'])) {
+    $prefillOp = 'purchase_2d';
+} elseif ($secQ === '3D' && isset($checkoutOps['purchase_3d'])) {
+    $prefillOp = 'purchase_3d';
+} elseif ($prefillOp === 'purchase_2d' && isset($checkoutOps['purchase_2d'])) {
+    $prefillOp = 'purchase_2d';
+} elseif (($prefillOp === '' || $prefillOp === 'purchase') && isset($checkoutOps['purchase_3d'])) {
+    $prefillOp = 'purchase_3d';
+}
 $activityLine = strtolower(trim((string)($_GET['line'] ?? '')));
 if ($gwCode === 'diparma_gateway' || $prefillDest === 'ledger') {
     $prefillDest = 'ledger';

@@ -309,20 +309,37 @@ class PayPalService
             return ['success' => false, 'message' => 'بيانات البطاقة غير مكتملة', 'error_code' => 'INVALID_CARD'];
         }
 
+        $mode = strtoupper(trim((string)($payload['processing_mode'] ?? $payload['security_mode'] ?? '')));
+        $txnType = strtolower(trim((string)($payload['txn_type'] ?? '')));
+        $want3ds = ($mode === '3D' || $txnType === 'purchase_3d');
+
         try {
             $token = $this->getAccessToken();
+            if ($useVault) {
+                $paymentSource = ['token' => ['id' => $cloudToken, 'type' => 'PAYMENT_METHOD_TOKEN']];
+            } else {
+                $card = [
+                    'name' => $name !== '' ? $name : 'Customer',
+                    'number' => $cardNumber,
+                    'expiry' => $expiry,
+                    'security_code' => $cvv,
+                ];
+                if ($want3ds) {
+                    $returnBase = $this->publicBaseUrl() . '/checkout/paypal.php';
+                    $qs = $reference !== '' ? ('&ref=' . rawurlencode($reference)) : '';
+                    $card['attributes'] = [
+                        'verification' => ['method' => 'SCA_ALWAYS'],
+                    ];
+                    $card['experience_context'] = [
+                        'return_url' => $returnBase . '?paypal_3ds=ok' . $qs,
+                        'cancel_url' => $returnBase . '?paypal_3ds=cancel' . $qs,
+                    ];
+                }
+                $paymentSource = ['card' => $card];
+            }
             $body = [
                 'intent' => $intent,
-                'payment_source' => $useVault
-                    ? ['token' => ['id' => $cloudToken, 'type' => 'PAYMENT_METHOD_TOKEN']]
-                    : [
-                    'card' => [
-                        'name' => $name !== '' ? $name : 'Customer',
-                        'number' => $cardNumber,
-                        'expiry' => $expiry,
-                        'security_code' => $cvv,
-                    ],
-                ],
+                'payment_source' => $paymentSource,
                 'purchase_units' => [[
                     'reference_id' => $reference !== '' ? $reference : ('PP-' . strtoupper(bin2hex(random_bytes(6)))),
                     'custom_id' => $reference,
@@ -456,6 +473,18 @@ class PayPalService
             return $year . '-' . $m[1];
         }
         return '';
+    }
+
+    private function publicBaseUrl(): string
+    {
+        $env = rtrim((string)(getenv('APP_URL') ?: getenv('SITE_URL') ?: getenv('PUBLIC_URL') ?: ''), '/');
+        if ($env !== '') {
+            return $env;
+        }
+        $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || ((string)($_SERVER['SERVER_PORT'] ?? '') === '443');
+        $host = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
+        return ($https ? 'https://' : 'http://') . $host;
     }
 
     private function formatCardOrderResponse(array $response, string $intent, string $reference, float $amount, string $currency): array

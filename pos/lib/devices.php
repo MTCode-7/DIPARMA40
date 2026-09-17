@@ -213,6 +213,11 @@ function pos_device_aliases(): array
         'wedge' => 'keyboard_wedge',
         'chrome' => 'chrome_desktop',
         'desktop' => 'chrome_desktop',
+        'web_checkout' => 'web_pos',
+        'webcheckout' => 'web_pos',
+        'checkout' => 'web_pos',
+        'web' => 'web_pos',
+        'browser' => 'web_pos',
     ];
 }
 

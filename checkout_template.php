@@ -28,6 +28,7 @@ if (!empty($prefillOp) && isset($checkoutOps[$prefillOp])) {
 $isPayram = (($gwCode ?? '') === 'payram');
 $isDiparmaGw = (($gwCode ?? '') === 'diparma_gateway');
 $isLedgerGw = false;
+$chargeEndpoint = ($basePath ?? '') . 'api/checkout_charge.php';
 $chargeGwCode = $chargeGwCode ?? $gwCode;
 $isNuveiFamily = in_array(($chargeGwCode ?? $gwCode ?? ''), ['nuvei', 'diparma'], true);
 $squareSdk = $squareSdk ?? ['ready' => false, 'application_id' => '', 'location_id' => '', 'script_url' => '', 'live' => false];
@@ -145,6 +146,8 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <?=$ar?'صفحة مستقلة لبوابة':'Dedicated gateway page:'?>
     <strong style="color:var(--gw)"><?=htmlspecialchars($gwName)?></strong>
     — <?=$ar?'كل عمليات الشراء متاحة هنا':'all purchase operations available here'?>
+    · <span style="color:var(--gold);font-weight:800">ENDPOINT</span>
+    <code style="color:var(--text);font-size:.72rem">POST <?=htmlspecialchars($chargeEndpoint)?></code>
     <?php if (($gwCode ?? '') === 'paypal'): ?>
       · <a href="<?=htmlspecialchars($basePath)?>holds.php" style="color:#4DA6FF;font-weight:700;text-decoration:none">
           <i class="fas fa-hand-holding-usd"></i> <?= $ar ? 'إدارة حجوزات PayPal' : 'Manage PayPal Holds' ?>
@@ -541,6 +544,18 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 
 <script>
 var CSRF = '<?=htmlspecialchars($csrfToken)?>';
+var CHARGE_ENDPOINT = <?=json_encode($chargeEndpoint, JSON_UNESCAPED_UNICODE)?>;
+async function readJson(res) {
+  var t = await res.text();
+  t = String(t || '').replace(/[\uFEFF\u200B\u200C\u200D]/g, '').replace(/^\s+/, '');
+  if (!t) throw new Error('Empty response from ' + CHARGE_ENDPOINT);
+  try { return JSON.parse(t); }
+  catch (e) { throw new Error('Invalid JSON from ' + CHARGE_ENDPOINT); }
+}
+function failMessage(d) {
+  if (d && d.errors && d.errors.length) return d.errors.join(' · ');
+  return (d && d.message) || 'Failed';
+}
 function luhnCheck(num) {
   var d = String(num || '').replace(/\D/g, '');
   if (d.length < 13 || d.length > 19) return false;
@@ -855,7 +870,7 @@ async function go() {
       var pr = await fetch(BASE + 'api/payram_payment.php', {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
       });
-      var pd = await pr.json();
+      var pd = await readJson(pr);
       if (!pd.success) { showToast(pd.message||'Failed','error'); btn.disabled=false; resetBtn(); return; }
       if (!pd.url) { showToast('<?=$ar?'لم يُرجع PayRam رابط دفع':'PayRam did not return a payment URL'?>','error'); btn.disabled=false; resetBtn(); return; }
       showToast('<?=$ar?'فتح صفحة PayRam — اختر Cards':'Opening PayRam — choose Cards'?>','success');
@@ -921,6 +936,7 @@ async function go() {
     if (name) payload.name = name;
     if (ph)   payload.phone = ph;
     payload.security_mode = curTx === 'purchase_3d' ? '3D' : '2D';
+    payload.processing_mode = payload.security_mode;
     payload.txn_type = curTx;
     payload.card_network = squareTokPresent ? (payload.card_network || 'other') : detectCardNetwork(cc);
     if (curTx === 'auth') {
@@ -1053,14 +1069,19 @@ async function go() {
   payload.protocol = '201.3';
   payload.allow_fallback = false;
   payload.channel = CHECKOUT_CHANNEL || 'checkout';
-  payload.pos_device = payload.pos_device || 'web_checkout';
+  payload.pos_device = payload.pos_device || 'web_pos';
+  payload.pos_model = payload.pos_model || 'web_pos';
   payload.pos_type = 'web';
   if (PREFILL_LINK) {
     payload.link_id = PREFILL_LINK;
     payload.channel = 'link';
     payload.extra = Object.assign({}, payload.extra || {}, { link_id: PREFILL_LINK, channel: 'link' });
   } else {
-    payload.extra = Object.assign({}, payload.extra || {}, { channel: payload.channel });
+    payload.extra = Object.assign({}, payload.extra || {}, {
+      channel: payload.channel,
+      processing_mode: payload.processing_mode || payload.security_mode || '',
+      txn_type: payload.txn_type || curTx
+    });
   }
 
   try {
@@ -1070,7 +1091,7 @@ async function go() {
       nuvei:1, diparma:1, square:1, stripe:1, paypal:1,
       gate_io:1, binance:1, whop:1
     };
-    var apiUrl = BASE + 'api/pos_transaction.php';
+    var apiUrl = CHARGE_ENDPOINT || (BASE + 'api/checkout_charge.php');
     var pipeGw = CHARGE_GW || GW;
 
     if (GW === 'diparma_gateway' && !CHARGE_GW) {
@@ -1084,7 +1105,7 @@ async function go() {
     } else if (pipeGw === 'payram' || GW === 'payram') {
       apiUrl = BASE + 'api/payram_payment.php';
     } else if (posPipeGateways[pipeGw]) {
-      apiUrl = BASE + 'api/pos_transaction.php';
+      apiUrl = CHARGE_ENDPOINT || (BASE + 'api/checkout_charge.php');
     } else if (bankGateways[GW] || bankGateways[pipeGw]) {
       showToast(<?=json_encode($ar ? 'التحويل البنكي يدوي — استخدم تعليمات الحساب من الصفحة' : 'Bank transfer is manual — use on-page account instructions')?>, 'error');
       btn.disabled=false; resetBtn(); return;
@@ -1099,7 +1120,7 @@ async function go() {
         showToast(<?=json_encode($ar ? 'السحب متاح عبر Nuvei/DI PARMA فقط' : 'Withdrawals are available via Nuvei/DI PARMA only')?>, 'error');
         btn.disabled=false; resetBtn(); return;
       }
-      apiUrl = BASE + 'api/pos_transaction.php';
+      apiUrl = CHARGE_ENDPOINT || (BASE + 'api/checkout_charge.php');
     }
 
     // Square nonce already attached above when hosted card form is used
@@ -1109,8 +1130,8 @@ async function go() {
       var r1 = await fetch(apiUrl, {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
       });
-      var d1 = await r1.json();
-      if (!d1.success) { showToast(d1.message||'Failed','error'); btn.disabled=false; resetBtn(); return; }
+      var d1 = await readJson(r1);
+      if (!d1.success) { showToast(failMessage(d1),'error'); btn.disabled=false; resetBtn(); return; }
       if (d1.payment?.client_secret) {
         var res3d = await stripe.confirmCardPayment(d1.payment.client_secret, {payment_method:{card:stripeEl}});
         if (res3d.error) { document.getElementById('stripe-error').textContent=res3d.error.message; btn.disabled=false; resetBtn(); return; }
@@ -1123,14 +1144,14 @@ async function go() {
     var r = await fetch(apiUrl, {
       method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
     });
-    var d = await r.json();
+    var d = await readJson(r);
     var redir = d.redirect_url || d.checkout_url || (d.payment && (d.payment.redirect_url || d.payment.checkout_url));
     if ((d.requires_3ds || redir) && redir) {
       showToast(<?=json_encode($ar ? 'أكمل الدفع على البوابة — التسوية بعد الموافقة فقط' : 'Complete gateway payment — Ledger settles only after approval')?>, 'info');
       window.location.href = redir;
       return;
     }
-    if (!d.success) { showToast(d.message||(d.errors&&d.errors.join(', '))||'Failed','error'); btn.disabled=false; resetBtn(); return; }
+    if (!d.success) { showToast(failMessage(d),'error'); btn.disabled=false; resetBtn(); return; }
     showToast('Done ✓','success');
     setTimeout(function(){ window.location.href=BASE+'receipt.php?ref='+encodeURIComponent(d.reference||d.order_id||REF||''); }, 1200);
 
@@ -1145,9 +1166,9 @@ function resetBtn(){
 }
 function showToast(msg, type) {
   var t = document.getElementById('toast');
-  t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(0);background:var(--card);border:1px solid '+(type==='error'?'var(--red)':'var(--green)')+';border-radius:14px;padding:12px 26px;font-size:.85rem;font-weight:700;z-index:9999;transition:.35s;color:var(--text);white-space:nowrap';
+  t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(0);background:var(--card);border:1px solid '+(type==='error'?'var(--red)':'var(--green)')+';border-radius:14px;padding:12px 26px;font-size:.85rem;font-weight:700;z-index:9999;transition:.35s;color:var(--text);white-space:normal;max-width:min(92vw,560px);text-align:center';
   t.textContent = msg;
-  setTimeout(function(){ t.style.transform='translateX(-50%) translateY(90px)'; }, 3500);
+  setTimeout(function(){ t.style.transform='translateX(-50%) translateY(120px)'; }, 7000);
 }
 
 document.addEventListener('DOMContentLoaded', function(){

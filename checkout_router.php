@@ -559,7 +559,15 @@ function selectTxnTypeRouter(type, el) {
   const needsRrn = el.dataset.needsRrn === '1';
   const secWrap = document.getElementById('secModeWrap');
   const origWrap = document.getElementById('origRefWrap');
-  if (secWrap) secWrap.style.display = (type === 'purchase_3d' || type === 'purchase_moto') ? '' : 'none';
+  if (secWrap) secWrap.style.display = (type === 'purchase_3d' || type === 'purchase_2d' || type === 'purchase_moto') ? '' : 'none';
+  if (type === 'purchase_2d' && typeof window.selectSecMode === 'function') {
+    const sm2 = document.getElementById('smode-2D');
+    if (sm2) window.selectSecMode('2D', sm2);
+  }
+  if (type === 'purchase_3d' && typeof window.selectSecMode === 'function') {
+    const sm3 = document.getElementById('smode-3D');
+    if (sm3) window.selectSecMode('3D', sm3);
+  }
   if (origWrap) origWrap.style.display = needsRrn ? '' : 'none';
 
   if (needsRrn) {
@@ -573,6 +581,24 @@ window.selectTxnTypeRouter = selectTxnTypeRouter;
 
 function selectSecMode(mode, el) {
   STATE_TXN.secMode = mode;
+  if (mode === '2D' && (STATE_TXN.type === 'purchase_3d' || STATE_TXN.type === 'purchase')) {
+    STATE_TXN.type = 'purchase_2d';
+  } else if (mode === '3D' && (STATE_TXN.type === 'purchase_2d' || STATE_TXN.type === 'purchase')) {
+    STATE_TXN.type = 'purchase_3d';
+  }
+  const opEl = document.getElementById('rtt-' + STATE_TXN.type);
+  if (opEl && (mode === '2D' || mode === '3D')) {
+    document.querySelectorAll('#txnTypeGrid > div').forEach(d => {
+      d.style.borderColor = 'var(--border)';
+      d.style.background = 'rgba(255,255,255,.03)';
+      const n = d.querySelector('.rtt-name');
+      if (n) n.style.color = 'var(--muted2)';
+    });
+    opEl.style.borderColor = 'var(--gold)';
+    opEl.style.background = 'rgba(255,215,0,.05)';
+    const n = opEl.querySelector('.rtt-name');
+    if (n) n.style.color = 'var(--gold)';
+  }
   ['smode-3D', 'smode-2D'].forEach(id => {
     const node = document.getElementById(id);
     if (!node) return;
