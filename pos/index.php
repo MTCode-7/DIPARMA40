@@ -1341,28 +1341,28 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="receipt-cut">••••••••••••••••••••</div>
     <div class="receipt-header">
       <div class="receipt-merchant">DI PARMA POS</div>
-      <div class="receipt-sub" id="rMerchantSeal"><?=htmlspecialchars(pos_receipt_seal($posMerchant['legal_name'] ?? ''))?></div>
+      <div class="receipt-sub" id="rMerchantSeal"><?=htmlspecialchars((string)($posMerchant['legal_name'] ?? $posMerchant['brand'] ?? 'DIPARMA'))?></div>
     </div>
-    <div class="receipt-row"><span>DATE</span><span id="rDate"><?=htmlspecialchars(pos_receipt_seal(date('d/m/Y')))?></span></div>
-    <div class="receipt-row"><span>TIME</span><span id="rTime"><?=htmlspecialchars(pos_receipt_seal(date('H:i:s')))?></span></div>
-    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars(pos_receipt_seal((string)($posDevice['terminal_id'] ?? '')))?></span></div>
-    <div class="receipt-row"><span>MID</span><span id="rMid"><?=htmlspecialchars(pos_receipt_seal((string)($posDevice['merchant_id'] ?? $posMerchant['brand'] ?? 'DIPARMA')))?></span></div>
-    <div class="receipt-row"><span>BATCH</span><span id="rBatch"><?=htmlspecialchars(pos_receipt_seal('000001'))?></span></div>
-    <div class="receipt-row"><span>STAN</span><span id="rStan"><?=htmlspecialchars(pos_receipt_seal('STAN'))?></span></div>
+    <div class="receipt-row"><span>DATE</span><span id="rDate"><?=htmlspecialchars(date('d/m/Y'))?></span></div>
+    <div class="receipt-row"><span>TIME</span><span id="rTime"><?=htmlspecialchars(date('H:i:s'))?></span></div>
+    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars((string)($posDevice['terminal_id'] ?? ''))?></span></div>
+    <div class="receipt-row"><span>MID</span><span id="rMid"><?=htmlspecialchars((string)($posDevice['merchant_id'] ?? $posMerchant['brand'] ?? 'DIPARMA'))?></span></div>
+    <div class="receipt-row"><span>BATCH</span><span id="rBatch">—</span></div>
+    <div class="receipt-row"><span>STAN</span><span id="rStan">—</span></div>
     <div class="receipt-cut">------------------------</div>
-    <div class="receipt-row"><span>TRANS</span><span id="rType"><?=htmlspecialchars(pos_receipt_seal('SALE'))?></span></div>
-    <div class="receipt-row"><span>ENTRY</span><span id="rEntry"><?=htmlspecialchars(pos_receipt_seal('MANUAL'))?></span></div>
-    <div class="receipt-row"><span>PAN</span><span id="rCard"><?=htmlspecialchars(pos_receipt_seal('PAN'))?></span></div>
+    <div class="receipt-row"><span>TRANS</span><span id="rType">—</span></div>
+    <div class="receipt-row"><span>ENTRY</span><span id="rEntry">—</span></div>
+    <div class="receipt-row"><span>PAN</span><span id="rCard">************</span></div>
     <div class="receipt-row"><span>AMOUNT</span><span id="rAmount">—</span></div>
     <div class="receipt-row"><span>CURR</span><span id="rCurrency">—</span></div>
     <div class="receipt-banner" id="rBanner">PENDING</div>
     <div class="receipt-reason" id="rReason" style="display:none"></div>
-    <div class="receipt-row"><span>RC</span><span id="rRc"><?=htmlspecialchars(pos_receipt_seal('RC'))?></span></div>
-    <div class="receipt-row"><span>AUTH</span><span id="rApproval"><?=htmlspecialchars(pos_receipt_seal('AUTH'))?></span></div>
-    <div class="receipt-row"><span>RRN</span><span id="rRRN"><?=htmlspecialchars(pos_receipt_seal('RRN'))?></span></div>
-    <div class="receipt-row"><span>TRACE</span><span id="rRef"><?=htmlspecialchars(pos_receipt_seal('TRACE'))?></span></div>
-    <div class="receipt-row" id="rHostRow"><span>HOST</span><span id="rNuvei"><?=htmlspecialchars(pos_receipt_seal('HOST'))?></span></div>
-    <div class="receipt-row" id="rLedgerRow"><span>LEDGER</span><span id="rLedger"><?=htmlspecialchars(pos_receipt_seal('LEDGER'))?></span></div>
+    <div class="receipt-row"><span>APPROVAL CODE</span><span id="rApproval">—</span></div>
+    <div class="receipt-row"><span>RRN</span><span id="rRRN">—</span></div>
+    <div class="receipt-row"><span>RC</span><span id="rRc">—</span></div>
+    <div class="receipt-row"><span>TRACE</span><span id="rRef">—</span></div>
+    <div class="receipt-row" id="rHostRow"><span>HOST</span><span id="rNuvei">—</span></div>
+    <div class="receipt-row" id="rLedgerRow"><span>LEDGER</span><span id="rLedger">—</span></div>
     <div class="receipt-total">
       <div class="receipt-row"><span>STATUS</span><span id="rStatus">PENDING</span></div>
     </div>
@@ -1580,6 +1580,7 @@ const SQUARE_CFG = <?=json_encode([
     'application_id' => $squareSdk['application_id'] ?? '',
     'location_id' => $squareSdk['location_id'] ?? '',
     'live' => !empty($squareSdk['live']),
+    'config_error' => $squareSdk['config_error'] ?? '',
 ], JSON_UNESCAPED_UNICODE)?>;
 function selectPosGateway(code, el) {
   code = String(code || '').toLowerCase();
@@ -1635,18 +1636,17 @@ function selectPosGateway(code, el) {
   } catch (e) {}
 }
 async function initSquarePos() {
-  if (!SQUARE_CFG.enabled || !window.DiparmaSquareSdk) return false;
-  if (DiparmaSquareSdk.isReady()) return true;
+  const err = document.getElementById('square-error');
   const wrap = document.getElementById('squarePosWrap');
   if (wrap) wrap.style.display = '';
-  const ok = await DiparmaSquareSdk.init(SQUARE_CFG.application_id, SQUARE_CFG.location_id, '#square-card-container');
-  const err = document.getElementById('square-error');
-  if (err) {
-    err.textContent = ok ? '' : ((DiparmaSquareSdk.lastError() || 'Square SDK init failed')
-      + (AR
-        ? ' — طابق Application ID مع بيئة SDK، وLocation ID، وأضف الدومين في Square Dashboard → Web Payments SDK.'
-        : ' — Match Application ID to the SDK environment, confirm Location ID, and allow this domain in Square Dashboard → Web Payments SDK.'));
+  if (SQUARE_CFG.config_error) {
+    if (err) err.textContent = SQUARE_CFG.config_error;
+    return false;
   }
+  if (!SQUARE_CFG.enabled || !window.DiparmaSquareSdk) return false;
+  if (DiparmaSquareSdk.isReady()) return true;
+  const ok = await DiparmaSquareSdk.init(SQUARE_CFG.application_id, SQUARE_CFG.location_id, '#square-card-container');
+  if (err) err.textContent = ok ? '' : (DiparmaSquareSdk.lastError() || 'Square SDK init failed');
   return ok;
 }
 document.addEventListener('DOMContentLoaded', function() {
@@ -1694,10 +1694,13 @@ function posSlipStatus(d) {
 function posPlainReason(raw) {
   if (raw == null) return '';
   if (typeof raw === 'object') {
-    const pick = raw.gwErrorReason || raw.errCode || raw.reason || raw.response_code
+    const sq = (raw.errors && raw.errors[0]) || (raw.payment && raw.payment.card_details && raw.payment.card_details.errors && raw.payment.card_details.errors[0]) || {};
+    const pick = raw.raw_message || raw.gwErrorReason || raw.errCode || raw.reason || raw.response_code
+      || sq.detail || sq.code
       || ((typeof raw.decline_reason === 'string' && raw.decline_reason[0] !== '{') ? raw.decline_reason : '')
       || ((typeof raw.status_message === 'string' && raw.status_message[0] !== '{') ? raw.status_message : '')
-      || ((typeof raw.message === 'string' && raw.message[0] !== '{') ? raw.message : '');
+      || ((typeof raw.message === 'string' && raw.message[0] !== '{') ? raw.message : '')
+      || raw.error_code;
     if (pick) return posPlainReason(pick);
     const dumped = JSON.stringify(raw);
     const rc = dumped.match(/\b(1507|1011|1007|1106|1019)\b/);
@@ -1710,7 +1713,7 @@ function posPlainReason(raw) {
       const rc = text.match(/\b(1507|1011|1007|1106|1019)\b/);
       if (rc) text = rc[1];
       else {
-        const quoted = text.match(/"(?:gwErrorReason|errCode|reason|decline_reason)"\s*:\s*"((?:\\.|[^"\\])*)"/);
+        const quoted = text.match(/"(?:gwErrorReason|errCode|reason|decline_reason|detail|code)"\s*:\s*"((?:\\.|[^"\\])*)"/);
         if (quoted) return posPlainReason(quoted[1].replace(/\\"/g, '"'));
         return AR ? 'رُفضت العملية' : 'DECLINED';
       }
@@ -1721,8 +1724,7 @@ function posPlainReason(raw) {
   if (/1007/.test(text)) return AR ? 'بطاقة منتهية RC 1007' : 'DECLINED RC 1007 EXPIRED CARD';
   if (/1106/.test(text)) return AR ? 'رصيد غير كافٍ RC 1106' : 'DECLINED RC 1106 INSUFFICIENT FUNDS';
   if (/1019/.test(text)) return AR ? 'رابط غير مقبول RC 1019' : 'DECLINED RC 1019 INVALID URL';
-  if (/generic\s*decline/i.test(text)) return AR ? 'رفض المصدر' : 'DECLINED ISSUER';
-  if (text.length > 64) text = text.slice(0, 61) + '...';
+  if (text.length > 96) text = text.slice(0, 93) + '...';
   return text;
 }
 
@@ -2654,6 +2656,7 @@ window.processTransaction = async function() {
   }
   const needsCard = POS_REQUIRES_CARD && cardType !== 'CLOUD' && meta.requires_card !== false && !['refund','avoid'].includes(type);
   let squareToken = '';
+  let squareLast4 = '';
   if (SQUARE_CFG.enabled && window.DiparmaSquareSdk && !['refund','avoid','capture'].includes(type)) {
     if (!DiparmaSquareSdk.isReady()) await initSquarePos();
     const tok = await DiparmaSquareSdk.tokenize();
@@ -2664,6 +2667,19 @@ window.processTransaction = async function() {
       return;
     }
     squareToken = tok.token;
+    const sqCard = (tok.details && tok.details.card) || {};
+    squareLast4 = String(sqCard.last4 || sqCard.last_4 || '').replace(/\D/g, '').slice(-4);
+    if (typeof DiparmaSquareSdk.verifyBuyer === 'function') {
+      const v = await DiparmaSquareSdk.verifyBuyer(squareToken, amount, currency, 'CHARGE', {
+        name: cardName,
+        email: (document.getElementById('posEmail')?.value || '').trim()
+      });
+      if (v && v.success === false && /cancel/i.test(String(v.message || ''))) {
+        toast(v.message || 'Square 3-D Secure cancelled', 'error');
+        return;
+      }
+      if (v && v.token) extraData.verification_token = v.token;
+    }
   }
   if (cardType === 'CLOUD') {
     if (!cloudToken || cloudToken.length < 8) {
@@ -2700,6 +2716,7 @@ window.processTransaction = async function() {
     card_type: squareToken ? 'CLOUD' : cardType, card_network: cardNetwork, cloud_token: squareToken || cloudToken,
     source_id: squareToken || undefined,
     payment_token: squareToken || cloudToken || undefined,
+    verification_token: extraData.verification_token || undefined,
     orig_ref: origRef,
     rrn: origRef,
     approval_code: approval,
@@ -2745,11 +2762,12 @@ window.processTransaction = async function() {
     let d = {};
     try { d = JSON.parse(text); } catch (parseErr) {
       showResultModal(false, { success: false });
-      updateReceipt({ success: false }, type, amount, currency, cardNum);
+      updateReceipt({ success: false, card_last4: squareLast4 }, type, amount, currency, cardNum || squareLast4);
       setPosStatus('DECLINED');
       toast('DECLINED', 'error');
       return;
     }
+    if (!d.card_last4 && squareLast4) d.card_last4 = squareLast4;
 
     if (d.requires_3ds && d.redirect_url) {
       POS.lastTxn = d;
@@ -2770,13 +2788,14 @@ window.processTransaction = async function() {
     } else {
       POS.lastTxn = d;
       updateReceipt(d, type, amount, currency, cardNum);
+      const why = posPlainReason(d.raw_message || d.message || d.error_code || d.decline_reason || 'DECLINED');
       showResultModal(false, d);
       setPosStatus('DECLINED');
-      toast('DECLINED', 'error');
+      toast(why, 'error');
     }
   } catch(e) {
     showResultModal(false, { success: false });
-    updateReceipt({ success: false }, type, amount, currency, cardNum);
+    updateReceipt({ success: false, card_last4: squareLast4 }, type, amount, currency, cardNum || squareLast4);
     toast('DECLINED', 'error');
     setPosStatus('DECLINED');
   } finally {
@@ -2797,37 +2816,56 @@ function setPosStatus(msg) {
 
 // ── Update Receipt ────────────────────────────────
 function updateReceipt(d, type, amount, currency, cardNum) {
-  const now = new Date();
+  const now = d && d.timestamp ? new Date(d.timestamp) : new Date();
+  const when = Number.isNaN(now.getTime()) ? new Date() : now;
   const pad = (n) => String(n).padStart(2, '0');
-  const dateStr = pad(now.getDate()) + '/' + pad(now.getMonth() + 1) + '/' + now.getFullYear();
-  const timeStr = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+  const dateStr = pad(when.getDate()) + '/' + pad(when.getMonth() + 1) + '/' + when.getFullYear();
+  const timeStr = pad(when.getHours()) + ':' + pad(when.getMinutes()) + ':' + pad(when.getSeconds());
   const tid = document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || d.terminal_id || '';
   const mid = document.getElementById('merchantId')?.value || POS_DEVICE.merchant_id || (POS_MERCHANT && POS_MERCHANT.brand) || 'DIPARMA';
-  const last4 = d.card_last4 || (cardNum ? cardNum.slice(-4) : '');
-  const pan = last4 ? ('************' + last4) : (cardNum || 'PAN');
-  const entry = document.getElementById('posInputMode')?.value || POS.inputMode || 'manual';
+  const last4 = String(d.card_last4 || (cardNum ? String(cardNum).replace(/\D/g, '').slice(-4) : '')).replace(/\D/g, '').slice(-4);
+  const pan = last4 ? ('************' + last4) : '************';
+  const entry = (document.getElementById('posInputMode')?.value || POS.inputMode || 'manual').toString().toUpperCase();
   const status = posSlipStatus(d);
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  set('rDate', posSeal(dateStr));
-  set('rTime', posSeal(timeStr));
-  set('rTid', posSeal(tid));
-  set('rMid', posSeal(mid));
-  set('rBatch', posSeal(d.stan || d.reference || 'BATCH1'));
-  set('rStan', posSeal(d.stan || d.reference || 'STAN'));
-  set('rType', posSeal(d.operation_name || type || 'SALE'));
-  set('rEntry', posSeal(entry));
-  set('rCard', posSeal(pan));
+  const clearDash = (v) => {
+    const s = String(v == null ? '' : v).trim();
+    return s ? s : '—';
+  };
+  const ledgerRaw = String(d.ledger_txid || d.ledger_address || '').trim();
+  const ledgerShow = ledgerRaw
+    ? (ledgerRaw.length > 10 ? (ledgerRaw.slice(0, 6) + '…' + ledgerRaw.slice(-4)) : ledgerRaw)
+    : '—';
+  set('rDate', dateStr);
+  set('rTime', timeStr);
+  set('rTid', clearDash(tid));
+  set('rMid', clearDash(mid));
+  set('rBatch', clearDash(d.stan || d.reference || ''));
+  set('rStan', clearDash(d.stan || d.reference || ''));
+  set('rType', clearDash(d.operation_name || type || 'SALE'));
+  set('rEntry', clearDash(entry));
+  set('rCard', pan);
   set('rAmount', parseFloat(amount || 0).toFixed(2));
   set('rCurrency', currency || 'USD');
-  set('rRc', posSeal(d.response_code || (status === 'APPROVED' ? '00' : '05')));
-  set('rApproval', posSeal(d.approval_code || d.bank_approval_code || 'AUTH'));
-  set('rRRN', posSeal(d.rrn || d.original_rrn || 'RRN'));
-  set('rRef', posSeal(d.reference || 'TRACE'));
-  set('rNuvei', posSeal(d.nuvei_txn_id || d.payment_id || 'HOST'));
+  set('rRc', clearDash(d.response_code || (status === 'APPROVED' ? '00' : '05')));
+  set('rApproval', clearDash(d.approval_code || d.bank_approval_code || ''));
+  set('rRRN', clearDash(d.rrn || d.original_rrn || d.reference || ''));
+  set('rRef', clearDash(d.reference || ''));
+  set('rNuvei', clearDash(d.nuvei_txn_id || d.payment_id || d.rrn || ''));
   const merch = document.getElementById('rMerchantSeal');
-  if (merch) merch.textContent = posSeal((POS_MERCHANT && POS_MERCHANT.legal_name) || 'MERCHANT');
+  if (merch) merch.textContent = (POS_MERCHANT && (POS_MERCHANT.legal_name || POS_MERCHANT.brand)) || 'DIPARMA';
   const reasonEl = document.getElementById('rReason');
-  if (reasonEl) { reasonEl.textContent = ''; reasonEl.style.display = 'none'; }
+  const whyRaw = posPlainReason(d && (d.raw_message || d.message || d.error_code) || '');
+  const why = whyRaw && !/^DECLINED$/i.test(whyRaw) && whyRaw !== 'رُفضت العملية' ? whyRaw : '';
+  if (reasonEl) {
+    if (status === 'DECLINED' && why) {
+      reasonEl.textContent = why;
+      reasonEl.style.display = '';
+    } else {
+      reasonEl.textContent = '';
+      reasonEl.style.display = 'none';
+    }
+  }
   const banner = document.getElementById('rBanner');
   if (banner) {
     banner.textContent = status;
@@ -2836,7 +2874,7 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const ledEl = document.getElementById('rLedger');
   const ledRow = document.getElementById('rLedgerRow');
   if (ledRow) ledRow.style.display = 'flex';
-  if (ledEl) ledEl.textContent = posSeal(d.ledger_txid || d.ledger_address || 'LEDGER');
+  if (ledEl) ledEl.textContent = ledgerShow;
   set('rStatus', status);
   const foot = document.getElementById('receiptFooter');
   if (foot) foot.innerHTML = status + '<br>*** COPY ***';
@@ -2852,10 +2890,18 @@ function showResultModal(success, d) {
   document.getElementById('modalTitle').textContent = status;
   document.getElementById('modalTitle').style.color = status === 'APPROVED' ? 'var(--green)' : (status === 'DECLINED' ? 'var(--red)' : 'var(--gold)');
   document.getElementById('modalRef').textContent = '';
+  const whyRaw = posPlainReason(d && (d.raw_message || d.message || d.error_code) || '');
+  const why = whyRaw && !/^DECLINED$/i.test(whyRaw) && whyRaw !== 'رُفضت العملية' ? whyRaw : '';
+  const rrn = String((d && (d.rrn || d.original_rrn)) || '').trim();
+  const auth = String((d && (d.approval_code || d.bank_approval_code)) || '').trim();
   document.getElementById('modalDetails').innerHTML = `
     <div style="background:#fff;color:#111;border-radius:4px;padding:16px;font-family:ui-monospace,monospace;text-align:center">
       <div style="font-weight:900;letter-spacing:.2em;margin-bottom:10px">${status}</div>
       <div style="font-size:1.4rem;font-weight:900">${amt} ${cur}</div>
+      <div style="margin-top:10px;font-size:.72rem;font-weight:700;letter-spacing:.04em">${(d && d.operation_name) || ''}</div>
+      ${rrn ? `<div style="margin-top:6px;font-size:.72rem">RRN ${rrn}</div>` : ''}
+      ${auth ? `<div style="font-size:.72rem">APPROVAL CODE ${auth}</div>` : ''}
+      ${status !== 'APPROVED' && why ? `<div style="margin-top:10px;font-size:.78rem;font-weight:700;color:#b42318">${why}</div>` : ''}
     </div>
   `;
 

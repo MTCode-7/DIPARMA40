@@ -14,6 +14,7 @@
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/pos/lib/operations.php';
 
 // ============================================================
 // 2. تحديد اللغة والاتجاه
@@ -261,17 +262,40 @@ $showLedgerSection = ($ledgerAddr !== '—')
     || !empty($ledgerTxid);
 
 
-$maskedCardholderName = receiptMaskName((string)$cardholderName);
-$maskedCardExpiry = $cardExpiry !== '—' ? receiptMask((string)$cardExpiry, 0, 2) : '—';
-$maskedEmail = $customerEmail !== '—' ? receiptMaskEmail((string)$customerEmail) : '—';
-$maskedPhone = $customerPhone !== '—' ? receiptMask((string)$customerPhone, 3, 2) : '—';
-$maskedAuthCode = receiptMask((string)$authCode, 1, 1);
-$maskedBankApprovalCode = receiptMask((string)$bankApprovalCode, 1, 1);
-$maskedRrn = receiptMask((string)$rrn, 2, 2);
-$maskedStan = receiptMask((string)$stan, 2, 2);
-$maskedPaymentId = receiptMask((string)$paymentId, 4, 4);
-$maskedInternalApproval = receiptMask((string)$internalApprovalCode, 2, 2);
-$maskedLedgerAddr = receiptMask((string)$ledgerAddr, 6, 4);
+$clearOrDash = static function ($value): string {
+    $s = trim((string) $value);
+    return ($s === '' || $s === '—') ? '—' : $s;
+};
+$seal = static function ($value): string {
+    return pos_receipt_seal((string) $value);
+};
+$maskedCardholderName = $seal($cardholderName);
+$maskedCardExpiry = $cardExpiry !== '—' ? $seal($cardExpiry) : '—';
+$maskedEmail = $customerEmail !== '—' ? $seal($customerEmail) : '—';
+$maskedPhone = $customerPhone !== '—' ? $seal($customerPhone) : '—';
+$clearAuthCode = $clearOrDash($authCode);
+$clearBankApprovalCode = $clearOrDash($bankApprovalCode);
+$clearRrn = $clearOrDash($rrn);
+$maskedStan = $seal($stan);
+$maskedPaymentId = $seal($paymentId);
+$maskedInternalApproval = $seal($internalApprovalCode);
+$maskedLedgerAddr = $ledgerAddr !== '—' ? $seal($ledgerAddr) : '—';
+$sealedDate = $seal($dateStr);
+$sealedTime = $seal($timeStr);
+$sealedRef = $seal($ref);
+$sealedMerchant = $seal($merchantName);
+$sealedMerchantId = $seal($merchantId);
+$sealedAcquirer = $seal($acquirer);
+$sealedAcquirerId = $acquirerId !== '' ? $seal($acquirerId) : '—';
+$sealedMcc = $seal($merchantCategory);
+$sealedCity = $seal($merchantCity . ', ' . $merchantCountry);
+$sealedGateway = $seal($gateway);
+$sealedSecMode = $seal($secMode);
+$sealedAuthType = $seal($authType);
+$sealedCardBrand = $seal($cardBrand . ' ' . $cardType);
+$sealedCardLast4 = $seal($cardLast4);
+$sealedAddress = $seal('Al Barsha 1, Dubai, UAE | diparmas.com');
+$sealedLedgerTxid = $ledgerTxid ? $seal($ledgerTxid) : '';
 
 // 6.10 تحديد الحالة النهائية
 $isApproved = in_array(strtolower($txn['status'] ?? ''), ['completed', 'captured', 'authorized', 'settled', 'approved']);
@@ -768,8 +792,8 @@ if (function_exists('redact_protocol_numbers')) {
         <div class="receipt-header">
             <div class="logo">DI PARMA</div>
             <div class="subtitle">✦ ULTIMATE GATEWAY ✦</div>
-            <div class="company"><?=$merchantName?></div>
-            <div class="address">Al Barsha 1, Dubai, UAE | diparmas.com</div>
+            <div class="company"><?=htmlspecialchars($sealedMerchant)?></div>
+            <div class="address"><?=htmlspecialchars($sealedAddress)?></div>
         </div>
 
         <!-- حالة المعاملة -->
@@ -779,7 +803,7 @@ if (function_exists('redact_protocol_numbers')) {
                 <?=$statusText?>
             </div>
             <div class="status-type">
-                <?=$txnType?> &bull; <?=$gateway?> &bull; <?=$secMode?>
+                <?=htmlspecialchars($txnType)?>
             </div>
         </div>
 
@@ -787,11 +811,11 @@ if (function_exists('redact_protocol_numbers')) {
         <div class="section">
             <div class="row">
                 <span class="label">DATE / TIME</span>
-                <span class="value"><?=$dateStr?> <?=$timeStr?></span>
+                <span class="value"><?=htmlspecialchars($sealedDate)?> <?=htmlspecialchars($sealedTime)?></span>
             </div>
             <div class="row">
                 <span class="label">REFERENCE</span>
-                <span class="value small"><?=htmlspecialchars($ref)?></span>
+                <span class="value small"><?=htmlspecialchars($sealedRef)?></span>
             </div>
             <div class="row">
                 <span class="label">STAN</span>
@@ -799,7 +823,11 @@ if (function_exists('redact_protocol_numbers')) {
             </div>
             <div class="row">
                 <span class="label">RRN</span>
-                <span class="value small"><?=htmlspecialchars($maskedRrn)?></span>
+                <span class="value small"><?=htmlspecialchars($clearRrn)?></span>
+            </div>
+            <div class="row">
+                <span class="label">APPROVAL CODE</span>
+                <span class="value highlight"><?=htmlspecialchars($clearAuthCode)?></span>
             </div>
         </div>
 
@@ -817,16 +845,16 @@ if (function_exists('redact_protocol_numbers')) {
             <div class="card-details">
                 <div class="row">
                     <span class="label">CARD</span>
-                    <span class="value"><?=htmlspecialchars($cardBrand)?> <?=htmlspecialchars($cardType)?></span>
+                    <span class="value"><?=htmlspecialchars($sealedCardBrand)?></span>
                 </div>
                 <div class="row">
                     <span class="label">CARD NUMBER</span>
-                    <span class="value">•••• •••• •••• <?=htmlspecialchars($cardLast4)?></span>
+                    <span class="value">•••• •••• •••• <?=htmlspecialchars(substr((string)$cardLast4, -4) ?: '••••')?></span>
                 </div>
                 <?php if ($cardholderName && $cardholderName !== '—'): ?>
                 <div class="row">
                     <span class="label">CARDHOLDER</span>
-                    <span class="value"><?=htmlspecialchars(strtoupper($maskedCardholderName))?></span>
+                    <span class="value"><?=htmlspecialchars($maskedCardholderName)?></span>
                 </div>
                 <?php endif; ?>
                 <?php if ($cardExpiry !== '—'): ?>
@@ -841,12 +869,12 @@ if (function_exists('redact_protocol_numbers')) {
                 </div>
                 <div class="row">
                     <span class="label">AUTH CODE</span>
-                    <span class="value highlight"><?=htmlspecialchars($maskedAuthCode)?></span>
+                    <span class="value highlight"><?=htmlspecialchars($clearAuthCode)?></span>
                 </div>
-                <?php if ($bankApprovalCode !== '—'): ?>
+                <?php if ($clearBankApprovalCode !== '—'): ?>
                 <div class="row">
                     <span class="label">BANK APPROVAL CODE</span>
-                    <span class="value highlight"><?=htmlspecialchars($maskedBankApprovalCode)?></span>
+                    <span class="value highlight"><?=htmlspecialchars($clearBankApprovalCode)?></span>
                 </div>
                 <?php endif; ?>
                 <?php if ($paymentId && $paymentId !== '—'): ?>
@@ -863,7 +891,7 @@ if (function_exists('redact_protocol_numbers')) {
                 <?php endif; ?>
                 <div class="row">
                     <span class="label">AUTH TYPE</span>
-                    <span class="value"><?=htmlspecialchars($authType)?></span>
+                    <span class="value"><?=htmlspecialchars($sealedAuthType)?></span>
                 </div>
             </div>
         </div>
@@ -891,27 +919,27 @@ if (function_exists('redact_protocol_numbers')) {
             <div class="divider">— ACQUIRER & MERCHANT —</div>
             <div class="row">
                 <span class="label">ACQUIRER</span>
-                <span class="value"><?=htmlspecialchars($acquirer)?></span>
+                <span class="value"><?=htmlspecialchars($sealedAcquirer)?></span>
             </div>
             <div class="row">
                 <span class="label">ACQUIRER ID</span>
-                <span class="value"><?=htmlspecialchars($acquirerId)?></span>
+                <span class="value"><?=htmlspecialchars($sealedAcquirerId)?></span>
             </div>
             <div class="row">
                 <span class="label">MERCHANT</span>
-                <span class="value"><?=htmlspecialchars($merchantName)?></span>
+                <span class="value"><?=htmlspecialchars($sealedMerchant)?></span>
             </div>
             <div class="row">
                 <span class="label">MERCHANT ID</span>
-                <span class="value"><?=htmlspecialchars($merchantId)?></span>
+                <span class="value"><?=htmlspecialchars($sealedMerchantId)?></span>
             </div>
             <div class="row">
                 <span class="label">MCC</span>
-                <span class="value"><?=htmlspecialchars($merchantCategory)?></span>
+                <span class="value"><?=htmlspecialchars($sealedMcc)?></span>
             </div>
             <div class="row">
                 <span class="label">CITY / COUNTRY</span>
-                <span class="value"><?=$merchantCity?>, <?=$merchantCountry?></span>
+                <span class="value"><?=htmlspecialchars($sealedCity)?></span>
             </div>
         </div>
 
@@ -940,10 +968,6 @@ if (function_exists('redact_protocol_numbers')) {
             <div class="crypto-details">
                 <div class="crypto-label">⬡ USDT TRC20 → LEDGER</div>
                 <div class="crypto-addr"><?=htmlspecialchars($maskedLedgerAddr)?></div>
-                <div class="row" style="margin-top:6px">
-                    <span class="label">FULL ADDRESS</span>
-                    <span class="value small"><?=htmlspecialchars((string)$ledgerAddr)?></span>
-                </div>
                 <?php if ($gatewayFeeAmt > 0 || $feeBase > 0): ?>
                 <div class="row" style="margin-top:4px">
                     <span class="label">GATEWAY FEE BASE<?=$feePct !== null ? ' ('.$feePct.'%)' : ''?></span>
@@ -972,13 +996,9 @@ if (function_exists('redact_protocol_numbers')) {
                     <span class="value"><?=htmlspecialchars($ledgerStatusLabel)?></span>
                 </div>
                 <?php endif; ?>
-                <?php if ($ledgerTxid): ?>
+                <?php if ($sealedLedgerTxid !== ''): ?>
                 <div class="crypto-txid">
-                    TX: <?=htmlspecialchars($ledgerTxid)?>
-                    <br>
-                    <a href="https://tronscan.org/#/transaction/<?=urlencode($ledgerTxid)?>" target="_blank">
-                        View on TronScan ↗
-                    </a>
+                    TX: <?=htmlspecialchars($sealedLedgerTxid)?>
                 </div>
                 <?php elseif ($ledgerStatusLabel === 'QUEUED' || $ledgerStatusLabel === 'PENDING'): ?>
                 <div style="font-size:9px;color:#999;margin-top:4px">⏳ Transfer: <?=htmlspecialchars($ledgerStatusLabel)?></div>
@@ -995,7 +1015,7 @@ if (function_exists('redact_protocol_numbers')) {
             <strong>✓ THANK YOU FOR YOUR BUSINESS ✓</strong><br>
             Powered by DI PARMA Gateway © <?=date('Y')?><br>
             This is an official payment receipt<br>
-            <span class="footer-small">Keep for your records — <?=htmlspecialchars($ref)?></span><br>
+            <span class="footer-small">Keep for your records — <?=htmlspecialchars($sealedRef)?></span><br>
             <span class="footer-small">Transactions are subject to verification</span>
         </div>
 
