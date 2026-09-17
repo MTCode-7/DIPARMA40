@@ -273,6 +273,7 @@ class SquareAdapter implements GatewayAdapterInterface
                     'requires_3ds' => false,
                     'redirect_url' => '',
                     'error_code' => '',
+                    'card_last4' => $this->cardLast4($payment),
                     'raw' => $res,
                 ];
                 GatewayLogger::log('square', $autocomplete ? 'charge' : 'hold', $payload, $result, '', $duration);
@@ -287,12 +288,24 @@ class SquareAdapter implements GatewayAdapterInterface
             $out['transaction_id'] = $payId;
             $out['rrn'] = $payId !== '' ? $payId : $reference;
             $out['approval_code'] = $auth;
+            $out['card_last4'] = $this->cardLast4($payment);
             $out['raw'] = $res;
             return $out;
         } catch (Throwable $e) {
             GatewayLogger::log('square', $autocomplete ? 'charge' : 'hold', $payload, ['exception' => $e->getMessage()], 'NETWORK_ERROR', microtime(true) - $start);
             return GatewayErrorMapper::buildErrorResponse('NETWORK_ERROR', $reference, $amount, $currency, $e->getMessage());
         }
+    }
+
+    private function cardLast4(array $payment): string
+    {
+        $last = (string) (
+            $payment['card_details']['card']['last_4']
+            ?? $payment['card_details']['card']['last4']
+            ?? ''
+        );
+        $last = preg_replace('/\D+/', '', $last) ?? '';
+        return strlen($last) >= 4 ? substr($last, -4) : $last;
     }
 
     private function errorMessage(array $res): string

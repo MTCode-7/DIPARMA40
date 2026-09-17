@@ -427,6 +427,7 @@ $originalRrn = $origRef;
 $stan = '';
 $approvalCode = '';
 $nuveiTxnId = null;
+$cardLast4 = '';
 $gatewayResponse = [];
 $requires3ds = false;
 $redirectUrl = null;
@@ -616,6 +617,13 @@ if ($useCardGateway) {
         if ($rrn === '') {
             $rrn = $reference;
         }
+        $cardLast4 = preg_replace('/\D+/', '', (string) ($result['card_last4'] ?? '')) ?? '';
+        if ($cardLast4 === '' && $cardNumber !== '') {
+            $cardLast4 = substr($cardNumber, -4);
+        }
+        if (strlen($cardLast4) > 4) {
+            $cardLast4 = substr($cardLast4, -4);
+        }
         if (in_array($txnType, ['capture'], true) && $rrn === '') {
             $rrn = $originalRrn;
         }
@@ -720,7 +728,7 @@ try {
         'transaction_label' => $displayOperation,
         'amount' => $amount,
         'currency' => $currency,
-        'card_last4' => substr($cardNumber, -4),
+        'card_last4' => $cardLast4,
         'security_mode' => $secMode,
         'status' => $requires3ds ? 'pending' : ($success ? ($txnType === 'auth' ? 'authorized' : 'completed') : 'failed'),
         'gateway_response' => json_encode([
@@ -914,7 +922,7 @@ echo json_encode([
     'amount' => $amount,
     'currency' => $currency,
     'response_code' => $responseCode,
-    'card_last4' => $cardNumber !== '' ? substr($cardNumber, -4) : '',
+    'card_last4' => $cardLast4,
     'status_message' => $message,
     'message' => $message,
     'decline_reason' => $success ? null : $message,

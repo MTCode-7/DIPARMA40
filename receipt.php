@@ -849,7 +849,7 @@ if (function_exists('redact_protocol_numbers')) {
                 </div>
                 <div class="row">
                     <span class="label">CARD NUMBER</span>
-                    <span class="value"><?=htmlspecialchars($sealedCardLast4)?></span>
+                    <span class="value">•••• •••• •••• <?=htmlspecialchars(substr((string)$cardLast4, -4) ?: '••••')?></span>
                 </div>
                 <?php if ($cardholderName && $cardholderName !== '—'): ?>
                 <div class="row">
