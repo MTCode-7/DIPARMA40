@@ -2846,7 +2846,8 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const merch = document.getElementById('rMerchantSeal');
   if (merch) merch.textContent = posSeal((POS_MERCHANT && POS_MERCHANT.legal_name) || 'MERCHANT');
   const reasonEl = document.getElementById('rReason');
-  const why = posPlainReason(d && (d.raw_message || d.message || d.error_code) || '');
+  const whyRaw = posPlainReason(d && (d.raw_message || d.message || d.error_code) || '');
+  const why = whyRaw && !/^DECLINED$/i.test(whyRaw) && whyRaw !== 'رُفضت العملية' ? whyRaw : '';
   if (reasonEl) {
     if (status === 'DECLINED' && why) {
       reasonEl.textContent = why;
@@ -2880,11 +2881,17 @@ function showResultModal(success, d) {
   document.getElementById('modalTitle').textContent = status;
   document.getElementById('modalTitle').style.color = status === 'APPROVED' ? 'var(--green)' : (status === 'DECLINED' ? 'var(--red)' : 'var(--gold)');
   document.getElementById('modalRef').textContent = '';
-  const why = posPlainReason(d && (d.raw_message || d.message || d.error_code) || '');
+  const whyRaw = posPlainReason(d && (d.raw_message || d.message || d.error_code) || '');
+  const why = whyRaw && !/^DECLINED$/i.test(whyRaw) && whyRaw !== 'رُفضت العملية' ? whyRaw : '';
+  const rrn = String((d && (d.rrn || d.original_rrn)) || '').trim();
+  const auth = String((d && (d.approval_code || d.bank_approval_code)) || '').trim();
   document.getElementById('modalDetails').innerHTML = `
     <div style="background:#fff;color:#111;border-radius:4px;padding:16px;font-family:ui-monospace,monospace;text-align:center">
       <div style="font-weight:900;letter-spacing:.2em;margin-bottom:10px">${status}</div>
       <div style="font-size:1.4rem;font-weight:900">${amt} ${cur}</div>
+      <div style="margin-top:10px;font-size:.72rem;font-weight:700;letter-spacing:.04em">${(d && d.operation_name) || ''}</div>
+      ${rrn ? `<div style="margin-top:6px;font-size:.72rem">RRN ${rrn}</div>` : ''}
+      ${auth ? `<div style="font-size:.72rem">APPROVAL CODE ${auth}</div>` : ''}
       ${status !== 'APPROVED' && why ? `<div style="margin-top:10px;font-size:.78rem;font-weight:700;color:#b42318">${why}</div>` : ''}
     </div>
   `;

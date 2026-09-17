@@ -281,7 +281,14 @@ class SquareAdapter implements GatewayAdapterInterface
 
             $err = $this->normalizeError($res);
             GatewayLogger::log('square', $autocomplete ? 'charge' : 'hold', $payload, $res, $err, $duration);
-            return GatewayErrorMapper::buildErrorResponse($err, $reference, $amount, $currency, $this->errorMessage($res));
+            $out = GatewayErrorMapper::buildErrorResponse($err, $reference, $amount, $currency, $this->errorMessage($res));
+            $payId = trim((string) ($payment['id'] ?? ''));
+            $auth = trim((string) ($payment['card_details']['auth_result_code'] ?? ''));
+            $out['transaction_id'] = $payId;
+            $out['rrn'] = $payId !== '' ? $payId : $reference;
+            $out['approval_code'] = $auth;
+            $out['raw'] = $res;
+            return $out;
         } catch (Throwable $e) {
             GatewayLogger::log('square', $autocomplete ? 'charge' : 'hold', $payload, ['exception' => $e->getMessage()], 'NETWORK_ERROR', microtime(true) - $start);
             return GatewayErrorMapper::buildErrorResponse('NETWORK_ERROR', $reference, $amount, $currency, $e->getMessage());

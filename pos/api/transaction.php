@@ -611,8 +611,11 @@ if ($useCardGateway) {
         if ($responseCode === '' && preg_match('/\b(\d{4})\b/', $message, $mRc)) {
             $responseCode = $mRc[1];
         }
-        $approvalCode = $result['approval_code'] ?? '';
-        $rrn = $result['rrn'] ?? '';
+        $approvalCode = trim((string) ($result['approval_code'] ?? $result['auth_code'] ?? ''));
+        $rrn = trim((string) ($result['rrn'] ?? $result['transaction_id'] ?? $result['payment_id'] ?? ''));
+        if ($rrn === '') {
+            $rrn = $reference;
+        }
         if (in_array($txnType, ['capture'], true) && $rrn === '') {
             $rrn = $originalRrn;
         }
