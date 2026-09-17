@@ -140,7 +140,8 @@ if (!isset($txnTypes[$startOp])) {
     $startOp = 'purchase_3d';
 }
 $startMode = strtolower(trim((string)($_GET['mode'] ?? '')));
-if ($startMode === '' && $kiosk) {
+$sunmiPhysical = in_array((string) ($posDevice['model'] ?? ''), ['sunmi_v3', 'sunmi_v3_mix'], true);
+if ($startMode === '' && ($kiosk || $sunmiPhysical)) {
     $startMode = 'physical';
 }
 if (!in_array($startMode, ['manual', 'physical'], true)) {
@@ -1130,8 +1131,12 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
         <div style="font-size:1.6rem;margin-bottom:8px"><i class="fas fa-credit-card" style="color:var(--green)"></i></div>
         <div style="font-weight:800;color:var(--green);margin-bottom:6px" id="physTitle"><?=$ar?'قارئ POS الحقيقي مطلوب':'A real POS reader is required'?></div>
         <div style="font-size:.74rem;color:var(--muted2)" id="physHint"><?=$ar
-          ? ('لا محاكاة — الشريحة من جهاز '.htmlspecialchars($posDevice['label']).' فقط. بدون PAN حقيقي لن تُنفَّذ العملية. إن كان الجهاز Keyboard Wedge امسح البطاقة هنا.')
-          : ('No simulation — chip data must come from '.htmlspecialchars($posDevice['label']).'. No real PAN, no charge. If the device is a keyboard wedge, swipe here.')?></div>
+          ? ('لا محاكاة — الشريحة أو المغناطيس من '.htmlspecialchars($posDevice['label']).'. مرّر البطاقة الآن. TID حقيقي مطلوب — ليس الرقم التسلسلي.')
+          : ('No simulation — chip/magstripe from '.htmlspecialchars($posDevice['label']).'. Swipe now. Use a real TID — not the device serial.')?></div>
+        <input id="wedgeCapture" type="text" inputmode="none" autocomplete="off" autocapitalize="off" spellcheck="false"
+          style="margin-top:12px;width:100%;background:#020508;border:1px dashed rgba(16,185,129,.45);color:var(--green);border-radius:10px;padding:12px;font-weight:800;letter-spacing:.04em"
+          placeholder="<?=$ar?'مرّر البطاقة هنا':'Swipe the card here'?>">
+        <div id="wedgeLast4" style="margin-top:8px;font-size:.78rem;color:var(--gold);min-height:1.2em"></div>
       </div>
       <?php if ($linkedWallets): ?>
       <div class="fld">
@@ -2550,8 +2555,15 @@ window.setInputMode = function(mode) {
   document.getElementById('manualBox').classList.toggle('hidden', mode === 'physical');
   document.getElementById('physicalBox').classList.toggle('hidden', mode === 'manual');
   setPosStatus(mode === 'physical'
-    ? (AR ? 'بانتظار تمرير البطاقة (شريحة أو NFC)' : 'WAITING CARD TAP / CHIP')
+    ? (AR ? 'بانتظار تمرير البطاقة على القارئ' : 'WAITING CARD ON READER')
     : (AR ? 'مانول — بدون تمرير البطاقة' : 'MANUAL — NO CARD TAP REQUIRED'));
+  if (mode === 'physical') {
+    const w = document.getElementById('wedgeCapture');
+    if (w) {
+      w.value = '';
+      setTimeout(function(){ try { w.focus(); } catch (e) {} }, 50);
+    }
+  }
 };
 if (typeof resetCardAuto === 'function') resetCardAuto();
 </script>
@@ -3126,17 +3138,12 @@ function toast(msg, type='info') {
   t._t = setTimeout(()=>{ t.style.transform='translateX(-50%) translateY(100px)'; }, 4500);
 }
 
-// Keyboard-wedge / IC3600 HID: Track 2 → PAN + expiry (physical or kiosk)
+// Keyboard-wedge / Sunmi V3 MIX HID: Track 2 → PAN + expiry
 (function bindPosWedge() {
   let buf = '';
   let t = null;
-  const flush = () => {
-    const raw = buf;
-    buf = '';
-    const m = raw.match(/[;%]?B?(\d{13,19})[=D](\d{4})/i) || raw.match(/(\d{13,19})[=D](\d{4})/);
-    if (!m) return;
-    const pan = m[1];
-    const exp = m[2].substring(2, 4) + '/' + m[2].substring(0, 2);
+  function applyPan(pan, yyMM) {
+    const exp = yyMM.substring(2, 4) + '/' + yyMM.substring(0, 2);
     const numEl = document.getElementById('cardNumber');
     const expEl = document.getElementById('cardExpiry');
     if (numEl) {
@@ -3148,13 +3155,28 @@ function toast(msg, type='info') {
       if (typeof formatExp === 'function') formatExp(expEl);
     }
     POS.cardInserted = true;
+    const last4 = document.getElementById('wedgeLast4');
+    if (last4) last4.textContent = (AR ? 'آخر 4: ' : 'Last 4: ') + pan.slice(-4);
+    const cap = document.getElementById('wedgeCapture');
+    if (cap) cap.value = '';
     setPosStatus(AR ? 'تم قراءة البطاقة' : 'CARD READ');
     toast(AR ? 'تم التقاط البطاقة من القارئ' : 'Card captured from reader', 'success');
+  }
+  function parseTrack(raw) {
+    const m = String(raw || '').match(/[;%]?B?(\d{13,19})[=D](\d{4})/i) || String(raw || '').match(/(\d{13,19})[=D](\d{4})/);
+    if (!m) return false;
+    applyPan(m[1], m[2]);
+    return true;
+  }
+  const flush = () => {
+    const raw = buf;
+    buf = '';
+    parseTrack(raw);
   };
   document.addEventListener('keydown', function (e) {
-    const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (POS.inputMode !== 'physical' && !(typeof KIOSK !== 'undefined' && KIOSK)) return;
+    const id = (e.target && e.target.id) ? e.target.id : '';
+    if (id === 'amountDisplay' || id === 'txnAmount') return;
     if (e.key === 'Enter') {
       if (buf.length >= 13) {
         e.preventDefault();
@@ -3165,8 +3187,12 @@ function toast(msg, type='info') {
     if (e.key && e.key.length === 1) {
       buf += e.key;
       clearTimeout(t);
-      t = setTimeout(() => { if (buf.length >= 13) flush(); else buf = ''; }, 400);
+      t = setTimeout(() => { if (buf.length >= 13) flush(); else buf = ''; }, 450);
     }
+  }, true);
+  document.addEventListener('input', function (e) {
+    if (!e.target || e.target.id !== 'wedgeCapture') return;
+    if (parseTrack(e.target.value)) e.target.value = '';
   });
 })();
 

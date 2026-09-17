@@ -86,6 +86,7 @@ function pos_company_slot_models(): array
         ['model' => 'alinma_pos', 'brand' => 'Alinma', 'name' => 'POS', 'note' => 'مصرف الإنماء — أضف TID'],
         ['model' => 'verifone_vx675', 'brand' => 'Verifone', 'name' => 'VX 675', 'note' => 'Nuvei — أضف TID'],
         ['model' => 'sunmi_v3', 'brand' => 'Sunmi', 'name' => 'V3', 'note' => 'أضف TID'],
+        ['model' => 'sunmi_v3_mix', 'brand' => 'Sunmi', 'name' => 'V3 MIX', 'note' => 'قارئ شريحة/NFC — أضف TID الحقيقي وليس الرقم التسلسلي'],
     ];
 }
 

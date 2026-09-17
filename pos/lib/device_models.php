@@ -219,6 +219,8 @@ function pos_device_regional_models(): array
         pos_m('nexgo_n96', 'Nexgo', 'N96', $a, 'east_asia'),
         pos_m('sunmi_p3', 'Sunmi', 'P3', $a, 'east_asia'),
         pos_m('sunmi_v2', 'Sunmi', 'V2', $a, 'east_asia'),
+        pos_m('sunmi_v3', 'Sunmi', 'V3', $a, 'east_asia'),
+        pos_m('sunmi_v3_mix', 'Sunmi', 'V3 MIX', $a, 'east_asia'),
         pos_m('sunmi_t2', 'Sunmi', 'T2', $a, 'east_asia'),
         pos_m('castles_s1d2', 'Castles', 'S1D2', $a, 'east_asia'),
 
