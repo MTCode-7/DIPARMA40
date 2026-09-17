@@ -136,7 +136,11 @@ class GatewayErrorMapper
 
     public static function fromSquare(array $response): string
     {
-        $code = strtoupper((string) ($response['errors'][0]['code'] ?? ''));
+        $code = strtoupper((string) (
+            $response['errors'][0]['code']
+            ?? $response['payment']['card_details']['errors'][0]['code']
+            ?? ''
+        ));
         $map = [
             'CARD_DECLINED' => 'CARD_DECLINED',
             'GENERIC_DECLINE' => 'CARD_DECLINED',

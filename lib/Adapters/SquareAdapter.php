@@ -211,20 +211,45 @@ class SquareAdapter implements GatewayAdapterInterface
         }
 
         $start = microtime(true);
+        $chargeCurrency = $currency;
+        $chargeAmount = $amount;
+        $locCurrency = $this->locationCurrency($locationId);
+        if ($locCurrency === '') {
+            $locCurrency = 'USD';
+        }
+        if ($chargeCurrency !== $locCurrency) {
+            if (in_array($chargeCurrency, ['USDT', 'USDC', 'USD'], true) && $locCurrency === 'USD') {
+                $chargeCurrency = 'USD';
+            } else {
+                return GatewayErrorMapper::buildErrorResponse(
+                    'GATEWAY_ERROR',
+                    $reference,
+                    $amount,
+                    $currency,
+                    'Square location currency is ' . $locCurrency . '; POS sent ' . $currency
+                );
+            }
+        }
+
         $body = [
             'source_id' => $sourceId,
-            'idempotency_key' => $this->buildIdempotencyKey($reference . ($autocomplete ? 'c' : 'h'), $amount),
+            'idempotency_key' => $this->buildIdempotencyKey($reference . ($autocomplete ? 'c' : 'h'), $chargeAmount),
             'amount_money' => [
-                'amount' => (int) round($amount * 100),
-                'currency' => $currency,
+                'amount' => (int) round($chargeAmount * 100),
+                'currency' => $chargeCurrency,
             ],
             'autocomplete' => $autocomplete,
             'location_id' => $locationId,
-            'reference_id' => substr($reference, 0, 40),
-            'note' => 'DIPARMA ' . ($payload['txn_type'] ?? 'sale'),
+            'reference_id' => substr(preg_replace('/[^A-Za-z0-9:_-]/', '', $reference) ?: ('sq' . date('YmdHis')), 0, 40),
+            'note' => 'DIPARMA ' . preg_replace('/[^A-Za-z0-9 _-]/', '', (string) ($payload['txn_type'] ?? 'sale')),
         ];
-        if (!empty($payload['email'])) {
-            $body['buyer_email_address'] = (string) $payload['email'];
+        $verification = trim((string) ($payload['verification_token'] ?? $payload['square_verification'] ?? ''));
+        if ($verification !== '') {
+            $body['verification_token'] = $verification;
+        }
+        $email = trim((string) ($payload['email'] ?? ''));
+        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $body['buyer_email_address'] = $email;
         }
 
         try {
@@ -233,7 +258,7 @@ class SquareAdapter implements GatewayAdapterInterface
             $status = strtoupper((string) ($payment['status'] ?? ''));
             $duration = microtime(true) - $start;
 
-            if (in_array($status, ['COMPLETED', 'APPROVED'], true)) {
+            if (in_array($status, ['COMPLETED', 'APPROVED', 'AUTHORIZED'], true)) {
                 $auth = (string) ($payment['card_details']['auth_result_code'] ?? '');
                 $result = [
                     'success' => true,
@@ -248,6 +273,7 @@ class SquareAdapter implements GatewayAdapterInterface
                     'requires_3ds' => false,
                     'redirect_url' => '',
                     'error_code' => '',
+                    'card_last4' => $this->cardLast4($payment),
                     'raw' => $res,
                 ];
                 GatewayLogger::log('square', $autocomplete ? 'charge' : 'hold', $payload, $result, '', $duration);
@@ -256,22 +282,67 @@ class SquareAdapter implements GatewayAdapterInterface
 
             $err = $this->normalizeError($res);
             GatewayLogger::log('square', $autocomplete ? 'charge' : 'hold', $payload, $res, $err, $duration);
-            return GatewayErrorMapper::buildErrorResponse($err, $reference, $amount, $currency, $this->errorMessage($res));
+            $out = GatewayErrorMapper::buildErrorResponse($err, $reference, $amount, $currency, $this->errorMessage($res));
+            $payId = trim((string) ($payment['id'] ?? ''));
+            $auth = trim((string) ($payment['card_details']['auth_result_code'] ?? ''));
+            $out['transaction_id'] = $payId;
+            $out['rrn'] = $payId !== '' ? $payId : $reference;
+            $out['approval_code'] = $auth;
+            $out['card_last4'] = $this->cardLast4($payment);
+            $out['raw'] = $res;
+            return $out;
         } catch (Throwable $e) {
             GatewayLogger::log('square', $autocomplete ? 'charge' : 'hold', $payload, ['exception' => $e->getMessage()], 'NETWORK_ERROR', microtime(true) - $start);
             return GatewayErrorMapper::buildErrorResponse('NETWORK_ERROR', $reference, $amount, $currency, $e->getMessage());
         }
     }
 
+    private function cardLast4(array $payment): string
+    {
+        $last = (string) (
+            $payment['card_details']['card']['last_4']
+            ?? $payment['card_details']['card']['last4']
+            ?? ''
+        );
+        $last = preg_replace('/\D+/', '', $last) ?? '';
+        return strlen($last) >= 4 ? substr($last, -4) : $last;
+    }
+
     private function errorMessage(array $res): string
     {
-        if (!empty($res['errors'][0]['detail'])) {
-            return (string) $res['errors'][0]['detail'];
+        $payment = $res['payment'] ?? [];
+        $cardErr = is_array($payment['card_details']['errors'][0] ?? null)
+            ? $payment['card_details']['errors'][0]
+            : [];
+        $apiErr = is_array($res['errors'][0] ?? null) ? $res['errors'][0] : [];
+        $code = trim((string) ($apiErr['code'] ?? $cardErr['code'] ?? ''));
+        $detail = trim((string) ($apiErr['detail'] ?? $cardErr['detail'] ?? ''));
+        if ($code !== '' && $detail !== '') {
+            if (stripos($detail, $code) !== false) {
+                return $detail;
+            }
+            return $code . ' — ' . $detail;
         }
-        if (!empty($res['errors'][0]['code'])) {
-            return (string) $res['errors'][0]['code'];
+        if ($detail !== '') {
+            return $detail;
+        }
+        if ($code !== '') {
+            return $code;
+        }
+        $status = strtoupper((string) ($payment['status'] ?? ''));
+        if ($status === 'FAILED') {
+            return 'SQUARE_FAILED';
         }
         return (string) ($res['message'] ?? 'Square error');
+    }
+
+    private function locationCurrency(string $locationId): string
+    {
+        if ($locationId === '') {
+            return '';
+        }
+        $res = $this->request('GET', '/v2/locations/' . rawurlencode($locationId));
+        return strtoupper((string) ($res['location']['currency'] ?? ''));
     }
 
     private function request(string $method, string $path, $body = null): array

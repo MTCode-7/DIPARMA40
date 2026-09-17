@@ -427,6 +427,7 @@ $originalRrn = $origRef;
 $stan = '';
 $approvalCode = '';
 $nuveiTxnId = null;
+$cardLast4 = '';
 $gatewayResponse = [];
 $requires3ds = false;
 $redirectUrl = null;
@@ -448,6 +449,7 @@ if ($useCardGateway) {
             'cloud_token' => $cloudToken,
             'payment_token' => $cloudToken,
             'source_id' => $sourceId,
+            'verification_token' => trim((string) ($data['verification_token'] ?? ($extra['verification_token'] ?? ''))),
             'email' => $data['email'] ?? '',
             'phone' => preg_replace('/\D/', '', $data['phone'] ?? '') ?: '',
             'country' => strtoupper($data['country'] ?? 'AE'),
@@ -594,7 +596,12 @@ if ($useCardGateway) {
         $success = !empty($result['success']);
         $message = $success
             ? 'APPROVED'
-            : pos_plain_host_message($result['raw'] ?? $result);
+            : pos_plain_host_message(
+                $result['raw_message']
+                ?? $result['message']
+                ?? $result['error_code']
+                ?? ($result['raw'] ?? $result)
+            );
         $responseCode = trim((string) (
             $result['response_code']
             ?? $result['errCode']
@@ -605,8 +612,18 @@ if ($useCardGateway) {
         if ($responseCode === '' && preg_match('/\b(\d{4})\b/', $message, $mRc)) {
             $responseCode = $mRc[1];
         }
-        $approvalCode = $result['approval_code'] ?? '';
-        $rrn = $result['rrn'] ?? '';
+        $approvalCode = trim((string) ($result['approval_code'] ?? $result['auth_code'] ?? ''));
+        $rrn = trim((string) ($result['rrn'] ?? $result['transaction_id'] ?? $result['payment_id'] ?? ''));
+        if ($rrn === '') {
+            $rrn = $reference;
+        }
+        $cardLast4 = preg_replace('/\D+/', '', (string) ($result['card_last4'] ?? '')) ?? '';
+        if ($cardLast4 === '' && $cardNumber !== '') {
+            $cardLast4 = substr($cardNumber, -4);
+        }
+        if (strlen($cardLast4) > 4) {
+            $cardLast4 = substr($cardLast4, -4);
+        }
         if (in_array($txnType, ['capture'], true) && $rrn === '') {
             $rrn = $originalRrn;
         }
@@ -711,7 +728,7 @@ try {
         'transaction_label' => $displayOperation,
         'amount' => $amount,
         'currency' => $currency,
-        'card_last4' => substr($cardNumber, -4),
+        'card_last4' => $cardLast4,
         'security_mode' => $secMode,
         'status' => $requires3ds ? 'pending' : ($success ? ($txnType === 'auth' ? 'authorized' : 'completed') : 'failed'),
         'gateway_response' => json_encode([
@@ -905,10 +922,12 @@ echo json_encode([
     'amount' => $amount,
     'currency' => $currency,
     'response_code' => $responseCode,
-    'card_last4' => $cardNumber !== '' ? substr($cardNumber, -4) : '',
+    'card_last4' => $cardLast4,
     'status_message' => $message,
     'message' => $message,
     'decline_reason' => $success ? null : $message,
+    'raw_message' => $success ? null : ($result['raw_message'] ?? $message),
+    'error_code' => $success ? null : ($result['error_code'] ?? $result['decline_code'] ?? null),
     'pos_device' => $posDevice,
     'pos_model' => $posModel,
     'pos_type' => $posType,

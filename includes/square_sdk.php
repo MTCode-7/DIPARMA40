@@ -66,27 +66,39 @@ function square_pick_location_id(string $preferred, array $locations): string
     return $active[0] ?? ($all[0] ?? $preferred);
 }
 
+function square_app_id_live_flag(string $id): ?bool
+{
+    $id = strtolower(trim($id));
+    if ($id === '' || !square_is_application_id($id)) {
+        return null;
+    }
+    if (str_starts_with($id, 'sandbox-')) {
+        return false;
+    }
+    return true;
+}
+
 function square_sdk_config(): array
 {
-    $envAppId = trim((string) (getenv('SQUARE_APPLICATION_ID') ?: ''));
-    $envApiKey = trim((string) (getenv('SQUARE_API_KEY') ?: ''));
-    $appId = square_is_application_id($envAppId) ? $envAppId : '';
-    if ($appId === '' && square_is_application_id($envApiKey)) {
-        $appId = $envApiKey;
-    }
+    $candidates = [];
+    $pushId = static function (string $id) use (&$candidates): void {
+        $id = trim($id);
+        if ($id !== '' && square_is_application_id($id) && !in_array($id, $candidates, true)) {
+            $candidates[] = $id;
+        }
+    };
+    $pushId((string) (getenv('SQUARE_APPLICATION_ID') ?: ''));
+    $pushId((string) (getenv('SQUARE_API_KEY') ?: ''));
     $locationId = trim((string) (getenv('SQUARE_LOCATION_ID') ?: ''));
     $token = trim((string) (getenv('SQUARE_ACCESS_TOKEN') ?: getenv('SQUARE_SECRET_KEY') ?: ''));
     $env = strtolower(trim((string) (getenv('SQUARE_ENVIRONMENT') ?: 'production')));
+    $configError = '';
 
     try {
         $row = function_exists('db') ? db()->find('payment_gateways', ['code' => 'square']) : null;
         $creds = json_decode((string) ($row['credentials'] ?? '{}'), true) ?: [];
-        foreach (['application_id', 'api_key'] as $credKey) {
-            $candidate = trim((string) ($creds[$credKey] ?? ''));
-            if ($appId === '' && square_is_application_id($candidate)) {
-                $appId = $candidate;
-            }
-        }
+        $pushId((string) ($creds['application_id'] ?? ''));
+        $pushId((string) ($creds['api_key'] ?? ''));
         if ($locationId === '' && !empty($creds['location_id'])) {
             $locationId = trim((string) $creds['location_id']);
         }
@@ -102,14 +114,40 @@ function square_sdk_config(): array
     } catch (Throwable $e) {
     }
 
+    $appId = $candidates[0] ?? '';
     $live = square_env_is_live($appId, $env);
+    $locations = [];
     if ($token !== '') {
-        static $locationCache = null;
-        if ($locationCache === null) {
-            $locationCache = square_fetch_locations($token, $live);
+        static $locCache = null;
+        if ($locCache === null) {
+            $liveLocs = square_fetch_locations($token, true);
+            $sandboxLocs = square_fetch_locations($token, false);
+            $locCache = ['live' => $liveLocs, 'sandbox' => $sandboxLocs];
         }
-        if ($locationCache) {
-            $locationId = square_pick_location_id($locationId, $locationCache);
+        if ($locCache['live']) {
+            $live = true;
+            $locations = $locCache['live'];
+        } elseif ($locCache['sandbox']) {
+            $live = false;
+            $locations = $locCache['sandbox'];
+        }
+        foreach ($candidates as $candidate) {
+            $flag = square_app_id_live_flag($candidate);
+            if ($flag === $live) {
+                $appId = $candidate;
+                break;
+            }
+        }
+        if ($locations) {
+            $locationId = square_pick_location_id($locationId, $locations);
+        } elseif ($locationId === '') {
+            $configError = 'Square Locations API did not return a location for this access token.';
+        }
+        $appFlag = square_app_id_live_flag($appId);
+        if ($appFlag !== null && $appFlag !== $live && $locations) {
+            $configError = $live
+                ? 'Square access token is LIVE but Application ID is sandbox. Set SQUARE_APPLICATION_ID from the Production tab.'
+                : 'Square access token is sandbox but Application ID is LIVE. Use sandbox-sq0idb-… with sandbox.web.squarecdn.com.';
         }
     }
 
@@ -122,7 +160,8 @@ function square_sdk_config(): array
         'script_url' => $live
             ? 'https://web.squarecdn.com/v1/square.js'
             : 'https://sandbox.web.squarecdn.com/v1/square.js',
-        'ready' => $appId !== '' && $locationId !== '' && $token !== '',
+        'ready' => $appId !== '' && $locationId !== '' && $token !== '' && $configError === '',
+        'config_error' => $configError,
     ];
 }
 
