@@ -1397,26 +1397,36 @@ $csrfToken = generateCsrfToken();
 
                     <div class="actions">
                         <!-- زر اختبار الاتصال -->
+                        <?php if (intval($gw['id'] ?? 0) > 0): ?>
                         <button type="button"
-                            onclick="testGatewayConnection(<?= $gw['id'] ?>, '<?= addslashes($gw['name']) ?>')"
+                            onclick="testGatewayConnection(<?= intval($gw['id']) ?>, '<?= addslashes($gw['name']) ?>')"
                             class="btn btn-sm"
-                            id="test-btn-<?= $gw['id'] ?>"
+                            id="test-btn-<?= intval($gw['id']) ?>"
                             style="background:rgba(91,192,222,.15);border:1px solid #5bc0de;color:#5bc0de">
                             <i class="fas fa-plug"></i> Test Connection
                         </button>
+                        <?php else: ?>
+                        <span style="font-size:.78rem;color:#f0ad4e;line-height:1.5">احفظ البوابة في قاعدة البيانات أولاً — لا يوجد gateway_id</span>
+                        <?php endif; ?>
                         <a href="gateway_details.php?code=<?= urlencode((string)$gw['code']) ?>" class="btn btn-success btn-sm">
                             <i class="fas fa-chart-line"></i> Gateway Details
                         </a>
-                        <a href="?edit=<?= $gw['id'] ?>" class="btn btn-info btn-sm">
+                        <?php if (intval($gw['id'] ?? 0) > 0): ?>
+                        <a href="?edit=<?= intval($gw['id']) ?>" class="btn btn-info btn-sm">
                             <i class="fas fa-pen"></i> Add Details
                         </a>
-                        <a href="?toggle=<?= $gw['id'] ?>&token=<?= $csrfToken ?>" class="btn btn-warning btn-sm" onclick="return confirm('هل تريد تغيير حالة البوابة؟')">
+                        <a href="?toggle=<?= intval($gw['id']) ?>&token=<?= $csrfToken ?>" class="btn btn-warning btn-sm" onclick="return confirm('هل تريد تغيير حالة البوابة؟')">
                             <i class="fas fa-<?= $gw['status'] === 'active' ? 'pause' : 'play' ?>"></i>
                             <?= $gw['status'] === 'active' ? 'Disable' : 'Enable' ?>
                         </a>
-                        <a href="?delete=<?= $gw['id'] ?>&token=<?= $csrfToken ?>" class="btn btn-danger btn-sm" onclick="return confirm('⚠️ هل أنت متأكد من حذف هذه البوابة؟')">
+                        <a href="?delete=<?= intval($gw['id']) ?>&token=<?= $csrfToken ?>" class="btn btn-danger btn-sm" onclick="return confirm('⚠️ هل أنت متأكد من حذف هذه البوابة؟')">
                             <i class="fas fa-trash"></i> Delete
                         </a>
+                        <?php else: ?>
+                        <a href="?add=1" class="btn btn-info btn-sm">
+                            <i class="fas fa-pen"></i> حفظ في قاعدة البيانات
+                        </a>
+                        <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
@@ -1453,6 +1463,11 @@ gatewaySearchInput?.addEventListener('input', filterGatewayCards);
 // اختبار اتصال بوابة واحدة
 // ══════════════════════════════════════════════════════
 async function testGatewayConnection(gatewayId, gatewayName) {
+    gatewayId = parseInt(gatewayId, 10) || 0;
+    if (gatewayId <= 0) {
+        showToast('احفظ البوابة أولاً في إدارة البوابات حتى تحصل على gateway_id', 'error');
+        return;
+    }
     const btn    = document.getElementById('test-btn-' + gatewayId);
     const badge  = document.getElementById('conn-badge-' + gatewayId);
 

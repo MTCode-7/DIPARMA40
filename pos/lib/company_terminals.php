@@ -39,6 +39,7 @@ function pos_activity_terminals_max(): int
 /**
  * Confirmed TIDs read from device labels / photos.
  * `line` = merchant activity code (petroleum|logistics|hajj|…) — empty until bound later.
+ * No `gateway_id` on these rows: charge gateway is the POS `gw=` / hub pick (Square, PayRam, …).
  *
  * @return list<array{tid:string,model:string,brand:string,name:string,line?:string,note?:string,serial?:string}>
  */
