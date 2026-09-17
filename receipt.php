@@ -29,7 +29,7 @@ $dir  = $ar ? 'rtl' : 'ltr';
 // ============================================================
 
 $ref = trim($_GET['ref'] ?? '');
-if (!$ref) {
+if ($ref === '' || !preg_match('/^[A-Za-z0-9._:-]{6,80}$/', $ref)) {
     header('Location: dashboard.php');
     exit;
 }
@@ -114,17 +114,25 @@ function receiptMask(string $value, int $start = 2, int $end = 2): string
 {
     $value = trim($value);
     if ($value === '' || $value === '—') return $value;
-    $length = strlen($value);
-    if ($length <= $start + $end) return str_repeat('*', $length);
-    return substr($value, 0, $start) . str_repeat('*', $length - $start - $end) . substr($value, -$end);
+    $len = function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
+    $sub = static function (string $s, int $off, ?int $n = null) {
+        if (function_exists('mb_substr')) {
+            return $n === null ? mb_substr($s, $off, null, 'UTF-8') : mb_substr($s, $off, $n, 'UTF-8');
+        }
+        return $n === null ? substr($s, $off) : substr($s, $off, $n);
+    };
+    if ($len <= $start + $end) return str_repeat('*', $len);
+    return $sub($value, 0, $start) . str_repeat('*', $len - $start - $end) . $sub($value, -$end);
 }
 
 function receiptMaskName(string $value): string
 {
-    $parts = preg_split('/\s+/', trim($value), -1, PREG_SPLIT_NO_EMPTY);
+    $parts = preg_split('/\s+/u', trim($value), -1, PREG_SPLIT_NO_EMPTY);
     if (!$parts) return '—';
     return implode(' ', array_map(static function (string $part): string {
-        return strlen($part) > 1 ? substr($part, 0, 1) . str_repeat('*', max(2, strlen($part) - 1)) : '*';
+        $len = function_exists('mb_strlen') ? mb_strlen($part, 'UTF-8') : strlen($part);
+        $first = function_exists('mb_substr') ? mb_substr($part, 0, 1, 'UTF-8') : substr($part, 0, 1);
+        return $len > 1 ? $first . str_repeat('*', max(2, $len - 1)) : '*';
     }, $parts));
 }
 
@@ -252,7 +260,7 @@ if ($ledgerTxid) {
 } elseif ($usdtRaw > 0 || $netAmt > 0) {
     $ledgerStatusLabel = 'PENDING';
 } else {
-    $ledgerStatusLabel = '';
+    $ledgerStatusLabel = 'NONE';
 }
 
 $showLedgerSection = ($ledgerAddr !== '—')

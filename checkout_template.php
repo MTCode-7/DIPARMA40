@@ -18,7 +18,7 @@ $dir  = $ar ? 'rtl' : 'ltr';
 $currencyOptions = '';
 foreach (($currencies ?? ['USD','EUR','GBP','AED']) as $cur) {
     $sel = (!empty($prefillCurrency) && $prefillCurrency === $cur) ? ' selected' : '';
-    $currencyOptions .= "<option value=\"{$cur}\"{$sel}>{$cur}</option>";
+    $currencyOptions .= '<option value="' . htmlspecialchars((string)$cur, ENT_QUOTES, 'UTF-8') . '"' . $sel . '>' . htmlspecialchars((string)$cur, ENT_QUOTES, 'UTF-8') . '</option>';
 }
 $motoCurrencyOptions = $currencyOptions;
 $defaultOp = array_key_first($checkoutOps) ?: 'purchase_2d';
@@ -26,8 +26,8 @@ if (!empty($prefillOp) && isset($checkoutOps[$prefillOp])) {
     $defaultOp = $prefillOp;
 }
 $isPayram = (($gwCode ?? '') === 'payram');
-$isLedgerGw = false;
 $isDiparmaGw = (($gwCode ?? '') === 'diparma_gateway');
+$isLedgerGw = false;
 $chargeGwCode = $chargeGwCode ?? $gwCode;
 $isNuveiFamily = in_array(($chargeGwCode ?? $gwCode ?? ''), ['nuvei', 'diparma'], true);
 $squareSdk = $squareSdk ?? ['ready' => false, 'application_id' => '', 'location_id' => '', 'script_url' => '', 'live' => false];
@@ -541,6 +541,18 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 
 <script>
 var CSRF = '<?=htmlspecialchars($csrfToken)?>';
+function luhnCheck(num) {
+  var d = String(num || '').replace(/\D/g, '');
+  if (d.length < 13 || d.length > 19) return false;
+  var sum = 0, alt = false;
+  for (var i = d.length - 1; i >= 0; i--) {
+    var n = parseInt(d.charAt(i), 10);
+    if (alt) { n *= 2; if (n > 9) n -= 9; }
+    sum += n;
+    alt = !alt;
+  }
+  return sum % 10 === 0;
+}
 var GW   = '<?=htmlspecialchars($gwCode)?>';
 var CHARGE_GW = '<?=htmlspecialchars((string)($chargeGwCode ?? $gwCode))?>';
 var BASE = '<?=htmlspecialchars($basePath)?>';
@@ -591,7 +603,12 @@ function setTx(type, el) {
   curTx = type;
   document.querySelectorAll('.tx-btn').forEach(function(b){b.classList.remove('active');});
   if (el) el.classList.add('active');
-  document.getElementById('txDesc').innerHTML = '<i class="fas fa-info-circle" style="color:var(--gw)"></i> ' + (TX_DESC[type]||type);
+  document.getElementById('txDesc').textContent = '';
+  var txIcon = document.createElement('i');
+  txIcon.className = 'fas fa-info-circle';
+  txIcon.style.color = 'var(--gw)';
+  document.getElementById('txDesc').appendChild(txIcon);
+  document.getElementById('txDesc').appendChild(document.createTextNode(' ' + (TX_DESC[type]||type)));
   document.getElementById('sumType').textContent = TX_LABELS[type]||type;
   document.getElementById('payBtnLabel').textContent = TX_LABELS[type]||type;
 
@@ -869,6 +886,7 @@ async function go() {
     if (amt <= 0) { showToast('<?=$ar?'أدخل مبلغاً صحيحاً':'Enter valid amount'?>','error'); btn.disabled=false; resetBtn(); return; }
     var cc = (document.getElementById('ccNumber')?.value || '').replace(/\s/g,'');
     if (!squareTokPresent && !cc) { showToast('<?=$ar?'رقم البطاقة مطلوب':'Card number required'?>','error'); btn.disabled=false; resetBtn(); return; }
+    if (!squareTokPresent && cc && !luhnCheck(cc)) { showToast('<?=$ar?'رقم البطاقة غير صالح':'Invalid card number'?>','error'); btn.disabled=false; resetBtn(); return; }
     var metaP = OPS[curTx] || {};
     var exp  = (document.getElementById('ccExpiry')?.value || '').trim();
     var cvv  = (document.getElementById('ccCvv')?.value || '').trim();

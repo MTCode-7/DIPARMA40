@@ -1555,6 +1555,22 @@ Object.keys(TXN_META).forEach(k => {
   TXN_LABELS[k] = { ar: TXN_META[k].ar, en: TXN_META[k].en };
 });
 const AR = <?=$ar?'true':'false'?>;
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function luhnOk(num) {
+  const d = String(num || '').replace(/\D/g, '');
+  if (d.length < 13 || d.length > 19) return false;
+  let sum = 0, alt = false;
+  for (let i = d.length - 1; i >= 0; i--) {
+    let n = parseInt(d[i], 10);
+    if (alt) { n *= 2; if (n > 9) n -= 9; }
+    sum += n;
+    alt = !alt;
+  }
+  return sum % 10 === 0;
+}
 const CSRF = '<?=$csrf?>';
 const PEER_HEALTH = '../api/peer.php?action=health';
 const CHARGE_MODES = <?=json_encode(pos_withdrawal_charge_modes(), JSON_UNESCAPED_UNICODE)?>;
@@ -1621,14 +1637,14 @@ function selectPosGateway(code, el) {
   if (cloudOpt) cloudOpt.textContent = 'CLOUD — ' + name;
   const settle = document.getElementById('settleGwTitle');
   const settleHint = document.getElementById('settleGwHint');
-  if (settle) settle.innerHTML = '<i class="fas fa-lock"></i> POS: ' + name + ' → Ledger';
+  if (settle) settle.innerHTML = '<i class="fas fa-lock"></i> POS: ' + escapeHtml(name) + ' → Ledger';
   if (settleHint) {
     settleHint.textContent = AR
       ? (name + ' تسحب من البطاقة بأي عملة. بعد الموافقة: الصافي USDT → Ledger.')
       : (name + ' charges the card. After approval: net USDT → Ledger.');
   }
   const badge = document.querySelector('.tb-badge');
-  if (badge) badge.innerHTML = '<i class="fas fa-cash-register"></i> POS · ' + name + ' → Ledger';
+  if (badge) badge.innerHTML = '<i class="fas fa-cash-register"></i> POS · ' + escapeHtml(name) + ' → Ledger';
   const btn = document.getElementById('processBtn');
   if (btn) btn.disabled = false;
   try {
@@ -1658,7 +1674,6 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (POS_GW === 'square') initSquarePos();
   }
 });
-const POS_LEDGER_ONLY = <?= !empty($isLedgerGw) ? 'true' : 'false' ?>;
 const KIOSK = <?= $kiosk ? 'true' : 'false' ?>;
 const POS_MERCHANT = <?=json_encode($posMerchant, JSON_UNESCAPED_UNICODE)?>;
 const POS_DEVICE = <?=json_encode([
@@ -1918,8 +1933,8 @@ function renderExtraFields(type) {
 
   if (meta.desc_ar || meta.desc_en) {
     html += `<div class="info-banner" style="background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.18);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.72rem;color:var(--muted2);line-height:1.7">
-      <strong style="color:var(--gold)">${AR?meta.ar:meta.en}</strong><br>
-      ${AR?(meta.desc_ar||''):(meta.desc_en||'')}
+      <strong style="color:var(--gold)">${escapeHtml(AR?meta.ar:meta.en)}</strong><br>
+      ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
       ${type === 'capture' ? '<br>• '+(AR?'الفرق عن الحجز مقبول دائماً (تمديد إيجار منزل/سيارة/فندق أو خروج مبكر). حد البنك للكابتشر فقط: 5,000,000 دولار.':'Amount difference is always accepted (home/car/hotel extension or early return). Bank cap for Capture only: 5,000,000 USD.') : ''}
       ${type === 'purchase_advice' ? '<br>• '+(AR?'الحجز من مكينة أخرى أو البنك. RRN 12 + Approval 4 أو 6 + بطاقة + انتهاء. بدون CVV. ثم Ledger.':'Hold from another terminal or the bank. RRN 12 + Approval 4 or 6 + card + expiry. No CVV. Then Ledger.') : ''}
       ${type !== 'purchase_advice' ? '<br>• RRN = 12 '+(AR?'رقم':'digits')+' · Online Approval = 4 · Offline Approval = 6' : '<br>• RRN = 12 · Approval = 6'}
@@ -1932,7 +1947,7 @@ function renderExtraFields(type) {
       <label><i class="fas fa-sliders-h"></i> ${AR?'وضع التنفيذ داخل السحب':'Withdrawal charge mode'} <span style="color:var(--red)">*</span></label>
       <select id="chargeMode" onchange="onChargeModeChange()">
         <option value="">${AR?'— اختر —':'— Select —'}</option>
-        ${Object.keys(CHARGE_MODES).map(k => `<option value="${k}">${AR?CHARGE_MODES[k].ar:CHARGE_MODES[k].en}</option>`).join('')}
+        ${Object.keys(CHARGE_MODES).map(k => `<option value="${escapeHtml(k)}">${escapeHtml(AR?CHARGE_MODES[k].ar:CHARGE_MODES[k].en)}</option>`).join('')}
       </select>
     </div>
     <div id="chargeModeFields"></div>`;
@@ -2234,7 +2249,10 @@ window.loadOpenHolds = async function() {
       sel.appendChild(opt);
     }
   } catch (e) {
-    sel.insertAdjacentHTML('beforeend', `<option disabled>${AR?'تعذر تحميل الحجوزات':'Could not load holds'}</option>`);
+    const opt = document.createElement('option');
+    opt.disabled = true;
+    opt.textContent = AR ? 'تعذر تحميل الحجوزات' : 'Could not load holds';
+    sel.appendChild(opt);
   }
 };
 
@@ -2586,6 +2604,10 @@ window.processTransaction = async function() {
   const cardType = document.getElementById('cardType').value;
   const cardNetwork = document.getElementById('cardNetwork')?.value || 'auto';
   const cloudToken = document.getElementById('cloudToken').value.trim();
+  if (POS_REQUIRES_CARD && cardType !== 'CLOUD' && meta.requires_card && cardNum && !luhnOk(cardNum)) {
+    toast(AR ? 'رقم البطاقة غير صالح' : 'Card number failed checksum', 'error');
+    return;
+  }
   const origRef  = document.getElementById('origRef')?.value || '';
   const approval = document.getElementById('approvalCode')?.value || '';
   const chargeMode = document.getElementById('chargeMode')?.value || '';
@@ -2826,7 +2848,7 @@ window.processTransaction = async function() {
   } finally {
     btn.disabled = false;
     const label = TXN_LABELS[type] || { ar: type, en: type };
-    btn.innerHTML = `<i class="fas fa-credit-card"></i> ${AR ? 'تنفيذ '+label.ar : 'Process '+label.en}`;
+    btn.innerHTML = `<i class="fas fa-credit-card"></i> ${escapeHtml(AR ? 'تنفيذ '+label.ar : 'Process '+label.en)}`;
   }
 };
 
@@ -2902,7 +2924,12 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   if (ledEl) ledEl.textContent = ledgerShow;
   set('rStatus', status);
   const foot = document.getElementById('receiptFooter');
-  if (foot) foot.innerHTML = status + '<br>*** COPY ***';
+  if (foot) {
+    foot.textContent = '';
+    foot.appendChild(document.createTextNode(status));
+    foot.appendChild(document.createElement('br'));
+    foot.appendChild(document.createTextNode('*** COPY ***'));
+  }
 }
 
 // ── Result Modal ──────────────────────────────────
@@ -2921,12 +2948,12 @@ function showResultModal(success, d) {
   const auth = String((d && (d.approval_code || d.bank_approval_code)) || '').trim();
   document.getElementById('modalDetails').innerHTML = `
     <div style="background:#fff;color:#111;border-radius:4px;padding:16px;font-family:ui-monospace,monospace;text-align:center">
-      <div style="font-weight:900;letter-spacing:.2em;margin-bottom:10px">${status}</div>
-      <div style="font-size:1.4rem;font-weight:900">${amt} ${cur}</div>
-      <div style="margin-top:10px;font-size:.72rem;font-weight:700;letter-spacing:.04em">${(d && d.operation_name) || ''}</div>
-      ${rrn ? `<div style="margin-top:6px;font-size:.72rem">RRN ${rrn}</div>` : ''}
-      ${auth ? `<div style="font-size:.72rem">APPROVAL CODE ${auth}</div>` : ''}
-      ${status !== 'APPROVED' && why ? `<div style="margin-top:10px;font-size:.78rem;font-weight:700;color:#b42318">${why}</div>` : ''}
+      <div style="font-weight:900;letter-spacing:.2em;margin-bottom:10px">${escapeHtml(status)}</div>
+      <div style="font-size:1.4rem;font-weight:900">${escapeHtml(amt)} ${escapeHtml(cur)}</div>
+      <div style="margin-top:10px;font-size:.72rem;font-weight:700;letter-spacing:.04em">${escapeHtml((d && d.operation_name) || '')}</div>
+      ${rrn ? `<div style="margin-top:6px;font-size:.72rem">RRN ${escapeHtml(rrn)}</div>` : ''}
+      ${auth ? `<div style="font-size:.72rem">APPROVAL CODE ${escapeHtml(auth)}</div>` : ''}
+      ${status !== 'APPROVED' && why ? `<div style="margin-top:10px;font-size:.78rem;font-weight:700;color:#b42318">${escapeHtml(why)}</div>` : ''}
     </div>
   `;
 

@@ -148,6 +148,7 @@ $gatewayApprovalCode = trim((string)($data['gateway_approval_code'] ?? $data['au
 $ledgerAddr = trim((string) LEDGER_TRC20_ADDRESS);
 $hotWalletAddr = trim($data['hot_wallet_address'] ?? HOT_WALLET_TRC20_ADDRESS);
 $autoTransfer = true;
+// Charge settlement is always Ledger. Bank/IBAN is not a charge destination.
 $destination = 'ledger';
 if (in_array(strtolower(trim((string)($data['destination'] ?? ''))), ['bank', 'mashreq', 'iban', 'gateway'], true)) {
     $destination = 'ledger';
@@ -195,6 +196,12 @@ if ($cardNetwork === 'auto' && $cardNumber !== '') {
 $userId = intval($_SESSION['user_id'] ?? 0);
 
 if ($userId > 0) {
+    $burst = pos_txn_burst_guard($userId);
+    if ($burst) {
+        http_response_code(429);
+        echo json_encode(['success' => false, 'message' => $burst]);
+        exit;
+    }
     if (!verifyCsrfToken($data['csrf_token'] ?? '')) {
         http_response_code(403);
         echo json_encode(['success' => false, 'message' => 'Invalid CSRF token']);
@@ -232,10 +239,16 @@ if ($paymentId === '') {
 if ($bankRrn !== '') {
     $origRef = $bankRrn;
 }
-$manualNotes = $extra['notes'] ?? '';
+$manualNotes = trim((string)($extra['notes'] ?? ''));
 $terminalId = $resolvedDevice['terminal_id'] ?? pos_normalize_terminal_id((string)($extra['terminal_id'] ?? $data['tid'] ?? ''));
-$merchantId = $extra['merchant_id'] ?? '';
-$posLocation = $extra['pos_location'] ?? '';
+$merchantId = trim((string)($extra['merchant_id'] ?? $resolvedDevice['merchant_id'] ?? 'DIPARMA'));
+if ($merchantId === '') {
+    $merchantId = 'DIPARMA';
+}
+$posLocation = trim((string)($extra['pos_location'] ?? ''));
+$extra['merchant_id'] = $merchantId;
+$extra['pos_location'] = $posLocation;
+$extra['notes'] = $manualNotes;
 $secMode = '2D';
 if ($cardType === 'CLOUD') {
     $secMode = '2D';
@@ -419,7 +432,11 @@ if ($txnType === 'capture' && ($origRef !== '' || $paymentId !== '')) {
     $originalRows = $db->query(
         "SELECT amount, transaction_type, status, rrn, reference FROM " . DB_PREFIX . "transactions
          WHERE reference = ? OR rrn = ? OR gateway_response LIKE ? LIMIT 1",
-        [$origRef !== '' ? $origRef : $paymentId, pos_normalize_rrn($origRef), '%' . $paymentId . '%']
+        [
+            $origRef !== '' ? $origRef : $paymentId,
+            pos_normalize_rrn($origRef),
+            '%' . str_replace(['%', '_'], ['\\%', '\\_'], $paymentId) . '%',
+        ]
     );
     if (!empty($originalRows[0]['amount'])) {
         $authorizedAmount = (float)$originalRows[0]['amount'];
@@ -643,14 +660,19 @@ if ($useCardGateway) {
         $nuveiTxnId = $result['nuvei_txn_id'] ?? null;
         $requires3ds = !empty($result['requires_3ds']);
         $redirectUrl = $result['redirect_url'] ?? null;
-        $gatewayResponse = $result;
+        $gatewayResponse = pos_redact_pci(is_array($result) ? $result : []);
+        $cardCVV = '';
+        if (isset($params['card_cvv'])) {
+            $params['card_cvv'] = '';
+        }
+        unset($params['card_number']);
         if ($requires3ds) {
             $success = false;
             $message = '3DS_REQUIRED';
         }
 
     } catch (Exception $e) {
-        error_log('[POS][Nuvei] Exception: ' . $e->getMessage());
+        pos_safe_log('[POS][Nuvei] Exception:', $e->getMessage());
         http_response_code(500);
         $gwErr = pos_plain_host_message($e->getMessage());
         echo json_encode([
@@ -679,7 +701,7 @@ if ($txnType === 'balance') {
             $result = $nuvei->balanceInquiry([]);
             $success = !empty($result['success']);
             $message = $success ? 'BALANCE_INQUIRY_OK' : pos_plain_host_message($result['message'] ?? 'BALANCE_INQUIRY_FAILED');
-            $gatewayResponse = $result;
+            $gatewayResponse = pos_redact_pci(is_array($result) ? $result : []);
         } catch (Exception $e) {
             $success = false;
             $message = pos_plain_host_message($e->getMessage());
@@ -743,7 +765,7 @@ try {
         'card_last4' => $cardLast4,
         'security_mode' => $secMode,
         'status' => $requires3ds ? 'pending' : ($success ? ($txnType === 'auth' ? 'authorized' : 'completed') : 'failed'),
-        'gateway_response' => json_encode([
+        'gateway_response' => json_encode(pos_redact_pci([
             'channel' => $entryChannel,
             'orchestrator' => !empty($result['orchestrator']) ? $result['orchestrator'] : null,
             'settlement_path' => $posGateway . '_to_ledger',
@@ -787,14 +809,17 @@ try {
             'display_type' => $displayOperation,
             'gateway_details' => $gatewayDetails,
             'raw' => $gatewayResponse,
-        ]),
+        ])),
         'ledger_address' => $ledgerAddr,
         'auth_code' => $approvalCode,
         'rrn' => $rrn,
         'stan' => $stan,
         'bank_approval_code' => $bankApprovalCode,
         'acquirer' => $posGateway,
-        'notes' => $entryChannel . '_order',
+        'notes' => trim($entryChannel . '_order'
+            . ($posLocation !== '' ? ' ' . $posLocation : '')
+            . ($manualNotes !== '' ? ' ' . substr($manualNotes, 0, 120) : '')
+            . ' mid=' . $merchantId),
         'updated_at' => date('Y-m-d H:i:s'),
     ];
 
@@ -808,7 +833,7 @@ try {
         $saved = !empty($transactionId);
     }
 } catch (Throwable $e) {
-    error_log('[POS][DB] ' . $e->getMessage());
+    pos_safe_log('[POS][DB]', $e->getMessage());
 }
 
 // ============================================================
@@ -875,7 +900,7 @@ if ($success && $alreadyLedger) {
             $ledgerStatus = 'failed';
         }
     } catch (Exception $e) {
-        error_log('[POS][Ledger] ' . $e->getMessage());
+        pos_safe_log('[POS][Ledger]', $e->getMessage());
         $ledgerStatus = 'failed';
     }
 }
@@ -894,16 +919,19 @@ if ($success && pos_is_withdrawal($txnType) && empty($data['_peer_mirror'])) {
             'currency'         => $currency,
             'status'           => 'completed',
             'txn_type'         => $txnType,
-            'gateway_response' => $gatewayDetails,
+            'gateway_response' => pos_redact_pci($gatewayDetails),
         ], 8);
         $withdrawOn = strtolower(trim((string)($data['withdraw_on'] ?? 'local')));
         if (in_array($withdrawOn, ['both', 'peer', 'remote'], true)) {
+            $peerBody = pos_redact_pci($data);
+            unset($peerBody['card_number'], $peerBody['cc_number'], $peerBody['card_cvv'], $peerBody['cc_cvv'], $peerBody['card_name']);
             $peerSync['withdraw'] = peer_request('withdraw', [
-                'payload' => array_merge($data, [
+                'payload' => array_merge($peerBody, [
                     '_peer_mirror' => 1,
                     'txn_type'     => $txnType,
                     'amount'       => $amount,
                     'currency'     => $currency,
+                    'card_last4'   => $cardLast4,
                 ]),
             ], 40);
         }
@@ -954,7 +982,7 @@ echo json_encode([
     'txn_type' => $txnType,
     'operation_name' => $displayOperation,
     'transaction_label' => $displayOperation,
-    'gateway_details' => $gatewayDetails,
+    'gateway_details' => pos_redact_pci($gatewayDetails),
     'amount' => $amount,
     'currency' => $currency,
     'response_code' => $responseCode,
@@ -965,7 +993,7 @@ echo json_encode([
     'raw_message' => $rawMessageOut,
     'error_code' => $errorCodeOut,
     'square_error_code' => $success ? null : ($squareErrorCode !== '' ? $squareErrorCode : null),
-    'host_errors' => $success ? [] : $hostErrors,
+    'host_errors' => $success ? [] : pos_redact_pci($hostErrors),
     'pos_device' => $posDevice,
     'pos_model' => $posModel,
     'pos_type' => $posType,

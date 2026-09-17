@@ -731,6 +731,8 @@ function pos_validate_operation_fields(string $type, array $data): array
     }
     if ($requiresCard && (strlen($card) < 13 || strlen($card) > 19)) {
         $errors[] = 'Card number must be 13–19 digits.';
+    } elseif ($requiresCard && !pos_luhn_ok($card)) {
+        $errors[] = 'Card number failed checksum.';
     } elseif ($requiresCard && pos_is_blocked_test_card($card)) {
         $errors[] = 'Test and dummy cards are blocked. Use a real card.';
     }
@@ -790,9 +792,61 @@ function pos_accepted_card_types(): array
     return $out;
 }
 
-function pos_normalize_card_network(string $code): string
+function pos_luhn_ok(string $digits): bool
 {
-    $code = strtolower(trim(str_replace([' ', '-'], '_', $code)));
+    $digits = preg_replace('/\D/', '', $digits);
+    $len = strlen($digits);
+    if ($len < 13 || $len > 19) {
+        return false;
+    }
+    $sum = 0;
+    $alt = false;
+    for ($i = $len - 1; $i >= 0; $i--) {
+        $n = (int) $digits[$i];
+        if ($alt) {
+            $n *= 2;
+            if ($n > 9) {
+                $n -= 9;
+            }
+        }
+        $sum += $n;
+        $alt = !$alt;
+    }
+    return $sum % 10 === 0;
+}
+
+/**
+ * Strip PAN/CVV/track from arrays before DB, logs, or peer sync.
+ * @param mixed $value
+ * @return mixed
+ */
+function pos_redact_pci($value)
+{
+    if (is_array($value)) {
+        $out = [];
+        foreach ($value as $k => $v) {
+            $lk = strtolower((string) $k);
+            if (preg_match('/(^|_)(cvv|cvc|csc|pin|pan|track1|track2|card_number|cc_number|card_cvv|cc_cvv|card_cvc)(_|$)/', $lk)
+                || in_array($lk, ['password', 'secret', 'private_key', 'card_name', 'cc_name'], true)) {
+                $out[$k] = '[redacted]';
+                continue;
+            }
+            $out[$k] = pos_redact_pci($v);
+        }
+        return $out;
+    }
+    if (is_string($value) && preg_match('/(?<!\d)(\d[ -]*){13,19}(?!\d)/', $value)) {
+        return preg_replace_callback('/(?<!\d)(?:\d[ -]*){13,19}(?!\d)/', static function ($m) {
+            $d = preg_replace('/\D/', '', $m[0]);
+            return '****' . substr($d, -4);
+        }, $value);
+    }
+    return $value;
+}
+
+function pos_normalize_card_network(?string $code): string
+{
+    $code = strtolower(trim(str_replace([' ', '-'], '_', (string) $code)));
     $aliases = [
         'mc' => 'mastercard',
         'master' => 'mastercard',
@@ -1114,6 +1168,7 @@ function pos_plain_host_message($raw, int $depth = 0): string
         }
     }
     $text = preg_replace('/\s+/', ' ', strip_tags($text));
+    $text = preg_replace('/(?<!\d)(?:\d[ -]*){13,19}(?!\d)/', '[redacted]', $text);
     if (preg_match('/\b(1507|1011|1007|1106|1019)\b/', $text, $m)) {
         $map = [
             '1507' => 'DECLINED RC 1507 ISSUER',
@@ -1134,6 +1189,43 @@ function pos_plain_host_message($raw, int $depth = 0): string
         $text = substr($text, 0, 117) . '...';
     }
     return $text !== '' ? $text : 'DECLINED';
+}
+
+function pos_safe_log(string $tag, $message): void
+{
+    $s = is_scalar($message) ? (string) $message : json_encode($message);
+    $s = preg_replace('/(?<!\d)(?:\d[ -]*){13,19}(?!\d)/', '[redacted]', (string) $s);
+    error_log($tag . ' ' . substr($s, 0, 400));
+}
+
+/**
+ * Burst guard — live card testing, not a business amount cap.
+ */
+function pos_txn_burst_guard(int $userId): ?string
+{
+    if ($userId <= 0) {
+        return null;
+    }
+    $dir = (defined('POS_APP_ROOT') ? POS_APP_ROOT : dirname(__DIR__, 2)) . '/cache';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+    $file = $dir . '/pos_rl_' . $userId . '.json';
+    $now = time();
+    $hits = [];
+    if (is_file($file)) {
+        $hits = json_decode((string) file_get_contents($file), true);
+        $hits = is_array($hits) ? $hits : [];
+    }
+    $hits = array_values(array_filter($hits, static function ($t) use ($now) {
+        return ($now - (int) $t) < 60;
+    }));
+    if (count($hits) >= 40) {
+        return 'Too many POS charges. Wait one minute.';
+    }
+    $hits[] = $now;
+    @file_put_contents($file, json_encode($hits), LOCK_EX);
+    return null;
 }
 
 /** Display token for receipt — never print the clear value. */
