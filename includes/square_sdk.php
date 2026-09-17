@@ -60,7 +60,7 @@ function square_pick_location_id(string $preferred, array $locations): string
             $active[] = $id;
         }
     }
-    if ($preferred !== '' && in_array($preferred, $all, true)) {
+    if ($preferred !== '' && in_array($preferred, $active, true)) {
         return $preferred;
     }
     return $active[0] ?? ($all[0] ?? $preferred);
