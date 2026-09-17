@@ -1343,29 +1343,29 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       <div class="receipt-merchant">DI PARMA POS</div>
       <div class="receipt-sub" id="rMerchantSeal"><?=htmlspecialchars(pos_receipt_seal($posMerchant['legal_name'] ?? ''))?></div>
     </div>
+    <div class="receipt-row"><span>TRANS</span><span id="rType">—</span></div>
+    <div class="receipt-row"><span>AMOUNT</span><span id="rAmount">—</span></div>
+    <div class="receipt-row"><span>CURR</span><span id="rCurrency">—</span></div>
+    <div class="receipt-banner" id="rBanner">PENDING</div>
+    <div class="receipt-reason" id="rReason" style="display:none"></div>
+    <div class="receipt-row"><span>APPROVAL CODE</span><span id="rApproval">—</span></div>
+    <div class="receipt-row"><span>RRN</span><span id="rRRN">—</span></div>
+    <div class="receipt-total">
+      <div class="receipt-row"><span>STATUS</span><span id="rStatus">PENDING</span></div>
+    </div>
+    <div class="receipt-cut">------------------------</div>
     <div class="receipt-row"><span>DATE</span><span id="rDate"><?=htmlspecialchars(pos_receipt_seal(date('d/m/Y')))?></span></div>
     <div class="receipt-row"><span>TIME</span><span id="rTime"><?=htmlspecialchars(pos_receipt_seal(date('H:i:s')))?></span></div>
     <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars(pos_receipt_seal((string)($posDevice['terminal_id'] ?? '')))?></span></div>
     <div class="receipt-row"><span>MID</span><span id="rMid"><?=htmlspecialchars(pos_receipt_seal((string)($posDevice['merchant_id'] ?? $posMerchant['brand'] ?? 'DIPARMA')))?></span></div>
     <div class="receipt-row"><span>BATCH</span><span id="rBatch"><?=htmlspecialchars(pos_receipt_seal('000001'))?></span></div>
     <div class="receipt-row"><span>STAN</span><span id="rStan"><?=htmlspecialchars(pos_receipt_seal('STAN'))?></span></div>
-    <div class="receipt-cut">------------------------</div>
-    <div class="receipt-row"><span>TRANS</span><span id="rType"><?=htmlspecialchars(pos_receipt_seal('SALE'))?></span></div>
     <div class="receipt-row"><span>ENTRY</span><span id="rEntry"><?=htmlspecialchars(pos_receipt_seal('MANUAL'))?></span></div>
     <div class="receipt-row"><span>PAN</span><span id="rCard"><?=htmlspecialchars(pos_receipt_seal('PAN'))?></span></div>
-    <div class="receipt-row"><span>AMOUNT</span><span id="rAmount">—</span></div>
-    <div class="receipt-row"><span>CURR</span><span id="rCurrency">—</span></div>
-    <div class="receipt-banner" id="rBanner">PENDING</div>
-    <div class="receipt-reason" id="rReason" style="display:none"></div>
     <div class="receipt-row"><span>RC</span><span id="rRc"><?=htmlspecialchars(pos_receipt_seal('RC'))?></span></div>
-    <div class="receipt-row"><span>AUTH</span><span id="rApproval"><?=htmlspecialchars(pos_receipt_seal('AUTH'))?></span></div>
-    <div class="receipt-row"><span>RRN</span><span id="rRRN"><?=htmlspecialchars(pos_receipt_seal('RRN'))?></span></div>
     <div class="receipt-row"><span>TRACE</span><span id="rRef"><?=htmlspecialchars(pos_receipt_seal('TRACE'))?></span></div>
     <div class="receipt-row" id="rHostRow"><span>HOST</span><span id="rNuvei"><?=htmlspecialchars(pos_receipt_seal('HOST'))?></span></div>
     <div class="receipt-row" id="rLedgerRow"><span>LEDGER</span><span id="rLedger"><?=htmlspecialchars(pos_receipt_seal('LEDGER'))?></span></div>
-    <div class="receipt-total">
-      <div class="receipt-row"><span>STATUS</span><span id="rStatus">PENDING</span></div>
-    </div>
     <div class="receipt-footer" id="receiptFooter">
       PENDING
       <br>*** COPY ***
@@ -2823,20 +2823,24 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const entry = document.getElementById('posInputMode')?.value || POS.inputMode || 'manual';
   const status = posSlipStatus(d);
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const clearDash = (v) => {
+    const s = String(v == null ? '' : v).trim();
+    return s ? s : '—';
+  };
   set('rDate', posSeal(dateStr));
   set('rTime', posSeal(timeStr));
   set('rTid', posSeal(tid));
   set('rMid', posSeal(mid));
   set('rBatch', posSeal(d.stan || d.reference || 'BATCH1'));
   set('rStan', posSeal(d.stan || d.reference || 'STAN'));
-  set('rType', posSeal(d.operation_name || type || 'SALE'));
+  set('rType', clearDash(d.operation_name || type || 'SALE'));
   set('rEntry', posSeal(entry));
   set('rCard', posSeal(pan));
   set('rAmount', parseFloat(amount || 0).toFixed(2));
   set('rCurrency', currency || 'USD');
   set('rRc', posSeal(d.response_code || (status === 'APPROVED' ? '00' : '05')));
-  set('rApproval', posSeal(d.approval_code || d.bank_approval_code || 'AUTH'));
-  set('rRRN', posSeal(d.rrn || d.original_rrn || 'RRN'));
+  set('rApproval', clearDash(d.approval_code || d.bank_approval_code || ''));
+  set('rRRN', clearDash(d.rrn || d.original_rrn || ''));
   set('rRef', posSeal(d.reference || 'TRACE'));
   set('rNuvei', posSeal(d.nuvei_txn_id || d.payment_id || 'HOST'));
   const merch = document.getElementById('rMerchantSeal');
