@@ -935,37 +935,153 @@ function pos_is_blocked_test_card(string $pan): bool
 }
 
 /**
- * Host decline as a short POS-slip line — never dump JSON.
+ * Square / host errors safe for POS JSON (code + detail only — no PAN).
+ *
+ * @param array<string,mixed> $result
+ * @return list<array{code:string,detail:string,category?:string}>
  */
+function pos_public_host_errors(array $result): array
+{
+    if (!empty($result['host_errors']) && is_array($result['host_errors'])) {
+        $out = [];
+        foreach ($result['host_errors'] as $err) {
+            if (!is_array($err)) {
+                continue;
+            }
+            $code = trim((string) ($err['code'] ?? ''));
+            $detail = trim((string) ($err['detail'] ?? ''));
+            if ($code === '' && $detail === '') {
+                continue;
+            }
+            $out[] = [
+                'code' => $code,
+                'detail' => $detail,
+                'category' => trim((string) ($err['category'] ?? '')),
+            ];
+        }
+        if ($out) {
+            return $out;
+        }
+    }
+    $raw = is_array($result['raw'] ?? null) ? $result['raw'] : $result;
+    $buckets = [];
+    if (is_array($raw['errors'] ?? null)) {
+        $buckets[] = $raw['errors'];
+    }
+    $cardErrs = $raw['payment']['card_details']['errors'] ?? null;
+    if (is_array($cardErrs)) {
+        $buckets[] = $cardErrs;
+    }
+    $out = [];
+    foreach ($buckets as $bucket) {
+        foreach ($bucket as $err) {
+            if (!is_array($err)) {
+                continue;
+            }
+            $code = trim((string) ($err['code'] ?? ''));
+            $detail = trim((string) ($err['detail'] ?? ''));
+            if ($code === '' && $detail === '') {
+                continue;
+            }
+            $out[] = [
+                'code' => $code,
+                'detail' => $detail,
+                'category' => trim((string) ($err['category'] ?? '')),
+            ];
+        }
+    }
+    if (!$out) {
+        $code = trim((string) ($result['square_error_code'] ?? ''));
+        $detail = trim((string) ($result['square_error_detail'] ?? ''));
+        if ($code !== '' || $detail !== '') {
+            $out[] = ['code' => $code, 'detail' => $detail, 'category' => ''];
+        }
+    }
+    return $out;
+}
+
+/**
+ * Prefer Square errors[0].code / detail over unified CARD_DECLINED.
+ *
+ * @param array<string,mixed> $result
+ */
+function pos_host_decline_line(array $result): string
+{
+    $errs = pos_public_host_errors($result);
+    if ($errs) {
+        $code = trim((string) ($errs[0]['code'] ?? ''));
+        $detail = trim((string) ($errs[0]['detail'] ?? ''));
+        if ($code !== '' && $detail !== '') {
+            return stripos($detail, $code) !== false ? $detail : ($code . ' — ' . $detail);
+        }
+        if ($code !== '') {
+            return $code;
+        }
+        if ($detail !== '') {
+            return $detail;
+        }
+    }
+    foreach (['square_error_code', 'square_error_detail', 'raw_message'] as $k) {
+        $v = trim((string) ($result[$k] ?? ''));
+        if ($v !== '') {
+            return pos_plain_host_message($v);
+        }
+    }
+    $raw = is_array($result['raw'] ?? null) ? $result['raw'] : $result;
+    $line = pos_plain_host_message($raw);
+    if ($line !== '' && strcasecmp($line, 'DECLINED') !== 0) {
+        return $line;
+    }
+    $errCode = trim((string) ($result['error_code'] ?? $result['decline_code'] ?? ''));
+    if ($errCode !== '' && !in_array(strtoupper($errCode), ['CARD_DECLINED', 'DECLINED', 'UNKNOWN'], true)) {
+        return $errCode;
+    }
+    $msg = trim((string) ($result['message'] ?? ''));
+    return $msg !== '' ? pos_plain_host_message($msg) : 'DECLINED';
+}
+
 function pos_plain_host_message($raw, int $depth = 0): string
 {
     if ($depth > 5) {
         return 'DECLINED';
     }
     if (is_array($raw)) {
-        $keys = ['gwErrorReason', 'errCode', 'reason', 'gwErrorCode', 'response_code', 'raw_message', 'error_code', 'detail', 'code'];
+        $sqLine = '';
+        if (isset($raw['errors'][0]) && is_array($raw['errors'][0])) {
+            $err0 = $raw['errors'][0];
+            $detail = trim((string) ($err0['detail'] ?? ''));
+            $code = trim((string) ($err0['code'] ?? ''));
+            $sqLine = ($code !== '' && $detail !== '' && stripos($detail, $code) === false)
+                ? ($code . ' — ' . $detail)
+                : ($detail !== '' ? $detail : $code);
+        }
+        if ($sqLine === '' && isset($raw['payment']['card_details']['errors'][0]) && is_array($raw['payment']['card_details']['errors'][0])) {
+            $err0 = $raw['payment']['card_details']['errors'][0];
+            $detail = trim((string) ($err0['detail'] ?? ''));
+            $code = trim((string) ($err0['code'] ?? ''));
+            $sqLine = ($code !== '' && $detail !== '' && stripos($detail, $code) === false)
+                ? ($code . ' — ' . $detail)
+                : ($detail !== '' ? $detail : $code);
+        }
+        if ($sqLine !== '') {
+            return pos_plain_host_message($sqLine, $depth + 1);
+        }
+        $keys = ['square_error_code', 'square_error_detail', 'raw_message', 'gwErrorReason', 'errCode', 'gwErrorCode', 'reason', 'response_code', 'detail', 'code', 'error_code'];
         $pick = '';
         foreach ($keys as $k) {
             if (!isset($raw[$k])) {
                 continue;
             }
             $v = $raw[$k];
-            if (is_scalar($v) && trim((string) $v) !== '') {
-                $pick = $v;
-                break;
+            if (!is_scalar($v) || trim((string) $v) === '') {
+                continue;
             }
-        }
-        if ($pick === '' && isset($raw['errors'][0]) && is_array($raw['errors'][0])) {
-            $err0 = $raw['errors'][0];
-            $detail = trim((string) ($err0['detail'] ?? ''));
-            $code = trim((string) ($err0['code'] ?? ''));
-            $pick = $detail !== '' ? $detail : $code;
-        }
-        if ($pick === '' && isset($raw['payment']['card_details']['errors'][0]) && is_array($raw['payment']['card_details']['errors'][0])) {
-            $err0 = $raw['payment']['card_details']['errors'][0];
-            $detail = trim((string) ($err0['detail'] ?? ''));
-            $code = trim((string) ($err0['code'] ?? ''));
-            $pick = $detail !== '' ? $detail : $code;
+            $v = trim((string) $v);
+            if (in_array(strtoupper($v), ['CARD_DECLINED', 'DECLINED', 'UNKNOWN'], true) && $k === 'error_code') {
+                continue;
+            }
+            $pick = $v;
+            break;
         }
         if ($pick === '') {
             foreach (['decline_reason', 'status_message', 'message'] as $k) {
@@ -1008,11 +1124,14 @@ function pos_plain_host_message($raw, int $depth = 0): string
         ];
         return $map[$m[1]] ?? $text;
     }
-    if (preg_match('/GENERIC_DECLINE/i', $text)) {
-        return strlen($text) > 16 ? $text : 'GENERIC_DECLINE';
+    if (preg_match('/GENERIC_DECLINE|CVV_FAILURE|INVALID_EXPIRATION|INSUFFICIENT_FUNDS|PAN_FAILURE|VOICE_FAILURE|CARD_DECLINED_VERIFICATION_REQUIRED/i', $text)) {
+        if (strlen($text) > 140) {
+            $text = substr($text, 0, 137) . '...';
+        }
+        return $text;
     }
-    if (strlen($text) > 80) {
-        $text = substr($text, 0, 77) . '...';
+    if (strlen($text) > 120) {
+        $text = substr($text, 0, 117) . '...';
     }
     return $text !== '' ? $text : 'DECLINED';
 }

@@ -308,7 +308,8 @@ $requiresApproval = !empty($opMeta['requires_approval']);
 $chargeMode = trim((string)($data['charge_mode'] ?? $extra['charge_mode'] ?? $data['withdrawal_mode'] ?? ''));
 $adviceChannel = strtolower(trim((string)($extra['advice_channel'] ?? $data['advice_channel'] ?? '')));
 
-$hasRealCloudToken = pos_is_real_cloud_token($cloudToken) || pos_is_real_cloud_token($sourceId);
+$hasSquareSource = $sourceId !== '' && !pos_is_simulation_card_nonce($sourceId);
+$hasRealCloudToken = pos_is_real_cloud_token($cloudToken) || pos_is_real_cloud_token($sourceId) || $hasSquareSource;
 if (pos_is_simulation_card_nonce($cloudToken) || pos_is_simulation_card_nonce($sourceId)) {
     $errors[] = 'Square simulation nonce is rejected. Use a real Web Payments SDK token.';
 } elseif ($hasRealCloudToken) {
@@ -446,6 +447,8 @@ $redirectUrl = null;
 $result = [];
 $orderPersistedByOrchestrator = false;
 $orchestratorOrderId = null;
+$hostErrors = [];
+$squareErrorCode = '';
 
 if ($useCardGateway) {
     try {
@@ -608,12 +611,12 @@ if ($useCardGateway) {
         $success = !empty($result['success']);
         $message = $success
             ? 'APPROVED'
-            : pos_plain_host_message(
-                $result['raw_message']
-                ?? $result['message']
-                ?? $result['error_code']
-                ?? ($result['raw'] ?? $result)
-            );
+            : pos_host_decline_line(is_array($result) ? $result : ['message' => (string) $result]);
+        $hostErrors = $success ? [] : pos_public_host_errors(is_array($result) ? $result : []);
+        $squareErrorCode = trim((string) ($result['square_error_code'] ?? ''));
+        if ($squareErrorCode === '' && !empty($hostErrors[0]['code'])) {
+            $squareErrorCode = trim((string) $hostErrors[0]['code']);
+        }
         $responseCode = trim((string) (
             $result['response_code']
             ?? $result['errCode']
@@ -626,9 +629,6 @@ if ($useCardGateway) {
         }
         $approvalCode = trim((string) ($result['approval_code'] ?? $result['auth_code'] ?? ''));
         $rrn = trim((string) ($result['rrn'] ?? $result['transaction_id'] ?? $result['payment_id'] ?? ''));
-        if ($rrn === '') {
-            $rrn = $reference;
-        }
         $cardLast4 = preg_replace('/\D+/', '', (string) ($result['card_last4'] ?? '')) ?? '';
         if ($cardLast4 === '' && $cardNumber !== '') {
             $cardLast4 = substr($cardNumber, -4);
@@ -917,7 +917,31 @@ if ($success && pos_is_withdrawal($txnType) && empty($data['_peer_mirror'])) {
 // ============================================================
 
 http_response_code(200);
-$message = pos_plain_host_message($message);
+if (!$success) {
+    $message = pos_host_decline_line(is_array($result) ? array_merge($result, ['message' => $message]) : ['message' => $message]);
+    if ($hostErrors === [] && is_array($result)) {
+        $hostErrors = pos_public_host_errors($result);
+    }
+    if ($squareErrorCode === '' && !empty($hostErrors[0]['code'])) {
+        $squareErrorCode = trim((string) $hostErrors[0]['code']);
+    }
+} else {
+    $message = pos_plain_host_message($message);
+}
+$rawMessageOut = null;
+$errorCodeOut = null;
+if (!$success) {
+    $rawMessageOut = trim((string) ($result['raw_message'] ?? ''));
+    if ($rawMessageOut === '') {
+        $rawMessageOut = $message;
+    }
+    $errorCodeOut = $squareErrorCode !== ''
+        ? $squareErrorCode
+        : trim((string) ($result['error_code'] ?? $result['decline_code'] ?? ''));
+    if ($errorCodeOut === '') {
+        $errorCodeOut = null;
+    }
+}
 echo json_encode([
     'success' => $success,
     'reference' => $reference,
@@ -938,8 +962,10 @@ echo json_encode([
     'status_message' => $message,
     'message' => $message,
     'decline_reason' => $success ? null : $message,
-    'raw_message' => $success ? null : ($result['raw_message'] ?? $message),
-    'error_code' => $success ? null : ($result['error_code'] ?? $result['decline_code'] ?? null),
+    'raw_message' => $rawMessageOut,
+    'error_code' => $errorCodeOut,
+    'square_error_code' => $success ? null : ($squareErrorCode !== '' ? $squareErrorCode : null),
+    'host_errors' => $success ? [] : $hostErrors,
     'pos_device' => $posDevice,
     'pos_model' => $posModel,
     'pos_type' => $posType,

@@ -575,15 +575,16 @@ Object.keys(OPS).forEach(function(k){
 
 function applyFieldRequirements(meta) {
   meta = meta || {};
+  var squareHosted = typeof usesSquareHostedCard === 'function' && usesSquareHostedCard();
   var mark = function(id, on) {
     var el = document.getElementById(id);
     if (el) el.style.display = on ? '' : 'none';
   };
-  mark('reqCcNumber', meta.requires_card !== false);
-  mark('reqCcExpiry', !!meta.requires_expiry);
-  mark('reqCcCvv', !!meta.requires_cvv);
-  mark('reqMotoCard', !!meta.requires_card);
-  mark('reqMotoExpiry', !!meta.requires_expiry);
+  mark('reqCcNumber', !squareHosted && meta.requires_card !== false);
+  mark('reqCcExpiry', !squareHosted && !!meta.requires_expiry);
+  mark('reqCcCvv', !squareHosted && !!meta.requires_cvv);
+  mark('reqMotoCard', !squareHosted && !!meta.requires_card);
+  mark('reqMotoExpiry', !squareHosted && !!meta.requires_expiry);
 }
 
 function setTx(type, el) {

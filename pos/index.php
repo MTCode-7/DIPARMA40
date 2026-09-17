@@ -1695,17 +1695,38 @@ function posSlipStatus(d) {
 
 function posPlainReason(raw) {
   if (raw == null) return '';
+  const generic = (s) => /^(DECLINED|CARD_DECLINED|UNKNOWN|رُفضت العملية)$/i.test(String(s || '').trim());
+  const lineFromErr = (err) => {
+    if (!err || typeof err !== 'object') return '';
+    const code = String(err.code || '').trim();
+    const detail = String(err.detail || err.message || '').trim();
+    if (code && detail) return detail.toUpperCase().indexOf(code.toUpperCase()) >= 0 ? detail : (code + ' — ' + detail);
+    return detail || code;
+  };
   if (typeof raw === 'object') {
-    const sq = (raw.errors && raw.errors[0]) || (raw.payment && raw.payment.card_details && raw.payment.card_details.errors && raw.payment.card_details.errors[0]) || {};
-    const pick = raw.raw_message || raw.gwErrorReason || raw.errCode || raw.reason || raw.response_code
-      || sq.detail || sq.code
+    const host0 = Array.isArray(raw.host_errors) ? raw.host_errors[0] : null;
+    const sq = host0
+      || (raw.errors && raw.errors[0])
+      || (raw.payment && raw.payment.card_details && raw.payment.card_details.errors && raw.payment.card_details.errors[0])
+      || (raw.raw && raw.raw.errors && raw.raw.errors[0])
+      || (raw.raw && raw.raw.payment && raw.raw.payment.card_details && raw.raw.payment.card_details.errors && raw.raw.payment.card_details.errors[0])
+      || (raw.gateway_details && raw.gateway_details.response && raw.gateway_details.response.raw && raw.gateway_details.response.raw.errors && raw.gateway_details.response.raw.errors[0])
+      || {};
+    const sqLine = lineFromErr(sq)
+      || [raw.square_error_code, raw.square_error_detail].filter(Boolean).join(' — ');
+    if (sqLine && !generic(sqLine)) return posPlainReason(sqLine);
+    const pick = raw.raw_message || raw.gwErrorReason || raw.errCode || raw.reason
       || ((typeof raw.decline_reason === 'string' && raw.decline_reason[0] !== '{') ? raw.decline_reason : '')
       || ((typeof raw.status_message === 'string' && raw.status_message[0] !== '{') ? raw.status_message : '')
       || ((typeof raw.message === 'string' && raw.message[0] !== '{') ? raw.message : '')
       || raw.error_code;
+    if (pick && !generic(pick)) return posPlainReason(pick);
+    if (sqLine) return posPlainReason(sqLine);
     if (pick) return posPlainReason(pick);
     const dumped = JSON.stringify(raw);
     const rc = dumped.match(/\b(1507|1011|1007|1106|1019)\b/);
+    const sqCode = dumped.match(/\b(GENERIC_DECLINE|CVV_FAILURE|INVALID_EXPIRATION|INSUFFICIENT_FUNDS|PAN_FAILURE|VOICE_FAILURE|CARD_DECLINED_VERIFICATION_REQUIRED)\b/);
+    if (sqCode) return sqCode[1];
     return rc ? posPlainReason(rc[1]) : (AR ? 'رُفضت العملية' : 'DECLINED');
   }
   let text = String(raw).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -1717,6 +1738,8 @@ function posPlainReason(raw) {
       else {
         const quoted = text.match(/"(?:gwErrorReason|errCode|reason|decline_reason|detail|code)"\s*:\s*"((?:\\.|[^"\\])*)"/);
         if (quoted) return posPlainReason(quoted[1].replace(/\\"/g, '"'));
+        const sqCode = text.match(/\b(GENERIC_DECLINE|CVV_FAILURE|INVALID_EXPIRATION|INSUFFICIENT_FUNDS|PAN_FAILURE|VOICE_FAILURE|CARD_DECLINED_VERIFICATION_REQUIRED)\b/);
+        if (sqCode) return sqCode[1];
         return AR ? 'رُفضت العملية' : 'DECLINED';
       }
     }
@@ -1726,7 +1749,7 @@ function posPlainReason(raw) {
   if (/1007/.test(text)) return AR ? 'بطاقة منتهية RC 1007' : 'DECLINED RC 1007 EXPIRED CARD';
   if (/1106/.test(text)) return AR ? 'رصيد غير كافٍ RC 1106' : 'DECLINED RC 1106 INSUFFICIENT FUNDS';
   if (/1019/.test(text)) return AR ? 'رابط غير مقبول RC 1019' : 'DECLINED RC 1019 INVALID URL';
-  if (text.length > 96) text = text.slice(0, 93) + '...';
+  if (text.length > 140) text = text.slice(0, 137) + '...';
   return text;
 }
 
@@ -2790,7 +2813,7 @@ window.processTransaction = async function() {
     } else {
       POS.lastTxn = d;
       updateReceipt(d, type, amount, currency, cardNum);
-      const why = posPlainReason(d.raw_message || d.message || d.error_code || d.decline_reason || 'DECLINED');
+      const why = posPlainReason(d) || posPlainReason(d.raw_message || d.message || d.error_code || d.decline_reason || 'DECLINED');
       showResultModal(false, d);
       setPosStatus('DECLINED');
       toast(why, 'error');
@@ -2857,8 +2880,8 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const merch = document.getElementById('rMerchantSeal');
   if (merch) merch.textContent = (POS_MERCHANT && (POS_MERCHANT.legal_name || POS_MERCHANT.brand)) || 'DIPARMA';
   const reasonEl = document.getElementById('rReason');
-  const whyRaw = posPlainReason(d && (d.raw_message || d.message || d.error_code) || '');
-  const why = whyRaw && !/^DECLINED$/i.test(whyRaw) && whyRaw !== 'رُفضت العملية' ? whyRaw : '';
+  const whyRaw = posPlainReason(d);
+  const why = whyRaw && !/^(DECLINED|رُفضت العملية)$/i.test(String(whyRaw).trim()) ? whyRaw : '';
   if (reasonEl) {
     if (status === 'DECLINED' && why) {
       reasonEl.textContent = why;
@@ -2892,8 +2915,8 @@ function showResultModal(success, d) {
   document.getElementById('modalTitle').textContent = status;
   document.getElementById('modalTitle').style.color = status === 'APPROVED' ? 'var(--green)' : (status === 'DECLINED' ? 'var(--red)' : 'var(--gold)');
   document.getElementById('modalRef').textContent = '';
-  const whyRaw = posPlainReason(d && (d.raw_message || d.message || d.error_code) || '');
-  const why = whyRaw && !/^DECLINED$/i.test(whyRaw) && whyRaw !== 'رُفضت العملية' ? whyRaw : '';
+  const whyRaw = posPlainReason(d);
+  const why = whyRaw && !/^(DECLINED|رُفضت العملية)$/i.test(String(whyRaw).trim()) ? whyRaw : '';
   const rrn = String((d && (d.rrn || d.original_rrn)) || '').trim();
   const auth = String((d && (d.approval_code || d.bank_approval_code)) || '').trim();
   document.getElementById('modalDetails').innerHTML = `

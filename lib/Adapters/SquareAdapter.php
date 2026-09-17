@@ -121,12 +121,11 @@ class SquareAdapter implements GatewayAdapterInterface
                 'raw' => $res,
             ];
         }
-        return GatewayErrorMapper::buildErrorResponse(
-            $this->normalizeError($res),
+        return $this->declineFromSquare(
+            $res,
             $transactionId,
             $amount ?? 0,
-            'USD',
-            $this->errorMessage($res)
+            'USD'
         );
     }
 
@@ -148,13 +147,12 @@ class SquareAdapter implements GatewayAdapterInterface
                 'raw' => $res,
             ];
         }
-        return GatewayErrorMapper::buildErrorResponse(
-            $this->normalizeError($res),
-            $transactionId,
-            0,
-            'USD',
-            $this->errorMessage($res) ?: $reason
-        );
+        $out = $this->declineFromSquare($res, $transactionId, 0, 'USD');
+        if (trim((string) ($out['raw_message'] ?? '')) === '' && $reason !== '') {
+            $out['raw_message'] = $reason;
+            $out['message'] = $reason;
+        }
+        return $out;
     }
 
     /** Resolve Square location if env empty. */
@@ -281,21 +279,85 @@ class SquareAdapter implements GatewayAdapterInterface
                 return $result;
             }
 
-            $err = $this->normalizeError($res);
-            GatewayLogger::log('square', $autocomplete ? 'charge' : 'hold', $payload, $res, $err, $duration);
-            $out = GatewayErrorMapper::buildErrorResponse($err, $reference, $amount, $currency, $this->errorMessage($res));
+            GatewayLogger::log('square', $autocomplete ? 'charge' : 'hold', $payload, $res, $this->normalizeError($res), $duration);
+            $out = $this->declineFromSquare($res, $reference, $amount, $currency);
             $payId = trim((string) ($payment['id'] ?? ''));
             $auth = trim((string) ($payment['card_details']['auth_result_code'] ?? ''));
             $out['transaction_id'] = $payId;
-            $out['rrn'] = $payId !== '' ? $payId : $reference;
+            if ($payId !== '') {
+                $out['rrn'] = $payId;
+            }
             $out['approval_code'] = $auth;
             $out['card_last4'] = $this->cardLast4($payment);
-            $out['raw'] = $res;
             return $out;
         } catch (Throwable $e) {
             GatewayLogger::log('square', $autocomplete ? 'charge' : 'hold', $payload, ['exception' => $e->getMessage()], 'NETWORK_ERROR', microtime(true) - $start);
             return GatewayErrorMapper::buildErrorResponse('NETWORK_ERROR', $reference, $amount, $currency, $e->getMessage());
         }
+    }
+
+    /**
+     * AUTH Hold / charge / capture fail: keep Square's own code+detail.
+     * Do not replace GENERIC_DECLINE / CVV_FAILURE with a generic CARD_DECLINED label.
+     *
+     * @return array<string,mixed>
+     */
+    private function declineFromSquare(array $res, string $reference, float $amount, string $currency): array
+    {
+        $unified = $this->normalizeError($res);
+        $parts = $this->errorParts($res);
+        $line = $this->formatErrorLine($parts['code'], $parts['detail']);
+        if ($line === '') {
+            $line = $this->errorMessage($res);
+        }
+        $out = GatewayErrorMapper::buildErrorResponse($unified, $reference, $amount, $currency, $line);
+        if ($parts['code'] !== '') {
+            $out['error_code'] = $parts['code'];
+        }
+        $out['raw_message'] = $line;
+        $out['message'] = $line;
+        $out['square_error_code'] = $parts['code'];
+        $out['square_error_detail'] = $parts['detail'];
+        $out['host_errors'] = array_values(array_filter([
+            $parts['code'] !== '' || $parts['detail'] !== ''
+                ? [
+                    'code' => $parts['code'],
+                    'detail' => $parts['detail'],
+                    'category' => $parts['category'],
+                ]
+                : null,
+        ]));
+        $out['raw'] = $res;
+        return $out;
+    }
+
+    /**
+     * @return array{code:string,detail:string,category:string}
+     */
+    private function errorParts(array $res): array
+    {
+        $payment = is_array($res['payment'] ?? null) ? $res['payment'] : [];
+        $cardDetails = is_array($payment['card_details'] ?? null) ? $payment['card_details'] : [];
+        $cardErr = is_array($cardDetails['errors'][0] ?? null) ? $cardDetails['errors'][0] : [];
+        $apiErr = is_array($res['errors'][0] ?? null) ? $res['errors'][0] : [];
+        return [
+            'code' => trim((string) ($apiErr['code'] ?? $cardErr['code'] ?? '')),
+            'detail' => trim((string) ($apiErr['detail'] ?? $cardErr['detail'] ?? '')),
+            'category' => trim((string) ($apiErr['category'] ?? $cardErr['category'] ?? '')),
+        ];
+    }
+
+    private function formatErrorLine(string $code, string $detail): string
+    {
+        $code = trim($code);
+        $detail = trim($detail);
+        if ($code !== '' && $detail !== '') {
+            if (stripos($detail, $code) !== false) {
+                return $detail;
+            }
+            return $code . ' — ' . $detail;
+        }
+        return $detail !== '' ? $detail : $code;
     }
 
     private function cardLast4(array $payment): string
@@ -311,30 +373,17 @@ class SquareAdapter implements GatewayAdapterInterface
 
     private function errorMessage(array $res): string
     {
-        $payment = $res['payment'] ?? [];
-        $cardErr = is_array($payment['card_details']['errors'][0] ?? null)
-            ? $payment['card_details']['errors'][0]
-            : [];
-        $apiErr = is_array($res['errors'][0] ?? null) ? $res['errors'][0] : [];
-        $code = trim((string) ($apiErr['code'] ?? $cardErr['code'] ?? ''));
-        $detail = trim((string) ($apiErr['detail'] ?? $cardErr['detail'] ?? ''));
-        if ($code !== '' && $detail !== '') {
-            if (stripos($detail, $code) !== false) {
-                return $detail;
-            }
-            return $code . ' — ' . $detail;
+        $parts = $this->errorParts($res);
+        $line = $this->formatErrorLine($parts['code'], $parts['detail']);
+        if ($line !== '') {
+            return $line;
         }
-        if ($detail !== '') {
-            return $detail;
-        }
-        if ($code !== '') {
-            return $code;
-        }
+        $payment = is_array($res['payment'] ?? null) ? $res['payment'] : [];
         $status = strtoupper((string) ($payment['status'] ?? ''));
         if ($status === 'FAILED') {
             return 'SQUARE_FAILED';
         }
-        return (string) ($res['message'] ?? 'Square error');
+        return trim((string) ($res['message'] ?? '')) ?: 'Square error';
     }
 
     private function locationCurrency(string $locationId): string
