@@ -28,10 +28,11 @@ class SquareAdapter implements GatewayAdapterInterface
         $this->accessToken = trim((string) ($creds['access_token'] ?? getenv('SQUARE_ACCESS_TOKEN') ?: getenv('SQUARE_SECRET_KEY') ?: ''));
         $this->applicationId = trim((string) ($creds['application_id'] ?? getenv('SQUARE_APPLICATION_ID') ?: getenv('SQUARE_API_KEY') ?: ''));
         $this->locationId = trim((string) ($creds['location_id'] ?? getenv('SQUARE_LOCATION_ID') ?: ''));
-        $this->sandbox = empty($creds['live']);
-        if ($creds === []) {
-            $env = strtolower(trim((string) (getenv('SQUARE_ENVIRONMENT') ?: 'live')));
-            $this->sandbox = !in_array($env, ['production', 'live', 'prod'], true);
+        $envHint = strtolower(trim((string) ($creds['environment'] ?? getenv('SQUARE_ENVIRONMENT') ?: 'production')));
+        if (function_exists('square_credentials_are_live')) {
+            $this->sandbox = !square_credentials_are_live($this->applicationId, $this->accessToken, $envHint);
+        } else {
+            $this->sandbox = empty($creds['live']);
         }
         $this->baseUrl = $this->sandbox
             ? 'https://connect.squareupsandbox.com'

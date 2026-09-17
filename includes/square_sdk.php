@@ -12,6 +12,21 @@ function square_is_application_id(string $id): bool
     return (bool) preg_match('/^(sandbox-)?sq0id[bp]-/i', $id);
 }
 
+function square_token_live_flag(string $token): ?bool
+{
+    $t = strtolower(trim($token));
+    if ($t === '') {
+        return null;
+    }
+    if (str_starts_with($t, 'sandbox-') || str_starts_with($t, 'sq0atb-')) {
+        return false;
+    }
+    if (str_starts_with($t, 'sq0atp-')) {
+        return true;
+    }
+    return null;
+}
+
 function square_env_is_live(string $appId, string $envHint): bool
 {
     $id = strtolower(trim($appId));
@@ -21,7 +36,22 @@ function square_env_is_live(string $appId, string $envHint): bool
     if (preg_match('/^sq0id[bp]-/', $id)) {
         return true;
     }
-    return in_array(strtolower(trim($envHint)), ['production', 'live', 'prod'], true);
+    // Default LIVE. $envHint is kept for callers; sandbox host is used only when
+    // Application ID is sandbox-sq0idb- (see square_credentials_are_live).
+    return true;
+}
+
+function square_credentials_are_live(string $appId, string $token, string $envHint = 'production'): bool
+{
+    $appFlag = square_app_id_live_flag($appId);
+    if ($appFlag !== null) {
+        return $appFlag;
+    }
+    $tokenFlag = square_token_live_flag($token);
+    if ($tokenFlag !== null) {
+        return $tokenFlag;
+    }
+    return square_env_is_live($appId, $envHint);
 }
 
 function square_fetch_locations(string $token, bool $live): array
@@ -115,39 +145,37 @@ function square_sdk_config(): array
     }
 
     $appId = $candidates[0] ?? '';
-    $live = square_env_is_live($appId, $env);
+    foreach ($candidates as $candidate) {
+        if (square_app_id_live_flag($candidate) === true) {
+            $appId = $candidate;
+            break;
+        }
+    }
+    $live = square_credentials_are_live($appId, $token, $env);
+    foreach ($candidates as $candidate) {
+        if (square_app_id_live_flag($candidate) === $live) {
+            $appId = $candidate;
+            break;
+        }
+    }
     $locations = [];
     if ($token !== '') {
-        static $locCache = null;
-        if ($locCache === null) {
-            $liveLocs = square_fetch_locations($token, true);
-            $sandboxLocs = square_fetch_locations($token, false);
-            $locCache = ['live' => $liveLocs, 'sandbox' => $sandboxLocs];
+        static $locCache = [];
+        $cacheKey = $live ? 'live' : 'sandbox';
+        if (!array_key_exists($cacheKey, $locCache)) {
+            $locCache[$cacheKey] = square_fetch_locations($token, $live);
         }
-        if ($locCache['live']) {
-            $live = true;
-            $locations = $locCache['live'];
-        } elseif ($locCache['sandbox']) {
-            $live = false;
-            $locations = $locCache['sandbox'];
-        }
-        foreach ($candidates as $candidate) {
-            $flag = square_app_id_live_flag($candidate);
-            if ($flag === $live) {
-                $appId = $candidate;
-                break;
-            }
-        }
+        $locations = $locCache[$cacheKey];
         if ($locations) {
             $locationId = square_pick_location_id($locationId, $locations);
         } elseif ($locationId === '') {
             $configError = 'Square Locations API did not return a location for this access token.';
         }
         $appFlag = square_app_id_live_flag($appId);
-        if ($appFlag !== null && $appFlag !== $live && $locations) {
+        if ($appFlag !== null && $appFlag !== $live) {
             $configError = $live
                 ? 'Square access token is LIVE but Application ID is sandbox. Set SQUARE_APPLICATION_ID from the Production tab.'
-                : 'Square access token is sandbox but Application ID is LIVE. Use sandbox-sq0idb-… with sandbox.web.squarecdn.com.';
+                : 'Square Application ID is sandbox. DIPARMA uses production (sq0idp- + connect.squareup.com).';
         }
     }
 

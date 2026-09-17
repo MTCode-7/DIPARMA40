@@ -230,31 +230,6 @@ class GatewayConnectionTester
         if ($token === '') {
             return ['success' => false, 'message' => 'SQUARE_ACCESS_TOKEN مفقود'];
         }
-        $headers = [
-            'Authorization: Bearer ' . $token,
-            'Square-Version: 2024-01-18',
-            'Accept: application/json',
-        ];
-        // Token environment is authoritative. Do not trust SQUARE_ENVIRONMENT / app-id hint
-        // alone — a live sq0idp- key with environment=sandbox was reported as "incorrect".
-        $liveRes = $this->curl('GET', 'https://connect.squareup.com/v2/locations', [], $headers);
-        $sandboxRes = $this->curl('GET', 'https://connect.squareupsandbox.com/v2/locations', [], $headers);
-        $liveLocs = ($liveRes['http_code'] === 200 && !empty($liveRes['data']['locations']))
-            ? $liveRes['data']['locations'] : [];
-        $sandboxLocs = ($sandboxRes['http_code'] === 200 && !empty($sandboxRes['data']['locations']))
-            ? $sandboxRes['data']['locations'] : [];
-
-        if (!$liveLocs && !$sandboxLocs) {
-            $liveCode = (int) ($liveRes['http_code'] ?? 0);
-            $sandboxCode = (int) ($sandboxRes['http_code'] ?? 0);
-            if (in_array($liveCode, [401, 403], true) && in_array($sandboxCode, [401, 403], true)) {
-                return ['success' => false, 'message' => '❌ مفتاح Square غير صحيح'];
-            }
-            return ['success' => false, 'message' => '❌ Square: HTTP live=' . $liveCode . ' sandbox=' . $sandboxCode];
-        }
-
-        $live = $liveLocs !== [];
-        $locations = $live ? $liveLocs : $sandboxLocs;
         $candidates = [];
         foreach ([
             $creds['application_id'] ?? '',
@@ -267,29 +242,55 @@ class GatewayConnectionTester
                 $candidates[] = $id;
             }
         }
-        $appId = '';
-        $appFlag = null;
+        $appId = $candidates[0] ?? '';
+        foreach ($candidates as $candidate) {
+            $flag = function_exists('square_app_id_live_flag') ? square_app_id_live_flag($candidate) : null;
+            if ($flag === true) {
+                $appId = $candidate;
+                break;
+            }
+        }
+        $envHint = strtolower(trim((string) ($creds['environment'] ?? getenv('SQUARE_ENVIRONMENT') ?: 'production')));
+        $live = function_exists('square_credentials_are_live')
+            ? square_credentials_are_live($appId, $token, $envHint)
+            : (function_exists('square_env_is_live')
+                ? square_env_is_live($appId, $envHint)
+                : !str_starts_with(strtolower($appId), 'sandbox-'));
         foreach ($candidates as $candidate) {
             $flag = function_exists('square_app_id_live_flag') ? square_app_id_live_flag($candidate) : null;
             if ($flag === $live) {
                 $appId = $candidate;
-                $appFlag = $flag;
                 break;
             }
         }
-        if ($appId === '') {
-            $appId = $candidates[0] ?? '';
-            $appFlag = ($appId !== '' && function_exists('square_app_id_live_flag'))
-                ? square_app_id_live_flag($appId)
-                : null;
-        }
+        $appFlag = ($appId !== '' && function_exists('square_app_id_live_flag'))
+            ? square_app_id_live_flag($appId)
+            : null;
         if ($appId === '' || $appFlag === null) {
-            return ['success' => false, 'message' => '❌ SQUARE_APPLICATION_ID غير صالح — يلزم sq0idp- (LIVE) أو sandbox-sq0idb-'];
+            return ['success' => false, 'message' => '❌ SQUARE_APPLICATION_ID غير صالح — يلزم sq0idp- (LIVE)'];
         }
         if ($appFlag !== $live) {
             return ['success' => false, 'message' => $live
                 ? '❌ التوكن LIVE لكن Application ID سانبوكس. ضع sq0idp- من تبويب Production'
-                : '❌ التوكن سانبوكس لكن Application ID لايف. استخدم sandbox-sq0idb-'];
+                : '❌ Application ID سانبوكس مرفوض — استخدم sq0idp- و connect.squareup.com'];
+        }
+        if (!$live) {
+            return ['success' => false, 'message' => '❌ Square sandbox مرفوض — استخدم Production: sq0idp- + connect.squareup.com'];
+        }
+
+        $res = $this->curl('GET', 'https://connect.squareup.com/v2/locations', [], [
+            'Authorization: Bearer ' . $token,
+            'Square-Version: 2024-01-18',
+            'Accept: application/json',
+        ]);
+        $code = (int) ($res['http_code'] ?? 0);
+        if (in_array($code, [401, 403], true)) {
+            return ['success' => false, 'message' => '❌ مفتاح Square غير صحيح'];
+        }
+        $locations = ($code === 200 && !empty($res['data']['locations']))
+            ? $res['data']['locations'] : [];
+        if (!$locations) {
+            return ['success' => false, 'message' => '❌ Square: HTTP ' . $code];
         }
 
         $name = '';
@@ -305,7 +306,7 @@ class GatewayConnectionTester
         if (!$active) {
             return ['success' => false, 'message' => '❌ لا يوجد Square Location بحالة ACTIVE'];
         }
-        return ['success' => true, 'message' => '✅ Square متصل — ' . $name . ' (' . ($live ? 'LIVE' : 'sandbox') . ')'];
+        return ['success' => true, 'message' => '✅ Square متصل — ' . $name . ' (LIVE)'];
     }
 
     // ── Checkout.com ─────────────────────────────────────────
