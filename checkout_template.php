@@ -706,7 +706,10 @@ function usesSquareHostedCard() {
 }
 
 async function attachSquareCheckoutToken(payload) {
-  if (!usesSquareHostedCard() || !window.DiparmaSquareSdk) return { ok: true };
+  if (!usesSquareHostedCard()) return { ok: true };
+  if (!window.DiparmaSquareSdk) {
+    return { ok: false, message: 'Square Web Payments SDK is not loaded' };
+  }
   if (!DiparmaSquareSdk.isReady()) {
     await initSquareSdk();
   }
@@ -847,6 +850,11 @@ async function go() {
   }
 
   if (usesSquareHostedCard()) {
+    var amtPreEl = document.getElementById('cardAmt') || document.getElementById('captureAmt');
+    var amtPre = parseFloat(amtPreEl && amtPreEl.value) || 0;
+    if (amtPre <= 0) {
+      showToast('<?=$ar?'أدخل مبلغاً صحيحاً':'Enter valid amount'?>','error'); btn.disabled=false; resetBtn(); return;
+    }
     var sqAttach = await attachSquareCheckoutToken(payload);
     if (!sqAttach.ok) {
       showToast(sqAttach.message, 'error');
@@ -934,38 +942,42 @@ async function go() {
     payload.moto_type     = 'MOTO';
     payload.txn_type      = curTx;
     payload.linked_to_auth = (curTx === 'capture');
-    payload.cc_number = mn;
-    payload.card_number = mn;
-    payload.cc_expiry = mexp;
-    payload.card_expiry = mexp;
+    if (!squareTokPresent) {
+      payload.cc_number = mn;
+      payload.card_number = mn;
+      payload.cc_expiry = mexp;
+      payload.card_expiry = mexp;
+    }
     var mcvv = document.getElementById('motoCvv').value.trim();
     var mnam = document.getElementById('motoName').value.trim();
     var meml = document.getElementById('motoEmail').value.trim();
     var mph  = document.getElementById('motoPhone').value.trim();
-    if (mcvv) { payload.cc_cvv = mcvv; payload.card_cvv = mcvv; }
+    if (!squareTokPresent && mcvv) { payload.cc_cvv = mcvv; payload.card_cvv = mcvv; }
     if (mnam) payload.name = mnam;
     if (meml) payload.email = meml;
     if (mph)  payload.phone = mph;
 
   } else if (curTx === 'online_sale_moto') {
     var amt = parseFloat(document.getElementById('cardAmt').value) || 0;
-    var cc = document.getElementById('ccNumber').value.replace(/\s/g,'');
+    var cc = (document.getElementById('ccNumber')?.value || '').replace(/\s/g,'');
     var apOnline = (document.getElementById('cardOnlineApproval')?.value || document.getElementById('cardBankApproval')?.value || '').replace(/\D/g,'');
-    var expO = document.getElementById('ccExpiry').value.trim();
-    var cvvO = document.getElementById('ccCvv').value.trim();
+    var expO = (document.getElementById('ccExpiry')?.value || '').trim();
+    var cvvO = (document.getElementById('ccCvv')?.value || '').trim();
     if (amt <= 0) { showToast('<?=$ar?'أدخل مبلغاً صحيحاً':'Enter valid amount'?>','error'); btn.disabled=false; resetBtn(); return; }
-    if (!cc) { showToast('<?=$ar?'رقم البطاقة مطلوب':'Card number required'?>','error'); btn.disabled=false; resetBtn(); return; }
-    if (!/^(0[1-9]|1[0-2])\/[0-9]{2}$/.test(expO)) { showToast('Expiry required (MM/YY)','error'); btn.disabled=false; resetBtn(); return; }
-    if (!cvvO) { showToast('CVV required','error'); btn.disabled=false; resetBtn(); return; }
+    if (!squareTokPresent && !cc) { showToast('<?=$ar?'رقم البطاقة مطلوب':'Card number required'?>','error'); btn.disabled=false; resetBtn(); return; }
+    if (!squareTokPresent && !/^(0[1-9]|1[0-2])\/[0-9]{2}$/.test(expO)) { showToast('Expiry required (MM/YY)','error'); btn.disabled=false; resetBtn(); return; }
+    if (!squareTokPresent && !cvvO) { showToast('CVV required','error'); btn.disabled=false; resetBtn(); return; }
     if (!/^\d{4}$|^\d{6}$/.test(apOnline)) { showToast('Online Approval must be 4 or 6 digits','error'); btn.disabled=false; resetBtn(); return; }
     payload.amount = amt;
     payload.currency = document.getElementById('cardCur').value;
-    payload.cc_number = cc;
-    payload.card_number = cc;
-    payload.cc_expiry = expO;
-    payload.card_expiry = expO;
-    payload.cc_cvv = cvvO;
-    payload.card_cvv = cvvO;
+    if (!squareTokPresent) {
+      payload.cc_number = cc;
+      payload.card_number = cc;
+      payload.cc_expiry = expO;
+      payload.card_expiry = expO;
+      payload.cc_cvv = cvvO;
+      payload.card_cvv = cvvO;
+    }
     payload.approval_code = apOnline;
     payload.bank_approval_code = apOnline;
     payload.txn_type = 'online_sale_moto';
@@ -1071,28 +1083,7 @@ async function go() {
       apiUrl = BASE + 'api/pos_transaction.php';
     }
 
-    // Square Web Payments SDK — tokenize then charge via POS API
-    if (pipeGw === 'square' && SQUARE_CFG.enabled && window.DiparmaSquareSdk
-        && ['purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','auth','purchase','purchase_advice'].indexOf(curTx) >= 0) {
-      if (!DiparmaSquareSdk.isReady()) {
-        await initSquareSdk();
-      }
-      var tok = await DiparmaSquareSdk.tokenize();
-      if (!tok.success) {
-        var se = document.getElementById('square-error');
-        if (se) se.textContent = tok.message || 'Square tokenize failed';
-        showToast(tok.message || 'Square tokenize failed', 'error');
-        btn.disabled=false; resetBtn(); return;
-      }
-      payload.cloud_token = tok.token;
-      payload.payment_token = tok.token;
-      payload.source_id = tok.token;
-      payload.card_type = 'CLOUD';
-      payload.card_number = '';
-      payload.cc_number = '';
-      payload.card_cvv = '';
-      payload.cc_cvv = '';
-    }
+    // Square nonce already attached above when hosted card form is used
 
     // Stripe 3DS فقط على صفحة Stripe
     if (curTx === 'purchase_3d' && pipeGw === 'stripe' && stripe && stripeEl) {

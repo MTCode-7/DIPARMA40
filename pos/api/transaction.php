@@ -308,12 +308,21 @@ $requiresApproval = !empty($opMeta['requires_approval']);
 $chargeMode = trim((string)($data['charge_mode'] ?? $extra['charge_mode'] ?? $data['withdrawal_mode'] ?? ''));
 $adviceChannel = strtolower(trim((string)($extra['advice_channel'] ?? $data['advice_channel'] ?? '')));
 
+$hasRealCloudToken = pos_is_real_cloud_token($cloudToken) || pos_is_real_cloud_token($sourceId);
+if (pos_is_simulation_card_nonce($cloudToken) || pos_is_simulation_card_nonce($sourceId)) {
+    $errors[] = 'Square simulation nonce is rejected. Use a real Web Payments SDK token.';
+} elseif ($hasRealCloudToken) {
+    $cardType = 'CLOUD';
+    $requiresCard = false;
+    $requiresCvv = false;
+}
+
 // لـ purchase_advice: طول Approval حسب القناة (online=4 / offline=6)
 if ($txnType === 'purchase_advice' && $adviceChannel !== '') {
     // يُحقَّق أدناه عبر تعديل مؤقت لطول الموافقة
 }
 
-if ($cardType === 'CLOUD' && $cardRail && strlen($cloudToken) < 8 && !in_array($txnType, ['refund', 'avoid'], true)) {
+if ($cardType === 'CLOUD' && $cardRail && !$hasRealCloudToken && !in_array($txnType, ['refund', 'avoid'], true)) {
     $errors[] = 'CLOUD token is required. Use a real gateway token (Nuvei UPO, Stripe pm_/tok_, PayPal vault).';
 }
 
@@ -331,6 +340,9 @@ $fieldPayload = [
     'auth_code' => $gatewayApprovalCode,
     'card_number' => $cardNumber,
     'card_expiry' => $cardExpiry,
+    'cloud_token' => $cloudToken,
+    'source_id' => $sourceId,
+    'payment_token' => $cloudToken,
     'charge_mode' => $chargeMode,
 ];
 $nuveiVerix = false;

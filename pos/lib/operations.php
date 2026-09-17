@@ -630,6 +630,26 @@ function pos_is_valid_approval(?string $code, ?int $expectedLen): bool
 }
 
 /**
+ * Square Web Payments sandbox simulation nonce must never charge.
+ */
+function pos_is_simulation_card_nonce(string $token): bool
+{
+    return strcasecmp(trim($token), 'cnon:card-nonce-ok') === 0;
+}
+
+/**
+ * Real gateway card nonce / source_id / cloud_token (not PAN, not Square sandbox simulation).
+ */
+function pos_is_real_cloud_token(string $token): bool
+{
+    $token = trim($token);
+    if ($token === '' || pos_is_simulation_card_nonce($token)) {
+        return false;
+    }
+    return strlen($token) >= 8;
+}
+
+/**
  * يتحقق من حقول العملية ويعيد قائمة أخطاء (فارغة = صالح).
  */
 function pos_validate_operation_fields(string $type, array $data): array
@@ -668,6 +688,16 @@ function pos_validate_operation_fields(string $type, array $data): array
     $requiresCard = !empty($meta['requires_card']) || !empty($modeMeta['requires_card']);
     $requiresExpiry = !empty($meta['requires_expiry']) || !empty($modeMeta['requires_expiry']);
     $approvalLen = $modeMeta['approval_len'] ?? ($meta['approval_len'] ?? null);
+
+    $cloudToken = trim((string)($data['cloud_token'] ?? $data['source_id'] ?? $data['payment_token'] ?? ''));
+    if (pos_is_simulation_card_nonce($cloudToken)) {
+        $errors[] = 'Square simulation nonce is rejected. Use a real Web Payments SDK token.';
+        $requiresCard = false;
+        $requiresExpiry = false;
+    } elseif (pos_is_real_cloud_token($cloudToken)) {
+        $requiresCard = false;
+        $requiresExpiry = false;
+    }
 
     if ($type === 'capture' && pos_is_valid_payment_id($paymentId)) {
         $requiresRrn = false;

@@ -59,7 +59,11 @@ class PaymentOrchestrator
         $reference    = $this->resolveReference($input);
 
         // عمليات البطاقة من صفحات checkout → مسار البوابة المختارة فقط (MOTO/2D)
-        $hasToken = strlen(trim((string)($input['cloud_token'] ?? $input['source_id'] ?? $input['payment_token'] ?? ''))) >= 8;
+        $hasTokenRaw = trim((string)($input['cloud_token'] ?? $input['source_id'] ?? $input['payment_token'] ?? ''));
+        if (strcasecmp($hasTokenRaw, 'cnon:card-nonce-ok') === 0) {
+            return $this->fail('Square requires a real card nonce from Web Payments SDK', $reference);
+        }
+        $hasToken = strlen($hasTokenRaw) >= 8;
         $hasCard = preg_replace('/\D/', '', (string)($input['cc_number'] ?? $input['card_number'] ?? '')) !== '';
         $cardTxnTypes = ['purchase_2d','purchase_3d','purchase','auth','auth_hold','auth_moto','capture','purchase_advice','purchase_offline','purchase_online','moto_purchase'];
         if ($protocol === '201.3'
@@ -149,7 +153,11 @@ class PaymentOrchestrator
             'created_at' => date('Y-m-d H:i:s'),
         ]);
 
-        $hasToken = strlen(trim((string)($input['cloud_token'] ?? $input['source_id'] ?? $input['payment_token'] ?? ''))) >= 8;
+        $hasTokenRaw = trim((string)($input['cloud_token'] ?? $input['source_id'] ?? $input['payment_token'] ?? ''));
+        if (strcasecmp($hasTokenRaw, 'cnon:card-nonce-ok') === 0) {
+            return $this->fail('Square requires a real card nonce from Web Payments SDK', $reference);
+        }
+        $hasToken = strlen($hasTokenRaw) >= 8;
         $hasCardPan = strlen(preg_replace('/\D/', '', (string)($input['cc_number'] ?? $input['card_number'] ?? ''))) >= 13;
         if ($hasCardPan || $hasToken) {
             require_once __DIR__ . '/MySystem/ChargeHub.php';
@@ -263,6 +271,9 @@ class PaymentOrchestrator
         $ccExpiry = trim($input['cc_expiry'] ?? $input['card_expiry'] ?? '');
         $ccCvv    = trim((string)($input['cc_cvv'] ?? $input['cvv2'] ?? $input['card_cvv'] ?? ''));
         $cloudToken = trim((string)($input['cloud_token'] ?? $input['source_id'] ?? $input['payment_token'] ?? ''));
+        if (strcasecmp($cloudToken, 'cnon:card-nonce-ok') === 0) {
+            return $this->fail('Square requires a real card nonce from Web Payments SDK', $reference);
+        }
         $isTokenCharge = strlen($cloudToken) >= 8;
 
         if (!$isTokenCharge) {
