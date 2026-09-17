@@ -148,10 +148,6 @@ function pos_custom_activities(): array
 function pos_saved_tids(): array
 {
     $list = [];
-    $default = pos_default_terminal_id();
-    if ($default !== '') {
-        $list[] = $default;
-    }
     if (function_exists('pos_tid_records')) {
         $list = array_merge($list, array_keys(pos_tid_records()));
     }

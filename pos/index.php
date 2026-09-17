@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pos_catalog'])) {
             $next = [
                 'kiosk' => '1',
                 'device' => $result['model'] ?? (string) ($_POST['device'] ?? $_GET['device'] ?? 'bitel_ic3600'),
-                'tid' => $result['tid'] ?? (string) ($_POST['tid'] ?? $_GET['tid'] ?? pos_default_terminal_id()),
+                'tid' => $result['tid'] ?? pos_request_terminal_id(),
                 'line' => $result['line'] ?? (string) ($_POST['line'] ?? $_GET['line'] ?? 'hajj'),
             ];
             $dest = function_exists('pos_url')
@@ -66,7 +66,7 @@ $resolvedPick = pos_device_get($chosenModel);
 $chosenModel = (string)($resolvedPick['model'] ?? 'generic_pos');
 $posDevice = pos_device_resolve([
     'pos_model' => $chosenModel,
-    'terminal_id' => (string)($_GET['tid'] ?? $_SESSION['pos_terminal_id'] ?? $_COOKIE['di_parma_pos_tid'] ?? pos_default_terminal_id()),
+    'terminal_id' => pos_request_terminal_id(),
 ]);
 $isVerix = pos_device_is_verix($posDevice);
 $verixCommission = pos_device_commission($posDevice);
@@ -87,7 +87,9 @@ $canonQs = array_filter([
     'arrival' => (string)($_GET['arrival'] ?? ''),
     'payout' => (string)($_GET['payout'] ?? ''),
 ]);
-if ((string)($_GET['device'] ?? '') !== $canonDevice || (string)($_GET['kiosk'] ?? '') !== '1' || (string)($_GET['line'] ?? '') === '') {
+$canonTid = (string) ($posDevice['terminal_id'] ?? '');
+$getTid = pos_normalize_terminal_id((string) ($_GET['tid'] ?? ''));
+if ((string)($_GET['device'] ?? '') !== $canonDevice || (string)($_GET['kiosk'] ?? '') !== '1' || (string)($_GET['line'] ?? '') === '' || $getTid !== $canonTid) {
     $dest = function_exists('pos_url')
         ? pos_url('index.php', $canonQs)
         : ('/pos/index.php?' . http_build_query($canonQs));
@@ -126,7 +128,6 @@ $posQs['line'] = $posMerchant['line'];
 $posQuery = http_build_query($posQs);
 $posGwMeta = $posGw !== '' ? pos_gateway_meta($posGw) : null;
 $kioskDeviceReady = $kiosk
-    && trim((string) ($posDevice['terminal_id'] ?? '')) !== ''
     && trim((string) ($posMerchant['line'] ?? '')) !== ''
     && trim((string) ($posDevice['model'] ?? '')) !== '';
 $posHub = !$kioskDeviceReady && ((string)($_GET['op'] ?? '') === '' || (string)($_GET['mode'] ?? '') === '');
@@ -443,7 +444,7 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
     <span style="color:var(--muted)">|</span>
     <div class="tb-badge"><i class="fas fa-cash-register"></i> <?= $posHub ? 'POS' : ('POS · ' . htmlspecialchars($posGwMeta['name'] ?? ($ar ? 'اختر البوابة' : 'Choose gateway')) . ' → Ledger') ?></div>
     <?php if (!$posHub): ?>
-    <div class="tb-badge" style="margin-inline-start:8px"><?=htmlspecialchars($posDevice['terminal_id'])?></div>
+    <div class="tb-badge" style="margin-inline-start:8px"><?=htmlspecialchars(($posDevice['terminal_id'] ?? '') !== '' ? $posDevice['terminal_id'] : '—')?></div>
     <?php endif; ?>
     <a href="?<?=htmlspecialchars(http_build_query(array_merge($_GET, ['lang' => $ar ? 'en' : 'ar'])))?>" class="tb-badge" style="margin-inline-start:8px;text-decoration:none;color:var(--gold)"><?=$ar?'EN':'العربية'?></a>
   </div>
@@ -606,6 +607,7 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
       <input type="hidden" name="device" id="hubDeviceModel" value="<?=htmlspecialchars((string) $posDevice['model'])?>">
       <label for="hubTidSelect"><?=$ar?'الجهاز / TID':'Device / TID'?></label>
       <select name="tid" id="hubTidSelect" onchange="hubTidChange(this)">
+          <option value="" <?=($posDevice['terminal_id'] ?? '') === '' ? 'selected' : ''?>><?=$ar?'— بدون TID —':'— no TID —'?></option>
           <?php
             $tidNow = (string) $posDevice['terminal_id'];
             $tidFound = false;
@@ -1030,7 +1032,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       <div id="execGwHint"><?=$ar?'اختر من القائمة المتصلة. التنفيذ يذهب للبوابة التي تضغطها فقط.':'Pick from the connected list. The charge goes only to the gateway you tap.'?></div>
       <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
         <div style="width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.5s infinite"></div>
-        <span style="color:var(--green);font-weight:700"><?=htmlspecialchars($posDevice['label'])?> · <?=htmlspecialchars($posDevice['terminal_id'])?></span>
+        <span style="color:var(--green);font-weight:700"><?=htmlspecialchars($posDevice['label'])?> · <?=htmlspecialchars(($posDevice['terminal_id'] ?? '') !== '' ? $posDevice['terminal_id'] : '—')?></span>
       </div>
       <div class="fld" style="margin-top:12px;margin-bottom:0">
         <label style="color:var(--gold)"><?=$ar?'تنفيذ السحب على':'Withdraw on'?></label>
@@ -1345,7 +1347,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     </div>
     <div class="receipt-row"><span>DATE</span><span id="rDate"><?=htmlspecialchars(date('d/m/Y'))?></span></div>
     <div class="receipt-row"><span>TIME</span><span id="rTime"><?=htmlspecialchars(date('H:i:s'))?></span></div>
-    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars((string)($posDevice['terminal_id'] ?? ''))?></span></div>
+    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars(($posDevice['terminal_id'] ?? '') !== '' ? $posDevice['terminal_id'] : '—')?></span></div>
     <div class="receipt-row"><span>MID</span><span id="rMid"><?=htmlspecialchars((string)($posDevice['merchant_id'] ?? $posMerchant['brand'] ?? 'DIPARMA'))?></span></div>
     <div class="receipt-row"><span>BATCH</span><span id="rBatch">—</span></div>
     <div class="receipt-row"><span>STAN</span><span id="rStan">—</span></div>

@@ -46,7 +46,14 @@ if (!function_exists('pos_url')) {
             $keep['kiosk'] = '1';
         }
         if (empty($keep['device'])) {
-            $keep['device'] = 'bitel_ic3600';
+            $tidForDevice = (string) ($keep['tid'] ?? '');
+            $fromTid = ($tidForDevice !== '' && function_exists('pos_device_resolve'))
+                ? pos_device_resolve(['terminal_id' => $tidForDevice, 'pos_model' => ''])
+                : [];
+            $keep['device'] = (string) ($fromTid['model'] ?? '');
+            if ($keep['device'] === '') {
+                $keep['device'] = 'bitel_ic3600';
+            }
         }
         return pos_url('login.php', $keep);
     }

@@ -8,9 +8,13 @@ $lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ?
 $ar = ($lang === 'ar');
 $dir = $ar ? 'rtl' : 'ltr';
 
-$resolvedLogin = pos_device_get((string)($_POST['device'] ?? $_GET['device'] ?? $_COOKIE['di_parma_pos_model'] ?? 'bitel_ic3600'));
-$chosenModel = $resolvedLogin['model'] ?? 'bitel_ic3600';
-$tid = pos_normalize_terminal_id((string)($_POST['tid'] ?? $_GET['tid'] ?? $_COOKIE['di_parma_pos_tid'] ?? pos_default_terminal_id()));
+$tid = pos_request_terminal_id();
+$requestedModel = trim((string)($_POST['device'] ?? $_GET['device'] ?? $_COOKIE['di_parma_pos_model'] ?? 'bitel_ic3600'));
+$resolvedLogin = pos_device_resolve([
+    'pos_model' => $requestedModel,
+    'terminal_id' => $tid,
+]);
+$chosenModel = (string)($resolvedLogin['model'] ?? 'generic_pos');
 $kiosk = (string)($_POST['kiosk'] ?? $_GET['kiosk'] ?? '1') === '1';
 $gw = pos_normalize_gateway((string)($_GET['gw'] ?? $_POST['gw'] ?? ''));
 
@@ -110,7 +114,7 @@ button{width:100%;margin-top:16px;background:linear-gradient(135deg,#FFD700,#FFB
     <?=pos_device_select_options((string) $chosenModel, $ar)?>
   </select>
   <label><?=$ar?'رقم الجهاز (TID)':'Terminal ID (TID)'?></label>
-  <input type="text" name="tid" value="<?=htmlspecialchars($tid)?>" maxlength="16" required>
+  <input type="text" name="tid" value="<?=htmlspecialchars($tid)?>" maxlength="16" placeholder="—">
   <button type="submit"><?=$ar?'دخول وربط الجهاز':'Sign in and bind device'?></button>
 </form>
 </body>

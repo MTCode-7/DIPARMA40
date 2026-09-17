@@ -9,7 +9,7 @@ $ar = ($lang === 'ar');
 $dir = $ar ? 'rtl' : 'ltr';
 $siteUrl = rtrim((string)SITE_URL, '/');
 $defaultModel = 'bitel_ic3600';
-$tidDefault = pos_normalize_terminal_id((string)($_GET['tid'] ?? $_COOKIE['di_parma_pos_tid'] ?? pos_default_terminal_id()));
+$tidDefault = pos_request_terminal_id();
 ?><!DOCTYPE html>
 <html lang="<?=$lang?>" dir="<?=$dir?>">
 <head>
@@ -64,8 +64,12 @@ window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); defe
 
 function qs() {
   const device = document.getElementById('device').value;
-  const tid = (document.getElementById('tid').value || '').toUpperCase();
-  return 'kiosk=1&device=' + encodeURIComponent(device) + '&tid=' + encodeURIComponent(tid);
+  const tid = (document.getElementById('tid').value || '').toUpperCase().replace(/[^A-Z0-9\-]/g, '');
+  let q = 'kiosk=1&device=' + encodeURIComponent(device);
+  if (tid && !['T705953', 'T0000001', 'T00000001', 'M000000001'].includes(tid)) {
+    q += '&tid=' + encodeURIComponent(tid);
+  }
+  return q;
 }
 function line(cls, text) {
   const el = document.getElementById('log');

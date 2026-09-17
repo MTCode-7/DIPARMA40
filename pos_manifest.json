@@ -2,7 +2,7 @@
   "name": "DI PARMA POS",
   "short_name": "POS",
   "description": "DI PARMA POS Terminal — IC3600 and other POS models",
-  "start_url": "/pos/login.php?kiosk=1&device=bitel_ic3600&tid=T705953",
+  "start_url": "/pos/login.php?kiosk=1",
   "display": "standalone",
   "background_color": "#020508",
   "theme_color": "#FFD700",

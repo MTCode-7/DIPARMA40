@@ -272,15 +272,18 @@ function pos_dummy_terminal_ids(): array
 
 function pos_default_terminal_id(): string
 {
-    if (function_exists('pos_company_terminals')) {
-        foreach (pos_company_terminals() as $row) {
-            $tid = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', (string) ($row['tid'] ?? '')));
-            if ($tid !== '' && !in_array($tid, pos_dummy_terminal_ids(), true)) {
-                return substr($tid, 0, 16);
-            }
-        }
-    }
     return '';
+}
+
+function pos_request_terminal_id(): string
+{
+    $raw = '';
+    if (array_key_exists('tid', $_POST)) {
+        $raw = (string) $_POST['tid'];
+    } elseif (array_key_exists('tid', $_GET)) {
+        $raw = (string) $_GET['tid'];
+    }
+    return pos_normalize_terminal_id($raw);
 }
 
 function pos_normalize_terminal_id(string $tid): string
@@ -292,10 +295,38 @@ function pos_normalize_terminal_id(string $tid): string
     return substr($tid, 0, 16);
 }
 
+/**
+ * Fleet TID maps to a physical model (e.g. 16526257 → hala_smart) only when that TID
+ * is actually provided. Never invent a company TID, and never attach another model's TID
+ * to the device from the URL (bitel_ic3600 must not show 16526257).
+ */
+function pos_device_model_for_tid(string $tid): string
+{
+    $tid = pos_normalize_terminal_id($tid);
+    if ($tid === '' || !function_exists('pos_tid_records')) {
+        return '';
+    }
+    $rec = pos_tid_records()[$tid] ?? null;
+    $model = is_array($rec) ? strtolower(trim((string) ($rec['model'] ?? ''))) : '';
+    if ($model === '') {
+        return '';
+    }
+    $dev = pos_device_get($model);
+    return is_array($dev) ? (string) ($dev['model'] ?? '') : '';
+}
+
 function pos_device_resolve(array $input = [], ?string $ua = null): array
 {
     $raw = strtolower(trim((string) ($input['pos_model'] ?? $input['device'] ?? $input['pos_device'] ?? '')));
-    $device = pos_device_get($raw);
+    $tid = pos_normalize_terminal_id((string) ($input['terminal_id'] ?? $input['tid'] ?? ''));
+    $requested = $raw !== '' ? pos_device_get($raw) : null;
+    $reqModel = is_array($requested) ? (string) ($requested['model'] ?? '') : '';
+    $boundModel = $tid !== '' ? pos_device_model_for_tid($tid) : '';
+    if ($tid !== '' && $boundModel !== '' && $reqModel !== '' && $boundModel !== $reqModel) {
+        $tid = '';
+        $boundModel = '';
+    }
+    $device = $boundModel !== '' ? pos_device_get($boundModel) : pos_device_get($raw);
     if (!$device) {
         return [
             'model' => '',
@@ -306,12 +337,12 @@ function pos_device_resolve(array $input = [], ?string $ua = null): array
             'type' => '',
             'accepted' => false,
             'detected' => false,
-            'terminal_id' => pos_normalize_terminal_id((string) ($input['terminal_id'] ?? $input['tid'] ?? '')),
+            'terminal_id' => $tid,
         ];
     }
     $device['accepted'] = !empty($device['model']);
     $device['detected'] = !empty($device['detected']);
-    $device['terminal_id'] = pos_normalize_terminal_id((string) ($input['terminal_id'] ?? $input['tid'] ?? ''));
+    $device['terminal_id'] = $tid;
     $nfcOn = !empty($input['withdrawal_nfc']);
     $posOn = !empty($input['withdrawal_pos']) || !$nfcOn;
     $device['nfc'] = $nfcOn;
