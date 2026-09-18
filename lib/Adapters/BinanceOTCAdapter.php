@@ -33,11 +33,7 @@ final class BinanceOTCAdapter implements GatewayAdapterInterface
     {
         $this->apiKey    = getenv('BINANCE_OTC_API_KEY')    ?: getenv('EXCHANGE_API_KEY')    ?: '';
         $this->secretKey = getenv('BINANCE_OTC_SECRET_KEY') ?: getenv('EXCHANGE_SECRET_KEY') ?: '';
-        $env             = getenv('BINANCE_OTC_ENVIRONMENT') ?: 'live';
-        $this->baseUrl   = getenv('BINANCE_OTC_BASE_URL')   ?:
-            ($env === 'testnet'
-                ? 'https://testnet.binance.vision'
-                : 'https://api.binance.com');
+        $this->baseUrl   = 'https://api.binance.com';
     }
 
     public function getName(): string { return 'binance_otc'; }

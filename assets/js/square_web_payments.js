@@ -37,11 +37,11 @@
     var msg = String(raw || 'Square card init failed');
     var sandboxApp = isSandboxAppId(appId);
     var scriptSandbox = scriptLooksSandbox();
-    if (scriptSandbox === true && !sandboxApp) {
-      return 'Square LIVE application ID was loaded with the sandbox SDK. Use production square.js (web.squarecdn.com).';
+    if (scriptSandbox === true) {
+      return 'Square sandbox SDK is rejected. Load production square.js (web.squarecdn.com).';
     }
-    if (scriptSandbox === false && sandboxApp) {
-      return 'Square sandbox application ID was loaded with the LIVE SDK. Use sandbox.web.squarecdn.com.';
+    if (sandboxApp) {
+      return 'Square sandbox Application ID is rejected. Use production sq0idp-.';
     }
     if (/unexpected error occurred while initializing/i.test(msg)) {
       return 'Square LIVE card form failed to hydrate. Use the same Production Application ID (sq0idp-) and Location ID that work on localhost in the production .env / gateway credentials. Domain allowlisting is not required for the card form.';
@@ -130,8 +130,8 @@
       state.error = 'Missing Square application_id or location_id';
       return false;
     }
-    if (!/^(sandbox-)?sq0id[bp]-/i.test(appId)) {
-      state.error = 'SQUARE_APPLICATION_ID is not a Web Payments application ID (expected sq0idp- / sq0idb- / sandbox-sq0idb-)';
+    if (/^sandbox-/i.test(appId) || !/^sq0idp-/i.test(appId)) {
+      state.error = 'SQUARE_APPLICATION_ID must be production (sq0idp-). Sandbox IDs are rejected.';
       return false;
     }
     if (!(await waitForSquare(8000))) {

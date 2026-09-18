@@ -1333,8 +1333,7 @@ function buildMoonPaySignedUrl(array $payload = [], array $config = []): ?string
         return null;
     }
 
-    $environment = strtolower((string)($config['environment'] ?? getenv('MOONPAY_ENVIRONMENT') ?: ''));
-    $baseUrl = ($environment === 'live') ? 'https://buy.moonpay.com/' : 'https://buy-sandbox.moonpay.com/';
+    $baseUrl = 'https://buy.moonpay.com/';
 
     $params = [];
     $params['apiKey'] = $apiKey;
@@ -2402,8 +2401,7 @@ function gateway_service() {
                 ];
             }
 
-            $environment = strtolower(trim($config['environment'] ?? 'live'));
-            $baseUrl = ($environment === 'live') ? 'https://api.transferwise.com' : 'https://api.sandbox.transferwise.com';
+            $baseUrl = 'https://api.transferwise.com';
             $sourceCurrency = strtoupper(trim($payload['currency'] ?? 'USD'));
             $targetCurrency = strtoupper(trim($payload['target_currency'] ?? ''));
 

@@ -104,11 +104,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     private function hostedPayUrl(string $sessionToken): string
     {
-        $env = strtolower(trim((string) (getenv('NUVEI_ENVIRONMENT') ?: 'live')));
-        $host = in_array($env, ['test', 'sandbox', 'int'], true)
-            ? 'https://ppp-test.nuvei.com'
-            : 'https://secure.safecharge.com';
-        return $host . '/ppp/purchase.do?sessionToken=' . rawurlencode($sessionToken);
+        return 'https://secure.safecharge.com/ppp/purchase.do?sessionToken=' . rawurlencode($sessionToken);
     }
 
     private function saleOrAuth(array $params): string

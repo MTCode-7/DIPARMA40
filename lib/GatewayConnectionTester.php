@@ -315,7 +315,7 @@ class GatewayConnectionTester
         $key = $creds['secret_key'] ?? $creds['api_key'] ?? getenv('CHECKOUT_API_KEY') ?: '';
         if (empty($key)) return ['success' => false, 'message' => 'CHECKOUT_API_KEY مفقود'];
 
-        $base = str_contains($key, 'test') ? 'https://api.sandbox.checkout.com' : 'https://api.checkout.com';
+        $base = 'https://api.checkout.com';
         $res  = $this->curl('GET', $base . '/metadata', [], [
             'Authorization: Bearer ' . $key,
         ]);
@@ -447,8 +447,7 @@ class GatewayConnectionTester
             return ['success' => false, 'message' => 'PAYPAL_CLIENT_ID أو PAYPAL_CLIENT_SECRET مفقود'];
         }
 
-        $env  = $creds['environment'] ?? getenv('PAYPAL_ENVIRONMENT') ?: '';
-        $base = $env === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
+        $base = 'https://api-m.paypal.com';
 
         $res = $this->curl('POST', $base . '/v1/oauth2/token',
             'grant_type=client_credentials',
@@ -474,10 +473,7 @@ class GatewayConnectionTester
             return ['success' => false, 'message' => 'BRAINTREE_MERCHANT_ID / PUBLIC_KEY / PRIVATE_KEY مفقود'];
         }
 
-        $env  = $creds['environment'] ?? getenv('BRAINTREE_ENVIRONMENT') ?: '';
-        $base = $env === 'production'
-            ? 'https://api.braintreegateway.com:443'
-            : 'https://api.sandbox.braintreegateway.com:443';
+        $base = 'https://api.braintreegateway.com:443';
 
         $res = $this->curl('GET',
             $base . '/v1/merchants/' . $merchantId . '/client_token',
@@ -534,22 +530,16 @@ class GatewayConnectionTester
         $isTestSec  = str_starts_with($secKey, 'sk_test_');
         $isLiveSec  = str_starts_with($secKey, 'sk_live_');
 
-        if (!$isTestPub && !$isLivePub) {
-            return ['success' => false, 'message' => '❌ MoonPay: صيغة Publishable Key غير صحيحة (يجب أن تبدأ بـ pk_test_ أو pk_live_)'];
+        if (!$isLivePub) {
+            return ['success' => false, 'message' => '❌ MoonPay: استخدم pk_live_ فقط'];
         }
-        if (!$isTestSec && !$isLiveSec) {
-            return ['success' => false, 'message' => '❌ MoonPay: صيغة Secret Key غير صحيحة (يجب أن تبدأ بـ sk_test_ أو sk_live_)'];
-        }
-
-        // تحقق من تطابق البيئة
-        if ($isTestPub && $isLiveSec || $isLivePub && $isTestSec) {
-            return ['success' => false, 'message' => '❌ MoonPay: بيئة المفاتيح غير متطابقة (test/live)'];
+        if (!$isLiveSec) {
+            return ['success' => false, 'message' => '❌ MoonPay: استخدم sk_live_ فقط'];
         }
 
-        $env = $isLivePub ? 'live' : 'sandbox';
         return [
             'success' => true,
-            'message' => "✅ MoonPay متصل — بيئة $env — المفاتيح صحيحة الصيغة",
+            'message' => '✅ MoonPay متصل — بيئة live',
         ];
     }
 

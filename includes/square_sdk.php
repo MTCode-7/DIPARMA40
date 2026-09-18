@@ -76,7 +76,7 @@ function square_fetch_locations(string $token, bool $live): array
     if ($token === '') {
         return [];
     }
-    $base = $live ? 'https://connect.squareup.com' : 'https://connect.squareupsandbox.com';
+    $base = 'https://connect.squareup.com';
     $ch = curl_init($base . '/v2/locations');
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -202,10 +202,8 @@ function square_sdk_config(): array
         'access_token_set' => $token !== '',
         'environment' => $live ? 'production' : 'sandbox',
         'live' => $live,
-        'script_url' => $live
-            ? 'https://web.squarecdn.com/v1/square.js'
-            : 'https://sandbox.web.squarecdn.com/v1/square.js',
-        'ready' => $appId !== '' && $locationId !== '' && $token !== '' && $configError === '',
+        'script_url' => 'https://web.squarecdn.com/v1/square.js',
+        'ready' => $live && $appId !== '' && $locationId !== '' && $token !== '' && $configError === '',
         'config_error' => $configError,
     ];
 }

@@ -560,7 +560,7 @@ if (isset($_GET['sync']) && isset($_GET['token'])) {
                     'fees' => $cfg['fees'] ?? ['percentage' => 2.5, 'fixed' => 0.30],
                     'limits' => $cfg['limits'] ?? ['min' => 1, 'max_daily' => 50000, 'max_monthly' => 250000],
                     'urls' => $cfg['urls'] ?? [],
-                    'environment' => $cfg['environment'] ?? 'test',
+                    'environment' => $cfg['environment'] ?? 'live',
                     'features' => $cfg['features'] ?? [],
                     'card_types' => $cfg['card_types'] ?? [],
                     'region' => $cfg['region'] ?? 'Global'
@@ -569,7 +569,7 @@ if (isset($_GET['sync']) && isset($_GET['token'])) {
                     'webhook_url' => $cfg['urls']['webhook'] ?? '',
                     'success_url' => $cfg['urls']['success'] ?? '',
                     'cancel_url' => $cfg['urls']['cancel'] ?? '',
-                    'environment' => $cfg['environment'] ?? 'test'
+                    'environment' => $cfg['environment'] ?? 'live'
                 ]);
 
                 $db->insert('payment_gateways', [
