@@ -59,6 +59,7 @@ function pos_company_known_tids(): array
         ['tid' => '52400099', 'model' => 'softpos_phone', 'brand' => 'SoftPOS', 'name' => 'Phone', 'line' => '', 'note' => 'POS-25 label 5240-0099'],
         ['tid' => 'S37424906', 'model' => 'pax_a920pro', 'brand' => 'PAX', 'name' => 'A920Pro', 'line' => '', 'note' => '8003300065'],
         ['tid' => '43743901', 'model' => 'pax_a920pro', 'brand' => 'PAX', 'name' => 'A920Pro', 'line' => '', 'note' => ''],
+        ['tid' => 'T705953', 'model' => 'bitel_ic5100', 'brand' => 'Bitel', 'name' => 'IC5100', 'line' => '', 'note' => 'BRS36170705953'],
     ];
 }
 

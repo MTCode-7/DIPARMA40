@@ -738,7 +738,7 @@ window.proceedToCheckout = function() {
     const routerDevice = <?= json_encode(strtolower(preg_replace('/[^a-z0-9_]/', '', (string) ($_GET['device'] ?? $_COOKIE['di_parma_pos_model'] ?? ''))), JSON_UNESCAPED_UNICODE) ?>;
     if (routerDevice) q.set('device', routerDevice);
     const routerTidRaw = <?= json_encode(strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', (string) ($_GET['tid'] ?? ''))), JSON_UNESCAPED_UNICODE) ?>;
-    const routerTid = ['T705953', 'T0000001', 'T00000001', 'M000000001'].includes(routerTidRaw) ? '' : routerTidRaw;
+    const routerTid = routerTidRaw;
     if (routerTid) q.set('tid', routerTid);
     window.location.href = 'pos/index.php?' + q.toString();
     return;

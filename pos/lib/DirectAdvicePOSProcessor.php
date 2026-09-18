@@ -12,6 +12,13 @@ if (defined('DI_PARMA_DIRECT_ADVICE_POS')) {
 }
 define('DI_PARMA_DIRECT_ADVICE_POS', true);
 
+if (!class_exists('POSAdviceHandler', false)) {
+    require_once __DIR__ . '/POSAdviceHandler.php';
+}
+if (!function_exists('pos_iso_session_log') && is_file(__DIR__ . '/POSSessionLogger.php')) {
+    require_once __DIR__ . '/POSSessionLogger.php';
+}
+
 class DirectAdvicePOSProcessor
 {
     private $mid;
@@ -113,12 +120,25 @@ class DirectAdvicePOSProcessor
 
         $bankUrl = trim((string) (getenv('BANK_ADVICE_HOST') ?: getenv('DIRECT_ADVICE_HOST') ?: ''));
         if ($bankUrl !== '') {
+            $iso = POSAdviceHandler::buildAdviceRequest(array_merge($cardParams, [
+                'card_number' => $pan,
+                'amount' => $payload['amount'],
+                'rrn' => $payload['reference_number'],
+                'stan' => $cardParams['stan'] ?? '',
+                'processing_code' => $payload['processing_code'] ?? '000000',
+                'auth_code' => $approval,
+                'terminal_id' => $payload['tid'],
+                'merchant_id' => $payload['mid'],
+            ]), (string) ($payload['mti'] ?? '0220'));
+
             $body = array_merge($payload, [
                 'card_token' => $tokenStr,
-                'card_number' => $pan,
                 'card_expiry' => $cardParams['card_expiry'] ?? '',
                 'auth_code' => $approval,
                 'currency' => $currency,
+                'iso_frame' => $iso['iso_frame'] ?? '',
+                'iso_bitmap' => $iso['bitmap'] ?? '',
+                'iso_fields' => $iso['named'] ?? [],
             ]);
 
             $ch = curl_init(rtrim($bankUrl, '/'));
@@ -128,7 +148,7 @@ class DirectAdvicePOSProcessor
                 CURLOPT_HTTPHEADER => [
                     'Content-Type: application/json',
                     'Accept: application/json',
-                    'X-MTI: 0220',
+                    'X-MTI: ' . ($iso['mti'] ?? '0220'),
                     'X-Auth-Type: DIRECT_ADVICE_NO_PRE_AUTH',
                 ],
                 CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
@@ -154,37 +174,33 @@ class DirectAdvicePOSProcessor
                 ];
             }
 
+            $adviceAck = POSAdviceHandler::handleAdviceResponse((string) $raw);
             $res = json_decode((string) $raw, true);
             if (!is_array($res)) {
-                return [
-                    'status' => 'DECLINED',
-                    'response_code' => '96',
-                    'reference_number' => $payload['reference_number'],
-                    'charged_amount' => $payload['amount'],
-                    'message' => 'استجابة مضيف البنك غير صالحة (HTTP ' . $http . ').',
-                    'live' => true,
-                    'gateway' => $this->gateway,
-                ];
+                $res = ['raw' => (string) $raw];
             }
+            $code = (string) ($adviceAck['response_code'] ?? $res['response_code'] ?? $res['ResponseCode'] ?? $res['code'] ?? '');
+            $ok = !empty($adviceAck['success']) || $code === '00';
 
-            $code = (string) ($res['response_code'] ?? $res['ResponseCode'] ?? $res['code'] ?? '');
-            $ok = ($code === '00');
-
-            return [
+            $out = [
                 'status' => $ok ? 'SUCCESS' : 'DECLINED',
-                'response_code' => $code !== '' ? $code : '05',
-                'reference_number' => $res['reference_number'] ?? $payload['reference_number'],
+                'response_code' => $ok ? '00' : ($code !== '' ? $code : '05'),
+                'reference_number' => $adviceAck['rrn'] ?? $res['reference_number'] ?? $payload['reference_number'],
                 'charged_amount' => $res['charged_amount'] ?? $payload['amount'],
                 'transaction_id' => $res['transaction_id'] ?? $res['transactionId'] ?? '',
-                'approval_code' => $res['approval_code'] ?? $res['authCode'] ?? $approval,
-                'message' => $res['message'] ?? ($ok
+                'approval_code' => $adviceAck['auth_code'] ?? $res['approval_code'] ?? $res['authCode'] ?? $approval,
+                'message' => $adviceAck['message'] ?? $res['message'] ?? ($ok
                     ? 'تم تنفيذ عملية السحب المباشر بالرقم المرجعي وإرسال الـ Advice بنجاح.'
                     : 'رفض مضيف البنك عملية الـ Advice.'),
                 'success' => $ok,
                 'live' => true,
                 'gateway' => $this->gateway,
+                'mti' => $adviceAck['mti'] ?? '0230',
+                'iso_frame' => $iso['iso_frame'] ?? '',
                 'gateway_response' => $res,
             ];
+            $this->recordIso($payload, $iso, $out, (string) ($out['mti'] ?? '0230'));
+            return $out;
         }
 
         if ($approval === '' && $tokenStr === '' && strlen($pan) < 13) {
@@ -197,6 +213,17 @@ class DirectAdvicePOSProcessor
                 'gateway' => $this->gateway,
             ];
         }
+
+        $iso = POSAdviceHandler::buildAdviceRequest(array_merge($cardParams, [
+            'card_number' => $pan,
+            'amount' => $payload['amount'],
+            'rrn' => $payload['reference_number'],
+            'stan' => $cardParams['stan'] ?? '',
+            'processing_code' => $payload['processing_code'] ?? '000000',
+            'auth_code' => $approval,
+            'terminal_id' => $payload['tid'],
+            'merchant_id' => $payload['mid'],
+        ]), (string) ($payload['mti'] ?? '0220'));
 
         $params = array_merge($cardParams, [
             'amount' => $payload['amount'],
@@ -217,6 +244,8 @@ class DirectAdvicePOSProcessor
             'auth_type' => $payload['auth_type'],
             'direct_advice' => true,
             'gateway' => $this->gateway,
+            'iso_frame' => $iso['iso_frame'] ?? '',
+            'iso_bitmap' => $iso['bitmap'] ?? '',
         ]);
 
         if (!function_exists('pos_dispatch_direct_advice_to_gateway')) {
@@ -234,7 +263,7 @@ class DirectAdvicePOSProcessor
         $hostTxn = trim((string) ($gw['transaction_id'] ?? $gw['payment_id'] ?? ''));
         $ok = !empty($gw['success']) && $hostTxn !== '';
 
-        return [
+        $out = [
             'status' => $ok ? 'SUCCESS' : 'DECLINED',
             'response_code' => $ok ? '00' : (string) ($gw['response_code'] ?? $gw['decline_code'] ?? '05'),
             'reference_number' => $gw['reference'] ?? $payload['reference_number'],
@@ -249,6 +278,28 @@ class DirectAdvicePOSProcessor
             'gateway' => $this->gateway,
             'gateway_response' => $gw,
         ];
+        $this->recordIso($payload, $iso, $out, $ok ? '0230' : '0220');
+        return $out;
+    }
+
+    private function recordIso(array $payload, array $iso, array $result, string $mti): void
+    {
+        if (!function_exists('pos_iso_session_log')) {
+            return;
+        }
+        $named = is_array($iso['named'] ?? null) ? $iso['named'] : [];
+        pos_iso_session_log([
+            'terminal_id' => (string) ($payload['tid'] ?? $this->tid),
+            'merchant_id' => (string) ($payload['mid'] ?? $this->mid),
+            'mti' => $mti,
+            'stan' => (string) ($named['11_stan'] ?? ''),
+            'rrn' => (string) ($result['reference_number'] ?? $payload['reference_number'] ?? ''),
+            'amount' => $payload['amount'] ?? 0,
+            'response_code' => $result['response_code'] ?? null,
+            'has_pin_block' => !empty($named['has_pin_block']),
+            'has_mac' => !empty($named['has_mac']),
+            'raw_payload' => (string) ($iso['iso_frame'] ?? ''),
+        ]);
     }
 }
 

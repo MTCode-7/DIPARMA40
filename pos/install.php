@@ -66,7 +66,7 @@ function qs() {
   const device = document.getElementById('device').value;
   const tid = (document.getElementById('tid').value || '').toUpperCase().replace(/[^A-Z0-9\-]/g, '');
   let q = 'kiosk=1&device=' + encodeURIComponent(device);
-  if (tid && !['T705953', 'T0000001', 'T00000001', 'M000000001'].includes(tid)) {
+  if (tid) {
     q += '&tid=' + encodeURIComponent(tid);
   }
   return q;

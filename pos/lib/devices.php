@@ -291,7 +291,22 @@ function pos_device_detect(?string $ua = null): array
 
 function pos_dummy_terminal_ids(): array
 {
-    return ['T705953', 'T0000001', 'T00000001', 'M000000001'];
+    return [];
+}
+
+function pos_is_company_tid(string $tid): bool
+{
+    $tid = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', $tid) ?? '');
+    if ($tid === '' || !function_exists('pos_company_known_tids')) {
+        return false;
+    }
+    foreach (pos_company_known_tids() as $row) {
+        $known = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', (string) ($row['tid'] ?? '')) ?? '');
+        if ($known !== '' && $known === $tid) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function pos_default_terminal_id(): string
@@ -312,8 +327,8 @@ function pos_request_terminal_id(): string
 
 function pos_normalize_terminal_id(string $tid): string
 {
-    $tid = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', $tid));
-    if ($tid === '' || in_array($tid, pos_dummy_terminal_ids(), true)) {
+    $tid = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', $tid) ?? '');
+    if ($tid === '') {
         return '';
     }
     return substr($tid, 0, 16);

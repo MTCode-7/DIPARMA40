@@ -253,7 +253,7 @@ if ($bankRrn !== '') {
 }
 $manualNotes = trim((string)($extra['notes'] ?? ''));
 $terminalId = $resolvedDevice['terminal_id'] ?? pos_normalize_terminal_id((string)($extra['terminal_id'] ?? $data['tid'] ?? ''));
-if ($isWebCharge && ($terminalId === '' || (function_exists('pos_dummy_terminal_ids') && in_array($terminalId, pos_dummy_terminal_ids(), true)))) {
+if ($isWebCharge && $terminalId === '') {
     $terminalId = 'WEB' . strtoupper(bin2hex(random_bytes(4)));
     $resolvedDevice['terminal_id'] = $terminalId;
 }
@@ -316,8 +316,8 @@ if ($cardNumber !== '' && pos_is_blocked_test_card($cardNumber)) {
     $errors[] = 'Test and dummy cards are blocked. Use a real card.';
 }
 if (!$isWebCharge) {
-    if ($terminalId === '' || (function_exists('pos_dummy_terminal_ids') && in_array($terminalId, pos_dummy_terminal_ids(), true))) {
-        $errors[] = 'Real Terminal ID (TID) is required. Dummy TIDs are rejected.';
+    if ($terminalId === '') {
+        $errors[] = 'Terminal ID (TID) is required.';
     }
     if (empty($resolvedDevice['model']) || empty($resolvedDevice['accepted'])) {
         $errors[] = 'Select a real POS model from the catalog.';

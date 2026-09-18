@@ -21,7 +21,15 @@ require_once POS_PATH . '/lib/devices.php';
 require_once POS_PATH . '/lib/merchant.php';
 require_once POS_PATH . '/lib/catalog.php';
 require_once POS_PATH . '/lib/auth.php';
+require_once POS_PATH . '/lib/ISO8583AdviceProcessor.php';
+require_once POS_PATH . '/lib/ISO8583SecurityHandler.php';
+require_once POS_PATH . '/lib/POSAdviceHandler.php';
 require_once POS_PATH . '/lib/DirectAdvicePOSProcessor.php';
+require_once POS_PATH . '/lib/POSSessionLogger.php';
+require_once POS_APP_ROOT . '/lib/PaymentGatewayRouter.php';
+require_once POS_APP_ROOT . '/lib/LivePaymentProcessor.php';
+require_once POS_APP_ROOT . '/lib/DiParmaMasterEngine.php';
+require_once POS_APP_ROOT . '/lib/UniversalTidPaymentRouter.php';
 require_once POS_PATH . '/lib/RealOfflineSalesManager.php';
 if (is_file(POS_APP_ROOT . '/includes/activity_flow.php')) {
     require_once POS_APP_ROOT . '/includes/activity_flow.php';
