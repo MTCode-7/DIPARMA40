@@ -268,13 +268,25 @@ class GatewayWebhookVerifier
         $total = (string) ($data['totalAmount'] ?? $data['amount'] ?? '');
         $currency = (string) ($data['currency'] ?? '');
         $ts = (string) ($data['responseTimeStamp'] ?? $data['responseTimestamp'] ?? $data['timeStamp'] ?? '');
-        $ppp = (string) ($data['PPP_TransactionID'] ?? $data['ppp_TransactionID'] ?? $data['TransactionID'] ?? $data['TransactionId'] ?? '');
+        $ppp = (string) (
+            $data['ppp_TransactionID']
+            ?? $data['PPP_TransactionID']
+            ?? $data['PPP_TransactionId']
+            ?? $data['ppp_TransactionId']
+            ?? $data['TransactionID']
+            ?? $data['TransactionId']
+            ?? ''
+        );
         $status = (string) ($data['Status'] ?? $data['ppp_status'] ?? '');
-        $productId = (string) ($data['productId'] ?? '');
+        $productId = str_replace('+', ' ', (string) ($data['productId'] ?? ''));
 
+        $plain = $secretKey . $total . $currency . $ts . $ppp . $status . $productId;
+        $plainNoProduct = $secretKey . $total . $currency . $ts . $ppp . $status;
         $candidates = [
-            hash('sha256', $secretKey . $total . $currency . $ts . $ppp . $status . $productId),
-            hash('sha256', $secretKey . $total . $currency . $ts . $ppp . $status),
+            hash('sha256', $plain),
+            hash('md5', $plain),
+            hash('sha256', $plainNoProduct),
+            hash('md5', $plainNoProduct),
         ];
         $got = strtolower($received);
         foreach ($candidates as $expected) {

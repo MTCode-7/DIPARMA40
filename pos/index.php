@@ -178,9 +178,15 @@ $startAmount = trim((string) ($_GET['amount'] ?? ''));
 if ($startAmount !== '' && !preg_match('/^\d+(\.\d{0,2})?$/', $startAmount)) {
     $startAmount = '';
 }
-$startCurrency = strtoupper(trim((string) ($_GET['currency'] ?? 'USD')));
+$startCurrency = strtoupper(trim((string) ($_GET['currency'] ?? '')));
+if ($startCurrency === '') {
+    $nuveiDefault = strtoupper(trim((string) (getenv('NUVEI_DEFAULT_CURRENCY') ?: 'AED')));
+    $startCurrency = ($posGw === 'nuvei')
+        ? (in_array($nuveiDefault, $currencies, true) ? $nuveiDefault : 'AED')
+        : 'USD';
+}
 if (!in_array($startCurrency, $currencies, true)) {
-    $startCurrency = 'USD';
+    $startCurrency = ($posGw === 'nuvei') ? 'AED' : 'USD';
 }
 $linkedWallets = [];
 try {
@@ -773,7 +779,7 @@ const HUB = {
   arrival: 'wallet',
   payout: '',
   amount: '',
-  currency: 'USD'
+  currency: <?=json_encode($startCurrency)?>
 };
 const HUB_GWS = <?=json_encode($hubGwsPos, JSON_UNESCAPED_UNICODE)?>;
 const HUB_SUGGEST = <?=json_encode($activitySuggest, JSON_UNESCAPED_UNICODE)?>;
@@ -1244,12 +1250,17 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       </div>
       <div class="fld">
         <label><?=$ar?'العملة':'Currency'?></label>
-        <select id="txnCurrency" onchange="document.getElementById('currencyDisplay').textContent=this.value">
+        <select id="txnCurrency" onchange="document.getElementById('currencyDisplay').textContent=this.value; syncNuveiFxHint();">
           <?php foreach($currencies as $c): ?>
           <option value="<?=$c?>" <?=$c===$startCurrency?'selected':''?>><?=$c?></option>
           <?php endforeach; ?>
         </select>
       </div>
+    </div>
+    <div id="nuveiFxHint" style="display:none;font-size:.7rem;line-height:1.5;color:#fbbf24;margin:-4px 0 12px;padding:8px 10px;border:1px solid rgba(251,191,36,.35);border-radius:10px">
+      <?=$ar
+        ? 'Nuvei عبر Network International (UAE). الوصف Transcendio FZ-LLC. دولار بمبلغ كبير يرفضه بنك البطاقة غالباً — فضّل AED ثم أكمل 3DS/OTP.'
+        : 'Nuvei via Network International (UAE). Descriptor Transcendio FZ-LLC. Large USD is often blocked by the issuing bank — prefer AED and complete 3DS/OTP.'?>
     </div>
     <div id="captureCompareBox" style="display:none;background:rgba(159,232,112,.06);border:1px solid rgba(159,232,112,.28);border-radius:12px;padding:12px;margin-bottom:12px">
       <div style="font-weight:800;color:#9fe870;margin-bottom:4px"><?=$ar?'تكملة الحجز — إيجار منزل / سيارة / فندق':'Complete hold — home / car / hotel rental'?></div>
@@ -1597,6 +1608,13 @@ function selectPayoutRail(code, el) {
 }
 let POS_GW = <?= json_encode((string)$posGw) ?>;
 let POS_REQUIRES_CARD = <?= !empty($posGw) && pos_gateway_requires_card($posGw) ? 'true' : 'false' ?>;
+function syncNuveiFxHint() {
+  const el = document.getElementById('nuveiFxHint');
+  const cur = document.getElementById('txnCurrency');
+  if (!el) return;
+  const usd = String(cur && cur.value ? cur.value : '').toUpperCase() === 'USD';
+  el.style.display = (POS_GW === 'nuvei' && usd) ? '' : 'none';
+}
 const EXEC_GWS = <?=json_encode($execGws ?? [], JSON_UNESCAPED_UNICODE)?>;
 const SQUARE_CFG = <?=json_encode([
     'enabled' => !empty($hasSquareSdk),
@@ -1652,6 +1670,7 @@ function selectPosGateway(code, el) {
   if (badge) badge.innerHTML = '<i class="fas fa-cash-register"></i> POS · ' + escapeHtml(name) + ' → Ledger';
   const btn = document.getElementById('processBtn');
   if (btn) btn.disabled = false;
+  syncNuveiFxHint();
   try {
     const u = new URL(location.href);
     u.searchParams.set('gw', code);
@@ -1678,6 +1697,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (el) selectPosGateway(POS_GW, el);
     else if (POS_GW === 'square') initSquarePos();
   }
+  syncNuveiFxHint();
 });
 const KIOSK = <?= $kiosk ? 'true' : 'false' ?>;
 const POS_MERCHANT = <?=json_encode($posMerchant, JSON_UNESCAPED_UNICODE)?>;
@@ -2609,6 +2629,12 @@ window.processTransaction = async function() {
     }
   }
   const currency = document.getElementById('txnCurrency').value;
+  if (POS_GW === 'nuvei' && String(currency).toUpperCase() === 'USD' && Number(amount) >= 100) {
+    toast(AR
+      ? 'تحذير: بنك البطاقة غالباً يرفض دولار كبير عبر Transcendio. فضّل AED أو أكمل 3DS.'
+      : 'Warning: issuers often decline large USD via Transcendio. Prefer AED or complete 3DS.',
+      'info');
+  }
   const cardNum  = document.getElementById('cardNumber').value.replace(/\s/g,'');
   const cardName = document.getElementById('cardName').value.trim();
   const expiry   = document.getElementById('cardExpiry').value;
@@ -2714,6 +2740,29 @@ window.processTransaction = async function() {
     }
   }
   const needsCard = POS_REQUIRES_CARD && cardType !== 'CLOUD' && meta.requires_card !== false && !['refund','avoid'].includes(type);
+  const nuveiEcom = POS_GW === 'nuvei' && !['auth','online_sale_moto','offline_sale_moto','purchase_advice','refund','avoid','capture'].includes(type);
+  if (nuveiEcom && needsCard) {
+    const email = (document.getElementById('posEmail')?.value || '').trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast(AR ? 'Nuvei: أدخل إيميل العميل. القواعد تمنع البطاقة المجهولة.' : 'Nuvei: enter the customer email. Anonymous-card rules will block the charge.', 'error');
+      document.getElementById('posEmail')?.focus();
+      return;
+    }
+    if (!cardName || /^cardholder$/i.test(cardName.replace(/\s+/g, ''))) {
+      toast(AR ? 'Nuvei: اسم حامل البطاقة كما على البطاقة — ليس CARDHOLDER.' : 'Nuvei: use the name on the card — not CARDHOLDER.', 'error');
+      document.getElementById('cardName')?.focus();
+      return;
+    }
+    const binCc = String((POS.cardBin && POS.cardBin.country) || '').toUpperCase();
+    if (['RU', 'BY'].includes(binCc)) {
+      toast(AR ? 'قاعدة Nuvei: حظر BIN روسيا/بيلاروسيا لحساب Transcendio.' : 'Nuvei rule: Russia/Belarus BIN is blocked on Transcendio.', 'error');
+      return;
+    }
+    if (POS.cardBin && POS.cardBin.prepaid) {
+      toast(AR ? 'قاعدة Nuvei: البطاقة Anonymous/Prepaid غالباً تُحظر خارج أوروبا أو فوق 50 يورو.' : 'Nuvei rule: anonymous/prepaid cards are often blocked outside the EEA or above 50 EUR.', 'error');
+      return;
+    }
+  }
   let squareToken = '';
   let squareLast4 = '';
   if (SQUARE_CFG.enabled && window.DiparmaSquareSdk && !['refund','avoid','capture'].includes(type)) {

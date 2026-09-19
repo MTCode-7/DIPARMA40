@@ -102,7 +102,7 @@ class GatewayErrorMapper
 
     // ── الرسائل العربية الموحدة ───────────────────────────────
     private static array $arabicMessages = [
-        'CARD_DECLINED'      => '❌ البطاقة مرفوضة — تواصل مع البنك',
+        'CARD_DECLINED'      => '❌ بنك البطاقة رفض العملية (Generic Decline) — لا سحب. راجع 3DS ثم اطلب من العميل تفويض Transcendio FZ-LLC أو بطاقة/عملة محلية.',
         'INSUFFICIENT_FUNDS' => '❌ الرصيد غير كافٍ',
         'EXPIRED_CARD'       => '❌ البطاقة منتهية الصلاحية',
         'INVALID_CVV'        => '❌ رمز التحقق CVV غير صحيح',

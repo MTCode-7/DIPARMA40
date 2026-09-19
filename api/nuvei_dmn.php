@@ -4,17 +4,23 @@
  * https://docs.nuvei.com/documentation/integration/webhooks/
  */
 http_response_code(200);
-header('Content-Type: text/plain; charset=utf-8');
+header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, HEAD, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Accept');
 header('Allow: GET, POST, HEAD, OPTIONS');
+header('Content-Security-Policy: frame-ancestors *');
 header_remove('X-Frame-Options');
+
+function nuvei_dmn_ok(): void
+{
+    echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>OK</title></head><body style="margin:0;background:#fff;color:#111;font:16px/1.4 sans-serif">OK</body></html>';
+}
 
 $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
 if ($method === 'HEAD' || $method === 'OPTIONS') {
-    echo 'OK';
+    nuvei_dmn_ok();
     exit;
 }
 
@@ -43,7 +49,7 @@ if ($getHasDmn) {
 }
 
 if ($data === []) {
-    echo 'OK';
+    nuvei_dmn_ok();
     exit;
 }
 
@@ -92,7 +98,7 @@ $statusMap = [
 $normalized = $statusMap[$rawStatus] ?? 'pending';
 
 if ($reference === '') {
-    echo 'OK';
+    nuvei_dmn_ok();
     exit;
 }
 
@@ -114,7 +120,7 @@ try {
     }
     if (!GatewayWebhookVerifier::verifyNuveiDmn($data, $secret)) {
         @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . "] NUVEI DMN rejected checksum\n", FILE_APPEND);
-        echo 'OK';
+        nuvei_dmn_ok();
         exit;
     }
 
@@ -141,4 +147,4 @@ try {
     @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] NUVEI DMN error: ' . $e->getMessage() . "\n", FILE_APPEND);
 }
 
-echo 'OK';
+echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>OK</title></head><body>OK</body></html>';

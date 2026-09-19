@@ -83,9 +83,9 @@ class NuveiAdapter implements GatewayAdapterInterface {
             return $canonical;
         };
         return [
-            'successUrl' => $panelUrl((string) getenv('NUVEI_SUCCESS_URL'), $base . '/nuvei-success.php'),
-            'failureUrl' => $panelUrl((string) (getenv('NUVEI_FAILURE_URL') ?: getenv('NUVEI_CANCEL_URL')), $base . '/nuvei-fail.php'),
-            'pendingUrl' => $panelUrl((string) getenv('NUVEI_PENDING_URL'), $base . '/nuvei-pending.php'),
+            'successUrl' => $panelUrl((string) getenv('NUVEI_SUCCESS_URL'), $base . '/nuvei-success.html'),
+            'failureUrl' => $panelUrl((string) (getenv('NUVEI_FAILURE_URL') ?: getenv('NUVEI_CANCEL_URL')), $base . '/nuvei-fail.html'),
+            'pendingUrl' => $panelUrl((string) getenv('NUVEI_PENDING_URL'), $base . '/nuvei-pending.html'),
             'notificationUrl' => $panelUrl((string) getenv('NUVEI_WEBHOOK_URL'), $base . '/api/nuvei_dmn.php'),
         ];
     }
@@ -104,7 +104,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     private function hostedPayUrl(string $sessionToken): string
     {
-        return 'https://secure.safecharge.com/ppp/purchase.do?sessionToken=' . rawurlencode($sessionToken);
+        return 'https://secure.nuvei.com/ppp/purchase.do?sessionToken=' . rawurlencode($sessionToken);
     }
 
     private function saleOrAuth(array $params): string
@@ -156,121 +156,31 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $payload['cc_number'] = $ccNumber;
         $payload['cc_expiry'] = $ccExp;
         $payload['cc_cvv']    = $ccCvv;
+        $payload['card_number'] = $ccNumber;
+        $payload['card_expiry'] = $ccExp;
+        $payload['card_cvv'] = $ccCvv;
+        $payload['card_name'] = $payload['name'] ?? $payload['card_name'] ?? 'CARDHOLDER';
+        $payload['transactionType'] = $this->saleOrAuth($payload);
 
-        return $this->chargeCard($payload);
+        return $this->purchase($payload);
     }
 
     public function hold(array $payload): array {
-        // Auth (Pre-Authorization) — يحجز المبلغ بدون تحصيل فعلي
-        if (empty($this->merchantId)) {
-            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '');
+        $payload['transactionType'] = 'Auth';
+        $payload['card_number'] = $payload['card_number'] ?? $payload['cc_number'] ?? '';
+        $payload['card_expiry'] = $payload['card_expiry'] ?? $payload['cc_expiry'] ?? '';
+        $payload['card_cvv'] = $payload['cvv2'] ?? $payload['card_cvv'] ?? $payload['cc_cvv'] ?? '';
+        $payload['card_name'] = $payload['name'] ?? $payload['card_name'] ?? 'Customer';
+        if (($payload['card_number'] ?? '') === '' || ($payload['card_expiry'] ?? '') === '') {
+            return GatewayErrorMapper::buildErrorResponse(
+                'INVALID_CARD',
+                (string) ($payload['reference'] ?? ''),
+                (float) ($payload['amount'] ?? 0),
+                strtoupper((string) ($payload['currency'] ?? 'USD')),
+                'بيانات البطاقة غير مكتملة'
+            );
         }
-
-        $ts       = date('YmdHis');
-        $amount   = number_format(floatval($payload['amount'] ?? 0), 2, '.', '');
-        $currency = strtoupper($payload['currency'] ?? 'USD');
-        $ref      = $payload['reference'] ?? 'HOLD' . time();
-        $email    = $payload['email'] ?? 'guest@diparmas.com';
-        $ccNum    = $payload['card_number'] ?? $payload['cc_number'] ?? '';
-        $ccExp    = $payload['card_expiry'] ?? $payload['cc_expiry'] ?? '';
-        $ccCvv    = $payload['cvv2'] ?? $payload['card_cvv'] ?? $payload['cc_cvv'] ?? '';
-        $name     = $payload['name'] ?? 'Customer';
-        $nameParts = preg_split('/\s+/', trim($name), 2) ?: ['Customer'];
-
-        if ($ccNum === '' || $ccExp === '') {
-            return GatewayErrorMapper::buildErrorResponse('INVALID_CARD', $ref, (float)$amount, $currency, 'بيانات البطاقة غير مكتملة');
-        }
-        $isMoto = !empty($payload['is_moto']);
-
-        $expParts = explode('/', str_replace('-', '/', $ccExp));
-        $expMonth = str_pad($expParts[0] ?? '01', 2, '0', STR_PAD_LEFT);
-        $expYear  = strlen($expParts[1] ?? '25') == 2 ? '20' . ($expParts[1]) : ($expParts[1] ?? '2025');
-
-        // Nuvei /payment.do checksum: merchantId+siteId+clientRequestId+amount+currency+timeStamp+secretKey
-        $checksum = hash('sha256', $this->merchantId.$this->siteId.$ref.$amount.$currency.$ts.$this->secretKey);
-
-        $body = [
-            'merchantId'      => $this->merchantId,
-            'merchantSiteId'  => $this->siteId,
-            'clientRequestId' => $ref,
-            'clientUniqueId'  => $ref,
-            'amount'          => $amount,
-            'currency'        => $currency,
-            'timeStamp'       => $ts,
-            'checksum'        => $checksum,
-            'userTokenId'     => $email,
-            'transactionType' => 'Auth',   // ← حجز فقط بدون تحصيل
-            'paymentOption'   => [
-                'card' => array_filter([
-                    'cardNumber'      => $ccNum,
-                    'cardHolderName'  => $name,
-                    'expirationMonth' => $expMonth,
-                    'expirationYear'  => $expYear,
-                    'CVV'             => $ccCvv !== '' ? $ccCvv : null,
-                ]),
-            ],
-            'isMoto'          => $isMoto ? '1' : '0',
-            'merchantDetails' => [
-                'customField1' => 'TRANSCENDIO_FZ_LLC',
-                'customField4' => $isMoto ? 'MOTO' : 'ECOM',
-            ],
-            'billingAddress'  => [
-                'email'     => $email,
-                'firstName' => $nameParts[0] ?: 'Customer',
-                'lastName'  => $nameParts[1] ?? 'Client',
-                'country'   => strtoupper(substr($payload['country'] ?? 'AE', 0, 2)),
-                'city'      => trim($payload['city'] ?? 'Dubai') ?: 'Dubai',
-                'address'   => trim($payload['address'] ?? 'Al Barsha 1, Dubai, UAE') ?: 'Al Barsha 1, Dubai, UAE',
-                'zip'       => trim($payload['zip'] ?? '00000') ?: '00000',
-            ],
-            'deviceDetails'   => [
-                'deviceType'       => 'DESKTOP',
-                'ipAddress'        => filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP) ? $_SERVER['REMOTE_ADDR'] : null,
-                'browserUserAgent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
-            ],
-        ];
-
-        $res = $this->post('/payment.do', $body);
-
-        if ($this->nuveiTxnApproved($res)) {
-            $this->log("✓ Hold/Auth: {$ref} | txId: " . ($res['transactionId'] ?? ''));
-            return [
-                'success'        => true,
-                'status'         => 'authorized',
-                'transaction_id' => $res['transactionId'] ?? $res['gwTransactionId'] ?? '',
-                'approval_code'  => $res['authCode'] ?? '',
-                'rrn'            => $res['rrn'] ?? '',
-                'reference'      => $ref,
-                'amount'         => floatval($amount),
-                'currency'       => $currency,
-                'message'        => '✅ تم حجز المبلغ عبر Nuvei (Auth)',
-                'error_code'     => '',
-                'requires_3ds'   => false,
-                'client_secret'  => '',
-                'redirect_url'   => '',
-                'decline_code'   => '',
-                'retryable'      => false,
-                'hard_block'     => false,
-            ];
-        }
-
-        $redir = $this->nuveiRedirectUrl($res);
-        if ($redir !== '' || strtoupper((string)($res['transactionStatus'] ?? '')) === 'REDIRECT') {
-            return [
-                'success' => false,
-                'requires_3ds' => true,
-                'redirect_url' => $redir,
-                'transaction_id' => $res['transactionId'] ?? '',
-                'reference' => $ref,
-                'message' => '3DS_REQUIRED',
-                'raw' => $res,
-            ];
-        }
-
-        $errCode = $this->normalizeError($res);
-        $this->log("✗ Hold failed: " . json_encode($res));
-        return GatewayErrorMapper::buildErrorResponse($errCode, $ref, (float)$amount, $currency,
-            $res['gwErrorReason'] ?? $res['reason'] ?? $res['errCode'] ?? 'Nuvei auth failed');
+        return $this->purchase($payload);
     }
 
         // ── توليد checksum ──────────────────────────────────────
@@ -308,17 +218,21 @@ class NuveiAdapter implements GatewayAdapterInterface {
      */
     public function initPayment(array $params): array
     {
-        $sessionRes = $this->getSessionToken();
-        if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
-            return ['success' => false, 'message' => 'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')];
+        $sessionToken = trim((string) ($params['sessionToken'] ?? $params['session_token'] ?? ''));
+        if ($sessionToken === '') {
+            $sessionRes = $this->getSessionToken();
+            if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
+                return ['success' => false, 'message' => 'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')];
+            }
+            $sessionToken = (string) ($sessionRes['sessionToken'] ?? '');
         }
         $clientReqId = (string) ($params['client_request_id'] ?? ('INIT-' . strtoupper(substr(uniqid(), 0, 8))));
         $reference = (string) ($params['reference'] ?? $params['client_unique_id'] ?? $clientReqId);
         $amount = number_format((float) ($params['amount'] ?? 0), 2, '.', '');
         $currency = strtoupper((string) ($params['currency'] ?? 'USD'));
-        $notify3ds = $this->publicSiteUrl() . '/api/nuvei_dmn.php';
+        $notify3ds = $this->restUrlDetails($reference)['notificationUrl'] ?: ($this->publicSiteUrl() . '/api/nuvei_dmn.php');
         $body = [
-            'sessionToken' => $sessionRes['sessionToken'] ?? '',
+            'sessionToken' => $sessionToken,
             'merchantId' => $this->merchantId,
             'merchantSiteId' => $this->siteId,
             'clientUniqueId' => $reference,
@@ -341,8 +255,9 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'status' => $ok ? 'initialized' : 'failed',
             'transaction_id' => $res['transactionId'] ?? '',
             'transaction_type' => $res['transactionType'] ?? 'InitAuth3D',
-            'session_token' => $res['sessionToken'] ?? ($sessionRes['sessionToken'] ?? ''),
+            'session_token' => $res['sessionToken'] ?? $sessionToken,
             'three_d' => $res['paymentOption']['card']['threeD'] ?? [],
+            'redirect_url' => $this->nuveiRedirectUrl($res),
             'message' => $ok ? 'Nuvei initPayment' : ($res['reason'] ?? $res['gwErrorReason'] ?? 'initPayment failed'),
             'raw' => $res,
         ];
@@ -670,135 +585,13 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     // ── دفع مباشر بالبطاقة (API v1) ─────────────────────
     public function chargeCard(array $payload): array {
-    if(empty($this->merchantId)) {
-        return ['success'=>false,'message'=>'NUVEI credentials missing'];
+        $payload['card_number'] = $payload['card_number'] ?? $payload['cc_number'] ?? '';
+        $payload['card_expiry'] = $payload['card_expiry'] ?? $payload['cc_expiry'] ?? '';
+        $payload['card_cvv'] = $payload['card_cvv'] ?? $payload['cc_cvv'] ?? '';
+        $payload['card_name'] = $payload['card_name'] ?? $payload['name'] ?? 'CARDHOLDER';
+        $payload['transactionType'] = $payload['transactionType'] ?? 'Sale';
+        return $this->purchase($payload);
     }
-
-    // ─── الخطوة 1: الحصول على session token ───
-    $ts  = date('YmdHis');
-    $cri = uniqid('diparma_', true);
-    $checksum = hash('sha256', $this->merchantId . $this->siteId . $cri . $ts . $this->secretKey);
-    
-    $sessionBody = [
-        'merchantId'      => $this->merchantId,
-        'merchantSiteId'  => $this->siteId,
-        'clientRequestId' => $cri,
-        'timeStamp'       => $ts,
-        'checksum'        => $checksum,
-    ];
-    
-    $sessionRes = $this->post('/getSessionToken.do', $sessionBody);
-    
-    if (($sessionRes['status'] ?? '') !== 'SUCCESS' || empty($sessionRes['sessionToken'])) {
-        $this->log("✗ ChargeCard: session token failed: ".json_encode($sessionRes));
-        return [
-            'success' => false,
-            'message' => 'Nuvei session token failed: ' . ($sessionRes['reason'] ?? $sessionRes['errCode'] ?? 'Unknown'),
-            'raw' => $sessionRes
-        ];
-    }
-    $sessionToken = $sessionRes['sessionToken'];
-
-    // ─── الخطوة 2: تنفيذ الدفع ───
-    $ts       = date('YmdHis');
-    $amount   = number_format(floatval($payload['amount'] ?? 0), 2, '.', '');
-    $currency = strtoupper($payload['currency'] ?? 'USD');
-    $ref      = $payload['reference'] ?? 'ORD'.time();
-    $email    = $payload['email'] ?? 'guest@diparmas.com';
-    $ccNum    = $payload['cc_number'] ?? '';
-    $ccExp    = $payload['cc_expiry'] ?? '';
-    $ccCvv    = $payload['cc_cvv'] ?? '';
-    $name     = $payload['name'] ?? 'Customer';
-    $nameParts = preg_split('/\s+/', trim($name), 2) ?: ['Customer'];
-    $ipAddress = filter_var($payload['ip_address'] ?? ($_SERVER['REMOTE_ADDR'] ?? ''), FILTER_VALIDATE_IP)
-        ? ($payload['ip_address'] ?? $_SERVER['REMOTE_ADDR'])
-        : null;
-
-    // تحليل تاريخ الانتهاء
-    $expParts = explode('/', str_replace('-', '/', $ccExp));
-    $expMonth = str_pad($expParts[0] ?? '01', 2, '0', STR_PAD_LEFT);
-    $expYear  = strlen($expParts[1] ?? '25') == 2 ? '20'.($expParts[1]) : ($expParts[1] ?? '2025');
-
-    // Nuvei /payment.do checksum: merchantId+siteId+clientRequestId+amount+currency+timeStamp+secretKey
-    $paymentChecksum = hash('sha256', $this->merchantId . $this->siteId . $ref . $amount . $currency . $ts . $this->secretKey);
-
-    $body = [
-        'sessionToken'     => $sessionToken,  // ← مهم: إضافة sessionToken
-        'merchantId'       => $this->merchantId,
-        'merchantSiteId'   => $this->siteId,
-        'clientRequestId'  => $ref,
-        'clientUniqueId'   => $ref,
-        'amount'           => $amount,
-        'currency'         => $currency,
-        'timeStamp'        => $ts,
-        'checksum'         => $paymentChecksum,
-        'userTokenId'      => $email,
-        'paymentOption'    => [
-            'card' => [
-                'cardNumber'        => $ccNum,
-                'cardHolderName'    => $name,
-                'expirationMonth'   => $expMonth,
-                'expirationYear'    => $expYear,
-                'CVV'               => $ccCvv,
-            ]
-        ],
-        'billingAddress'   => [
-            'email'     => $email,
-            'firstName' => $nameParts[0] ?: 'Customer',
-            'lastName'  => $nameParts[1] ?? 'Client',
-            'country'   => strtoupper(substr($payload['country'] ?? 'AE', 0, 2)),
-            'city'      => trim($payload['city'] ?? 'Dubai') ?: 'Dubai',
-            'address'   => trim($payload['address'] ?? 'Al Barsha 1, Dubai, UAE') ?: 'Al Barsha 1, Dubai, UAE',
-            'zip'       => trim($payload['zip'] ?? '00000') ?: '00000',
-        ],
-        'deviceDetails'    => [
-            'deviceType' => 'DESKTOP',
-            'ipAddress' => $ipAddress,
-            'browserUserAgent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Mozilla/5.0',
-        ],
-        'transactionType'  => 'Sale',
-        'urlDetails' => $this->restUrlDetails($ref),
-    ];
-
-    $res = $this->post('/payment.do', $body);
-
-    // ─── التحقق من النتيجة ───
-    if ($this->nuveiTxnApproved($res)) {
-        $this->log("✓ ChargeCard: {$ref} | txId: ".($res['transactionId'] ?? ''));
-        return [
-            'success'        => true,
-            'transaction_id' => $res['transactionId'] ?? $res['gwTransactionId'] ?? '',
-            'approval_code'  => $res['authCode'] ?? '',
-            'rrn'            => $res['rrn'] ?? '',
-            'reference'      => $ref,
-            'status'         => 'completed',
-            'provider'       => 'nuvei',
-            'message'        => 'Payment approved',
-            'raw'            => $res,
-        ];
-    }
-
-    $redir = $this->nuveiRedirectUrl($res);
-    $txnSt = strtoupper((string)($res['transactionStatus'] ?? ''));
-    if ($redir !== '' || $txnSt === 'REDIRECT') {
-        return [
-            'success' => false,
-            'requires_3ds' => true,
-            'redirect_url' => $redir,
-            'transaction_id' => $res['transactionId'] ?? '',
-            'reference' => $ref,
-            'message' => '3DS_REQUIRED',
-            'raw' => $res,
-        ];
-    }
-
-    $this->log("✗ ChargeCard failed: ".json_encode($res));
-    return [
-        'success' => false,
-        'message' => ($res['gwErrorReason'] ?? $res['reason'] ?? $res['errCode'] ?? 'Nuvei charge failed'),
-        'raw' => $res,
-    ];
-}
 
     public function settleTransaction(string $transactionId, float $amount, string $currency = 'USD', string $reference = ''): array {
         if ($this->merchantId === '' || $transactionId === '') {
@@ -895,14 +688,40 @@ class NuveiAdapter implements GatewayAdapterInterface {
             return ['success' => false, 'message' => 'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')];
         }
         $sessionToken = $sessionRes['sessionToken'];
+        $isMoto = !empty($params['is_moto']) || !empty($params['direct_advice']);
 
         $ts        = date('YmdHis');
         $clientReqId = 'POS-PUR-' . strtoupper(substr(uniqid(), 0, 8));
         $amount    = number_format((float)$params['amount'], 2, '.', '');
-        $currency  = $params['currency'] ?? 'USD';
+        $currency  = strtoupper((string) ($params['currency'] ?? 'USD'));
         $userToken = $params['user_token_id'] ?? 'guest_' . date('YmdHis');
         $reference = (string) ($params['reference'] ?? $clientReqId);
         $txnType   = $this->saleOrAuth($params);
+
+        $init3d = [];
+        if (!$isMoto) {
+            $init = $this->initPayment(array_merge($params, [
+                'sessionToken' => $sessionToken,
+                'client_request_id' => $clientReqId,
+                'reference' => $reference,
+            ]));
+            $init3d = is_array($init['three_d'] ?? null) ? $init['three_d'] : [];
+            $initRedirect = $this->nuveiRedirectUrl(is_array($init['raw'] ?? null) ? $init['raw'] : []);
+            if ($initRedirect === '') {
+                $initRedirect = trim((string) ($init3d['acsUrl'] ?? $init3d['acsurl'] ?? ''));
+            }
+            if ($initRedirect !== '') {
+                return [
+                    'success' => false,
+                    'requires_3ds' => true,
+                    'redirect_url' => $initRedirect,
+                    'transaction_id' => $init['transaction_id'] ?? '',
+                    'reference' => $reference,
+                    'message' => '3DS_REQUIRED',
+                    'raw' => $init['raw'] ?? $init,
+                ];
+            }
+        }
 
         // Nuvei checksum: merchantId + merchantSiteId + clientRequestId + amount + currency + timeStamp + secretKey
         $checksum = $this->buildChecksum([
@@ -942,6 +761,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $authCode = trim((string)($params['auth_code'] ?? $params['approval_code'] ?? ''));
         if ($authCode !== '') {
             $body['authCode'] = $authCode;
+        }
+        if (!$isMoto && isset($body['paymentOption']['card']) && is_array($body['paymentOption']['card'])) {
+            $ours = $this->buildThreeDSDetails($params, $this->publicSiteUrl());
+            $body['paymentOption']['card']['threeD'] = array_merge($init3d, $ours);
         }
 
         $result = $this->request('payment', $body);
@@ -1140,6 +963,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'checksum'        => $checksum,
             'urlDetails'      => $this->restUrlDetails($reference),
             'deviceDetails'   => $this->buildDeviceDetails($params),
+            'paymentOption'   => $this->buildCardPaymentOption($params),
             'threeD'          => $this->buildThreeDSDetails($params, $siteUrl),
             'merchantDetails' => [
                 'customField1' => $reference,
@@ -1421,9 +1245,19 @@ class NuveiAdapter implements GatewayAdapterInterface {
             if ($cvv !== '') {
                 $cardBody['CVV'] = $cvv;
             }
-            $card = ['card' => $cardBody];
+            $card = ['card' => $this->withThreeDS($cardBody, $p, !empty($p['is_moto']))];
         }
         return $card ?: ['card' => []];
+    }
+
+    /** Ecom REST /payment.do — 3DS on the card. MOTO / advice skip challenge. */
+    private function withThreeDS(array $cardBody, array $params, bool $isMoto): array
+    {
+        if ($isMoto || !empty($params['direct_advice'])) {
+            return $cardBody;
+        }
+        $cardBody['threeD'] = $this->buildThreeDSDetails($params, $this->publicSiteUrl());
+        return $cardBody;
     }
 
     // ── بناء billing address ────────────────────────────────
@@ -1464,6 +1298,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
     {
         return [
             'notificationUrl' => $this->restUrlDetails()['notificationUrl'] ?: (rtrim($siteUrl, '/') . '/api/nuvei_dmn.php'),
+            'methodCompletionInd' => 'U',
+            'platformType' => '02',
             'challengePreference' => '04',
             'browserDetails' => [
                 'browserAcceptHeader' => $_SERVER['HTTP_ACCEPT'] ?? '*/*',
@@ -1540,12 +1376,6 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $extCode = trim((string)($raw['gwExtendedErrorCode'] ?? $card['gwExtendedErrorCode'] ?? ''));
         $issuerCode = trim((string)($card['issuerDeclineCode'] ?? $raw['issuerDeclineCode'] ?? ''));
         $transReason = trim((string)($raw['transReason'] ?? $card['transReason'] ?? $raw['transactionReason'] ?? ''));
-        $scan = $transReason . ' ' . $gwCode . ' ' . $errCode . ' ' . $extCode . ' ' . $blob;
-        if (preg_match('/1507/', $scan)) {
-            $gwCode = '1507';
-        } elseif ($gwCode === '' && preg_match('/\b(1011|1007|1106|1019)\b/', $scan, $m)) {
-            $gwCode = $m[1];
-        }
         $reason = trim((string)(
             $raw['gwErrorReason']
             ?? $card['gwErrorReason']
@@ -1557,6 +1387,16 @@ class NuveiAdapter implements GatewayAdapterInterface {
             ?? $raw['paymentMethodErrorReason']
             ?? ''
         ));
+        $scan = $transReason . ' ' . $gwCode . ' ' . $errCode . ' ' . $extCode . ' ' . $reason . ' ' . $blob;
+        $filterHit = (bool) preg_match('/custom\s*fraud\s*screen|filter\s*error|fraud\s*filter|FILTERED/i', $scan . ' ' . $txnStatus . ' ' . $status);
+        if ($filterHit) {
+            return 'Nuvei Filter Error — Custom Fraud Screen Filter — قاعدة حساب Transcendio أوقفت العملية (مبلغ/BIN/بطاقة مجهولة/دولة) قبل بنك البطاقة. ليست عطل الربط.';
+        }
+        if (preg_match('/1507/', $scan)) {
+            $gwCode = '1507';
+        } elseif ($gwCode === '' && preg_match('/\b(1011|1007|1106|1019)\b/', $scan, $m)) {
+            $gwCode = $m[1];
+        }
         if ($reason !== '' && preg_match('/TRANSID=|TRANSSCORE=|TRANSREASON/i', $reason)) {
             $reason = '';
         }
@@ -1592,7 +1432,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         }
         $explain = $arMap[$gwCode] ?? $arMap[$errCode] ?? $arMap[$extCode] ?? '';
         if ($explain === '' && preg_match('/generic\s*decline/i', $reason)) {
-            $explain = 'البنك رفض العملية بدون كود تفصيلي. تواصل مع بنك البطاقة.';
+            $explain = 'Generic Decline على نفس البطاقة تكرر حتى عند 100 USD وMOTO. قرار بنك الإصدار أو تصنيف Anonymous — المستحوذ Network International والوصف Transcendio FZ-LLC. لا تعيد نفس PAN.';
         } elseif ($explain === '' && isset($codeMap[$gwCode]) && stripos($reason, $codeMap[$gwCode]) === false) {
             $explain = $codeMap[$gwCode];
         }

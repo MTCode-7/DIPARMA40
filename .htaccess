@@ -129,10 +129,12 @@ DirectoryIndex landing.php
 <FilesMatch "^(nuvei-(success|fail|pending|back)\.(html|php)|nuvei_dmn\.php)$">
     <IfModule mod_headers.c>
         Header always unset X-Frame-Options
+        Header always unset X-Content-Type-Options
         Header always set Access-Control-Allow-Origin "*"
         Header always set Access-Control-Allow-Methods "GET, POST, HEAD, OPTIONS"
         Header always set Allow "GET, POST, HEAD, OPTIONS"
         Header always set Content-Security-Policy "frame-ancestors *"
+        Header always set Content-Type "text/html; charset=utf-8"
     </IfModule>
 </FilesMatch>
 
