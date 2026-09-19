@@ -85,8 +85,8 @@ function pos_operation_catalog(): array
             'amount_flexible' => false,
             'method' => 'authorize',
             'is_moto' => true,
-            'desc_ar' => 'حجز MOTO فقط: بطاقة + انتهاء. بدون OTP وبدون CVV. Online: الحجز على البوابة بعلامة MOTO. Offline: Approval 4 أو 6 من البنك. لا Ledger حتى Capture.',
-            'desc_en' => 'MOTO hold only: card + expiry. No OTP, no CVV. Online: gateway Auth with MOTO flag. Offline: bank Approval 4 or 6. No Ledger until Capture.',
+            'desc_ar' => 'حجز ثم كابتشر لاحقاً (إيجار منزل/سيارة/فندق). Nuvei: ECOM 3DS مع OTP وCVV واسم وإيميل. MOTO Online بدون OTP. MOTO Offline يحتاج Approval من البنك. لا Ledger حتى Capture.',
+            'desc_en' => 'Hold now, capture later (home/car/hotel). Nuvei: ECOM 3DS with OTP, CVV, name and email. MOTO Online skips OTP. MOTO Offline needs a bank Approval. No Ledger until Capture.',
         ],
         'capture' => [
             'ar' => 'AUTH Capture',

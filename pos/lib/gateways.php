@@ -432,10 +432,16 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
                 $params['is_moto'] = true;
                 return $nuvei->purchase2D($params);
             case 'auth':
-                $params['is_moto'] = true;
-                $params['moto_indicator'] = 'M';
-                if (strtolower((string) ($params['auth_channel'] ?? $params['moto_channel'] ?? '')) === 'offline') {
-                    $params['is_offline'] = true;
+                $authCh = strtolower(trim((string) ($params['auth_channel'] ?? $params['moto_channel'] ?? 'ecom')));
+                if (in_array($authCh, ['online', 'offline'], true)) {
+                    $params['is_moto'] = true;
+                    $params['moto_indicator'] = 'M';
+                    if ($authCh === 'offline') {
+                        $params['is_offline'] = true;
+                    }
+                } else {
+                    $params['is_moto'] = false;
+                    $params['auth_channel'] = 'ecom';
                 }
                 return $nuvei->authorize($params);
             case 'capture':

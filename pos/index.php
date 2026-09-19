@@ -1958,9 +1958,11 @@ window.applyOpsLegend = function(type) {
     if (modeMeta.requires_otp != null) row.otp = !!modeMeta.requires_otp;
   }
   if (type === 'auth') {
-    const offline = document.getElementById('authChannel')?.value === 'offline';
-    row.cvv = false;
-    row.otp = false;
+    const ch = document.getElementById('authChannel')?.value || (POS_GW === 'nuvei' ? 'ecom' : 'online');
+    const ecom = ch === 'ecom';
+    const offline = ch === 'offline';
+    row.cvv = ecom;
+    row.otp = ecom;
     row.rrn = offline;
     row.appr = offline;
     row.pid = false;
@@ -2100,12 +2102,19 @@ function renderExtraFields(type) {
   }
 
   if (type === 'auth') {
+    const nuveiAuth = POS_GW === 'nuvei';
     html += `<div class="fld">
-      <label><i class="fas fa-phone"></i> MOTO ${AR?'للحجز AUTH':'on AUTH hold'} <span style="color:var(--red)">*</span></label>
+      <label><i class="fas fa-lock"></i> ${AR?'قناة التفويض (الحجز)':'AUTH hold channel'} <span style="color:var(--red)">*</span></label>
       <select id="authChannel" onchange="onAuthMotoChannel()">
-        <option value="online">${AR?'MOTO Online — الحجز على البوابة بدون OTP':'MOTO Online — live hold, no OTP'}</option>
+        ${nuveiAuth ? `<option value="ecom" selected>${AR?'ECOM 3DS — حجز مع OTP ثم كابتشر':'ECOM 3DS — hold with OTP, then capture'}</option>` : ''}
+        <option value="online">${AR?'MOTO Online — حجز على البوابة بدون OTP':'MOTO Online — live hold, no OTP'}</option>
         <option value="offline">${AR?'MOTO Offline — Approval 4 أو 6 من البنك':'MOTO Offline — bank Approval 4 or 6'}</option>
       </select>
+    </div>
+    <div style="font-size:.68rem;color:var(--muted2);line-height:1.55;margin:-4px 0 12px">
+      ${AR
+        ? 'بعد APPROVED على الحجز لا يُحوَّل Ledger. اختر AUTH Capture وأكمل المبلغ (نقص/مساوٍ/زيادة).'
+        : 'After AUTH APPROVED there is no Ledger transfer. Choose AUTH Capture and complete the amount (less/same/more).'}
     </div>
     <div id="authMotoOffline" style="display:none">
       <div class="fld">
@@ -2322,7 +2331,7 @@ window.onAdviceChannelChange = function() {
 };
 
 window.onAuthMotoChannel = function() {
-  const ch = document.getElementById('authChannel')?.value || 'online';
+  const ch = document.getElementById('authChannel')?.value || (POS_GW === 'nuvei' ? 'ecom' : 'online');
   const box = document.getElementById('authMotoOffline');
   if (box) box.style.display = ch === 'offline' ? '' : 'none';
   if (typeof applyOpsLegend === 'function') applyOpsLegend('auth');
@@ -2368,8 +2377,13 @@ window.applyOpenHold = function(sel) {
   const ap = document.getElementById('approvalCode');
   const pid = document.getElementById('paymentId');
   if (rrn) rrn.value = String(h.rrn || '').replace(/\D/g, '').slice(0, 12);
-  if (ap) ap.value = String(h.bank_approval || h.gateway_approval || '').replace(/\D/g, '').slice(0, 6);
+  if (ap) ap.value = String(h.bank_approval || h.gateway_approval || '').replace(/\D/g, '').slice(0, 12);
   if (pid) pid.value = h.payment_id || h.reference || '';
+  const curSel = document.getElementById('txnCurrency');
+  if (curSel && h.currency) {
+    const want = String(h.currency).toUpperCase();
+    if ([...curSel.options].some(o => o.value === want)) curSel.value = want;
+  }
   POS.holdAmount = Number(h.amount || 0) || 0;
   if (!POS.captureMode) POS.captureMode = 'same';
   if (typeof setCaptureCompare === 'function') setCaptureCompare(POS.captureMode);
@@ -2761,8 +2775,8 @@ window.processTransaction = async function() {
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     advice_channel: document.getElementById('adviceChannel')?.value || undefined,
     auth_channel: document.getElementById('authChannel')?.value || undefined,
-    is_moto: (type === 'auth' || type === 'online_sale_moto' || type === 'offline_sale_moto') ? true : undefined,
-    moto_indicator: (type === 'auth' || type === 'online_sale_moto' || type === 'offline_sale_moto') ? 'M' : undefined,
+    is_moto: ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto') ? true : undefined,
+    moto_indicator: ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto') ? 'M' : undefined,
     payment_id: document.getElementById('paymentId')?.value || undefined,
     wallet_address: walletAddr || undefined,
     wallet_provider: walletOpt?.dataset?.provider || undefined,
@@ -2818,7 +2832,11 @@ window.processTransaction = async function() {
     }
   }
   const needsCard = POS_REQUIRES_CARD && cardType !== 'CLOUD' && meta.requires_card !== false && !['refund','avoid'].includes(type);
-  const nuveiEcom = POS_GW === 'nuvei' && !['auth','online_sale_moto','offline_sale_moto','purchase_advice','refund','avoid','capture'].includes(type);
+  const authCh = document.getElementById('authChannel')?.value || '';
+  const nuveiEcom = POS_GW === 'nuvei' && (
+    !['online_sale_moto','offline_sale_moto','purchase_advice','refund','avoid','capture'].includes(type)
+    && !(type === 'auth' && ['online','offline'].includes(authCh))
+  );
   if (nuveiEcom && needsCard) {
     const email = (document.getElementById('posEmail')?.value || '').trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -2879,7 +2897,8 @@ window.processTransaction = async function() {
         toast(AR?'بطاقات الاختبار والوهم مرفوضة':'Test and dummy cards are rejected', 'error'); return;
       }
       if (!expiry) { toast(AR?'أدخل تاريخ الانتهاء':'Enter expiry date', 'error'); return; }
-      const noCvv = ['capture','purchase_advice','offline_sale_moto','online_sale_moto','avoid','refund','withdrawal_nfc','auth'].includes(type);
+      const noCvv = ['capture','purchase_advice','offline_sale_moto','online_sale_moto','avoid','refund','withdrawal_nfc'].includes(type)
+        || (type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value));
       if (!noCvv && (!cvv || cvv.length < 3)) {
         toast(AR?'أدخل CVV':'Enter CVV', 'error'); return;
       }
