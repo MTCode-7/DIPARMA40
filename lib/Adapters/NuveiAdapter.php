@@ -159,7 +159,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $payload['card_number'] = $ccNumber;
         $payload['card_expiry'] = $ccExp;
         $payload['card_cvv'] = $ccCvv;
-        $payload['card_name'] = $payload['name'] ?? $payload['card_name'] ?? 'CARDHOLDER';
+        $payload['card_name'] = $payload['name'] ?? $payload['card_name'] ?? '';
         $payload['transactionType'] = $this->saleOrAuth($payload);
 
         return $this->purchase($payload);
@@ -170,7 +170,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $payload['card_number'] = $payload['card_number'] ?? $payload['cc_number'] ?? '';
         $payload['card_expiry'] = $payload['card_expiry'] ?? $payload['cc_expiry'] ?? '';
         $payload['card_cvv'] = $payload['cvv2'] ?? $payload['card_cvv'] ?? $payload['cc_cvv'] ?? '';
-        $payload['card_name'] = $payload['name'] ?? $payload['card_name'] ?? 'Customer';
+        $payload['card_name'] = $payload['name'] ?? $payload['card_name'] ?? '';
         if (($payload['card_number'] ?? '') === '' || ($payload['card_expiry'] ?? '') === '') {
             return GatewayErrorMapper::buildErrorResponse(
                 'INVALID_CARD',
@@ -540,7 +540,12 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $amount   = number_format(floatval($payload['amount'] ?? 0), 2, '.', '');
         $currency = strtoupper($payload['currency'] ?? 'USD');
         $ref      = $payload['reference'] ?? 'ORD'.time();
-        $email    = $payload['email']     ?? 'guest@diparmas.com';
+        $ident = $this->missingPayerIdentity($payload);
+        if ($ident !== null) {
+            return $ident;
+        }
+        $email = $this->identifiedEmail($payload);
+        $nameParts = explode(' ', $this->identifiedCardName($payload), 2);
         $checksum = $this->paymentChecksum($ref, $amount, $currency, $ts);
 
         $body = [
@@ -556,8 +561,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'billingAddress'  => [
                 'email' => $email,
                 'country' => strtoupper(substr((string) ($payload['country'] ?? 'AE'), 0, 2)),
-                'firstName' => 'Customer',
-                'lastName' => 'Client',
+                'firstName' => $nameParts[0],
+                'lastName' => $nameParts[1] ?? $nameParts[0],
             ],
             'urlDetails'      => $this->restUrlDetails($ref),
         ];
@@ -588,7 +593,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $payload['card_number'] = $payload['card_number'] ?? $payload['cc_number'] ?? '';
         $payload['card_expiry'] = $payload['card_expiry'] ?? $payload['cc_expiry'] ?? '';
         $payload['card_cvv'] = $payload['card_cvv'] ?? $payload['cc_cvv'] ?? '';
-        $payload['card_name'] = $payload['card_name'] ?? $payload['name'] ?? 'CARDHOLDER';
+        $payload['card_name'] = $payload['card_name'] ?? $payload['name'] ?? '';
         $payload['transactionType'] = $payload['transactionType'] ?? 'Sale';
         return $this->purchase($payload);
     }
@@ -683,6 +688,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
     // ── Purchase — شراء مباشر ──────────────────────────────
     public function purchase(array $params): array
     {
+        $ident = $this->missingPayerIdentity($params);
+        if ($ident !== null) {
+            return $ident;
+        }
         $sessionRes = $this->getSessionToken();
         if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
             return ['success' => false, 'message' => 'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')];
@@ -694,7 +703,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $clientReqId = 'POS-PUR-' . strtoupper(substr(uniqid(), 0, 8));
         $amount    = number_format((float)$params['amount'], 2, '.', '');
         $currency  = strtoupper((string) ($params['currency'] ?? 'USD'));
-        $userToken = $params['user_token_id'] ?? 'guest_' . date('YmdHis');
+        $userToken = $this->identifiedEmail($params) ?: (string) ($params['user_token_id'] ?? '');
         $reference = (string) ($params['reference'] ?? $clientReqId);
         $txnType   = $this->saleOrAuth($params);
 
@@ -834,7 +843,11 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $clientReqId = 'POS-ADV-' . strtoupper(substr(uniqid(), 0, 8));
         $amount = number_format((float) ($params['amount'] ?? 0), 2, '.', '');
         $currency = $params['currency'] ?? 'USD';
-        $userToken = $params['user_token_id'] ?? 'guest_' . date('YmdHis');
+        $ident = $this->missingPayerIdentity($params);
+        if ($ident !== null) {
+            return $ident;
+        }
+        $userToken = $this->identifiedEmail($params) ?: (string) ($params['user_token_id'] ?? '');
 
         $checksum = $this->buildChecksum([
             $this->merchantId,
@@ -924,6 +937,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
     // ── Purchase 3D Secure — يرجع redirectUrl لـ OTP ──────
     public function purchase3D(array $params): array
     {
+        $ident = $this->missingPayerIdentity($params);
+        if ($ident !== null) {
+            return $ident;
+        }
         $sessionRes = $this->getSessionToken();
         if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
             return ['success' => false, 'message' => 'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')];
@@ -934,7 +951,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $clientReqId = 'DP3D-' . strtoupper(substr(uniqid(), 0, 8));
         $amount      = number_format((float)$params['amount'], 2, '.', '');
         $currency    = $params['currency'] ?? 'USD';
-        $userToken   = $params['user_token_id'] ?? 'guest_' . date('YmdHis');
+        $userToken   = $this->identifiedEmail($params) ?: (string) ($params['user_token_id'] ?? '');
         $reference   = $params['reference'] ?? $clientReqId;
         $siteUrl     = $this->publicSiteUrl();
 
@@ -1216,6 +1233,43 @@ class NuveiAdapter implements GatewayAdapterInterface {
         return $this->normalizeResponse('balance', $result, $clientReqId);
     }
 
+    /** اسم حامل البطاقة الحقيقي — لا CARDHOLDER ولا اسم وهمي. */
+    private function identifiedCardName(array $p): string
+    {
+        $raw = trim((string) ($p['card_name'] ?? $p['name'] ?? ''));
+        $clean = strtoupper((string) preg_replace('/[^A-Za-z\s]/', '', $raw));
+        $clean = trim((string) preg_replace('/\s+/', ' ', $clean));
+        $compact = str_replace(' ', '', $clean);
+        if ($clean === '' || preg_match('/^(CARDHOLDER|CUSTOMER|CLIENT|GUEST|TEST|UNKNOWN)$/', $compact)) {
+            return '';
+        }
+        return $clean;
+    }
+
+    /** إيميل العميل على نفس العملية — ليس guest/pos@diparmas. */
+    private function identifiedEmail(array $p): string
+    {
+        $email = trim((string) ($p['email'] ?? ''));
+        if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return '';
+        }
+        if (preg_match('/^(guest|pos|noreply|no-reply|test)@/i', $email)) {
+            return '';
+        }
+        return $email;
+    }
+
+    private function missingPayerIdentity(array $p): ?array
+    {
+        if ($this->identifiedCardName($p) === '' || $this->identifiedEmail($p) === '') {
+            return [
+                'success' => false,
+                'message' => 'Nuvei على حساب Transcendio يتطلب اسم حامل البطاقة كما مطبوع وإيميل العميل الحقيقي. لا يُرسل CARDHOLDER ولا إيميل وهمي — العملية ليست شحناً مجهولاً.',
+            ];
+        }
+        return null;
+    }
+
     // ── بناء payment option للبطاقة ────────────────────────
     private function buildCardPaymentOption(array $p): array
     {
@@ -1230,8 +1284,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         if (!empty($p['card_number'])) {
             $expiry = explode('/', str_replace([' ','-'], '/', $p['card_expiry'] ?? '01/30'));
             // cardHolderName بدون أحرف خاصة — أحرف كبيرة فقط
-            $cardName = strtoupper(preg_replace('/[^A-Za-z\s]/', '', $p['card_name'] ?? 'CARDHOLDER'));
-            $cardName = trim(preg_replace('/\s+/', ' ', $cardName)) ?: 'CARDHOLDER';
+            $cardName = $this->identifiedCardName($p);
 
             $cardBody = [
                     'cardNumber'        => preg_replace('/\D/', '', $p['card_number']),
@@ -1264,13 +1317,11 @@ class NuveiAdapter implements GatewayAdapterInterface {
     private function buildBillingAddress(array $p): array
     {
         // cardHolderName — أحرف إنجليزية فقط بدون رموز خاصة
-        $nameParts = explode(' ', strtoupper(preg_replace('/[^A-Za-z\s]/', '', $p['card_name'] ?? 'CARDHOLDER')));
+        $nameParts = explode(' ', $this->identifiedCardName($p), 2);
         $addr = [
-            'firstName' => $nameParts[0] ?? 'CARDHOLDER',
-            'lastName'  => $nameParts[1] ?? 'CLIENT',
-            'email'     => filter_var($p['email'] ?? '', FILTER_VALIDATE_EMAIL)
-                            ? $p['email']
-                            : 'pos@diparmas.com',
+            'firstName' => $nameParts[0] ?: '',
+            'lastName'  => $nameParts[1] ?? ($nameParts[0] ?: ''),
+            'email'     => $this->identifiedEmail($p),
             'country'   => strtoupper(substr($p['country'] ?? 'AE', 0, 2)),
             'city'      => trim((string)($p['city'] ?? '')) ?: 'Dubai',
             'address'   => trim((string)($p['address'] ?? '')) ?: 'Dubai',
@@ -1390,7 +1441,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $scan = $transReason . ' ' . $gwCode . ' ' . $errCode . ' ' . $extCode . ' ' . $reason . ' ' . $blob;
         $filterHit = (bool) preg_match('/custom\s*fraud\s*screen|filter\s*error|fraud\s*filter|FILTERED/i', $scan . ' ' . $txnStatus . ' ' . $status);
         if ($filterHit) {
-            return 'Nuvei Filter Error — Custom Fraud Screen Filter — قاعدة حساب Transcendio أوقفت العملية (مبلغ/BIN/بطاقة مجهولة/دولة) قبل بنك البطاقة. ليست عطل الربط.';
+            return 'Nuvei Filter Error — Custom Fraud Screen Filter — قاعدة على نفس حساب Transcendio (Client 251014941) أوقفت العملية حسب المبلغ أو BIN أو الدولة. ليست شحناً مجهولاً وليست عطل الربط.';
         }
         if (preg_match('/1507/', $scan)) {
             $gwCode = '1507';
@@ -1432,7 +1483,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         }
         $explain = $arMap[$gwCode] ?? $arMap[$errCode] ?? $arMap[$extCode] ?? '';
         if ($explain === '' && preg_match('/generic\s*decline/i', $reason)) {
-            $explain = 'Generic Decline على نفس البطاقة تكرر حتى عند 100 USD وMOTO. قرار بنك الإصدار أو تصنيف Anonymous — المستحوذ Network International والوصف Transcendio FZ-LLC. لا تعيد نفس PAN.';
+            $explain = 'Generic Decline من بنك الإصدار على نفس حساب Transcendio / Network International UAE (الوصف Transcendio FZ-LLC). ليست شحناً مجهولاً. لا تعيد نفس PAN بعد تكرار الرفض.';
         } elseif ($explain === '' && isset($codeMap[$gwCode]) && stripos($reason, $codeMap[$gwCode]) === false) {
             $explain = $codeMap[$gwCode];
         }

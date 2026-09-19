@@ -1095,6 +1095,63 @@ function pos_host_decline_line(array $result): string
     return $msg !== '' ? pos_plain_host_message($msg) : 'DECLINED';
 }
 
+/**
+ * After a host decline: tell the cashier whether this PAN must not be reused.
+ *
+ * @return array{card_use:string,card_use_ar:string,card_use_en:string}
+ */
+function pos_card_use_alert(string $reason, string $last4 = ''): array
+{
+    $digits = preg_replace('/\D/', '', $last4) ?? '';
+    $tail = strlen($digits) >= 4 ? (' ****' . substr($digits, -4)) : '';
+    $scan = strtoupper($reason);
+
+    $doNot = static function (string $ar, string $en) use ($tail): array {
+        return [
+            'card_use' => 'do_not_use',
+            'card_use_ar' => 'تنبيه: لا تستخدم هذه البطاقة' . $tail . ' مرة أخرى. ' . $ar,
+            'card_use_en' => 'Alert: do not use this card' . $tail . ' again. ' . $en,
+        ];
+    };
+    $canUse = static function (string $ar, string $en) use ($tail): array {
+        return [
+            'card_use' => 'can_use',
+            'card_use_ar' => 'تنبيه: يمكن استخدام هذه البطاقة' . $tail . '. ' . $ar,
+            'card_use_en' => 'Alert: this card' . $tail . ' can still be used. ' . $en,
+        ];
+    };
+
+    if (preg_match('/CARDHOLDER|إيميل العميل|يتطلب اسم حامل|payer identity/iu', $reason)) {
+        return $canUse('أكمل الاسم كما على البطاقة والإيميل الحقيقي ثم نفّذ.', 'Enter the name on the card and a real email, then process again.');
+    }
+    if (preg_match('/1019|INVALID FAILURE URL|INVALID URL/i', $scan)) {
+        return $canUse('المشكلة في رابط Nuvei وليست في البطاقة.', 'This is a Nuvei URL issue, not the card.');
+    }
+    if (preg_match('/FILTER\s*ERROR|FRAUD\s*SCREEN|FILTERED|CUSTOM FRAUD/i', $scan)) {
+        return $canUse('غيّر المبلغ إلى AED صغير مع شراء 3D. لا تكرر نفس المبلغ.', 'Use a small AED amount with Purchase 3D. Do not repeat the same amount.');
+    }
+    if (preg_match('/1106|INSUFFICIENT/i', $scan)) {
+        return $canUse('الرصيد غير كافٍ — أعد المحاولة لاحقاً أو ببطاقة أخرى.', 'Insufficient funds — retry later or use another card.');
+    }
+    if (preg_match('/CVV_FAILURE|INVALID CVV|1102/i', $scan)) {
+        return $canUse('تحقق من CVV وتاريخ الانتهاء ثم أعد المحاولة.', 'Check CVV and expiry, then retry.');
+    }
+    if (preg_match('/1007|EXPIRED CARD/i', $scan)) {
+        return $doNot('البطاقة منتهية.', 'The card is expired.');
+    }
+    if (preg_match('/1011|INVALID CARD|PAN_FAILURE/i', $scan)) {
+        return $doNot('رقم البطاقة غير مقبول.', 'The card number is not accepted.');
+    }
+    if (preg_match('/روسيا|بيلاروس|BIN.{0,20}\b(RU|BY)\b|\b(RU|BY)\b.{0,20}BIN/iu', $reason)) {
+        return $doNot('BIN محظور على حساب Transcendio.', 'This BIN is blocked on the Transcendio account.');
+    }
+    if (preg_match('/GENERIC\s*DECLINE|1507|1116|-1100|ISSUER DECLINED|لا تعيد نفس PAN/i', $scan)) {
+        return $doNot('بنك الإصدار رفض على حساب Transcendio. لا تعيد نفس الرقم.', 'The issuer declined on the Transcendio account. Do not retry this PAN.');
+    }
+
+    return $doNot('رفض المضيف. لا تكرر نفس البطاقة فوراً — استخدم بطاقة أخرى.', 'Host declined. Do not retry this card immediately — use another card.');
+}
+
 function pos_plain_host_message($raw, int $depth = 0): string
 {
     if ($depth > 5) {

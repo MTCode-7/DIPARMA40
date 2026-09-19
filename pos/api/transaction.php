@@ -492,7 +492,7 @@ if ($useCardGateway) {
             'amount' => $amount,
             'currency' => $currency,
             'card_number' => $cardNumber,
-            'card_name' => $cardName ?: 'CARDHOLDER',
+            'card_name' => $cardName,
             'card_expiry' => $cardExpiry,
             'card_cvv' => $cardCVV,
             'card_type' => $cardType,
@@ -771,6 +771,9 @@ $gatewayDetails = [
 
 $saved = false;
 $transactionId = null;
+$cardUseAlert = (!$success && !$requires3ds)
+    ? pos_card_use_alert((string) $message, (string) $cardLast4)
+    : ['card_use' => null, 'card_use_ar' => null, 'card_use_en' => null];
 try {
     $txnPayload = [
         'reference' => $reference,
@@ -790,6 +793,9 @@ try {
             'settlement_path' => $posGateway . '_to_ledger',
             'settlement_target' => 'ledger',
             'status_message' => $message,
+            'card_use' => $cardUseAlert['card_use'],
+            'card_use_ar' => $cardUseAlert['card_use_ar'],
+            'card_use_en' => $cardUseAlert['card_use_en'],
             'rrn' => $rrn,
             'stan' => $stan,
             'original_rrn' => $originalRrn,
@@ -975,6 +981,9 @@ if (!$success) {
 } else {
     $message = pos_plain_host_message($message);
 }
+if (!$success && !$requires3ds) {
+    $cardUseAlert = pos_card_use_alert($message, (string) $cardLast4);
+}
 $rawMessageOut = null;
 $errorCodeOut = null;
 if (!$success) {
@@ -1009,6 +1018,9 @@ echo json_encode([
     'status_message' => $message,
     'message' => $message,
     'decline_reason' => $success ? null : $message,
+    'card_use' => $cardUseAlert['card_use'],
+    'card_use_ar' => $cardUseAlert['card_use_ar'],
+    'card_use_en' => $cardUseAlert['card_use_en'],
     'raw_message' => $rawMessageOut,
     'error_code' => $errorCodeOut,
     'square_error_code' => $success ? null : ($squareErrorCode !== '' ? $squareErrorCode : null),

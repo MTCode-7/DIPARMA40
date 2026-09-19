@@ -307,10 +307,29 @@ $sealedLedgerTxid = $ledgerTxid ? $seal($ledgerTxid) : '';
 
 // 6.10 تحديد الحالة النهائية
 $isApproved = in_array(strtolower($txn['status'] ?? ''), ['completed', 'captured', 'authorized', 'settled', 'approved']);
-$statusColor = $isApproved ? '#16a34a' : '#dc2626';
-$statusBg = $isApproved ? '#ecfdf5' : '#fef2f2';
-$statusIcon = $isApproved ? '✅' : '❌';
-$statusText = $isApproved ? 'APPROVED' : strtoupper($txn['status'] ?? 'DECLINED');
+$isPending = in_array(strtolower((string) ($txn['status'] ?? '')), ['pending', 'processing'], true);
+$declineReason = '';
+$cardUseAlert = ['card_use' => '', 'card_use_ar' => '', 'card_use_en' => ''];
+if ($isApproved) {
+    $statusText = 'APPROVED';
+} elseif ($isPending) {
+    $statusText = 'PENDING';
+} else {
+    $statusText = 'DECLINED';
+    $declineReason = trim((string) ($gwResp['status_message'] ?? $gwResp['decline_reason'] ?? $txn['status'] ?? ''));
+    if (!empty($gwResp['card_use_ar']) || !empty($gwResp['card_use_en'])) {
+        $cardUseAlert = [
+            'card_use' => (string) ($gwResp['card_use'] ?? ''),
+            'card_use_ar' => (string) ($gwResp['card_use_ar'] ?? ''),
+            'card_use_en' => (string) ($gwResp['card_use_en'] ?? ''),
+        ];
+    } else {
+        $cardUseAlert = pos_card_use_alert($declineReason, (string) $cardLast4);
+    }
+}
+$statusColor = $isApproved ? '#16a34a' : ($isPending ? '#d97706' : '#dc2626');
+$statusBg = $isApproved ? '#ecfdf5' : ($isPending ? '#fffbeb' : '#fef2f2');
+$statusIcon = $isApproved ? '✅' : ($isPending ? '⏳' : '❌');
 
 // 6.11 نوع المعاملة — بدون عرض رموز 101 / 201
 $rawTxnType = (string)($txn['transaction_type'] ?? $txn['transaction_label'] ?? '');
@@ -813,6 +832,19 @@ if (function_exists('redact_protocol_numbers')) {
             <div class="status-type">
                 <?=htmlspecialchars($txnType)?>
             </div>
+            <?php if ($statusText === 'DECLINED'): ?>
+            <?php
+                $cardUseLine = $ar
+                    ? (string) ($cardUseAlert['card_use_ar'] ?? '')
+                    : (string) ($cardUseAlert['card_use_en'] ?? '');
+            ?>
+            <?php if ($declineReason !== ''): ?>
+            <div style="margin-top:10px;font-size:11px;font-weight:800;color:#991b1b;line-height:1.45"><?=htmlspecialchars($declineReason)?></div>
+            <?php endif; ?>
+            <?php if ($cardUseLine !== ''): ?>
+            <div style="margin-top:8px;padding:8px;border:1px dashed <?=(($cardUseAlert['card_use'] ?? '') === 'can_use') ? '#065f46' : '#991b1b'?>;background:#fff;color:<?=(($cardUseAlert['card_use'] ?? '') === 'can_use') ? '#065f46' : '#991b1b'?>;font-size:11px;font-weight:800;line-height:1.45"><?=htmlspecialchars($cardUseLine)?></div>
+            <?php endif; ?>
+            <?php endif; ?>
         </div>
 
         <!-- التاريخ والمرجع -->

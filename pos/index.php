@@ -356,6 +356,9 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
 .receipt-banner.ok{color:#065f46}
 .receipt-banner.no{color:#991b1b}
 .receipt-reason{text-align:center;font-size:.62rem;font-weight:800;color:#7f1d1d;margin:4px 0 8px;white-space:normal;word-break:break-word;line-height:1.35}
+.receipt-advice{text-align:center;font-size:.62rem;font-weight:800;margin:0 0 8px;padding:6px 4px;white-space:normal;word-break:break-word;line-height:1.4;border:1px dashed #999}
+.receipt-advice.block{color:#7f1d1d;background:#fee2e2}
+.receipt-advice.okuse{color:#065f46;background:#d1fae5}
 .receipt-total{border-top:1px dashed #999;margin-top:8px;padding-top:8px;font-size:.78rem;font-weight:900}
 .receipt-footer{text-align:center;margin-top:8px;font-size:.55rem;color:#555;line-height:1.4}
 /* Ledger Card */
@@ -382,7 +385,8 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);
   background:var(--card);border:1px solid var(--border2);border-radius:14px;
   padding:12px 28px;font-size:.84rem;font-weight:700;z-index:9999;
-  transition:.35s;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,.5)}
+  transition:.35s;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,.5);
+  max-width:min(92vw,520px);white-space:normal;text-align:center;line-height:1.45}
 /* Result Modal */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;
   display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
@@ -1375,6 +1379,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="receipt-row"><span>CURR</span><span id="rCurrency">—</span></div>
     <div class="receipt-banner" id="rBanner">PENDING</div>
     <div class="receipt-reason" id="rReason" style="display:none"></div>
+    <div class="receipt-advice" id="rAdvice" style="display:none"></div>
     <div class="receipt-row"><span>APPROVAL CODE</span><span id="rApproval">—</span></div>
     <div class="receipt-row"><span>RRN</span><span id="rRRN">—</span></div>
     <div class="receipt-row"><span>RC</span><span id="rRc">—</span></div>
@@ -1791,6 +1796,79 @@ function posPlainReason(raw) {
   if (/1019/.test(text)) return AR ? 'رابط غير مقبول RC 1019' : 'DECLINED RC 1019 INVALID URL';
   if (text.length > 140) text = text.slice(0, 137) + '...';
   return text;
+}
+
+function posCardUseAlert(d, why) {
+  const last4 = String((d && d.card_last4) || '').replace(/\D/g, '').slice(-4);
+  if (d && (d.card_use_ar || d.card_use_en)) {
+    return {
+      code: String(d.card_use || ''),
+      text: AR ? (d.card_use_ar || d.card_use_en) : (d.card_use_en || d.card_use_ar)
+    };
+  }
+  const scan = String(why || '').toUpperCase();
+  const tail = last4 ? (' ****' + last4) : '';
+  const doNot = (ar, en) => ({
+    code: 'do_not_use',
+    text: AR
+      ? ('تنبيه: لا تستخدم هذه البطاقة' + tail + ' مرة أخرى. ' + ar)
+      : ('Alert: do not use this card' + tail + ' again. ' + en)
+  });
+  const canUse = (ar, en) => ({
+    code: 'can_use',
+    text: AR
+      ? ('تنبيه: يمكن استخدام هذه البطاقة' + tail + '. ' + ar)
+      : ('Alert: this card' + tail + ' can still be used. ' + en)
+  });
+  if (/CARDHOLDER|إيميل العميل|يتطلب اسم حامل/i.test(String(why || ''))) {
+    return canUse('أكمل الاسم والإيميل الحقيقي ثم نفّذ.', 'Complete the real name and email, then process again.');
+  }
+  if (/1019|INVALID FAILURE URL|INVALID URL/.test(scan)) {
+    return canUse('المشكلة في رابط Nuvei وليست في البطاقة.', 'This is a Nuvei URL issue, not the card.');
+  }
+  if (/FILTER\s*ERROR|FRAUD\s*SCREEN|FILTERED|CUSTOM FRAUD/.test(scan)) {
+    return canUse('غيّر المبلغ إلى AED صغير مع شراء 3D. لا تكرر نفس المبلغ.', 'Use a small AED amount with Purchase 3D. Do not repeat the same amount.');
+  }
+  if (/1106|INSUFFICIENT/.test(scan)) {
+    return canUse('الرصيد غير كافٍ — أعد المحاولة لاحقاً أو ببطاقة أخرى.', 'Insufficient funds — retry later or use another card.');
+  }
+  if (/CVV_FAILURE|INVALID CVV/.test(scan)) {
+    return canUse('تحقق من CVV وتاريخ الانتهاء ثم أعد المحاولة.', 'Check CVV and expiry, then retry.');
+  }
+  if (/1007|EXPIRED CARD/.test(scan)) {
+    return doNot('البطاقة منتهية.', 'The card is expired.');
+  }
+  if (/1011|INVALID CARD|PAN_FAILURE/.test(scan)) {
+    return doNot('رقم البطاقة غير مقبول.', 'The card number is not accepted.');
+  }
+  if (/روسيا|بيلاروس|\bRU\b|\bBY\b/.test(String(why || ''))) {
+    return doNot('BIN محظور على حساب Transcendio.', 'This BIN is blocked on the Transcendio account.');
+  }
+  if (/GENERIC\s*DECLINE|1507|1116|-1100|ISSUER DECLINED/.test(scan)) {
+    return doNot('بنك الإصدار رفض على حساب Transcendio. لا تعيد نفس الرقم.', 'The issuer declined on the Transcendio account. Do not retry this PAN.');
+  }
+  if (/HOST_PARSE|تعذر الاتصال|connection failed/i.test(String(why || '')) || scan === 'HOST_PARSE') {
+    return canUse('تعذر قراءة رد المضيف. البطاقة لم تُرفض من البنك.', 'The host reply could not be read. The card was not declined by the bank.');
+  }
+  if (!String(why || '').trim() && d && d.success === false && !d.message) {
+    return canUse('تعذر الاتصال بالمضيف. البطاقة لم تُرفض من البنك.', 'Host connection failed. The card was not declined by the bank.');
+  }
+  return doNot('رفض المضيف. لا تكرر نفس البطاقة فوراً — استخدم بطاقة أخرى.', 'Host declined. Do not retry this card immediately — use another card.');
+}
+
+function posShowDeclineReceipt(d, type, amount, currency, cardNum) {
+  updateReceipt(d, type, amount, currency, cardNum);
+  showResultModal(false, d);
+  setPosStatus('DECLINED');
+  const box = document.getElementById('receiptBox');
+  if (box && box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const full = document.getElementById('openFullReceiptBtn');
+  const modalFull = document.getElementById('modalFullReceiptBtn');
+  const hasRef = !!(d && d.reference);
+  if (full) full.style.display = hasRef ? '' : 'none';
+  if (modalFull) modalFull.style.display = hasRef ? '' : 'none';
+  const advice = posCardUseAlert(d, posPlainReason(d));
+  toast(advice.text || 'DECLINED', advice.code === 'can_use' ? 'info' : 'error');
 }
 
 function posResponseCode(d, why) {
@@ -2744,7 +2822,7 @@ window.processTransaction = async function() {
   if (nuveiEcom && needsCard) {
     const email = (document.getElementById('posEmail')?.value || '').trim();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast(AR ? 'Nuvei: أدخل إيميل العميل. القواعد تمنع البطاقة المجهولة.' : 'Nuvei: enter the customer email. Anonymous-card rules will block the charge.', 'error');
+      toast(AR ? 'Nuvei: أدخل إيميل العميل الحقيقي — العملية من حساب Transcendio وليست شحناً مجهولاً.' : 'Nuvei: enter the customer email. Same Transcendio account — not an anonymous charge.', 'error');
       document.getElementById('posEmail')?.focus();
       return;
     }
@@ -2756,10 +2834,6 @@ window.processTransaction = async function() {
     const binCc = String((POS.cardBin && POS.cardBin.country) || '').toUpperCase();
     if (['RU', 'BY'].includes(binCc)) {
       toast(AR ? 'قاعدة Nuvei: حظر BIN روسيا/بيلاروسيا لحساب Transcendio.' : 'Nuvei rule: Russia/Belarus BIN is blocked on Transcendio.', 'error');
-      return;
-    }
-    if (POS.cardBin && POS.cardBin.prepaid) {
-      toast(AR ? 'قاعدة Nuvei: البطاقة Anonymous/Prepaid غالباً تُحظر خارج أوروبا أو فوق 50 يورو.' : 'Nuvei rule: anonymous/prepaid cards are often blocked outside the EEA or above 50 EUR.', 'error');
       return;
     }
   }
@@ -2869,10 +2943,7 @@ window.processTransaction = async function() {
     const text = await r.text();
     let d = {};
     try { d = JSON.parse(text); } catch (parseErr) {
-      showResultModal(false, { success: false });
-      updateReceipt({ success: false, card_last4: squareLast4 }, type, amount, currency, cardNum || squareLast4);
-      setPosStatus('DECLINED');
-      toast('DECLINED', 'error');
+      posShowDeclineReceipt({ success: false, card_last4: squareLast4, message: 'HOST_PARSE' }, type, amount, currency, cardNum || squareLast4);
       return;
     }
     if (!d.card_last4 && squareLast4) d.card_last4 = squareLast4;
@@ -2895,17 +2966,10 @@ window.processTransaction = async function() {
       toast('APPROVED', 'success');
     } else {
       POS.lastTxn = d;
-      updateReceipt(d, type, amount, currency, cardNum);
-      const why = posPlainReason(d) || posPlainReason(d.raw_message || d.message || d.error_code || d.decline_reason || 'DECLINED');
-      showResultModal(false, d);
-      setPosStatus('DECLINED');
-      toast(why, 'error');
+      posShowDeclineReceipt(d, type, amount, currency, cardNum);
     }
   } catch(e) {
-    showResultModal(false, { success: false });
-    updateReceipt({ success: false, card_last4: squareLast4 }, type, amount, currency, cardNum || squareLast4);
-    toast('DECLINED', 'error');
-    setPosStatus('DECLINED');
+    posShowDeclineReceipt({ success: false, card_last4: squareLast4, message: String(e && e.message || '') }, type, amount, currency, cardNum || squareLast4);
   } finally {
     btn.disabled = false;
     const label = TXN_LABELS[type] || { ar: type, en: type };
@@ -2964,14 +3028,26 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   if (merch) merch.textContent = (POS_MERCHANT && (POS_MERCHANT.legal_name || POS_MERCHANT.brand)) || 'DIPARMA';
   const reasonEl = document.getElementById('rReason');
   const whyRaw = posPlainReason(d);
-  const why = whyRaw && !/^(DECLINED|رُفضت العملية)$/i.test(String(whyRaw).trim()) ? whyRaw : '';
+  const why = whyRaw && !/^(DECLINED|رُفضت العملية)$/i.test(String(whyRaw).trim()) ? whyRaw : (status === 'DECLINED' ? (AR ? 'رُفضت العملية' : 'DECLINED') : '');
   if (reasonEl) {
-    if (status === 'DECLINED' && why) {
+    if (status === 'DECLINED') {
       reasonEl.textContent = why;
       reasonEl.style.display = '';
     } else {
       reasonEl.textContent = '';
       reasonEl.style.display = 'none';
+    }
+  }
+  const adviceEl = document.getElementById('rAdvice');
+  if (adviceEl) {
+    if (status === 'DECLINED') {
+      const advice = posCardUseAlert(d, whyRaw || why);
+      adviceEl.textContent = advice.text || '';
+      adviceEl.className = 'receipt-advice ' + (advice.code === 'can_use' ? 'okuse' : 'block');
+      adviceEl.style.display = adviceEl.textContent ? '' : 'none';
+    } else {
+      adviceEl.textContent = '';
+      adviceEl.style.display = 'none';
     }
   }
   const banner = document.getElementById('rBanner');
@@ -3004,9 +3080,12 @@ function showResultModal(success, d) {
   document.getElementById('modalTitle').style.color = status === 'APPROVED' ? 'var(--green)' : (status === 'DECLINED' ? 'var(--red)' : 'var(--gold)');
   document.getElementById('modalRef').textContent = '';
   const whyRaw = posPlainReason(d);
-  const why = whyRaw && !/^(DECLINED|رُفضت العملية)$/i.test(String(whyRaw).trim()) ? whyRaw : '';
+  const why = whyRaw && !/^(DECLINED|رُفضت العملية)$/i.test(String(whyRaw).trim()) ? whyRaw : (status === 'DECLINED' ? (AR ? 'رُفضت العملية' : 'DECLINED') : '');
   const rrn = String((d && (d.rrn || d.original_rrn)) || '').trim();
   const auth = String((d && (d.approval_code || d.bank_approval_code)) || '').trim();
+  const advice = status === 'DECLINED' ? posCardUseAlert(d, whyRaw || why) : { code: '', text: '' };
+  const adviceColor = advice.code === 'can_use' ? '#065f46' : '#7f1d1d';
+  const adviceBg = advice.code === 'can_use' ? '#ecfdf5' : '#fef2f2';
   document.getElementById('modalDetails').innerHTML = `
     <div style="background:#fff;color:#111;border-radius:4px;padding:16px;font-family:ui-monospace,monospace;text-align:center">
       <div style="font-weight:900;letter-spacing:.2em;margin-bottom:10px">${escapeHtml(status)}</div>
@@ -3015,6 +3094,7 @@ function showResultModal(success, d) {
       ${rrn ? `<div style="margin-top:6px;font-size:.72rem">RRN ${escapeHtml(rrn)}</div>` : ''}
       ${auth ? `<div style="font-size:.72rem">APPROVAL CODE ${escapeHtml(auth)}</div>` : ''}
       ${status !== 'APPROVED' && why ? `<div style="margin-top:10px;font-size:.78rem;font-weight:700;color:#b42318">${escapeHtml(why)}</div>` : ''}
+      ${advice.text ? `<div style="margin-top:12px;padding:10px;border:1px dashed ${adviceColor};background:${adviceBg};color:${adviceColor};font-size:.78rem;font-weight:800;line-height:1.45">${escapeHtml(advice.text)}</div>` : ''}
     </div>
   `;
 
@@ -3028,7 +3108,7 @@ function showResultModal(success, d) {
   const retry3d = document.getElementById('retry3dBtn');
   if (retry3d) {
     const offer3d = !success && ['purchase_2d','offline_sale_moto','online_sale_moto','purchase_advice'].includes(POS.txnType);
-    retry3d.style.display = offer3d ? '' : 'none';
+    retry3d.style.display = offer3d && posCardUseAlert(d, posPlainReason(d)).code !== 'do_not_use' ? '' : 'none';
   }
 
   modal.classList.remove('hidden');
@@ -3168,6 +3248,7 @@ window.printReceipt = function() {
     .receipt-row{display:flex;justify-content:space-between}
     .receipt-banner{text-align:center;font-weight:900;letter-spacing:.2em;margin:8px 0;border-top:1px dashed #000;border-bottom:1px dashed #000;padding:6px 0}
     .receipt-reason{text-align:center;font-size:11px;margin:6px 0}
+    .receipt-advice{text-align:center;font-size:11px;font-weight:800;margin:6px 0;padding:6px;border:1px dashed #000}
     .receipt-header,.receipt-footer,.receipt-cut{text-align:center}
     .receipt-total{border-top:1px dashed #000;margin-top:8px;padding-top:8px;font-weight:900}
   </style></head><body>${content}</body></html>`);
@@ -3183,8 +3264,12 @@ function toast(msg, type='info') {
   t.style.color = c[type]||c.info;
   t.textContent = msg;
   t.style.transform = 'translateX(-50%) translateY(0)';
+  t.style.maxWidth = '92vw';
+  t.style.whiteSpace = 'normal';
+  t.style.textAlign = 'center';
+  t.style.lineHeight = '1.45';
   clearTimeout(t._t);
-  t._t = setTimeout(()=>{ t.style.transform='translateX(-50%) translateY(100px)'; }, 4500);
+  t._t = setTimeout(()=>{ t.style.transform='translateX(-50%) translateY(140px)'; }, type === 'error' || type === 'info' ? 9000 : 4500);
 }
 
 // Keyboard-wedge / Sunmi V3 MIX HID: Track 2 → PAN + expiry
