@@ -150,10 +150,10 @@ function getGatewayFormValues($gateway, $schema) {
             }
         }
         $values['settings']['webhook'] = $values['settings']['webhook'] ?: 'https://diparmas.com/api/nuvei_dmn.php';
-        $values['settings']['success'] = $values['settings']['success'] ?: 'https://diparmas.com/nuvei-success.php';
-        $values['settings']['cancel'] = $values['settings']['cancel'] ?: 'https://diparmas.com/nuvei-fail.php';
-        $values['settings']['pending'] = $values['settings']['pending'] ?: 'https://diparmas.com/nuvei-pending.php';
-        $values['settings']['back'] = $values['settings']['back'] ?: 'https://diparmas.com/nuvei-back.php';
+        $values['settings']['success'] = $values['settings']['success'] ?: 'https://diparmas.com/nuvei-success.html';
+        $values['settings']['cancel'] = $values['settings']['cancel'] ?: 'https://diparmas.com/nuvei-fail.html';
+        $values['settings']['pending'] = $values['settings']['pending'] ?: 'https://diparmas.com/nuvei-pending.html';
+        $values['settings']['back'] = $values['settings']['back'] ?: 'https://diparmas.com/nuvei-back.html';
         $values['settings']['environment'] = $values['settings']['environment'] ?: 'live';
     }
 
@@ -295,10 +295,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_
                     $credentials['site_id'] = trim((string)($credentials['site_id'] ?? getenv('NUVEI_SITE_ID') ?: ''));
                     $credentials['secret_key'] = trim((string)($credentials['secret_key'] ?? getenv('NUVEI_SECRET_KEY') ?: ''));
                     $settings['webhook'] = trim((string)($settings['webhook'] ?? '')) ?: 'https://diparmas.com/api/nuvei_dmn.php';
-                    $settings['success'] = trim((string)($settings['success'] ?? '')) ?: 'https://diparmas.com/nuvei-success.php';
-                    $settings['cancel'] = trim((string)($settings['cancel'] ?? '')) ?: 'https://diparmas.com/nuvei-fail.php';
-                    $settings['pending'] = trim((string)($settings['pending'] ?? '')) ?: 'https://diparmas.com/nuvei-pending.php';
-                    $settings['back'] = trim((string)($settings['back'] ?? '')) ?: 'https://diparmas.com/nuvei-back.php';
+                    $settings['success'] = trim((string)($settings['success'] ?? '')) ?: 'https://diparmas.com/nuvei-success.html';
+                    $settings['cancel'] = trim((string)($settings['cancel'] ?? '')) ?: 'https://diparmas.com/nuvei-fail.html';
+                    $settings['pending'] = trim((string)($settings['pending'] ?? '')) ?: 'https://diparmas.com/nuvei-pending.html';
+                    $settings['back'] = trim((string)($settings['back'] ?? '')) ?: 'https://diparmas.com/nuvei-back.html';
                     $settings['environment'] = trim((string)($settings['environment'] ?? '')) ?: 'live';
                     if (trim((string)($_POST['api_endpoint'] ?? '')) === '' || str_contains((string)($_POST['api_endpoint'] ?? ''), 'example.com')) {
                         $_POST['api_endpoint'] = 'https://secure.nuvei.com/ppp/api/v1';
