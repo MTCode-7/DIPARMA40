@@ -401,17 +401,52 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'limits' => ['min' => 0.5, 'max_per_txn' => 50000, 'max_offline' => 50000, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
         'features' => ['pos', 'online', 'invoicing', 'auth', 'capture', 'offline'],
         'offline_guide' => [
-            'source' => 'Square GTM00173 Offline payments guide (US EN, Aug 1 2025)',
+            'source' => 'Square Process offline payments + GTM00173',
             'channel' => 'square_pos_device',
+            'take_hours' => 24,
             'reconnect_hours' => 72,
             'reconnect_recommend_hours' => 24,
+            'max_usd' => 50000,
+            'unsupported' => 'EBT/SNAP, Afterpay, Cash App Pay, Square Gift Cards, Tap to Pay, keyed PAN',
+            'do_not' => 'sign out, delete the Square app, switch mode or location, factory reset while payments are pending',
+            'auto_enable' => 'April 2026 on all devices unless the seller keeps existing settings',
             'pos_path' => 'More > Settings > Checkout > Offline payments',
             'dashboard_path' => 'Settings > Device Management > Modes > Manage > Offline payments',
-            'help_url' => 'https://squareup.com/go/offline-payments',
+            'help_url' => 'https://squareup.com/help/us/en/article/3796-process-offline-payments',
             'status_url' => 'https://issquareup.com',
         ],
         'card_types' => getAllAcceptedCardTypes(),
-        'setup_complete' => false
+        'setup_complete' => !empty(getenv('SQUARE_ACCESS_TOKEN') ?: getenv('SQUARE_SECRET_KEY'))
+            && !empty(getenv('SQUARE_APPLICATION_ID') ?: getenv('SQUARE_API_KEY')),
+        'product' => 'square_1_payments',
+        'company_no' => null,
+    ],
+
+    'square_online' => [
+        'name' => 'Square 2 · Online',
+        'region' => 'USA',
+        'icon' => 'fas fa-store',
+        'company_no' => 10,
+        'product' => 'square_2_online',
+        'credentials' => [
+            'application_id' => getenv('SQUARE_APPLICATION_ID') ?: (getenv('SQUARE_API_KEY') ?: ''),
+            'access_token' => getenv('SQUARE_ACCESS_TOKEN') ?: (getenv('SQUARE_SECRET_KEY') ?: ''),
+            'location_id' => getenv('SQUARE_LOCATION_ID') ?: '',
+        ],
+        'urls' => [
+            'dashboard' => 'https://app.squareup.com/dashboard/fulfillment/preferences/pickup-delivery/setup-square-online',
+            'success' => getenv('SQUARE_SUCCESS_URL') ?: '/payment_success.php',
+            'cancel' => getenv('SQUARE_CANCEL_URL') ?: '/payment_cancelled.php',
+            'webhook' => getenv('SQUARE_WEBHOOK_URL') ?: '/api/webhook.php?gateway=square',
+        ],
+        'environment' => getenv('SQUARE_ENVIRONMENT') ?: 'live',
+        'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'CAD', 'AUD', 'JPY'],
+        'fees' => ['percentage' => 2.6, 'fixed' => 0.10],
+        'limits' => ['min' => 0.5, 'max_per_txn' => 50000, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
+        'features' => ['pickup', 'delivery', 'fulfillment', 'square_online'],
+        'card_types' => getAllAcceptedCardTypes(),
+        'setup_complete' => !empty(getenv('SQUARE_ACCESS_TOKEN') ?: getenv('SQUARE_SECRET_KEY'))
+            && !empty(getenv('SQUARE_APPLICATION_ID') ?: getenv('SQUARE_API_KEY')),
     ],
     
     'authorize_net' => [
@@ -1394,6 +1429,29 @@ function buildMoonPaySignedUrl(array $payload = [], array $config = []): ?string
 function getGatewayConfig($code) {
     $gateways = getGatewaysConfig();
     return $gateways[strtolower(trim($code))] ?? null;
+}
+
+/** Square Offline is Square POS hardware SAF — DIPARMA Payments API cannot store keyed cards. */
+if (!function_exists('square_offline_device_only_message')) {
+function square_offline_device_only_message(): string
+{
+    return 'أوفلاين Square يعمل فقط على تطبيق Square POS / Terminal / Register / Handheld بعد تفعيله من Dashboard (Modes) أو More > Settings > Checkout > Offline payments. '
+        . 'Square لا يدعم إدخال الرقم يدوياً أوفلاين، وDIPARMA لا يخزّن البطاقة محلياً. '
+        . 'ارفع العمليات خلال 24 ساعة (تنتهي بعد 72). الحد 50,000 دولار. '
+        . 'لا تسجّل خروجاً ولا تحذف التطبيق ولا تبدّل الوضع/الموقع أثناء المعلّق. بعد الرفع والموافقة: الصافي USDT → Ledger.';
+}
+}
+
+if (!function_exists('square_request_is_diparma_offline')) {
+function square_request_is_diparma_offline(array $params): bool
+{
+    $txn = strtolower(trim((string) ($params['txn_type'] ?? $params['type'] ?? '')));
+    $channel = strtolower(trim((string) ($params['auth_channel'] ?? $params['moto_channel'] ?? '')));
+    if ($txn === 'offline_sale_moto' || !empty($params['is_offline'])) {
+        return true;
+    }
+    return $channel === 'offline';
+}
 }
 
 /** Per-transaction USD cap from catalog, or null if the gateway has no per-sale cap. */

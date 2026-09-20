@@ -1181,6 +1181,11 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
         Square Web Payments SDK · <?=!empty($squareSdk['live']) ? 'LIVE' : 'LIVE REQUIRED'?>
       </div>
       <div id="square-card-container" dir="ltr" style="min-height:96px;width:100%;background:rgba(0,0,0,.25);border-radius:10px;padding:8px"></div>
+      <div style="font-size:.68rem;color:var(--muted2);line-height:1.55;margin-top:8px">
+        <?=$ar
+          ? 'هذه الشاشة تخصم أونلاين عبر Square Web Payments. أوفلاين Square يكون على جهاز Square POS فقط (حد 50,000 دولار، رفع خلال 24 ساعة / انتهاء 72). إدخال الرقم يدوياً غير مدعوم أوفلاين.'
+          : 'This screen charges live via Square Web Payments. Square Offline is only on Square POS hardware (50,000 USD max, upload within 24 hours / expires 72). Keyed PAN is not available offline.'?>
+      </div>
       <div id="square-error" style="color:var(--red);font-size:.7rem;margin-top:6px"></div>
     </div>
     <?php endif; ?>
@@ -2045,7 +2050,7 @@ function renderExtraFields(type) {
       <strong style="color:var(--gold)">${escapeHtml(AR?meta.ar:meta.en)}</strong><br>
       ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
       ${type === 'capture' ? '<br>• '+(AR?'مساوٍ / أقل / أكثر من الحجز. يمكن تكرار الكابتشر على نفس الحجز. حد البنك: 5,000,000 دولار.':'Equal / less / more than the hold. Capture can repeat on the same hold. Bank cap: 5,000,000 USD.') : ''}
-      ${type === 'purchase_advice' ? '<br>• '+(AR?'بعد حجز أو من البنك. المبلغ مساوٍ أو أقل أو أكثر. يمكن التكرار على نفس الحجز. RRN أو Payment ID + Approval. بدون CVV.':'After a hold or from the bank. Amount equal, less, or more. Repeatable on the same hold. RRN or Payment ID + Approval. No CVV.') : ''}
+      ${type === 'offline_sale_moto' && POS_GW === 'square' ? '<br>• '+(AR?'ليس أوفلاين DIPARMA: استخدم تطبيق Square على الجهاز بعد تفعيل Offline payments. رفع خلال 24 ساعة، انتهاء 72، حد 50,000 دولار. إدخال الرقم ممنوع أوفلاين.':'Not DIPARMA offline: use the Square app on the device after enabling Offline payments. Upload within 24 hours, expires 72, max 50,000 USD. Keyed PAN is not allowed offline.') : ''}
       ${type !== 'purchase_advice' ? '<br>• RRN = 12 '+(AR?'رقم':'digits')+' · Online Approval = 4 · Offline Approval = 6' : '<br>• RRN = 12 · Approval = 6'}
     </div>`;
   }
@@ -2111,8 +2116,8 @@ function renderExtraFields(type) {
       <label><i class="fas fa-lock"></i> ${AR?'قناة التفويض (الحجز)':'AUTH hold channel'} <span style="color:var(--red)">*</span></label>
       <select id="authChannel" onchange="onAuthMotoChannel()">
         ${nuveiAuth ? `<option value="ecom" selected>${AR?'ECOM 3DS — حجز مع OTP ثم كابتشر':'ECOM 3DS — hold with OTP, then capture'}</option>` : ''}
-        <option value="online">${AR?'MOTO Online — حجز على البوابة بدون OTP':'MOTO Online — live hold, no OTP'}</option>
-        <option value="offline">${AR?'MOTO Offline — Approval 4 أو 6 من البنك':'MOTO Offline — bank Approval 4 or 6'}</option>
+        <option value="online" ${nuveiAuth ? '' : 'selected'}>${AR?'MOTO Online — حجز على البوابة بدون OTP':'MOTO Online — live hold, no OTP'}</option>
+        ${POS_GW === 'square' ? '' : `<option value="offline">${AR?'MOTO Offline — Approval 4 أو 6 من البنك':'MOTO Offline — bank Approval 4 or 6'}</option>`}
       </select>
     </div>
     <div style="font-size:.68rem;color:var(--muted2);line-height:1.55;margin:-4px 0 12px">
@@ -2737,6 +2742,12 @@ window.processTransaction = async function() {
   }
   if (POS_GW === 'square' && Number(amount) > 50000) {
     toast(AR ? 'حد Square 50,000 دولار لكل عملية بما فيها الأوفلاين' : 'Square limit is 50,000 USD per transaction, including offline', 'error');
+    return;
+  }
+  if (POS_GW === 'square' && (type === 'offline_sale_moto' || (type === 'auth' && document.getElementById('authChannel')?.value === 'offline'))) {
+    toast(AR
+      ? 'أوفلاين Square على جهاز Square POS فقط. هذه الشاشة لا تخزّن البطاقة بدون نت ولا تقبل إدخال الرقم يدوياً أوفلاين.'
+      : 'Square Offline is only on Square POS hardware. This screen cannot store a keyed card offline.', 'error');
     return;
   }
   const currency = document.getElementById('txnCurrency').value;

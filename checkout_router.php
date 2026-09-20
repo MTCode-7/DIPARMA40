@@ -30,7 +30,8 @@ $allGateways = [
     'diparma'    => ['name'=>'DI PARMA',      'icon'=>'fas fa-coins',          'color'=>'#FFD700','type'=>'card',   'desc_ar'=>'بوابة مفعّلة تخصم البطاقة ثم الصافي → Ledger','desc_en'=>'Enabled gateway charges the card, then net → Ledger'],
     'nuvei'      => ['name'=>'Nuvei',        'icon'=>'fas fa-credit-card',   'color'=>'#F97316','type'=>'card',   'desc_ar'=>'خصم البطاقة على Nuvei إن كانت مفعّلة. الصافي → Ledger','desc_en'=>'Card charge on Nuvei if enabled. Net → Ledger'],
     'stripe'     => ['name'=>'Stripe',       'icon'=>'fab fa-stripe-s',       'color'=>'#6772e5','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين','desc_en'=>'All networks and issuers'],
-    'square'     => ['name'=>'Square',       'icon'=>'fas fa-square',          'color'=>'#006AFF','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين','desc_en'=>'All networks and issuers'],
+    'square'     => ['name'=>'Square 1',     'icon'=>'fas fa-square',          'color'=>'#006AFF','type'=>'card',   'desc_ar'=>'خصم البطاقة Payments API ثم الصافي → Ledger','desc_en'=>'Card charge via Payments API, then net → Ledger'],
+    'square_online' => ['name'=>'Square 2 · Online', 'icon'=>'fas fa-store',   'color'=>'#006AFF','type'=>'fulfillment','desc_ar'=>'شركة 10 — استلام وتوصيل Square Online. الخصم على Square 1.','desc_en'=>'Company 10 — Square Online pickup & delivery. Card charge stays on Square 1.'],
     'paypal'     => ['name'=>'PayPal',        'icon'=>'fab fa-paypal',         'color'=>'#003087','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين','desc_en'=>'All networks and issuers'],
     'wise'       => ['name'=>'Wise',          'icon'=>'fas fa-exchange-alt',   'color'=>'#9fe870','type'=>'digital','desc_ar'=>'كل الشبكات والمُصدرين عبر Wise','desc_en'=>'All networks and issuers via Wise'],
     'myfatoorah' => ['name'=>'MyFatoorah',    'icon'=>'fas fa-money-bill-wave','color'=>'#00b09b','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين — الشرق الأوسط','desc_en'=>'All networks and issuers — Middle East'],
@@ -104,6 +105,9 @@ $destinations = [
       continue;
     }
     $row = $gatewayState[$code] ?? null;
+    if ($row === null && $code === 'square_online') {
+      $row = $gatewayState['square'] ?? null;
+    }
     if ($row === null) {
       continue;
     }

@@ -5,9 +5,9 @@
  * Docs: https://developer.squareup.com
  *
  * Card data: require source_id / cloud_token from Web Payments SDK (live API).
- * Square Offline (GTM00173): Square POS/hardware stores payments on the device
- * and uploads when back online (72h max, 24h recommended). That path is not
- * this Payments API adapter.
+ * Square Offline: Square POS/hardware store-and-forward only (24h take/upload,
+ * 72h expiry, 50k USD). Keyed PAN is unsupported offline. This Payments API
+ * adapter is live connect.squareup.com only.
  */
 require_once __DIR__ . '/GatewayAdapterInterface.php';
 require_once __DIR__ . '/GatewayErrorMapper.php';
@@ -189,6 +189,18 @@ class SquareAdapter implements GatewayAdapterInterface
         }
         if ($amount <= 0) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, $currency, 'Invalid amount');
+        }
+        if (!function_exists('square_request_is_diparma_offline')) {
+            $gwFile = dirname(__DIR__, 2) . '/includes/gateways.php';
+            if (is_file($gwFile)) {
+                require_once $gwFile;
+            }
+        }
+        if (function_exists('square_request_is_diparma_offline') && square_request_is_diparma_offline($payload)) {
+            $msg = function_exists('square_offline_device_only_message')
+                ? square_offline_device_only_message()
+                : 'Square Offline is only on Square POS hardware. DIPARMA cannot store keyed cards offline.';
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, $currency, $msg);
         }
         $squareCap = function_exists('gateway_max_per_txn_usd') ? gateway_max_per_txn_usd('square') : 50000.00;
         if ($squareCap === null) {

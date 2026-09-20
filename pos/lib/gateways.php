@@ -49,8 +49,8 @@ function pos_terminal_gateways(): array
             'color' => '#006AFF',
             'adapter' => 'square',
             'rail' => 'card',
-            'desc_ar' => 'Square → Ledger. أوفلاين على جهاز Square POS: يُخزَّن على الجهاز ويُرفع عند عودة النت خلال 72 ساعة (يُفضَّل 24). حد العملية 50,000 دولار. شحن DIPARMA عبر Payments API يحتاج نت.',
-            'desc_en' => 'Square → Ledger. Offline is Square POS store-and-forward on the device; upload within 72 hours (24 recommended). Max 50,000 USD per txn. DIPARMA Payments API charges still need internet.',
+            'desc_ar' => 'Square → Ledger عبر Payments API أونلاين (Web Payments). أوفلاين Square فقط على جهاز Square POS/Terminal/Register: يُخزَّن على الجهاز ويُرفع خلال 24 ساعة (ينتهي بعد 72). حد العملية 50,000 دولار. إدخال الرقم يدوياً غير مدعوم أوفلاين.',
+            'desc_en' => 'Square → Ledger via live Payments API (Web Payments). Square Offline is Square POS/Terminal/Register only: stored on the device, upload within 24 hours (expires 72). Max 50,000 USD. Keyed PAN is not available offline.',
         ],
         'payram' => [
             'name' => 'PayRam',
@@ -144,8 +144,9 @@ function pos_normalize_gateway(string $code): string
         'di-parma' => 'diparma',
         'diparma-gateway' => 'diparma_gateway',
         'diparmagateway' => 'diparma_gateway',
-        'gate.io' => 'gate_io',
-        'gateio' => 'gate_io',
+        'square_2' => 'square_online',
+        'square2' => 'square_online',
+        'square-online' => 'square_online',
     ];
     if (isset($aliases[$code])) {
         $code = $aliases[$code];
@@ -409,6 +410,24 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
             'gateway' => $gateway,
             'mti' => '0220',
             'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
+        ];
+    }
+
+    if (!function_exists('square_offline_device_only_message')) {
+        $catalog = POS_APP_ROOT . '/includes/gateways.php';
+        if (is_file($catalog)) {
+            require_once $catalog;
+        }
+    }
+
+    if ($adapter === 'square' && function_exists('square_request_is_diparma_offline')
+        && square_request_is_diparma_offline(array_merge($params, ['txn_type' => $txnType]))) {
+        return [
+            'success' => false,
+            'status' => 'DECLINED',
+            'message' => square_offline_device_only_message(),
+            'gateway' => 'square',
+            'error_code' => 'GATEWAY_ERROR',
         ];
     }
 
