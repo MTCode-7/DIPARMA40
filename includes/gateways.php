@@ -425,7 +425,17 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
 
     'square_online' => [
         'name' => 'Square 2 · Online',
-        'region' => 'USA',
+        'region' => 'UAE',
+        'business_name' => 'DI PARMA BUSINESSMAN SERVICES',
+        'store_country' => 'UAE',
+        'work_scope' => 'around the world',
+        'services' => [
+            'tourism',
+            'bookings',
+            'rentals',
+            'real_estate',
+            'hotels',
+        ],
         'icon' => 'fas fa-store',
         'company_no' => 10,
         'product' => 'square_2_online',

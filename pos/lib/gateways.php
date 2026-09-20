@@ -60,8 +60,8 @@ function pos_terminal_gateways(): array
             'rail' => 'fulfillment',
             'chargeable' => false,
             'company_no' => 10,
-            'desc_ar' => 'شركة 10 — Square Online استلام وتوصيل. ليست خصم بطاقة DIPARMA. الخصم على Square 1 ثم Ledger.',
-            'desc_en' => 'Company 10 — Square Online pickup & delivery. Not a DIPARMA card charge. Cards stay on Square 1, then Ledger.',
+            'desc_ar' => 'شركة 10 — DI PARMA BUSINESSMAN SERVICES. المتجر: الإمارات. العمل: حول العالم. الخدمات: سياحة، حجوزات، إيجارات، عقارات، فنادق. الخصم على Square 1 ثم Ledger.',
+            'desc_en' => 'Company 10 — DI PARMA BUSINESSMAN SERVICES. Store: UAE. Work: around the world. Services: tourism, bookings, rentals, real estate, hotels. Cards on Square 1, then Ledger.',
         ],
         'payram' => [
             'name' => 'PayRam',

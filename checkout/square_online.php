@@ -29,6 +29,9 @@ body{background:#071018;color:#eaf2f7;font-family:Cairo,Arial,sans-serif;margin:
 h1{margin:0 0 8px;color:#006AFF}
 .tag{display:inline-block;background:rgba(0,106,255,.15);color:#6aa8ff;padding:4px 10px;border-radius:999px;font-size:.75rem;font-weight:800;margin-bottom:14px}
 p{line-height:1.7;color:#8fa5b4}
+.meta{font-size:.9rem;color:#c5d6e2;margin:0 0 10px}
+.svc{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 18px}
+.svc span{background:#162636;border:1px solid #2a4a62;color:#d7e8f5;padding:6px 12px;border-radius:999px;font-size:.78rem;font-weight:700}
 .btn{display:inline-block;margin:8px 8px 0 0;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:800}
 .primary{background:#006AFF;color:#fff}
 .gold{background:linear-gradient(135deg,#FFE066,#FFD700);color:#000}
@@ -38,10 +41,18 @@ p{line-height:1.7;color:#8fa5b4}
 <div class="wrap">
   <div class="card">
     <div class="tag">شركة 10 · Square 2</div>
-    <h1>Square Online — Pickup &amp; delivery</h1>
+    <h1>DI PARMA BUSINESSMAN SERVICES</h1>
+    <p class="meta"><?= $ar ? 'المتجر: الإمارات · العمل: حول العالم' : 'Store: UAE · Work: around the world' ?></p>
+    <div class="svc">
+      <span><?= $ar ? 'خدمات سياحية' : 'Tourism' ?></span>
+      <span><?= $ar ? 'حجوزات' : 'Bookings' ?></span>
+      <span><?= $ar ? 'إيجارات' : 'Rentals' ?></span>
+      <span><?= $ar ? 'عقارات' : 'Real estate' ?></span>
+      <span><?= $ar ? 'فنادق' : 'Hotels' ?></span>
+    </div>
     <p><?= $ar
-      ? 'هذا مسار المتجر الإلكتروني لشركة 10: طلبات أونلاين مع استلام من الفرع أو توصيل. الخصم بالبطاقة يبقى على Square 1 (Payments API) ثم الصافي USDT → Ledger.'
-      : 'This is company 10’s Square Online rail: web orders with in-store pickup or delivery. Card charges stay on Square 1 (Payments API), then net USDT → Ledger.' ?></p>
+      ? 'شركة 10 على Square Online: طلبات استلام وتوصيل لهذه الخدمات. الخصم بالبطاقة يبقى على Square 1 ثم الصافي USDT → Ledger.'
+      : 'Company 10 on Square Online: pickup and delivery for these services. Card charges stay on Square 1, then net USDT → Ledger.' ?></p>
     <p><?= $ar
       ? 'أوفلاين Square يكون على جهاز Square POS بعد تفعيله من Dashboard، وليس بإدخال الرقم في DIPARMA.'
       : 'Square Offline is on Square POS hardware after you allow it in Dashboard — not keyed PAN in DIPARMA.' ?></p>
