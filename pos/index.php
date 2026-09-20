@@ -1268,7 +1268,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     </div>
     <div id="captureCompareBox" style="display:none;background:rgba(159,232,112,.06);border:1px solid rgba(159,232,112,.28);border-radius:12px;padding:12px;margin-bottom:12px">
       <div style="font-weight:800;color:#9fe870;margin-bottom:4px"><?=$ar?'تكملة الحجز — إيجار منزل / سيارة / فندق':'Complete hold — home / car / hotel rental'?></div>
-      <div style="font-size:.7rem;color:var(--muted2);line-height:1.55;margin-bottom:8px"><?=$ar?'الفرق عن الحجز شائع بسبب التمديد أو الخروج المبكر ويُقبل دائماً. حد البنك للكابتشر فقط: 5,000,000 دولار.':'The amount often differs from the hold because of an extension or early return — always accepted. Bank cap for Capture only: 5,000,000 USD.'?></div>
+      <div style="font-size:.7rem;color:var(--muted2);line-height:1.55;margin-bottom:8px"><?=$ar?'المبلغ مساوٍ أو أقل أو أكثر من الحجز. يمكن تكرار الكابتشر أو الإشعار على نفس الحجز. حد البنك للكابتشر: 5,000,000 دولار.':'Amount may be equal, less, or more than the hold. Capture or advice can repeat on the same hold. Bank capture cap: 5,000,000 USD.'?></div>
       <div id="holdAmtLine" style="font-size:.75rem;color:var(--muted2);margin-bottom:8px"><?=$ar?'اختر حجز AUTH أولاً ليظهر مبلغ الحجز.':'Pick an AUTH hold first to show the hold amount.'?></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
         <button type="button" class="cap-cmp" data-cap-cmp="less" onclick="setCaptureCompare('less')"><?=$ar?'نقص (خروج مبكر)':'Less (early return)'?></button>
@@ -1454,6 +1454,8 @@ const POS = {
   nfcSupported: !!(window.NDEFReader),
   cardBin: null,
   holdAmount: 0,
+  capturedTotal: 0,
+  captureCount: 0,
   captureMode: '',
 };
 
@@ -2018,9 +2020,11 @@ window.selectTxnType = function(type, el) {
   const amtWrap = document.getElementById('txnAmountFieldWrap');
   if (amtWrap) amtWrap.style.display = type === 'capture' ? 'none' : '';
   const cmpBox = document.getElementById('captureCompareBox');
-  if (cmpBox) cmpBox.style.display = type === 'capture' ? '' : 'none';
-  if (type !== 'capture') {
+  if (cmpBox) cmpBox.style.display = (type === 'capture' || type === 'purchase_advice') ? '' : 'none';
+  if (type !== 'capture' && type !== 'purchase_advice') {
     POS.holdAmount = 0;
+    POS.capturedTotal = 0;
+    POS.captureCount = 0;
     POS.captureMode = '';
     const customWrap = document.getElementById('captureCustomAmtWrap');
     if (customWrap) customWrap.style.display = 'none';
@@ -2028,7 +2032,7 @@ window.selectTxnType = function(type, el) {
 
   renderExtraFields(type);
   applyOpsLegend(type);
-  if (type === 'capture' && typeof syncCaptureSplit === 'function') syncCaptureSplit();
+  if ((type === 'capture' || type === 'purchase_advice') && typeof syncCaptureSplit === 'function') syncCaptureSplit();
 };
 
 function renderExtraFields(type) {
@@ -2040,8 +2044,8 @@ function renderExtraFields(type) {
     html += `<div class="info-banner" style="background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.18);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.72rem;color:var(--muted2);line-height:1.7">
       <strong style="color:var(--gold)">${escapeHtml(AR?meta.ar:meta.en)}</strong><br>
       ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
-      ${type === 'capture' ? '<br>• '+(AR?'الفرق عن الحجز مقبول دائماً (تمديد إيجار منزل/سيارة/فندق أو خروج مبكر). حد البنك للكابتشر فقط: 5,000,000 دولار.':'Amount difference is always accepted (home/car/hotel extension or early return). Bank cap for Capture only: 5,000,000 USD.') : ''}
-      ${type === 'purchase_advice' ? '<br>• '+(AR?'الحجز من مكينة أخرى أو البنك. RRN 12 + Approval 4 أو 6 + بطاقة + انتهاء. بدون CVV. ثم Ledger.':'Hold from another terminal or the bank. RRN 12 + Approval 4 or 6 + card + expiry. No CVV. Then Ledger.') : ''}
+      ${type === 'capture' ? '<br>• '+(AR?'مساوٍ / أقل / أكثر من الحجز. يمكن تكرار الكابتشر على نفس الحجز. حد البنك: 5,000,000 دولار.':'Equal / less / more than the hold. Capture can repeat on the same hold. Bank cap: 5,000,000 USD.') : ''}
+      ${type === 'purchase_advice' ? '<br>• '+(AR?'بعد حجز أو من البنك. المبلغ مساوٍ أو أقل أو أكثر. يمكن التكرار على نفس الحجز. RRN أو Payment ID + Approval. بدون CVV.':'After a hold or from the bank. Amount equal, less, or more. Repeatable on the same hold. RRN or Payment ID + Approval. No CVV.') : ''}
       ${type !== 'purchase_advice' ? '<br>• RRN = 12 '+(AR?'رقم':'digits')+' · Online Approval = 4 · Offline Approval = 6' : '<br>• RRN = 12 · Approval = 6'}
     </div>`;
   }
@@ -2058,13 +2062,13 @@ function renderExtraFields(type) {
     <div id="chargeModeFields"></div>`;
   }
 
-  if (type === 'capture') {
+  if (type === 'capture' || type === 'purchase_advice') {
     html += `<div class="fld">
-      <label><i class="fas fa-lock"></i> ${AR?'الحجوزات المفتوحة (AUTH)':'Open AUTH holds'} <span style="color:var(--red)">*</span></label>
+      <label><i class="fas fa-lock"></i> ${AR?'الحجوزات (AUTH) — تبقى بعد الكابتشر':'AUTH holds — remain after capture'} <span style="color:var(--red)">*</span></label>
       <select id="openHoldSelect" onchange="applyOpenHold(this)">
         <option value="">${AR?'— اختر حجزاً أو أدخل المراجع يدوياً —':'— Pick a hold or enter refs —'}</option>
       </select>
-      <div style="font-size:.62rem;color:var(--muted2);margin-top:4px">${AR?'بعد HOLD تظهر هنا. أو من المعاملات: الحالة Authorized ونوع AUTH.':'After HOLD they appear here. Or open Transactions: status Authorized, type AUTH.'}</div>
+      <div style="font-size:.62rem;color:var(--muted2);margin-top:4px">${AR?'الحجز لا يُغلق بعد أول كابتشر. يمكن الكابتشر أو الإشعار أكثر من مرة على نفس الحجز.':'The hold stays open after the first capture. Capture or advice can run again on the same hold.'}</div>
     </div>
     <div class="fld">
       <label>Payment ID</label>
@@ -2176,12 +2180,12 @@ function renderExtraFields(type) {
   }
 
   el.innerHTML = html;
-  if (type === 'capture') loadOpenHolds();
+  if (type === 'capture' || type === 'purchase_advice') loadOpenHolds();
   if (type === 'auth' && typeof onAuthMotoChannel === 'function') onAuthMotoChannel();
   if (type === 'purchase_advice' && typeof onAdviceChannelChange === 'function') {
     onAdviceChannelChange();
   }
-  if (type === 'capture' && typeof syncCaptureSplit === 'function') {
+  if ((type === 'capture' || type === 'purchase_advice') && typeof syncCaptureSplit === 'function') {
     syncCaptureSplit();
   }
   if (type === 'withdrawal_pos' || type === 'withdrawal_nfc') {
@@ -2275,8 +2279,11 @@ window.onCaptureCustomAmt = function() {
 };
 
 window.syncCaptureSplit = function() {
-  if (POS.txnType !== 'capture') return;
+  if (POS.txnType !== 'capture' && POS.txnType !== 'purchase_advice') return;
   const hold = parseFloat(POS.holdAmount || 0) || 0;
+  const taken = parseFloat(POS.capturedTotal || 0) || 0;
+  const times = parseInt(POS.captureCount || 0, 10) || 0;
+  const remain = Math.max(0, hold - taken);
   const mode = POS.captureMode || '';
   const cap = window.resolveCaptureAmount();
   const ref = parseFloat(document.getElementById('refundAmt')?.value) || 0;
@@ -2288,26 +2295,30 @@ window.syncCaptureSplit = function() {
   const holdLine = document.getElementById('holdAmtLine');
   const cur = document.getElementById('txnCurrency')?.value || 'USD';
   if (holdLine) {
-    holdLine.textContent = hold > 0
-      ? (AR ? `مبلغ الحجز السابق: ${hold.toFixed(2)} ${cur}` : `Previous hold: ${hold.toFixed(2)} ${cur}`)
-      : (AR ? 'اختر حجز AUTH أولاً ليظهر مبلغ الحجز.' : 'Pick an AUTH hold first to show the hold amount.');
+    if (hold > 0) {
+      holdLine.textContent = AR
+        ? `حجز ${hold.toFixed(2)} ${cur} · محصّل ${taken.toFixed(2)} (${times}×) · متبقي ${remain.toFixed(2)} — الحجز يبقى لنفس العملية`
+        : `Hold ${hold.toFixed(2)} ${cur} · captured ${taken.toFixed(2)} (${times}×) · remaining ${remain.toFixed(2)} — hold stays for more captures`;
+    } else {
+      holdLine.textContent = AR ? 'اختر حجز AUTH أولاً ليظهر مبلغ الحجز.' : 'Pick an AUTH hold first to show the hold amount.';
+    }
   }
   const hint = document.getElementById('captureCompareHint') || document.getElementById('captureSplitHint');
   if (!hint) return;
   if (!mode) {
     hint.textContent = AR
-      ? 'نقص = خروج مبكر. مساوٍ = بدون تمديد. زيادة = تمديد إيجار (منزل / سيارة / فندق). الفرق مقبول دائماً.'
-      : 'Less = early return. Same = no extra nights. More = rental extension (home / car / hotel). Difference always accepted.';
+      ? 'نقص أو مساوٍ أو زيادة مقابل مبلغ الحجز الأصلي. يمكن تكرار الكابتشر/الإشعار على نفس الحجز.'
+      : 'Less, same, or more versus the original hold. Capture/advice can repeat on the same hold.';
     return;
   }
   if (mode === 'same') {
     hint.textContent = AR
-      ? `بدون تمديد — الكابتشر ${hold.toFixed(2)} ${cur}.`
-      : `No extension — capture ${hold.toFixed(2)} ${cur}.`;
+      ? `مساوٍ للحجز ${hold.toFixed(2)} ${cur}. يمكن التنفيذ مرة أخرى على نفس الحجز.`
+      : `Equal to hold ${hold.toFixed(2)} ${cur}. You can run this again on the same hold.`;
     return;
   }
   if (cap <= 0) {
-    hint.textContent = AR ? 'أدخل المبلغ النهائي. الفرق عن الحجز مقبول.' : 'Enter the final amount. Difference from the hold is accepted.';
+    hint.textContent = AR ? 'أدخل المبلغ النهائي. مساوٍ أو أقل أو أكثر من الحجز مقبول.' : 'Enter the final amount. Equal, less, or more than the hold is accepted.';
     return;
   }
   if (ref > 0) {
@@ -2317,8 +2328,8 @@ window.syncCaptureSplit = function() {
     return;
   }
   hint.textContent = AR
-    ? `كابتشر ${cap.toFixed(2)} مقابل حجز ${hold.toFixed(2)} — الفرق مقبول (تمديد أو خروج مبكر).`
-    : `Capture ${cap.toFixed(2)} vs hold ${hold.toFixed(2)} — difference accepted (extension or early return).`;
+    ? `${cap.toFixed(2)} مقابل حجز ${hold.toFixed(2)} — مساوٍ أو أقل أو أكثر مقبول. تكرار على نفس الحجز مسموح.`
+    : `${cap.toFixed(2)} vs hold ${hold.toFixed(2)} — equal, less, or more accepted. Repeat on the same hold is allowed.`;
 };
 
 window.onAdviceChannelChange = function() {
@@ -2348,9 +2359,11 @@ window.loadOpenHolds = async function() {
     holds.forEach((h, i) => {
       const last4 = h.card_last4 ? ('****' + h.card_last4) : '';
       const amt = Number(h.amount || 0).toFixed(2) + ' ' + (h.currency || '');
+      const n = Number(h.capture_count || 0);
+      const taken = Number(h.captured_total || 0).toFixed(2);
       const opt = document.createElement('option');
       opt.value = String(i);
-      opt.textContent = [h.reference, amt, last4, h.rrn || h.payment_id || ''].filter(Boolean).join(' · ');
+      opt.textContent = [h.reference, amt, n ? (`${n}× ${taken}`) : '', last4, h.rrn || h.payment_id || ''].filter(Boolean).join(' · ');
       opt.dataset.hold = JSON.stringify(h);
       sel.appendChild(opt);
     });
@@ -2385,6 +2398,8 @@ window.applyOpenHold = function(sel) {
     if ([...curSel.options].some(o => o.value === want)) curSel.value = want;
   }
   POS.holdAmount = Number(h.amount || 0) || 0;
+  POS.capturedTotal = Number(h.captured_total || 0) || 0;
+  POS.captureCount = Number(h.capture_count || 0) || 0;
   if (!POS.captureMode) POS.captureMode = 'same';
   if (typeof setCaptureCompare === 'function') setCaptureCompare(POS.captureMode);
   else if (typeof syncCaptureSplit === 'function') syncCaptureSplit();
@@ -2697,7 +2712,7 @@ window.processTransaction = async function() {
   const capMode = POS.captureMode || '';
   let captureAmt = parseFloat(document.getElementById('captureAmt')?.value) || 0;
   let amount   = parseFloat(document.getElementById('txnAmount').value) || parseFloat(POS.amount) || 0;
-  if (type === 'capture') {
+  if (type === 'capture' || (type === 'purchase_advice' && capMode)) {
     if (!capMode) {
       toast(AR ? 'اختر نقص أو مساوٍ أو زيادة' : 'Choose less, same, or more', 'error');
       return;
@@ -2822,7 +2837,7 @@ window.processTransaction = async function() {
   }
   if (POS_REQUIRES_CARD && needsRrn(type, chargeMode) && !/^\d{12}$/.test(origRef)) {
     const pid = (document.getElementById('paymentId')?.value || '').trim();
-    if (!(type === 'capture' && pid.length >= 6)) {
+    if (!((type === 'capture' || type === 'purchase_advice') && pid.length >= 6)) {
       toast(AR?'RRN يجب أن يكون 12 رقماً أو اختر الحجز من القائمة':'RRN must be 12 digits, or pick the hold from the list', 'error'); return;
     }
   }
@@ -2944,17 +2959,20 @@ window.processTransaction = async function() {
     pos_model: POS_DEVICE.model,
     pos_type: POS_DEVICE.type,
     extra: extraData,
+    payment_id: extraData.payment_id || undefined,
   };
-  if (type === 'capture') {
-    payload.capture_amount = captureAmt;
-    payload.refund_amount = refundAmt;
-    payload.extra.capture_amount = captureAmt;
-    payload.extra.refund_amount = refundAmt;
-    payload.extra.linked_to_auth = true;
-  }
-  if (type === 'purchase_advice') {
-    payload.extra.linked_to_auth = false;
-    payload.card_cvv = '';
+  if (type === 'capture' || type === 'purchase_advice') {
+    if (type === 'capture' || captureAmt > 0) {
+      payload.capture_amount = captureAmt;
+      payload.extra.capture_amount = captureAmt;
+    }
+    if (type === 'capture') {
+      payload.refund_amount = refundAmt;
+      payload.extra.refund_amount = refundAmt;
+    }
+    payload.extra.linked_to_auth = type === 'capture' || !!(extraData.payment_id || origRef);
+    payload.extra.repeatable_hold = true;
+    payload.card_cvv = type === 'purchase_advice' ? '' : payload.card_cvv;
   }
 
   try {
@@ -2987,6 +3005,30 @@ window.processTransaction = async function() {
       document.getElementById('openFullReceiptBtn').style.display = '';
       document.getElementById('modalFullReceiptBtn').style.display = '';
       toast('APPROVED', 'success');
+      if (type === 'capture' || type === 'purchase_advice') {
+        const keepPid = document.getElementById('paymentId')?.value || '';
+        const keepRrn = document.getElementById('origRef')?.value || '';
+        const keepAp = document.getElementById('approvalCode')?.value || '';
+        loadOpenHolds().then(function() {
+          const sel = document.getElementById('openHoldSelect');
+          const pidEl = document.getElementById('paymentId');
+          const rrnEl = document.getElementById('origRef');
+          const apEl = document.getElementById('approvalCode');
+          if (pidEl && keepPid) pidEl.value = keepPid;
+          if (rrnEl && keepRrn) rrnEl.value = keepRrn;
+          if (apEl && keepAp) apEl.value = keepAp;
+          if (sel) {
+            [...sel.options].forEach(function(opt) {
+              let h = {};
+              try { h = JSON.parse(opt.dataset.hold || '{}'); } catch (e) { return; }
+              if ((keepPid && String(h.payment_id || '') === keepPid) || (keepRrn && String(h.rrn || '') === keepRrn)) {
+                sel.value = opt.value;
+                applyOpenHold(sel);
+              }
+            });
+          }
+        });
+      }
     } else {
       POS.lastTxn = d;
       posShowDeclineReceipt(d, type, amount, currency, cardNum);

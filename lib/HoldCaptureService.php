@@ -142,7 +142,7 @@ class HoldCaptureService
         if (!$hold) {
             return ['success' => false, 'message' => 'الحجز غير موجود في النظام'];
         }
-        if ($hold['status'] !== 'authorized') {
+        if ($hold['status'] !== 'authorized' && $hold['status'] !== 'captured') {
             return ['success' => false, 'message' => "لا يمكن التحصيل — حالة الحجز: {$hold['status']}"];
         }
 
@@ -164,10 +164,11 @@ class HoldCaptureService
         ]);
 
         if ($result['success']) {
-            $captured = $result['amount'] ?? ($hold['amount']);
+            $captured = (float) ($result['amount'] ?? ($partialAmount ?? $hold['amount']));
+            $already = (float) ($hold['captured_amount'] ?? 0);
             $this->db->execute(
-                "UPDATE dp_holds SET status='captured', captured_amount=?, captured_at=? WHERE payment_intent_id=?",
-                [$captured, date('Y-m-d H:i:s'), $paymentIntentId]
+                "UPDATE dp_holds SET status='authorized', captured_amount=?, captured_at=? WHERE payment_intent_id=?",
+                [$already + $captured, date('Y-m-d H:i:s'), $paymentIntentId]
             );
             $result['reference'] = $hold['reference'];
             $this->log("capture: PI=$paymentIntentId amount=$captured gateway=$gateway");

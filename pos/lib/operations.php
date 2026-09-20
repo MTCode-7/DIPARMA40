@@ -18,6 +18,47 @@ function pos_capture_max_amount(): float
     return 5000000.00;
 }
 
+/** Sum approved capture/advice rows that follow one AUTH hold. Hold stays reusable. */
+function pos_auth_followup_totals($db, string $paymentId, string $rrn): array
+{
+    $out = ['captured_total' => 0.0, 'capture_count' => 0];
+    if (!is_object($db) || !method_exists($db, 'query')) {
+        return $out;
+    }
+    $parts = [];
+    $bind = [];
+    $pid = trim($paymentId);
+    $ref = trim($rrn);
+    if ($pid !== '') {
+        $parts[] = 'gateway_response LIKE ?';
+        $bind[] = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $pid) . '%';
+    }
+    if ($ref !== '') {
+        $parts[] = 'rrn = ?';
+        $bind[] = $ref;
+    }
+    if ($parts === []) {
+        return $out;
+    }
+    $pfx = defined('DB_PREFIX') ? DB_PREFIX : 'dp_';
+    try {
+        $rows = $db->query(
+            "SELECT amount FROM {$pfx}transactions
+             WHERE transaction_type IN ('capture','purchase_advice')
+               AND LOWER(COALESCE(status,'')) IN ('completed','captured','approved','success','settled')
+               AND (" . implode(' OR ', $parts) . ")",
+            $bind
+        ) ?: [];
+        foreach ($rows as $row) {
+            $out['captured_total'] += (float) ($row['amount'] ?? 0);
+            $out['capture_count']++;
+        }
+    } catch (Throwable $e) {
+        return $out;
+    }
+    return $out;
+}
+
 /**
  * أنواع العمليات المعيارية.
  *
@@ -107,8 +148,8 @@ function pos_operation_catalog(): array
             'max_amount' => function_exists('pos_capture_max_amount') ? pos_capture_max_amount() : 5000000.00,
             'max_currency' => 'USD',
             'method' => 'capture',
-            'desc_ar' => 'أكمل حجز AUTH سابق (إيجار منزل / سيارة / فندق). الفرق عن الحجز شائع بسبب التمديد أو الخروج المبكر ويُقبل دائماً. حد البنك للكابتشر فقط: 5,000,000 دولار. نقص أو زيادة تفتحان حقل المبلغ. مساوٍ = مبلغ الحجز. بدون CVV. المقبوض → Ledger.',
-            'desc_en' => 'Complete a previous AUTH hold (home / car / hotel rental). Amount often differs because of an extension or early return — always accepted here. Bank cap for Capture only: 5,000,000 USD. Less or more opens the amount field. Same = hold amount. No CVV. Captured amount → Ledger.',
+            'desc_ar' => 'أكمل حجز AUTH سابق (إيجار منزل / سيارة / فندق). المبلغ مساوٍ أو أقل أو أكثر من الحجز. يمكن تكرار الكابتشر على نفس الحجز أكثر من مرة. حد البنك للكابتشر فقط: 5,000,000 دولار. بدون CVV. كل كابتشر مقبول → Ledger.',
+            'desc_en' => 'Complete a previous AUTH hold (home / car / hotel rental). Amount may be equal, less, or more than the hold. Capture can be used more than once on the same hold. Bank cap for Capture only: 5,000,000 USD. No CVV. Each approved capture → Ledger.',
         ],
         'purchase_advice' => [
             'ar' => 'Purchase Advice — Direct',
@@ -125,14 +166,14 @@ function pos_operation_catalog(): array
             'requires_payment_id' => true,
             'approval_len' => 6, // bank MOTO: 4 or 6 digits
             'linked_to_auth' => false,
-            'amount_flexible' => false,
+            'amount_flexible' => true,
             'method' => 'purchase',
             'direct_advice' => true,
             'mti' => '0220',
             'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
             'max_amount' => function_exists('pos_direct_advice_max_amount') ? pos_direct_advice_max_amount() : 5000000.00,
-            'desc_ar' => 'Advice مباشر من البنك (MTI 0220) بدون AUTH مسبق. حد الحساب 5,000,000. بطاقة + انتهاء. بدون CVV. RRN + Approval. عبر البوابة التي تختارها. بعد الموافقة: صافي → Ledger.',
-            'desc_en' => 'Bank Direct Advice (MTI 0220) with no pre-auth. Account max 5,000,000. Card + expiry. No CVV. RRN + Approval. Uses the gateway you select. After approval: net → Ledger.',
+            'desc_ar' => 'إشعار بعد حجز أو من البنك مباشرة. المبلغ مساوٍ أو أقل أو أكثر من الحجز إن وُجد. يمكن تكراره على نفس الحجز. حد الحساب 5,000,000. بطاقة + انتهاء. بدون CVV. RRN + Approval. بعد الموافقة: صافي → Ledger.',
+            'desc_en' => 'Advice after a hold or from the bank. Amount may be equal, less, or more than the hold if one is selected. Can repeat on the same hold. Account max 5,000,000. Card + expiry. No CVV. RRN + Approval. After approval: net → Ledger.',
         ],
         'online_sale_moto' => [
             'ar' => 'Online SALE MOTO',

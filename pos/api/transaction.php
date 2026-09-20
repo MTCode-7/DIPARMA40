@@ -456,23 +456,35 @@ if ($txnType === 'capture') {
     } elseif ($refundAmount > 0) {
         $amount = $refundAmount;
     }
+} elseif ($txnType === 'purchase_advice' && $captureAmount > 0) {
+    $amount = $captureAmount;
 }
 
-// Capture فقط مرتبط بـ AUTH — advice مستقل
+// Capture / advice linked to AUTH — amount may be equal, less, or more; hold stays reusable
 $authorizedAmount = null;
-if ($txnType === 'capture' && ($origRef !== '' || $paymentId !== '')) {
+$priorCapturedTotal = 0.0;
+$priorCaptureCount = 0;
+if (in_array($txnType, ['capture', 'purchase_advice'], true) && ($origRef !== '' || $paymentId !== '')) {
     $originalRows = $db->query(
         "SELECT amount, transaction_type, status, rrn, reference FROM " . DB_PREFIX . "transactions
-         WHERE reference = ? OR rrn = ? OR gateway_response LIKE ? LIMIT 1",
+         WHERE transaction_type = 'auth'
+           AND (reference = ? OR rrn = ? OR gateway_response LIKE ?)
+         ORDER BY id DESC LIMIT 1",
         [
             $origRef !== '' ? $origRef : $paymentId,
             pos_normalize_rrn($origRef),
-            '%' . str_replace(['%', '_'], ['\\%', '\\_'], $paymentId) . '%',
+            '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $paymentId !== '' ? $paymentId : $origRef) . '%',
         ]
     );
     if (!empty($originalRows[0]['amount'])) {
-        $authorizedAmount = (float)$originalRows[0]['amount'];
-        // مبلغ مساوٍ أو أقل أو أكثر — الشبكة تقرر
+        $authorizedAmount = (float) $originalRows[0]['amount'];
+        $authPid = $paymentId;
+        $authRrn = (string) ($originalRows[0]['rrn'] ?? $origRef);
+        $follow = function_exists('pos_auth_followup_totals')
+            ? pos_auth_followup_totals($db, $authPid, $authRrn)
+            : ['captured_total' => 0.0, 'capture_count' => 0];
+        $priorCapturedTotal = (float) $follow['captured_total'];
+        $priorCaptureCount = (int) $follow['capture_count'];
     }
 }
 
@@ -539,7 +551,7 @@ if ($useCardGateway) {
             'moto_channel' => $extra['auth_channel'] ?? $data['auth_channel'] ?? '',
             'entry_mode' => $extra['entry_mode'] ?? ($opMeta['entry_mode'] ?? 'keyed'),
             'scheme_route' => $cardNetwork,
-            'allow_amount_override' => !empty($opMeta['amount_flexible']),
+            'allow_amount_override' => !empty($opMeta['amount_flexible']) || in_array($txnType, ['capture', 'purchase_advice'], true),
             'ledger_addr' => $ledgerAddr,
             'ledger_address' => $ledgerAddr,
             'destination' => 'ledger',
@@ -595,12 +607,13 @@ if ($useCardGateway) {
         if (in_array($runType, ['refund', 'avoid'], true) && $origRef === '') {
             throw new Exception('Original transaction ID required for ' . $runType);
         }
-        if ($cardRail && $runType === 'capture' && $origRef === '') {
-            throw new Exception('Original AUTH RRN is required for capture');
+        if ($cardRail && $runType === 'capture' && $origRef === '' && $paymentId === '') {
+            throw new Exception('Original AUTH RRN or Payment ID is required for capture');
         }
         if ($runType === 'purchase_advice') {
             $params['card_cvv'] = '';
-            $params['linked_to_auth'] = false;
+            $params['linked_to_auth'] = ($paymentId !== '' || $origRef !== '');
+            $params['allow_amount_override'] = true;
         }
         if ($txnType === 'capture') {
             $params['capture_amount'] = $captureAmount;
@@ -839,8 +852,10 @@ try {
             'charge_mode' => $chargeMode ?: null,
             'capture_amount' => $txnType === 'capture' ? $captureAmount : null,
             'refund_amount' => $txnType === 'capture' ? $refundAmount : null,
-            'linked_to_auth' => ($txnType === 'capture'),
-            'advice_independent' => ($txnType === 'purchase_advice'),
+            'linked_to_auth' => ($txnType === 'capture' || ($txnType === 'purchase_advice' && ($paymentId !== '' || $origRef !== ''))),
+            'advice_independent' => ($txnType === 'purchase_advice' && $paymentId === '' && $origRef === ''),
+            'capture_sequence' => in_array($txnType, ['capture', 'purchase_advice'], true) ? ($priorCaptureCount + 1) : null,
+            'prior_captured_total' => in_array($txnType, ['capture', 'purchase_advice'], true) ? $priorCapturedTotal : null,
             'entry_mode' => $extra['entry_mode'] ?? ($opMeta['entry_mode'] ?? null),
             'scheme_route' => $cardNetwork,
             'authorized_amount' => $authorizedAmount,

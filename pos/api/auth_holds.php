@@ -34,12 +34,20 @@ try {
             ?? ($raw['raw']['transactionId'] ?? '')
             ?? ($raw['gateway_details']['transaction_id'] ?? '')
         );
+        $rrn = (string) ($row['rrn'] ?? '');
+        $follow = function_exists('pos_auth_followup_totals')
+            ? pos_auth_followup_totals(db(), $paymentId, $rrn)
+            : ['captured_total' => 0.0, 'capture_count' => 0];
+        $authAmt = (float) $row['amount'];
         $holds[] = [
             'id' => (int) $row['id'],
             'reference' => (string) $row['reference'],
-            'amount' => (float) $row['amount'],
+            'amount' => $authAmt,
+            'captured_total' => (float) $follow['captured_total'],
+            'capture_count' => (int) $follow['capture_count'],
+            'remaining' => max(0, $authAmt - (float) $follow['captured_total']),
             'currency' => (string) ($row['currency'] ?: 'USD'),
-            'rrn' => (string) ($row['rrn'] ?? ''),
+            'rrn' => $rrn,
             'bank_approval' => (string) ($row['bank_approval_code'] ?? $row['auth_code'] ?? ''),
             'gateway_approval' => (string) ($raw['approval_code'] ?? $row['auth_code'] ?? ''),
             'payment_id' => $paymentId,
