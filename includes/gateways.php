@@ -100,19 +100,20 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'credentials' => [
             'client_id' => getenv('PAYPAL_CLIENT_ID') ?? '',
             'secret' => getenv('PAYPAL_CLIENT_SECRET') ?: (getenv('PAYPAL_SECRET') ?: ''),
+            'webhook_id' => getenv('PAYPAL_WEBHOOK_ID') ?: '',
         ],
         'urls' => [
-            'success' => getenv('PAYPAL_RETURN_URL') ?: '/payment_success.php',
-            'cancel' => getenv('PAYPAL_CANCEL_URL') ?: '/payment_cancelled.php',
-            'webhook' => getenv('PAYPAL_WEBHOOK_URL') ?: '/api/webhook.php?gateway=paypal',
+            'success' => getenv('PAYPAL_RETURN_URL') ?: 'https://diparmas.com/crypto_confirm.php',
+            'cancel'  => getenv('PAYPAL_CANCEL_URL')  ?: 'https://diparmas.com/crypto.php',
+            'webhook' => getenv('PAYPAL_WEBHOOK_URL')  ?: 'https://diparmas.com/api/paypal.php?action=webhook',
         ],
-        'environment' => getenv('PAYPAL_ENVIRONMENT') ?? '',
+        'environment' => getenv('PAYPAL_ENVIRONMENT') ?: 'live',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'KWD', 'BHD', 'OMR', 'QAR'],
         'fees' => ['percentage' => 3.4, 'fixed' => 0.30],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
-        'features' => ['instant_transfer', 'subscriptions', 'payouts'],
+        'features' => ['instant_transfer', 'subscriptions', 'payouts', '3ds', 'moto', 'authorize', 'capture', 'void'],
         'card_types' => ['Visa', 'Mastercard', 'Amex', 'Discover'],
-        'setup_complete' => false
+        'setup_complete' => !empty(getenv('PAYPAL_CLIENT_ID')) && !empty(getenv('PAYPAL_SECRET'))
     ],
 
     'nuvei' => [
