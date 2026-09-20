@@ -125,6 +125,7 @@ $transactions = $db->query(
 );
 
 $features = array_values(array_unique(array_merge(
+    (array)($catalog['features'] ?? []),
     (array)($mergedConfig['features'] ?? []),
     !empty($gateway['supports_hold']) ? ['authorization'] : [],
     !empty($gateway['supports_capture']) ? ['capture'] : [],
@@ -137,7 +138,7 @@ $capabilities = [
     'Capture / Completion' => in_array('capture', $features, true) || !empty($gateway['supports_capture']),
     'Refund' => in_array('refund', $features, true),
     'Online' => in_array('online', $features, true) || empty($gateway['supports_offline']),
-    'Offline' => in_array('offline', $features, true),
+    'Offline' => in_array('offline', $features, true) || in_array('moto', $features, true),
 ];
 $escape = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 ?>

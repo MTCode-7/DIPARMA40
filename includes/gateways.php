@@ -136,7 +136,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR'],
         'fees' => ['percentage' => 0, 'fixed' => 0],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
-        'features' => ['sale', 'auth', 'settle', 'refund', 'void', '3ds', 'webhooks'],
+        'features' => ['sale', 'auth', 'settle', 'refund', 'void', '3ds', 'webhooks', 'moto', 'offline'],
         'card_types' => ['Visa', 'Mastercard'],
         'setup_complete' => true
     ],
