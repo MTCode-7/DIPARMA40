@@ -312,6 +312,19 @@ if ($txnType === 'offline_sale_moto') {
         $errors[] = 'Offline bank limit: amount cannot exceed ' . number_format($offlineCap, 2, '.', ',') . '.';
     }
 }
+if ($posGateway === 'square' && function_exists('gateway_max_per_txn_usd')) {
+    $squareCap = gateway_max_per_txn_usd('square');
+    if ($squareCap !== null) {
+        $squareCheck = $amount;
+        if ($txnType === 'capture') {
+            $capturePeek = floatval($data['capture_amount'] ?? $extra['capture_amount'] ?? 0);
+            $squareCheck = $capturePeek > 0 ? $capturePeek : $amount;
+        }
+        if (in_array($currency, ['USD', 'USDT', 'USDC'], true) && $squareCheck > $squareCap) {
+            $errors[] = 'Square limit: amount cannot exceed ' . number_format($squareCap, 2, '.', ',') . ' USD per transaction (offline included).';
+        }
+    }
+}
 if ($cardNumber !== '' && pos_is_blocked_test_card($cardNumber)) {
     $errors[] = 'Test and dummy cards are blocked. Use a real card.';
 }

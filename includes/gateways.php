@@ -397,8 +397,18 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'environment' => getenv('SQUARE_ENVIRONMENT') ?: 'live',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'CAD', 'AUD', 'JPY'],
         'fees' => ['percentage' => 2.6, 'fixed' => 0.10],
-        'limits' => ['min' => 0.5, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
-        'features' => ['pos', 'online', 'invoicing', 'auth', 'capture'],
+        'limits' => ['min' => 0.5, 'max_per_txn' => 50000, 'max_offline' => 50000, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
+        'features' => ['pos', 'online', 'invoicing', 'auth', 'capture', 'offline'],
+        'offline_guide' => [
+            'source' => 'Square GTM00173 Offline payments guide (US EN, Aug 1 2025)',
+            'channel' => 'square_pos_device',
+            'reconnect_hours' => 72,
+            'reconnect_recommend_hours' => 24,
+            'pos_path' => 'More > Settings > Checkout > Offline payments',
+            'dashboard_path' => 'Settings > Device Management > Modes > Manage > Offline payments',
+            'help_url' => 'https://squareup.com/go/offline-payments',
+            'status_url' => 'https://issquareup.com',
+        ],
         'card_types' => getAllAcceptedCardTypes(),
         'setup_complete' => false
     ],
@@ -1383,6 +1393,20 @@ function buildMoonPaySignedUrl(array $payload = [], array $config = []): ?string
 function getGatewayConfig($code) {
     $gateways = getGatewaysConfig();
     return $gateways[strtolower(trim($code))] ?? null;
+}
+
+/** Per-transaction USD cap from catalog, or null if the gateway has no per-sale cap. */
+function gateway_max_per_txn_usd(string $code): ?float
+{
+    $cfg = getGatewayConfig($code);
+    if (!is_array($cfg)) {
+        return null;
+    }
+    $raw = $cfg['limits']['max_per_txn'] ?? $cfg['limits']['max_offline'] ?? null;
+    if ($raw === null || $raw === '' || !is_numeric($raw)) {
+        return null;
+    }
+    return (float) $raw;
 }
 
 function isPlaceholderGatewayValue($value): bool {

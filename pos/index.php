@@ -2720,6 +2720,10 @@ window.processTransaction = async function() {
       return;
     }
   }
+  if (POS_GW === 'square' && Number(amount) > 50000) {
+    toast(AR ? 'حد Square 50,000 دولار لكل عملية بما فيها الأوفلاين' : 'Square limit is 50,000 USD per transaction, including offline', 'error');
+    return;
+  }
   const currency = document.getElementById('txnCurrency').value;
   if (POS_GW === 'nuvei' && String(currency).toUpperCase() === 'USD' && Number(amount) >= 100) {
     toast(AR

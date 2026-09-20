@@ -49,8 +49,8 @@ function pos_terminal_gateways(): array
             'color' => '#006AFF',
             'adapter' => 'square',
             'rail' => 'card',
-            'desc_ar' => 'Square → Ledger. ' . $acceptNoteAr . ' بعد الموافقة: USDT → Ledger.',
-            'desc_en' => 'Square → Ledger. ' . $acceptNoteEn . ' After approval: USDT → Ledger.',
+            'desc_ar' => 'Square → Ledger. أوفلاين على جهاز Square POS: يُخزَّن على الجهاز ويُرفع عند عودة النت خلال 72 ساعة (يُفضَّل 24). حد العملية 50,000 دولار. شحن DIPARMA عبر Payments API يحتاج نت.',
+            'desc_en' => 'Square → Ledger. Offline is Square POS store-and-forward on the device; upload within 72 hours (24 recommended). Max 50,000 USD per txn. DIPARMA Payments API charges still need internet.',
         ],
         'payram' => [
             'name' => 'PayRam',

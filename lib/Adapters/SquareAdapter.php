@@ -4,7 +4,10 @@
  * Square Payments API: charge / hold / capture / cancel
  * Docs: https://developer.squareup.com
  *
- * Card data: require source_id / cloud_token from Web Payments SDK.
+ * Card data: require source_id / cloud_token from Web Payments SDK (live API).
+ * Square Offline (GTM00173): Square POS/hardware stores payments on the device
+ * and uploads when back online (72h max, 24h recommended). That path is not
+ * this Payments API adapter.
  */
 require_once __DIR__ . '/GatewayAdapterInterface.php';
 require_once __DIR__ . '/GatewayErrorMapper.php';
@@ -44,7 +47,7 @@ class SquareAdapter implements GatewayAdapterInterface
 
     public function supports(string $mode): bool
     {
-        return in_array(strtoupper($mode), ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL'], true);
+        return in_array(strtoupper($mode), ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL', 'OFFLINE', 'MOTO'], true);
     }
 
     public function normalizeError(array $rawResponse): string
@@ -186,6 +189,19 @@ class SquareAdapter implements GatewayAdapterInterface
         }
         if ($amount <= 0) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, $currency, 'Invalid amount');
+        }
+        $squareCap = function_exists('gateway_max_per_txn_usd') ? gateway_max_per_txn_usd('square') : 50000.00;
+        if ($squareCap === null) {
+            $squareCap = 50000.00;
+        }
+        if (in_array($currency, ['USD', 'USDT', 'USDC'], true) && $amount > $squareCap) {
+            return GatewayErrorMapper::buildErrorResponse(
+                'GATEWAY_ERROR',
+                $reference,
+                $amount,
+                $currency,
+                'Square limit is ' . number_format($squareCap, 2, '.', ',') . ' USD per transaction, including offline.'
+            );
         }
 
         $sourceId = trim((string) (
