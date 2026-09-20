@@ -577,4 +577,38 @@ function saveSiteTerms(string $text) {
     }
 }
 
+/** Statuses shown in DIPARMA lists — declined/failed are never stored as history. */
+function diparma_visible_transaction_sql(): string
+{
+    return "LOWER(COALESCE(status,'')) IN ('completed','authorized','captured','settled','approved','refunded','pending','processing','pending_ledger')";
+}
+
+function diparma_should_persist_charge(bool $success, bool $pending3ds = false): bool
+{
+    return $success || $pending3ds;
+}
+
+function diparma_discard_unsuccessful_transaction($db, string $reference): void
+{
+    $reference = trim($reference);
+    if ($reference === '' || $db === null) {
+        return;
+    }
+    try {
+        $row = $db->find('transactions', ['reference' => $reference]);
+        if (!$row) {
+            return;
+        }
+        $st = strtolower(trim((string) ($row['status'] ?? '')));
+        if (in_array($st, ['completed', 'authorized', 'captured', 'settled', 'approved', 'refunded'], true)) {
+            return;
+        }
+        $db->delete('transactions', ['id' => (int) $row['id']]);
+    } catch (Throwable $e) {
+        if (function_exists('logEvent')) {
+            logEvent('discard unsuccessful txn: ' . $e->getMessage(), 'error');
+        }
+    }
+}
+
 ?>

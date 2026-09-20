@@ -89,11 +89,20 @@ class MySystemOrdersService
         }
 
         $ok = !empty($result['success']);
+        $pending3ds = !empty($result['requires_3ds']) || !empty($result['redirect_url'])
+            || in_array(strtolower((string) ($result['status'] ?? '')), ['pending', 'requires_3ds'], true);
+        if (!$ok && !$pending3ds) {
+            try {
+                $this->db->delete('transactions', ['id' => (int) $order['id']]);
+            } catch (Throwable $e) {
+            }
+            return ['success' => true, 'discarded' => true];
+        }
         $status = $ok
             ? (string) ($result['status'] ?? 'completed')
-            : (string) ($result['status'] ?? 'failed');
-        if (!in_array($status, ['completed', 'authorized', 'pending', 'failed', 'declined', 'requires_3ds'], true)) {
-            $status = $ok ? 'completed' : 'failed';
+            : 'pending';
+        if (!in_array($status, ['completed', 'authorized', 'pending', 'requires_3ds'], true)) {
+            $status = $ok ? 'completed' : 'pending';
         }
 
         $gatewayResponse = [
@@ -107,7 +116,7 @@ class MySystemOrdersService
         ];
 
         $update = [
-            'status' => $status === 'authorized' ? 'authorized' : ($ok ? (str_starts_with($status, 'require') ? 'pending' : 'completed') : 'failed'),
+            'status' => $status === 'authorized' ? 'authorized' : ($ok ? (str_starts_with($status, 'require') ? 'pending' : 'completed') : 'pending'),
             'gateway' => (string) ($result['provider'] ?? $order['gateway'] ?? ''),
             'gateway_response' => json_encode($gatewayResponse, JSON_UNESCAPED_UNICODE),
             'updated_at' => date('Y-m-d H:i:s'),

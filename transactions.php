@@ -66,7 +66,8 @@ if (!empty($search)) {
     $params[] = $searchTerm;
 }
 
-if (!empty($status)) {
+$where[] = diparma_visible_transaction_sql();
+if (!empty($status) && !in_array(strtolower($status), ['failed', 'declined', 'error', 'cancelled', 'canceled'], true)) {
     $where[] = "status COLLATE utf8mb4_general_ci = ?";
     $params[] = $status;
 }
@@ -188,6 +189,7 @@ $stats = $db->query("
         SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END) as completed_amount,
         AVG(amount) as avg_amount
     FROM " . DB_PREFIX . "transactions
+    WHERE " . diparma_visible_transaction_sql() . "
 ");
 
 $transactionStats = $stats[0] ?? [

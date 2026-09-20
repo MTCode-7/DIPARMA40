@@ -124,16 +124,18 @@ try {
 }
 
 $success = !empty($result['success']) && empty($result['requires_3ds']) && empty($result['redirect_url']) && empty($result['checkout_url']);
+$pending3ds = !empty($result['requires_3ds']) || !empty($result['redirect_url']) || !empty($result['checkout_url']);
 
-// ── حفظ في DB ────────────────────────────────────────────────
+// ── حفظ في DB — الناجح أو انتظار 3DS فقط ─────────────────────
 $db = db();
 try {
+    if (diparma_should_persist_charge($success, $pending3ds)) {
     $db->insert('transactions', [
         'reference'       => $reference,
         'gateway'         => $gateway,
         'amount'          => $amount,
         'currency'        => $currency,
-        'status'          => $success ? 'completed' : 'failed',
+        'status'          => $success ? 'completed' : 'pending',
         'protocol'        => $txnType,
         'customer_name'   => $cardName,
         'gateway_response'=> json_encode([
@@ -153,6 +155,7 @@ try {
             "UPDATE dp_api_clients SET total_charged=total_charged+?, total_txns=total_txns+1 WHERE id=?",
             [$amount, $client['id']]
         );
+    }
     }
 } catch (Exception $e) {
     error_log('[API/charge] DB: ' . $e->getMessage());

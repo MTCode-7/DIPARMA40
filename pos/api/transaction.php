@@ -774,7 +774,11 @@ $transactionId = null;
 $cardUseAlert = (!$success && !$requires3ds)
     ? pos_card_use_alert((string) $message, (string) $cardLast4)
     : ['card_use' => null, 'card_use_ar' => null, 'card_use_en' => null];
+$persistCharge = diparma_should_persist_charge($success, $requires3ds);
 try {
+    if (!$persistCharge) {
+        diparma_discard_unsuccessful_transaction($db, (string) $reference);
+    } else {
     $txnPayload = [
         'reference' => $reference,
         'user_id' => $userId > 0 ? $userId : null,
@@ -856,6 +860,7 @@ try {
         $txnPayload['created_at'] = date('Y-m-d H:i:s');
         $transactionId = $db->insertAvailable('transactions', $txnPayload);
         $saved = !empty($transactionId);
+    }
     }
 } catch (Throwable $e) {
     pos_safe_log('[POS][DB]', $e->getMessage());

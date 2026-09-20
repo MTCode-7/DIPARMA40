@@ -387,6 +387,10 @@ class DIPARMAOrchestrator
         string $processor, ?string $posId, int $ts
     ): void {
         if (!$this->db) return;
+        $pending3ds = !empty($result['requires_3ds']) || !empty($result['redirect_url']);
+        if (!diparma_should_persist_charge(!empty($result['success']), $pending3ds)) {
+            return;
+        }
         try {
             $cardLast4 = null;
             if (!empty($input['card_number'])) {
@@ -401,7 +405,7 @@ class DIPARMAOrchestrator
                 'cardholder_name' => $input['card_name'] ?? null,
                 'transaction_type' => $input['txn_type'] ?? 'purchase',
                 'security_mode' => $input['sec_mode'] ?? '3D',
-                'status' => !empty($result['success']) ? 'completed' : 'failed',
+                'status' => $pending3ds ? 'pending' : 'completed',
                 'gateway_response' => json_encode([
                     'processor'    => $processor,
                     'pos_id'       => $posId,

@@ -130,6 +130,11 @@ try {
         $transaction = $db->find('transactions', ['rrn' => (string)$data['ppp_TransactionID']]) ?: null;
     }
     if ($transaction) {
+        if ($normalized === 'failed') {
+            diparma_discard_unsuccessful_transaction($db, (string) ($transaction['reference'] ?? $reference));
+            nuvei_dmn_ok();
+            exit;
+        }
         $update = [
             'gateway_response' => json_encode($data, JSON_UNESCAPED_UNICODE),
         ];

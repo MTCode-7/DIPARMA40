@@ -198,10 +198,6 @@ class PaymentOrchestrator
         $pending3ds = !empty($paymentResult['requires_3ds'])
             || !empty($paymentResult['redirect_url'])
             || !empty($paymentResult['checkout_url']);
-        if (empty($paymentResult['success']) && !$pending3ds) {
-            $this->db->update('transactions', ['status' => 'failed'], ['reference' => $reference]);
-            return $this->fail($paymentResult['message'] ?? 'Charge failed', $reference);
-        }
         if ($pending3ds) {
             $this->db->update('transactions', ['status' => 'pending'], ['reference' => $reference]);
             return [
@@ -213,6 +209,9 @@ class PaymentOrchestrator
                 'payment' => $paymentResult,
                 'message' => $paymentResult['message'] ?? '3DS_REQUIRED',
             ];
+        }
+        if (empty($paymentResult['success'])) {
+            return $this->fail($paymentResult['message'] ?? 'Charge failed', $reference);
         }
 
         // نشر حدث: payment.created
@@ -530,6 +529,7 @@ class PaymentOrchestrator
 
     private function fail(string $message, string $reference, array $extra = []): array
     {
+        diparma_discard_unsuccessful_transaction($this->db, $reference);
         return array_merge([
             'success'   => false,
             'message'   => $message,

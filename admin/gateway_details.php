@@ -120,7 +120,7 @@ $balance = $isConnected
     ? gatewayLiveBalance($code)
     : ['value' => null, 'message' => 'Unavailable until the gateway is active and connected.'];
 $transactions = $db->query(
-    'SELECT id, reference, amount, currency, transaction_type, status, created_at FROM ' . DB_PREFIX . 'transactions WHERE gateway = ? ORDER BY created_at DESC LIMIT 10',
+    'SELECT id, reference, amount, currency, transaction_type, status, created_at FROM ' . DB_PREFIX . 'transactions WHERE gateway = ? AND ' . diparma_visible_transaction_sql() . ' ORDER BY created_at DESC LIMIT 10',
     [$code]
 );
 
