@@ -52,6 +52,17 @@ function pos_terminal_gateways(): array
             'desc_ar' => 'Square → Ledger عبر Payments API أونلاين (Web Payments). أوفلاين Square فقط على جهاز Square POS/Terminal/Register: يُخزَّن على الجهاز ويُرفع خلال 24 ساعة (ينتهي بعد 72). حد العملية 50,000 دولار. إدخال الرقم يدوياً غير مدعوم أوفلاين.',
             'desc_en' => 'Square → Ledger via live Payments API (Web Payments). Square Offline is Square POS/Terminal/Register only: stored on the device, upload within 24 hours (expires 72). Max 50,000 USD. Keyed PAN is not available offline.',
         ],
+        'square_online' => [
+            'name' => 'Square 2 · Online',
+            'icon' => 'fas fa-store',
+            'color' => '#006AFF',
+            'adapter' => 'square',
+            'rail' => 'fulfillment',
+            'chargeable' => false,
+            'company_no' => 10,
+            'desc_ar' => 'شركة 10 — Square Online استلام وتوصيل. ليست خصم بطاقة DIPARMA. الخصم على Square 1 ثم Ledger.',
+            'desc_en' => 'Company 10 — Square Online pickup & delivery. Not a DIPARMA card charge. Cards stay on Square 1, then Ledger.',
+        ],
         'payram' => [
             'name' => 'PayRam',
             'icon' => 'fas fa-server',

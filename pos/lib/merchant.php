@@ -80,6 +80,15 @@ function pos_merchant_lines(): array
             'icon' => 'fa-key',
             'color' => '#14B8A6',
         ],
+        'company_10' => [
+            'mcc' => '5812',
+            'ar' => 'شركة 10 — Square 2 Online (استلام وتوصيل)',
+            'en' => 'Company 10 — Square 2 Online (pickup & delivery)',
+            'item' => 'Square Online pickup delivery',
+            'suggested_gateway' => 'square_online',
+            'icon' => 'fa-store',
+            'color' => '#006AFF',
+        ],
     ];
     if (function_exists('pos_custom_activities')) {
         foreach (pos_custom_activities() as $code => $row) {

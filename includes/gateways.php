@@ -386,9 +386,10 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'credentials' => [
             'api_key' => getenv('SQUARE_APPLICATION_ID') ?: (getenv('SQUARE_API_KEY') ?: ''),
             'secret_key' => getenv('SQUARE_ACCESS_TOKEN') ?: (getenv('SQUARE_SECRET_KEY') ?: ''),
-            'location_id' => getenv('SQUARE_LOCATION_ID') ?: '',
+            'location_id' => getenv('SQUARE_LOCATION_ID') ?: 'LHP5AXR2H55RF',
             'application_id' => getenv('SQUARE_APPLICATION_ID') ?: (getenv('SQUARE_API_KEY') ?: ''),
             'access_token' => getenv('SQUARE_ACCESS_TOKEN') ?: (getenv('SQUARE_SECRET_KEY') ?: ''),
+            'merchant_id' => getenv('SQUARE_MERCHANT_ID') ?: 'ML3PPV2CRN3SP',
         ],
         'urls' => [
             'success' => getenv('SQUARE_SUCCESS_URL') ?: '/payment_success.php',
@@ -431,10 +432,15 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'credentials' => [
             'application_id' => getenv('SQUARE_APPLICATION_ID') ?: (getenv('SQUARE_API_KEY') ?: ''),
             'access_token' => getenv('SQUARE_ACCESS_TOKEN') ?: (getenv('SQUARE_SECRET_KEY') ?: ''),
-            'location_id' => getenv('SQUARE_LOCATION_ID') ?: '',
+            'location_id' => getenv('SQUARE_LOCATION_ID') ?: 'LHP5AXR2H55RF',
+            'merchant_id' => getenv('SQUARE_MERCHANT_ID') ?: 'ML3PPV2CRN3SP',
+            'site_id' => getenv('SQUARE_ONLINE_SITE_ID') ?: '295863802358935413',
         ],
         'urls' => [
-            'dashboard' => 'https://app.squareup.com/dashboard/fulfillment/preferences/pickup-delivery/setup-square-online',
+            'dashboard' => 'https://app.squareup.com/dashboard/fulfillment/preferences/pickup-delivery',
+            'sites' => 'https://app.squareup.com/dashboard/sites',
+            'online' => 'https://square.online/app/home/users/156309451/sites/295863802358935413/dashboard',
+            'location' => 'https://app.squareup.com/dashboard/locations/LHP5AXR2H55RF/details',
             'success' => getenv('SQUARE_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('SQUARE_CANCEL_URL') ?: '/payment_cancelled.php',
             'webhook' => getenv('SQUARE_WEBHOOK_URL') ?: '/api/webhook.php?gateway=square',
