@@ -181,6 +181,16 @@ if ($gateway !== 'moonpay') {
             exit();
         }
         $valid = GatewayWebhookVerifier::verifyStripe($rawPayload, $signatureHeader, $stripeSecret);
+    } elseif ($gateway === 'myfatoorah') {
+        $mfSecret = (string) (getenv('MYFAOORAH_WEBHOOK_SECRET') ?: getenv('MYFAOORAH_SECRET_KEY') ?: '');
+        $mfSig = (string) ($normalizedHeaders['myfatoorah-signature'] ?? $normalizedHeaders['signature'] ?? $signatureHeader);
+        if ($mfSecret === '' || $mfSig === '') {
+            http_response_code(503);
+            echo json_encode(['status' => 'error', 'message' => 'MyFatoorah webhook is not configured']);
+            exit();
+        }
+        $valid = hash_equals(hash_hmac('sha256', $rawPayload, $mfSecret), $mfSig)
+            || hash_equals(hash_hmac('sha256', $rawPayload, $mfSecret, true), base64_decode($mfSig, true) ?: '');
     } else {
         $secret = defined('WEBHOOK_HMAC_SECRET') ? WEBHOOK_HMAC_SECRET : '';
         if ($secret === '' || $signatureHeader === '') {
@@ -306,6 +316,22 @@ switch ($gateway) {
             ?? $data['status']
             ?? $data['transaction']['status']
             ?? null;
+        break;
+
+    case 'myfatoorah':
+        $mfData = is_array($data['Data'] ?? null) ? $data['Data'] : $data;
+        $reference = $mfData['CustomerReference']
+            ?? $mfData['InvoiceId']
+            ?? $data['InvoiceId']
+            ?? null;
+        $mfStatus = strtolower((string) ($mfData['TransactionStatus'] ?? $mfData['InvoiceStatus'] ?? $data['Event'] ?? ''));
+        if (in_array($mfStatus, ['succss', 'success', 'paid', 'deposited'], true) || str_contains($mfStatus, 'success')) {
+            $rawStatus = 'completed';
+        } elseif (in_array($mfStatus, ['failed', 'canceled', 'cancelled', 'expired'], true)) {
+            $rawStatus = 'failed';
+        } else {
+            $rawStatus = 'pending';
+        }
         break;
 
     case 'whop':

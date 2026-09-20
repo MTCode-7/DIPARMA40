@@ -16,7 +16,7 @@
  *   "amount":       100.00,
  *   "currency":     "USD",
  *   "card_number":  "REAL_PAN",
- *   "card_name":    "CARDHOLDER",
+ *   "card_name":    "NAME_ON_CARD",
  *   "card_expiry":  "MM/YY",
  *   "card_cvv":     "CVV",
  *   "txn_type":     "purchase|auth|refund|void",

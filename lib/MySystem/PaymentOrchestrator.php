@@ -128,13 +128,18 @@ class MySystemPaymentOrchestrator
             ? '3D'
             : '2D';
         require_once __DIR__ . '/ChargeHub.php';
+        $payerName = trim((string) ($input['card_name'] ?? $customer['name'] ?? ''));
+        if (function_exists('pos_real_card_name')) {
+            $payerName = pos_real_card_name($payerName);
+        }
         $payment = DiParmaChargeHub::charge($provider, $txnType, array_merge($input, [
             'amount' => (float) ($input['amount'] ?? 0),
             'currency' => strtoupper((string) ($input['currency'] ?? 'USD')),
             'card_number' => preg_replace('/\D/', '', (string) ($input['card_number'] ?? $input['cc_number'] ?? '')),
             'card_expiry' => (string) ($input['card_expiry'] ?? $input['cc_expiry'] ?? ''),
             'card_cvv' => (string) ($input['card_cvv'] ?? $input['cc_cvv'] ?? $input['cvv2'] ?? ''),
-            'name' => (string) ($input['card_name'] ?? $customer['name'] ?? 'CARDHOLDER'),
+            'name' => $payerName,
+            'card_name' => $payerName,
             'email' => (string) ($input['email'] ?? $customer['email'] ?? ''),
             'reference' => $reference,
             'user_id' => (int) ($customer['id'] ?? 0),

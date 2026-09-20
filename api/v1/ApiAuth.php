@@ -147,8 +147,8 @@ class ApiAuth
         $apiKey         = 'dpk_' . bin2hex(random_bytes(16));          // 36 حرف
         $apiSecretPlain = 'dps_' . bin2hex(random_bytes(32));          // 68 حرف
         $webhookSecret  = 'whs_' . bin2hex(random_bytes(20));          // 44 حرف
-        $mid            = 'MID' . strtoupper(substr(md5($name . time()), 0, 9));
-        $tid            = 'TID' . strtoupper(substr(md5(uniqid()), 0, 7));
+        $mid            = trim((string) ($options['mid'] ?? ''));
+        $tid            = trim((string) ($options['tid'] ?? ''));
 
         return [
             'api_key'         => $apiKey,

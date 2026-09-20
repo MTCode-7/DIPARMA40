@@ -1030,6 +1030,28 @@ function pos_is_blocked_test_card(string $pan): bool
     return in_array(substr($n, 0, 6), ['411111', '424242', '555555', '000000'], true);
 }
 
+/** Empty if the name is missing or a dummy (CARDHOLDER / GUEST / TEST). */
+function pos_real_card_name(string $name): string
+{
+    $clean = trim(preg_replace('/\s+/', ' ', $name) ?? '');
+    $compact = strtoupper((string) preg_replace('/[^A-Z]/', '', $clean));
+    if ($clean === '' || preg_match('/^(CARDHOLDER|CARDHOLDERNAME|CUSTOMER|CLIENT|GUEST|TEST|UNKNOWN|NAMEONCARD)$/', $compact)) {
+        return '';
+    }
+    return $clean;
+}
+
+function pos_host_payment_id(array $params): string
+{
+    foreach (['payment_id', 'nuvei_txn_id', 'related_transaction_id', 'transaction_id'] as $key) {
+        $v = trim((string) ($params[$key] ?? ''));
+        if ($v !== '') {
+            return $v;
+        }
+    }
+    return '';
+}
+
 /**
  * Square / host errors safe for POS JSON (code + detail only — no PAN).
  *

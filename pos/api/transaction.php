@@ -328,6 +328,14 @@ if ($posGateway === 'square' && function_exists('gateway_max_per_txn_usd')) {
 if ($cardNumber !== '' && pos_is_blocked_test_card($cardNumber)) {
     $errors[] = 'Test and dummy cards are blocked. Use a real card.';
 }
+if ($cardRail && !in_array($txnType, ['refund', 'avoid', 'capture'], true) && $cardType !== 'CLOUD') {
+    $realName = function_exists('pos_real_card_name') ? pos_real_card_name($cardName) : trim($cardName);
+    if ($realName === '' && $requiresCard) {
+        $errors[] = 'Enter the name on the card. Placeholder names are rejected.';
+    } elseif ($realName !== '') {
+        $cardName = $realName;
+    }
+}
 if (!$isWebCharge) {
     if ($terminalId === '') {
         $errors[] = 'Terminal ID (TID) is required.';

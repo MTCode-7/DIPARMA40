@@ -388,7 +388,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
     {
         $ts          = date('YmdHis');
         $clientReqId = 'POS-CAP-' . strtoupper(substr(uniqid(), 0, 8));
-        $amount      = number_format((float)($params['amount'] ?? 0), 2, '.', '');
+        $amountRaw   = (float) ($params['capture_amount'] ?? $params['amount'] ?? 0);
+        $amount      = number_format($amountRaw, 2, '.', '');
         $currency    = $params['currency'] ?? 'USD';
         $clientUniqueId = (string)($params['client_unique_id'] ?? $clientReqId);
         $authCode    = trim((string)($params['auth_code'] ?? ''));
@@ -399,6 +400,9 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
         if ($relatedId === '') {
             return ['success' => false, 'message' => 'Nuvei Transaction ID (Payment ID) is required for capture'];
+        }
+        if ($amountRaw <= 0) {
+            return ['success' => false, 'message' => 'Capture amount must be greater than 0'];
         }
         if ($authCode === '') {
             return ['success' => false, 'message' => 'Nuvei Auth Code is required for capture'];

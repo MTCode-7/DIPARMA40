@@ -92,7 +92,7 @@ function verifone_vx675_to_pos(array $in): array
         'card_number' => preg_replace('/\D/', '', (string) ($in['pan'] ?? $in['card_number'] ?? $in['icc_pan'] ?? '')),
         'card_expiry' => $exp,
         'card_cvv' => (string) ($in['cvv'] ?? $in['card_cvv'] ?? ''),
-        'card_name' => (string) ($in['card_name'] ?? $in['holder'] ?? 'CARDHOLDER'),
+        'card_name' => (string) ($in['card_name'] ?? $in['holder'] ?? ''),
         'card_type' => 'LIVE',
         'card_network' => (string) ($in['scheme'] ?? $in['card_network'] ?? 'auto'),
         'input_mode' => $entry === 'keyed' ? 'manual' : 'physical',

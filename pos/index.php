@@ -1190,7 +1190,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       <div class="card-chip"><span></span><span></span><span></span><span></span></div>
       <div class="card-number-display" id="cardNumDisplay">•••• •••• •••• ••••</div>
       <div class="card-info-row">
-        <span id="cardNameDisplay">CARDHOLDER NAME</span>
+        <span id="cardNameDisplay">—</span>
         <span id="cardExpDisplay">MM/YY</span>
       </div>
       <div id="cardIssuerDisplay" style="margin-top:8px;font-size:.68rem;color:rgba(255,255,255,.55);min-height:1.1em"></div>
@@ -1221,7 +1221,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       <div class="fld" style="grid-column:span 2" id="liveNameWrap">
         <label><i class="fas fa-user"></i> <?=$ar?'اسم حامل البطاقة':'Cardholder Name'?></label>
         <input type="text" id="cardName" placeholder="<?=$ar?'الاسم كما على البطاقة':'Name as on card'?>"
-          oninput="document.getElementById('cardNameDisplay').textContent=this.value||'CARDHOLDER NAME'">
+          oninput="document.getElementById('cardNameDisplay').textContent=this.value||'—'">
       </div>
       <div class="fld" style="grid-column:span 2" id="livePanWrap">
         <label><i class="fas fa-credit-card"></i> <?=$ar?'رقم البطاقة':'Card Number'?></label>
@@ -2851,6 +2851,11 @@ window.processTransaction = async function() {
     }
   }
   const needsCard = POS_REQUIRES_CARD && cardType !== 'CLOUD' && meta.requires_card !== false && !['refund','avoid'].includes(type);
+  if (needsCard && !['capture'].includes(type) && (!cardName || /^(cardholder|guest|test|customer|client)$/i.test(cardName.replace(/\s+/g, '')))) {
+    toast(AR ? 'أدخل الاسم كما على البطاقة — ليس اسماً وهمياً.' : 'Enter the name on the card — not a placeholder.', 'error');
+    document.getElementById('cardName')?.focus();
+    return;
+  }
   const authCh = document.getElementById('authChannel')?.value || '';
   const nuveiEcom = POS_GW === 'nuvei' && (
     !['online_sale_moto','offline_sale_moto','purchase_advice','refund','avoid','capture'].includes(type)
@@ -2861,11 +2866,6 @@ window.processTransaction = async function() {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast(AR ? 'Nuvei: أدخل إيميل العميل الحقيقي — العملية من حساب Transcendio وليست شحناً مجهولاً.' : 'Nuvei: enter the customer email. Same Transcendio account — not an anonymous charge.', 'error');
       document.getElementById('posEmail')?.focus();
-      return;
-    }
-    if (!cardName || /^cardholder$/i.test(cardName.replace(/\s+/g, ''))) {
-      toast(AR ? 'Nuvei: اسم حامل البطاقة كما على البطاقة — ليس CARDHOLDER.' : 'Nuvei: use the name on the card — not CARDHOLDER.', 'error');
-      document.getElementById('cardName')?.focus();
       return;
     }
     const binCc = String((POS.cardBin && POS.cardBin.country) || '').toUpperCase();

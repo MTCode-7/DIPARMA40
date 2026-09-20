@@ -313,12 +313,12 @@ function pos_dispatch_direct_advice_to_gateway(string $gateway, array $params): 
     if ($adapter === 'stripe') {
         require_once POS_APP_ROOT . '/lib/Adapters/StripeAdapter.php';
         $stripe = new StripeAdapter();
-        $related = trim((string) ($params['related_transaction_id'] ?? $params['payment_id'] ?? $params['orig_ref'] ?? ''));
+        $related = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string) ($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
         if ($related !== '') {
             return $stripe->capture($related, (float) ($params['amount'] ?? 0) ?: null);
         }
         return $stripe->charge(array_merge($params, [
-            'name' => $params['card_name'] ?? 'CARDHOLDER',
+            'name' => function_exists('pos_real_card_name') ? pos_real_card_name((string) ($params['card_name'] ?? $params['name'] ?? '')) : trim((string) ($params['card_name'] ?? $params['name'] ?? '')),
             'processing_mode' => '2D',
         ]));
     }
@@ -326,12 +326,12 @@ function pos_dispatch_direct_advice_to_gateway(string $gateway, array $params): 
     if ($adapter === 'square') {
         require_once POS_APP_ROOT . '/lib/Adapters/SquareAdapter.php';
         $square = new SquareAdapter();
-        $related = trim((string) ($params['related_transaction_id'] ?? $params['payment_id'] ?? $params['orig_ref'] ?? ''));
+        $related = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string) ($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
         if ($related !== '') {
             return pos_format_gateway_result($square->capture($related, (float) ($params['amount'] ?? 0) ?: null));
         }
         return pos_format_gateway_result($square->charge(array_merge($params, [
-            'name' => $params['card_name'] ?? 'CARDHOLDER',
+            'name' => function_exists('pos_real_card_name') ? pos_real_card_name((string) ($params['card_name'] ?? $params['name'] ?? '')) : trim((string) ($params['card_name'] ?? $params['name'] ?? '')),
             'processing_mode' => '2D',
             'txn_type' => 'purchase_advice',
         ])));
@@ -340,12 +340,12 @@ function pos_dispatch_direct_advice_to_gateway(string $gateway, array $params): 
     if ($adapter === 'paypal') {
         require_once POS_APP_ROOT . '/lib/Adapters/PayPalAdapter.php';
         $paypal = new PayPalAdapter();
-        $related = trim((string) ($params['related_transaction_id'] ?? $params['payment_id'] ?? $params['orig_ref'] ?? ''));
+        $related = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string) ($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
         if ($related !== '') {
             return pos_format_gateway_result($paypal->capture($related, (float) ($params['amount'] ?? 0) ?: null));
         }
         return pos_format_gateway_result($paypal->charge(array_merge($params, [
-            'name' => $params['card_name'] ?? 'CARDHOLDER',
+            'name' => function_exists('pos_real_card_name') ? pos_real_card_name((string) ($params['card_name'] ?? $params['name'] ?? '')) : trim((string) ($params['card_name'] ?? $params['name'] ?? '')),
             'processing_mode' => '2D',
             'txn_type' => 'purchase_advice',
         ])));
@@ -459,16 +459,16 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
         require_once POS_APP_ROOT . '/lib/Adapters/StripeAdapter.php';
         $stripe = new StripeAdapter();
         $payload = array_merge($params, [
-            'name' => $params['card_name'] ?? 'CARDHOLDER',
+            'name' => function_exists('pos_real_card_name') ? pos_real_card_name((string) ($params['card_name'] ?? $params['name'] ?? '')) : trim((string) ($params['card_name'] ?? $params['name'] ?? '')),
             'processing_mode' => ($txnType === 'purchase_3d') ? '3D' : '2D',
         ]);
         if ($txnType === 'auth') {
             return $stripe->hold($payload);
         }
         if ($txnType === 'capture') {
-            $id = (string)($params['related_transaction_id'] ?? $params['orig_ref'] ?? '');
+            $id = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string)($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
             if ($id === '') {
-                return ['success' => false, 'message' => 'Original Stripe id required for capture'];
+                return ['success' => false, 'message' => 'Original Stripe payment id required for capture'];
             }
             return $stripe->capture($id, (float)($params['amount'] ?? 0) ?: null);
         }
@@ -482,7 +482,7 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
         require_once POS_APP_ROOT . '/lib/Adapters/SquareAdapter.php';
         $square = new SquareAdapter();
         $payload = array_merge($params, [
-            'name' => $params['card_name'] ?? 'CARDHOLDER',
+            'name' => function_exists('pos_real_card_name') ? pos_real_card_name((string) ($params['card_name'] ?? $params['name'] ?? '')) : trim((string) ($params['card_name'] ?? $params['name'] ?? '')),
             'processing_mode' => ($txnType === 'purchase_3d') ? '3D' : '2D',
             'txn_type' => $txnType,
         ]);
@@ -490,7 +490,7 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
             return pos_format_gateway_result($square->hold($payload));
         }
         if ($txnType === 'capture') {
-            $id = (string) ($params['related_transaction_id'] ?? $params['orig_ref'] ?? '');
+            $id = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string)($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
             if ($id === '') {
                 return ['success' => false, 'message' => 'Original Square payment id required for capture'];
             }
@@ -513,7 +513,7 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
         require_once POS_APP_ROOT . '/lib/Adapters/PayPalAdapter.php';
         $paypal = new PayPalAdapter();
         $payload = array_merge($params, [
-            'name' => $params['card_name'] ?? 'CARDHOLDER',
+            'name' => function_exists('pos_real_card_name') ? pos_real_card_name((string) ($params['card_name'] ?? $params['name'] ?? '')) : trim((string) ($params['card_name'] ?? $params['name'] ?? '')),
             'processing_mode' => ($txnType === 'purchase_3d') ? '3D' : '2D',
             'txn_type' => $txnType,
         ]);
@@ -521,7 +521,7 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
             return pos_format_gateway_result($paypal->hold($payload));
         }
         if ($txnType === 'capture') {
-            $id = (string)($params['related_transaction_id'] ?? $params['orig_ref'] ?? '');
+            $id = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string)($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
             if ($id === '') {
                 return ['success' => false, 'message' => 'Original PayPal id required for capture'];
             }

@@ -881,13 +881,13 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'MENA',
         'icon' => 'fas fa-money-bill-wave',
         'credentials' => [
-            'api_key' => getenv('MYFAOORAH_API_KEY') ?: 'drmd2050',
-            'secret_key' => getenv('MYFAOORAH_SECRET_KEY') ?: 'SK_ARE_rl0...'
+            'api_key' => getenv('MYFAOORAH_API_KEY') ?: '',
+            'secret_key' => getenv('MYFAOORAH_SECRET_KEY') ?: '',
         ],
         'urls' => [
             'success' => getenv('MYFAOORAH_SUCCESS_URL') ?: '/payment_success.php',
             'cancel' => getenv('MYFAOORAH_CANCEL_URL') ?: '/payment_cancelled.php',
-            'webhook' => getenv('MYFAOORAH_WEBHOOK_URL') ?: 'https://diparmas.com/diparma/api/webhook_receiver.php',
+            'webhook' => getenv('MYFAOORAH_WEBHOOK_URL') ?: 'https://diparmas.com/api/webhook.php?gateway=myfatoorah',
         ],
         'environment' => getenv('MYFAOORAH_ENVIRONMENT') ?? '',
         'currencies' => ['AED', 'SAR', 'KWD', 'BHD', 'OMR', 'QAR', 'USD', 'EUR'],
@@ -1716,167 +1716,6 @@ function gateway_service() {
                 'success' => false,
                 'message' => 'Local simulated payment path removed. Charge goes through ChargeHub only.',
             ];
-            $db = db();
-            $reference = generateReference('TXN');
-            try {
-                $gatewayName = strtolower(trim($gateway));
-                if ($gatewayName === 'integrated') {
-                    return [
-                        'success' => false,
-                        'message' => 'Integrated gateway is disabled. Use a configured real external gateway.',
-                        'reference' => $reference,
-                        'provider' => 'integrated'
-                    ];
-                }
-                $configuredGateways = getSupportedExternalGateways();
-                if (!in_array($gatewayName, $configuredGateways, true)) {
-                    return [
-                        'success' => false,
-                        'message' => 'A configured real external gateway is required: ' . $gateway,
-                        'reference' => $reference,
-                        'provider' => strtoupper($gateway)
-                    ];
-                }
-
-                if ($gatewayName === 'myfatoorah') {
-                    $gatewayResponse = $this->createMyFatoorahPaymentIntent($gateway, $payload, $reference);
-                    $transactionData['status'] = $gatewayResponse['status'] ?? ($gatewayResponse['success'] ? 'pending' : 'failed');
-                    $transactionData['gateway_response'] = json_encode($gatewayResponse);
-                    if (!$gatewayResponse['success']) {
-                        $transactionData['error_message'] = $gatewayResponse['message'] ?? 'MyFatoorah failed';
-                    }
-                } elseif ($gatewayName === 'integrated') {
-                    $gatewayResponse = $this->createIntegratedPaymentIntent($gateway, $payload, $reference);
-                    $transactionData['status'] = $gatewayResponse['status'] ?? ($gatewayResponse['success'] ? 'completed' : 'failed');
-                    $transactionData['gateway_response'] = json_encode($gatewayResponse);
-                    if (!$gatewayResponse['success']) {
-                        $transactionData['error_message'] = $gatewayResponse['message'] ?? 'Integrated payment failed';
-                    }
-                } else {
-                    $gatewayResponse = $this->createConfiguredExternalPaymentIntent($gateway, $payload, $reference);
-                    $transactionData['status'] = $gatewayResponse['status'] ?? ($gatewayResponse['success'] ? 'pending' : 'failed');
-                    $transactionData['security_mode'] = strtoupper(trim($payload['security_mode'] ?? '2D'));
-                    $transactionData['gateway_response'] = json_encode($gatewayResponse);
-                    if (!$gatewayResponse['success']) {
-                        $transactionData['error_message'] = $gatewayResponse['message'] ?? 'Gateway request failed';
-                    }
-                }
-
-                $txnId = $db->insert('transactions', $transactionData);
-                // ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½
-                try {
-                    $db->execute("CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "contracts` (
-                        `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                        `reference` VARCHAR(100) NOT NULL,
-                        `service_name` VARCHAR(255) DEFAULT NULL,
-                        `service_description` TEXT DEFAULT NULL,
-                        `delivery_method` VARCHAR(255) DEFAULT NULL,
-                        `delivery_notes` TEXT DEFAULT NULL,
-                        `terms_text` TEXT DEFAULT NULL,
-                        `accept_terms` TINYINT(1) NOT NULL DEFAULT 0,
-                        `user_id` INT UNSIGNED DEFAULT 0,
-                        `created_at` DATETIME NOT NULL,
-                        UNIQUE KEY `uniq_reference` (`reference`)
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
-                    if (function_exists('getSiteTerms') && trim(getSiteTerms()) !== '') {
-                        $termsText = getSiteTerms();
-                    } else {
-                        $termsText = "ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½: ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½. ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½.";
-                    }
-                    $db->insert('contracts', [
-                        'reference' => $reference,
-                        'service_name' => $payload['contract_service_name'] ?? null,
-                        'service_description' => $payload['contract_service_description'] ?? null,
-                        'delivery_method' => $payload['contract_delivery_method'] ?? null,
-                        'delivery_notes' => $payload['contract_delivery_notes'] ?? null,
-                        'terms_text' => $termsText,
-                        'accept_terms' => !empty($payload['accept_terms']) ? 1 : 0,
-                        'user_id' => $_SESSION['user_id'] ?? 0,
-                        'created_at' => date('Y-m-d H:i:s')
-                    ]);
-                } catch (Exception $e) {
-                    // ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½د، ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½
-                    logEvent('Failed to persist contract: ' . $e->getMessage(), 'error');
-                }
-
-                $gatewayResponse['transaction_id'] = $txnId;
-                $gatewayResponse['reference'] = $reference;
-                return [
-                    'success' => !empty($gatewayResponse['success']),
-                    'message' => $gatewayResponse['message'],
-                    'transaction_id' => $txnId,
-                    'reference' => $reference,
-                    'data' => $transactionData,
-                    'gateway_response' => $gatewayResponse
-                ];
-            } catch (Exception $e) {
-                return ['success' => false, 'message' => 'Payment processing failed: ' . $e->getMessage()];
-            }
-        }
-
-        public function settlePreAuthorization($gateway, array $payload): array {
-            $gatewayName = strtolower(trim((string)$gateway));
-
-            // البوابات غير الداعمة لـ Purchase Advice (تعالج عبر GatewayAdapterFactory بدلاً من settleTransaction)
-            $nonNativeAdviceGateways = ['paypal', 'braintree', 'stripe', 'checkout', 'checkout.com',
-                                        'paytabs', 'authorizenet', 'authorize_net', 'authnet',
-                                        'myfatoorah', 'diparma', 'gate_io', 'gateio'];
-
-            if (in_array($gatewayName, $nonNativeAdviceGateways, true)) {
-                // هذه البوابات لا تملك settleTransaction مخصص — نرسل كـ charge 2D عادي عبر Factory
-                if (!class_exists('GatewayAdapterFactory')) {
-                    require_once __DIR__ . '/../lib/Adapters/GatewayAdapterInterface.php';
-                    require_once __DIR__ . '/../lib/Adapters/GatewayErrorMapper.php';
-                    require_once __DIR__ . '/../lib/Adapters/GatewayLogger.php';
-                    require_once __DIR__ . '/../lib/Adapters/StripeAdapter.php';
-                    require_once __DIR__ . '/../lib/Adapters/CheckoutAdapter.php';
-                    require_once __DIR__ . '/../lib/Adapters/MyFatoorahAdapter.php';
-                    require_once __DIR__ . '/../lib/Adapters/PayTabsAdapter.php';
-                    require_once __DIR__ . '/../lib/Adapters/AuthorizeNetAdapter.php';
-                    require_once __DIR__ . '/../lib/Adapters/BraintreeAdapter.php';
-                    require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
-                    require_once __DIR__ . '/../lib/Adapters/GatewayAdapterFactory.php';
-                }
-
-                // إذا لم يكن لدينا بيانات البطاقة (كالحال في Advice بعد موافقة مسبقة)
-                // نعيد success مباشرة مع تسجيل العملية كـ advice_confirmed
-                $cardNumber = preg_replace('/\D/', '', $payload['card_number'] ?? $payload['cc_number'] ?? '');
-                if (strlen($cardNumber) < 13) {
-                    $authId = trim((string)($payload['rrn'] ?? $payload['transaction_id'] ?? ''));
-                    if ($authId === '') {
-                        return [
-                            'success' => false,
-                            'message' => 'تحصيل الحجز يتطلب معرّف التفويض (RRN / authorization id)',
-                            'error_code' => 'ADVICE_SETTLEMENT_FAILED',
-                        ];
-                    }
-                    $normalizedPayload = GatewayAdapterFactory::normalizePayload(array_merge($payload, [
-                        'processing_mode' => '2D',
-                        'reference'       => $payload['order_ref'] ?? ('ADV-' . time()),
-                        'transaction_id'  => $authId,
-                        'partial_amount'  => (float)($payload['amount'] ?? 0),
-                    ]));
-                    return GatewayAdapterFactory::process($normalizedPayload, 'capture', $gatewayName);
-                }
-
-                // لو توفرت بيانات البطاقة نعالج عبر الـ Factory
-                $normalizedPayload = GatewayAdapterFactory::normalizePayload(array_merge($payload, [
-                    'processing_mode' => '2D',
-                    'reference'       => $payload['order_ref'] ?? ('ADV-' . time()),
-                ]));
-                return GatewayAdapterFactory::process($normalizedPayload, 'charge', $gatewayName);
-            }
-
-            // Nuvei وأي بوابة تملك settleTransaction مخصص
-            require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
-            $adapter = new NuveiAdapter();
-            return $adapter->settleTransaction(
-                (string)($payload['rrn'] ?? ''),
-                (float)($payload['amount'] ?? 0),
-                (string)($payload['currency'] ?? 'USD'),
-                (string)($payload['order_ref'] ?? '')
-            );
         }
 
         private function ensureIntegratedTables() {
