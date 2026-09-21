@@ -1,1 +1,38 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>OK</title></head><body style="margin:0;background:#fff;color:#111;font:16px/1.4 sans-serif">OK</body></html>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DI PARMA | فشل الدفع</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',sans-serif;background:#020508;color:#edf0f7;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.box{background:#070e1c;border:1px solid rgba(239,68,68,.3);border-radius:20px;padding:40px 32px;text-align:center;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.icon{font-size:4rem;margin-bottom:16px}
+h1{color:#EF4444;font-size:1.5rem;margin-bottom:10px;font-weight:800}
+p{color:#6b7a90;font-size:.9rem;line-height:1.7;margin-bottom:24px}
+.btn{display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#FFE066,#FFD700);color:#000;border-radius:10px;text-decoration:none;font-weight:700;font-size:.9rem;margin:4px}
+.btn-sec{background:rgba(255,255,255,.06);color:#edf0f7;border:1px solid rgba(255,255,255,.1)}
+.ref{font-family:monospace;font-size:.72rem;color:#3d4a5c;margin-top:16px;padding:8px;background:rgba(255,255,255,.03);border-radius:8px}
+.reason{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:10px 14px;font-size:.8rem;color:#f87171;margin-bottom:20px}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="icon">❌</div>
+  <h1>فشل الدفع</h1>
+  <div class="reason" id="reasonBox">رُفضت العملية من بنك الإصدار أو بوابة الدفع.</div>
+  <p>يمكنك المحاولة مجدداً أو استخدام بطاقة أخرى.</p>
+  <a href="/checkout_router.php" class="btn">حاول مجدداً</a>
+  <a href="/dashboard.php" class="btn btn-sec">لوحة التحكم</a>
+  <div class="ref" id="refBox"></div>
+</div>
+<script>
+var p = new URLSearchParams(window.location.search);
+var ref = p.get('clientUniqueId') || p.get('merchant_unique_id') || p.get('ref') || '';
+var reason = p.get('reason') || p.get('gwErrorReason') || p.get('message') || '';
+if (ref) document.getElementById('refBox').textContent = 'Reference: ' + ref;
+if (reason) document.getElementById('reasonBox').textContent = reason;
+</script>
+</body>
+</html>

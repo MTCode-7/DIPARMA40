@@ -302,7 +302,13 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <?php endif; ?>
 
     <?php
-    $types = ['card'=>($ar?'بطاقات':'Cards'),'bank'=>($ar?'تحويل بنكي':'Bank Transfer'),'crypto'=>($ar?'كريبتو':'Crypto'),'digital'=>($ar?'رقمي':'Digital')];
+    $types = [
+      'card' => ($ar ? 'بطاقات' : 'Cards'),
+      'bank' => ($ar ? 'تحويل بنكي' : 'Bank Transfer'),
+      'crypto' => ($ar ? 'كريبتو' : 'Crypto'),
+      'digital' => ($ar ? 'رقمي' : 'Digital'),
+      'fulfillment' => ($ar ? 'خدمات Square Online' : 'Square Online Services'),
+    ];
     foreach($types as $type=>$typeLabel):
         $filtered = array_filter($gateways, fn($g) => $g['type'] === $type);
         if(empty($filtered)) continue;

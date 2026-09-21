@@ -61,6 +61,34 @@ if (!$txn) {
     } catch (Exception $e) {}
 }
 
+if (!$txn) {
+    try {
+        $rows = $db->query(
+            "SELECT * FROM " . dp_table('payment_attempts') . " WHERE reference = ? ORDER BY id DESC LIMIT 1",
+            [$ref]
+        );
+        $attempt = $rows[0] ?? null;
+        if ($attempt) {
+            $details = json_decode((string) ($attempt['details'] ?? '{}'), true) ?: [];
+            $txn = [
+                'reference' => $attempt['reference'],
+                'user_id' => $attempt['user_id'],
+                'gateway' => $attempt['gateway'],
+                'transaction_type' => $attempt['transaction_type'],
+                'amount' => $attempt['amount'],
+                'currency' => $attempt['currency'],
+                'status' => 'declined',
+                'card_last4' => $attempt['card_last4'],
+                'created_at' => $attempt['created_at'],
+                'gateway_response' => json_encode(array_merge($details, [
+                    'decline_reason' => $attempt['reason'],
+                    'attempt_status' => 'declined',
+                ]), JSON_UNESCAPED_UNICODE),
+            ];
+        }
+    } catch (Exception $e) {}
+}
+
 if ($txn && !isAdmin()) {
     $ownerId = intval($txn['user_id'] ?? 0);
     if ($ownerId !== intval($_SESSION['user_id'] ?? 0)) {

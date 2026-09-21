@@ -272,7 +272,7 @@ class PayRamAdapter
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => $this->timeout,
-            CURLOPT_SSL_VERIFYPEER => false, // HTTP على port 8080
+            CURLOPT_SSL_VERIFYPEER => !str_starts_with($url, 'http://'), // false فقط للـ HTTP plain (port 8080)
         ]);
 
         if (in_array($method, ['POST', 'PUT', 'PATCH']) && $bodyJson) {

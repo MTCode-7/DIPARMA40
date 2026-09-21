@@ -826,6 +826,33 @@ $cardUseAlert = (!$success && !$requires3ds)
 $persistCharge = diparma_should_persist_charge($success, $requires3ds);
 try {
     if (!$persistCharge) {
+        diparma_record_declined_attempt($db, [
+            'reference' => $reference,
+            'user_id' => $userId,
+            'gateway' => $posGateway,
+            'transaction_type' => $txnType,
+            'amount' => $amount,
+            'currency' => $currency,
+            'reason' => $message,
+            'card_last4' => $cardLast4,
+            'details' => [
+                'channel' => $entryChannel,
+                'card_type' => $cardType,
+                'card_network' => $cardNetwork,
+                'rrn' => $rrn,
+                'stan' => $stan,
+                'approval_code' => $approvalCode,
+                'bank_approval_code' => $bankApprovalCode,
+                'gateway_response' => $gatewayResponse,
+                'pos_device' => $posDevice,
+                'pos_model' => $posModel,
+                'pos_type' => $posType,
+                'terminal_id' => $terminalId,
+                'customer_name' => $data['name'] ?? $data['card_name'] ?? null,
+                'customer_email' => $data['email'] ?? null,
+                'customer_phone' => $data['phone'] ?? null,
+            ],
+        ]);
         diparma_discard_unsuccessful_transaction($db, (string) $reference);
     } else {
     $txnPayload = [

@@ -577,7 +577,7 @@ function saveSiteTerms(string $text) {
     }
 }
 
-/** Statuses shown in DIPARMA lists — declined/failed are never stored as history. */
+/** Statuses shown in DIPARMA lists; declined attempts are stored separately. */
 function diparma_visible_transaction_sql(): string
 {
     return "LOWER(COALESCE(status,'')) IN ('completed','authorized','captured','settled','approved','refunded','pending','processing','pending_ledger')";
@@ -586,6 +586,53 @@ function diparma_visible_transaction_sql(): string
 function diparma_should_persist_charge(bool $success, bool $pending3ds = false): bool
 {
     return $success || $pending3ds;
+}
+
+function diparma_record_declined_attempt($db, array $attempt): void
+{
+    if ($db === null) {
+        return;
+    }
+    try {
+        $db->execute("CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "payment_attempts` (
+            `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `reference` VARCHAR(80) NOT NULL,
+            `user_id` BIGINT NULL,
+            `gateway` VARCHAR(64) NOT NULL,
+            `transaction_type` VARCHAR(64) NOT NULL,
+            `amount` DECIMAL(20,8) NOT NULL DEFAULT 0,
+            `currency` VARCHAR(12) NOT NULL DEFAULT 'USD',
+            `status` VARCHAR(32) NOT NULL DEFAULT 'declined',
+            `reason` TEXT NULL,
+            `card_last4` VARCHAR(4) NULL,
+            `details` LONGTEXT NULL,
+            `created_at` DATETIME NOT NULL,
+            INDEX `idx_payment_attempts_reference` (`reference`),
+            INDEX `idx_payment_attempts_user_created` (`user_id`, `created_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $details = $attempt['details'] ?? [];
+        if (function_exists('pos_redact_pci')) {
+            $details = pos_redact_pci($details);
+        }
+        $db->insertAvailable('payment_attempts', [
+            'reference' => trim((string) ($attempt['reference'] ?? '')),
+            'user_id' => !empty($attempt['user_id']) ? (int) $attempt['user_id'] : null,
+            'gateway' => trim((string) ($attempt['gateway'] ?? '')),
+            'transaction_type' => trim((string) ($attempt['transaction_type'] ?? '')),
+            'amount' => (float) ($attempt['amount'] ?? 0),
+            'currency' => strtoupper(trim((string) ($attempt['currency'] ?? 'USD'))),
+            'status' => 'declined',
+            'reason' => trim((string) ($attempt['reason'] ?? 'Declined')),
+            'card_last4' => preg_replace('/\D/', '', (string) ($attempt['card_last4'] ?? '')),
+            'details' => json_encode($details, JSON_UNESCAPED_UNICODE),
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+    } catch (Throwable $e) {
+        if (function_exists('logEvent')) {
+            logEvent('record declined payment attempt: ' . $e->getMessage(), 'error');
+        }
+    }
 }
 
 function diparma_discard_unsuccessful_transaction($db, string $reference): void

@@ -868,7 +868,9 @@ function pos_redact_pci($value)
         $out = [];
         foreach ($value as $k => $v) {
             $lk = strtolower((string) $k);
+            $compactKey = preg_replace('/[^a-z0-9]/', '', $lk);
             if (preg_match('/(^|_)(cvv|cvc|csc|pin|pan|track1|track2|card_number|cc_number|card_cvv|cc_cvv|card_cvc)(_|$)/', $lk)
+                || in_array($compactKey, ['cvv', 'cvc', 'csc', 'pin', 'pan', 'track1', 'track2', 'cardnumber', 'ccnumber', 'cardcvv', 'cccvv', 'cardcvc'], true)
                 || in_array($lk, ['password', 'secret', 'private_key', 'card_name', 'cc_name'], true)) {
                 $out[$k] = '[redacted]';
                 continue;
