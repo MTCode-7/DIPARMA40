@@ -65,7 +65,7 @@ class GatewayAdapterFactory
         'gate_io'      => ['charge','withdraw','balance'],
         'gateio'       => ['charge','withdraw','balance'],
         'nuvei'        => ['2D','3D','hold','capture','cancel','refund','void'],
-        'diparma'      => ['2D','3D','hold','capture','cancel','refund','void'],
+        'diparma'      => ['2D','3D','hold','capture','cancel','refund','void','moto','offline'],
     ];
 
     // ══════════════════════════════════════════════════════════

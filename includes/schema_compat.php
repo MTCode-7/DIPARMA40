@@ -27,6 +27,7 @@ function dp_ensure_schema_compat(Database $db): void
     $done = true;
 
     dp_seed_named_gateways($db);
+    dp_enable_card_gateway_operation_modes($db);
 
     $p = defined('DB_PREFIX') ? (string) DB_PREFIX : 'dp_';
     $meta = $p . 'schema_compat';
@@ -270,6 +271,47 @@ function dp_add_columns_if_missing(Database $db, string $table, array $columns):
             );
         } catch (Throwable $e) {
             error_log('[schema_compat] alter ' . $table . '.' . $name . ': ' . $e->getMessage());
+        }
+    }
+}
+
+function dp_enable_card_gateway_operation_modes(Database $db): void
+{
+    $codes = ['diparma', 'nuvei', 'stripe', 'square', 'paypal'];
+    $modeFeatures = [
+        'sale', 'purchase', 'auth', 'authorization', 'hold', 'settle', 'capture',
+        'refund', 'void', '3ds', 'webhooks', 'moto', 'offline', 'online',
+    ];
+    foreach ($codes as $code) {
+        try {
+            $row = $db->find('payment_gateways', ['code' => $code]);
+            if (!$row) {
+                continue;
+            }
+            $config = json_decode((string) ($row['config'] ?? '{}'), true) ?: [];
+            if (!is_array($config)) {
+                $config = [];
+            }
+            $existing = is_array($config['features'] ?? null) ? $config['features'] : [];
+            $alreadyOn = !empty($row['supports_hold']) && !empty($row['supports_capture'])
+                && in_array('authorization', $existing, true)
+                && in_array('offline', $existing, true)
+                && in_array('refund', $existing, true);
+            if ($alreadyOn) {
+                continue;
+            }
+            $config['features'] = array_values(array_unique(array_merge($existing, $modeFeatures)));
+            $payload = [
+                'config' => json_encode($config, JSON_UNESCAPED_UNICODE),
+            ];
+            foreach (['supports_2d', 'supports_3d', 'supports_hold', 'supports_capture', 'supports_refund', 'supports_void'] as $column) {
+                if (array_key_exists($column, $row)) {
+                    $payload[$column] = 1;
+                }
+            }
+            $db->update('payment_gateways', $payload, ['id' => (int) $row['id']]);
+        } catch (Throwable $e) {
+            error_log('[schema_compat] enable operation modes ' . $code . ': ' . $e->getMessage());
         }
     }
 }

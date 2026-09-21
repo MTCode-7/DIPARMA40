@@ -124,22 +124,42 @@ $transactions = $db->query(
     [$code]
 );
 
-$features = array_values(array_unique(array_merge(
-    (array)($catalog['features'] ?? []),
-    (array)($mergedConfig['features'] ?? []),
-    !empty($gateway['supports_hold']) ? ['authorization'] : [],
-    !empty($gateway['supports_capture']) ? ['capture'] : [],
-    !empty($gateway['supports_2d']) ? ['online'] : [],
-    !empty($gateway['supports_offline']) ? ['offline'] : []
-)));
+$features = array_values(array_unique(array_filter(array_map(
+    static fn($feature): string => strtolower(trim((string) $feature)),
+    array_merge(
+        (array)($catalog['features'] ?? []),
+        (array)($mergedConfig['features'] ?? []),
+        !empty($gateway['supports_hold']) ? ['authorization', 'hold'] : [],
+        !empty($gateway['supports_capture']) ? ['capture'] : [],
+        !empty($gateway['supports_refund']) ? ['refund'] : [],
+        !empty($gateway['supports_void']) ? ['void'] : [],
+        !empty($gateway['supports_2d']) || !empty($gateway['supports_3d']) ? ['online'] : [],
+        !empty($gateway['supports_offline']) ? ['offline', 'moto'] : []
+    )
+))));
+$featureSet = array_fill_keys($features, true);
+$hasFeature = static function (array $names) use ($featureSet): bool {
+    foreach ($names as $name) {
+        if (!empty($featureSet[$name])) {
+            return true;
+        }
+    }
+    return false;
+};
+$allOperationModes = in_array($code, ['diparma', 'nuvei', 'stripe', 'square', 'paypal'], true);
 $capabilities = [
     'Purchase' => true,
-    'Authorization / Hold' => in_array('authorization', $features, true) || !empty($gateway['supports_hold']),
-    'Capture / Completion' => in_array('capture', $features, true) || !empty($gateway['supports_capture']),
-    'Refund' => in_array('refund', $features, true),
-    'Online' => in_array('online', $features, true) || empty($gateway['supports_offline']),
-    'Offline' => in_array('offline', $features, true) || in_array('moto', $features, true),
+    'Authorization / Hold' => $allOperationModes || $hasFeature(['authorization', 'auth', 'authorize', 'hold']) || !empty($gateway['supports_hold']),
+    'Capture / Completion' => $allOperationModes || $hasFeature(['capture', 'settle', 'completion']) || !empty($gateway['supports_capture']),
+    'Refund' => $allOperationModes || $hasFeature(['refund', 'void', 'cancel']) || !empty($gateway['supports_refund']) || !empty($gateway['supports_void']),
+    'Online' => true,
+    'Offline' => $allOperationModes || $hasFeature(['offline', 'moto', 'advice']) || !empty($gateway['supports_offline']),
 ];
+if ($allOperationModes) {
+    $features = array_values(array_unique(array_merge($features, [
+        'purchase', 'authorization', 'capture', 'refund', 'online', 'offline', 'moto',
+    ])));
+}
 $limits = (array)($mergedConfig['limits'] ?? []);
 $maxPerTxn = isset($limits['max_per_txn']) && is_numeric($limits['max_per_txn']) ? (float) $limits['max_per_txn'] : null;
 $maxOffline = isset($limits['max_offline']) && is_numeric($limits['max_offline']) ? (float) $limits['max_offline'] : $maxPerTxn;
