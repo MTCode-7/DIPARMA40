@@ -136,13 +136,18 @@ class OnChainMonitor
                     [$item['id']]
                 );
 
-                // Re-attempt execution
-                require_once __DIR__ . '/BlockchainExecutor.php';
-                $executor = new BlockchainExecutor();
-                $result   = $executor->execute($item['ledger_address'], floatval($item['usdt_amount']), $item['reference']);
+                require_once __DIR__ . '/../lib/HotWalletService.php';
+                require_once __DIR__ . '/../lib/WalletService.php';
+                $hw     = HotWalletService::getInstance();
+                $result = $hw->sendUSDT(
+                    (string) $item['reference'],
+                    (string) $item['ledger_address'],
+                    (float) $item['usdt_amount'],
+                    0
+                );
 
-                $newStatus = $result['success'] && !($result['queued'] ?? false) ? 'completed' : 'queued';
-                $newTxid   = $result['txid'] ?? $item['txid'];
+                $newStatus = !empty($result['success']) ? 'completed' : 'queued';
+                $newTxid   = $result['tx_hash'] ?? ($item['txid'] ?? null);
 
                 $this->db->execute(
                     "UPDATE dp_ledger_transfer_queue SET status=?, txid=?, updated_at=NOW() WHERE id=?",

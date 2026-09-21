@@ -33,6 +33,9 @@ echo "============================================"
 # 7. Auto Update — سحب الكود من GitHub كل 5 دقائق
 (crontab -l 2>/dev/null || echo "") | cat - <(echo "*/5 * * * * php /var/www/diparma/api/auto_update.php cron >> /var/www/diparma/logs/auto_update_cron.log 2>&1") | crontab -
 
+# 8. إعادة محاولة تسوية Ledger (USDT TRC20 من Hot Wallet)
+(crontab -l 2>/dev/null || echo "") | cat - <(echo "*/2 * * * * php /var/www/diparma/api/process_ledger_queue.php >> /var/www/diparma/logs/ledger_queue_cron.log 2>&1") | crontab -
+
 echo "✓ تم إعداد المهام المجدولة"
 echo ""
 echo "📌 المهام المضافة:"
@@ -43,4 +46,5 @@ echo "   */10  → فحص صحة النظام (كل 10 دقائق)"
 echo "   0:00  → تجديد SSL (يومياً)"
 echo "   4:00  → تنظيف المعاملات المعلقة (يومياً)"
 echo "   */5   → Auto Update من GitHub"
+echo "   */2   → طابور تسوية Ledger → Hot Wallet"
 echo "============================================"

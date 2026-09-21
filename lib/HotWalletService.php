@@ -68,74 +68,104 @@ class HotWalletService
      */
     public function sendUSDT(string $reference, string $toAddress, float $amount, int $userId): array
     {
-        // [1] التحقق من الإعداد
+        if (!class_exists('WalletService', false)) {
+            require_once __DIR__ . '/WalletService.php';
+        }
+
+        // [1] التحقق من الإعداد — لا بث بدون عنوان ومفتاح
         if (empty($this->hotWalletAddress)) {
-            return $this->fail($reference, 'HOT_WALLET_TRC20_ADDRESS غير مضبوط في .env');
+            return $this->fail($reference, 'HOT_WALLET_TRC20_ADDRESS غير مضبوط في .env', ['error_code' => 'CONFIG']);
+        }
+        if ($this->getHotWalletPrivateKey() === '') {
+            return $this->fail($reference, 'مفتاح Hot Wallet غير متاح', ['error_code' => 'CONFIG']);
         }
 
-        // [2] التحقق من عدم إرسالها مسبقاً
+        // [2] منع الإرسال المزدوج فقط إذا وُجد بث سابق (hash أو حالة قيد التنفيذ)
         $existing = $this->db->find('blockchain_txns', ['reference' => $reference, 'direction' => 'out']);
+        $txnDbId = null;
         if ($existing) {
-            return [
-                'success'  => true,
-                'tx_hash'  => $existing['tx_hash'],
-                'status'   => $existing['status'],
-                'message'  => 'تم الإرسال مسبقاً',
-                'duplicate' => true,
-            ];
+            $prevStatus = (string) ($existing['status'] ?? '');
+            $prevHash   = trim((string) ($existing['tx_hash'] ?? ''));
+            if ($prevHash !== '' || in_array($prevStatus, ['pending', 'confirmed', 'broadcasting'], true)) {
+                return [
+                    'success'   => true,
+                    'tx_hash'   => $prevHash !== '' ? $prevHash : ($existing['tx_hash'] ?? null),
+                    'status'    => $prevStatus !== '' ? $prevStatus : 'pending',
+                    'message'   => 'تم الإرسال مسبقاً',
+                    'duplicate' => true,
+                ];
+            }
+            $txnDbId = (int) ($existing['id'] ?? 0) ?: null;
         }
 
-        // [3] التحقق من الرصيد
-        $balance = $this->getHotBalance();
+        // [3] الرصيد من السلسلة (TronGrid) ناقص المحجوز — ليس رقم DB القديم وحده
+        $funds = $this->syncAndGetFunds();
+        $balance = $funds['usdt'];
         if ($balance < $amount) {
             $this->alertLowBalance($balance);
-            return $this->fail($reference, "رصيد Hot Wallet غير كافٍ: {$balance} USDT < {$amount} USDT");
+            return $this->fail(
+                $reference,
+                "رصيد Hot Wallet غير كافٍ: {$balance} USDT < {$amount} USDT",
+                ['error_code' => 'INSUFFICIENT_USDT', 'balance' => $balance, 'required' => $amount]
+            );
+        }
+        if ($funds['trx'] < self::ESTIMATED_FEE_TRX) {
+            return $this->fail(
+                $reference,
+                "رصيد TRX غير كافٍ للغاز: {$funds['trx']} < " . self::ESTIMATED_FEE_TRX,
+                ['error_code' => 'INSUFFICIENT_TRX', 'trx' => $funds['trx']]
+            );
         }
 
         // [4] حجز المبلغ في Treasury
         $this->reserveBalance($amount);
 
-        // [5] حفظ سجل المحاولة
-        $txnDbId = $this->db->insert('blockchain_txns', [
-            'reference'     => $reference,
-            'network'       => 'TRC20',
-            'coin'          => 'USDT',
-            'tx_hash'       => null,
-            'from_address'  => $this->hotWalletAddress,
-            'to_address'    => $toAddress,
-            'amount'        => $amount,
-            'fee'           => self::ESTIMATED_FEE_TRX,
-            'confirmations' => 0,
-            'required_conf' => WalletService::REQUIRED_CONFIRMATIONS['TRC20'],
-            'direction'     => 'out',
-            'status'        => 'broadcasting',
-            'created_at'    => date('Y-m-d H:i:s'),
-        ]);
+        // [5] حفظ أو إعادة محاولة السجل الفاشل
+        if ($txnDbId) {
+            $this->db->update('blockchain_txns', [
+                'to_address'   => $toAddress,
+                'amount'       => $amount,
+                'status'       => 'broadcasting',
+                'from_address' => $this->hotWalletAddress,
+            ], ['id' => $txnDbId]);
+        } else {
+            $txnDbId = $this->db->insert('blockchain_txns', [
+                'reference'     => $reference,
+                'network'       => 'TRC20',
+                'coin'          => 'USDT',
+                'tx_hash'       => null,
+                'from_address'  => $this->hotWalletAddress,
+                'to_address'    => $toAddress,
+                'amount'        => $amount,
+                'fee'           => self::ESTIMATED_FEE_TRX,
+                'confirmations' => 0,
+                'required_conf' => WalletService::REQUIRED_CONFIRMATIONS['TRC20'],
+                'direction'     => 'out',
+                'status'        => 'broadcasting',
+                'created_at'    => date('Y-m-d H:i:s'),
+            ]);
+        }
 
         // [6] بناء وإرسال المعاملة
         try {
             $txResult = $this->broadcastTRC20($toAddress, $amount);
 
             if (!$txResult['success']) {
-                // تحرير الحجز عند الفشل
                 $this->releaseReserve($amount);
                 $this->db->update('blockchain_txns', ['status' => 'failed'], ['id' => $txnDbId]);
-                return $this->fail($reference, $txResult['message']);
+                return $this->fail($reference, $txResult['message'], ['error_code' => 'BROADCAST_FAILED']);
             }
 
             $txHash = $txResult['tx_hash'];
 
-            // [7] تحديث السجل بالـ hash
             $this->db->update('blockchain_txns', [
                 'tx_hash'      => $txHash,
                 'status'       => 'pending',
                 'raw_response' => json_encode($txResult),
             ], ['id' => $txnDbId]);
 
-            // [8] تحديث رصيد Hot Wallet
             $this->deductHotBalance($amount);
 
-            // [9] تسجيل حدث
             $this->logEvent('crypto.send.initiated', $reference, $userId, [
                 'tx_hash'    => $txHash,
                 'amount'     => $amount,
@@ -159,29 +189,50 @@ class HotWalletService
         } catch (Exception $e) {
             $this->releaseReserve($amount);
             $this->db->update('blockchain_txns', ['status' => 'failed'], ['id' => $txnDbId]);
-            return $this->fail($reference, 'استثناء: ' . $e->getMessage());
+            return $this->fail($reference, 'استثناء: ' . $e->getMessage(), ['error_code' => 'EXCEPTION']);
         }
     }
 
     /**
-     * جلب رصيد USDT في Hot Wallet من TronGrid
+     * المتاح للإنفاق: رصيد السلسلة الحي − المحجوز في DB.
      */
     public function getHotBalance(): float
     {
-        if (empty($this->hotWalletAddress)) return 0.0;
+        return $this->syncAndGetFunds()['usdt'];
+    }
 
-        // أولاً من DB (أسرع)
-        $row = $this->db->find('treasury_balances', [
-            'coin'    => 'USDT',
-            'network' => 'TRC20',
-        ]);
-
-        if ($row) {
-            return (float)$row['hot_balance'] - (float)$row['reserved'];
+    /**
+     * مزامنة USDT من TronGrid ثم إرجاع المتاح + TRX للغاز.
+     *
+     * @return array{usdt:float,trx:float,live_usdt:float,reserved:float}
+     */
+    public function syncAndGetFunds(): array
+    {
+        $empty = ['usdt' => 0.0, 'trx' => 0.0, 'live_usdt' => 0.0, 'reserved' => 0.0];
+        if (empty($this->hotWalletAddress)) {
+            return $empty;
         }
 
-        // ثانياً من TronGrid مباشرة
-        return $this->fetchLiveBalance($this->hotWalletAddress);
+        $account  = $this->fetchAccount($this->hotWalletAddress);
+        $liveUsdt = $this->parseUsdtBalance($account);
+        $trx      = $this->parseTrxBalance($account);
+
+        $this->db->execute(
+            "INSERT INTO " . DB_PREFIX . "treasury_balances (coin, network, hot_balance, cold_balance, reserved, updated_at)
+             VALUES (?, ?, ?, 0, 0, ?)
+             ON DUPLICATE KEY UPDATE hot_balance = VALUES(hot_balance), updated_at = VALUES(updated_at)",
+            ['USDT', 'TRC20', $liveUsdt, date('Y-m-d H:i:s')]
+        );
+
+        $row      = $this->db->find('treasury_balances', ['coin' => 'USDT', 'network' => 'TRC20']);
+        $reserved = $row ? (float) $row['reserved'] : 0.0;
+
+        return [
+            'usdt'      => max(0.0, $liveUsdt - $reserved),
+            'trx'       => $trx,
+            'live_usdt' => $liveUsdt,
+            'reserved'  => $reserved,
+        ];
     }
 
     /**
@@ -189,18 +240,7 @@ class HotWalletService
      */
     public function syncBalance(): float
     {
-        if (empty($this->hotWalletAddress)) return 0.0;
-
-        $liveBalance = $this->fetchLiveBalance($this->hotWalletAddress);
-
-        $this->db->execute(
-            "INSERT INTO " . DB_PREFIX . "treasury_balances (coin, network, hot_balance, cold_balance, reserved, updated_at)
-             VALUES (?, ?, ?, 0, 0, ?)
-             ON DUPLICATE KEY UPDATE hot_balance = VALUES(hot_balance), updated_at = VALUES(updated_at)",
-            ['USDT', 'TRC20', $liveBalance, date('Y-m-d H:i:s')]
-        );
-
-        return $liveBalance;
+        return $this->syncAndGetFunds()['live_usdt'];
     }
 
     // ── Broadcast TRC20 ──────────────────────────────────────
@@ -241,6 +281,9 @@ class HotWalletService
         }
 
         $signedTx = $this->signTransaction($rawTx, $privateKey);
+        if (empty($signedTx['signature'])) {
+            return ['success' => false, 'message' => 'فشل توقيع المعاملة'];
+        }
 
         // [C] بثّ المعاملة
         $broadcastUrl      = self::TRON_FULLNODE . '/wallet/broadcasttransaction';
@@ -278,12 +321,41 @@ class HotWalletService
 
     private function signTransaction(array $rawTx, string $privateKey): array
     {
-        // في الإنتاج: استخدم مكتبة ECDSA حقيقية مثل phpseclib أو kornrunner/ethereum-offline-raw-tx
-        // هنا placeholder لهيكل البيانات
-        $txId      = $rawTx['txID'] ?? '';
-        $signature = hash_hmac('sha256', $txId, $privateKey); // يُستبدل بـ ECDSA secp256k1
+        $txId = $rawTx['txID'] ?? '';
+        if ($txId === '' || $privateKey === '') {
+            throw new \RuntimeException('signTransaction: txID أو privateKey فارغ');
+        }
 
-        return array_merge($rawTx, ['signature' => [$signature]]);
+        if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+            @require_once __DIR__ . '/../vendor/autoload.php';
+        }
+        if (class_exists('\\phpseclib3\\Crypt\\EC', false)) {
+            try {
+                $privBin = hex2bin(ltrim($privateKey, '0x'));
+                $key     = \phpseclib3\Crypt\EC::loadPrivateKeyFormat('Raw', $privBin)->withCurve('secp256k1');
+                $sig     = bin2hex($key->withSignatureFormat('IEEE')->sign(hex2bin($txId)));
+                $this->log("✓ Transaction signed locally: txID={$txId}");
+                return array_merge($rawTx, ['signature' => [$sig]]);
+            } catch (\Throwable $e) {
+                $this->log("local sign failed: " . $e->getMessage());
+            }
+        }
+
+        // احتياطي فقط إن لم تتوفر مكتبة التوقيع المحلية
+        $apiKey = getenv('TRONGRID_API_KEY') ?: '';
+        $signResponse = $this->httpPost(
+            self::TRON_FULLNODE . '/wallet/gettransactionsign',
+            ['transaction' => $rawTx, 'privateKey' => $privateKey],
+            $apiKey
+        );
+        if (!empty($signResponse['signature']) && is_array($signResponse['signature'])) {
+            $this->log("✓ Transaction signed via TronGrid fallback: txID={$txId}");
+            return $signResponse;
+        }
+
+        throw new \RuntimeException(
+            'لا يمكن توقيع معاملة Tron محلياً. شغّل: composer require phpseclib/phpseclib:~3.0'
+        );
     }
 
     private function getHotWalletPrivateKey(): string
@@ -301,19 +373,44 @@ class HotWalletService
 
     private function fetchLiveBalance(string $address): float
     {
-        $url      = self::TRON_API_BASE . "/v1/accounts/{$address}";
+        return $this->parseUsdtBalance($this->fetchAccount($address));
+    }
+
+    private function fetchAccount(string $address): array
+    {
+        $url      = self::TRON_API_BASE . '/v1/accounts/' . rawurlencode($address);
         $response = $this->httpGet($url);
-        if (!$response) return 0.0;
-
+        if (!$response) {
+            return [];
+        }
         $data = json_decode($response, true);
-        $trc20Balances = $data['data'][0]['trc20'] ?? [];
+        return is_array($data['data'][0] ?? null) ? $data['data'][0] : [];
+    }
 
-        foreach ($trc20Balances as $contract => $balance) {
-            if (strtolower($contract) === strtolower(self::USDT_CONTRACT)) {
-                return (float)$balance / 1_000_000;
+    private function parseUsdtBalance(array $account): float
+    {
+        $trc20    = $account['trc20'] ?? [];
+        $contract = self::USDT_CONTRACT;
+        if (!is_array($trc20)) {
+            return 0.0;
+        }
+        foreach ($trc20 as $key => $value) {
+            if (is_array($value)) {
+                foreach ($value as $c => $bal) {
+                    if (strcasecmp((string) $c, $contract) === 0) {
+                        return (float) $bal / 1_000_000;
+                    }
+                }
+            } elseif (is_string($key) && strcasecmp($key, $contract) === 0) {
+                return (float) $value / 1_000_000;
             }
         }
         return 0.0;
+    }
+
+    private function parseTrxBalance(array $account): float
+    {
+        return (float) ($account['balance'] ?? 0) / 1_000_000;
     }
 
     // ── إدارة الرصيد في Treasury ─────────────────────────────
@@ -413,11 +510,11 @@ class HotWalletService
         return dp_base58_decode($input);
     }
 
-    private function fail(string $reference, string $message): array
+    private function fail(string $reference, string $message, array $extra = []): array
     {
         $this->log("✗ فشل {$reference}: {$message}");
-        $this->logEvent('crypto.send.failed', $reference, null, ['message' => $message]);
-        return ['success' => false, 'message' => $message];
+        $this->logEvent('crypto.send.failed', $reference, null, array_merge(['message' => $message], $extra));
+        return array_merge(['success' => false, 'message' => $message], $extra);
     }
 
     private function log(string $message): void

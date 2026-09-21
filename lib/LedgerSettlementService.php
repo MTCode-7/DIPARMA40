@@ -241,6 +241,7 @@ class LedgerSettlementService
                 return $result;
             }
 
+            $result['error_code'] = $send['error_code'] ?? 'SEND_FAILED';
             $this->queueTransfer($reference, $ledgerAddr, $cryptoAmount, $currency, $send['message'] ?? 'send failed');
             $result['queued'] = true;
             $result['message'] = $send['message'] ?? 'Queued for Ledger USDT transfer';
