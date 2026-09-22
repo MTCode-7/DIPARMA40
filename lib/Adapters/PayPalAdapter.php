@@ -27,7 +27,7 @@ final class PayPalAdapter implements GatewayAdapterInterface
 
     public function supports(string $mode): bool
     {
-        return in_array(strtoupper($mode), ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL']);
+        return in_array(strtoupper($mode), ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL', 'REFUND']);
     }
 
     public function normalizeError(array $rawResponse): string

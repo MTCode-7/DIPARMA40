@@ -166,7 +166,10 @@ class DiParmaChargeHub
         if (in_array($t, ['capture', 'auth_complete', 'auth_capture'], true)) {
             return 'capture';
         }
-        if (in_array($t, ['void', 'avoid', 'reversal', 'cancel', 'refund'], true)) {
+        if ($t === 'refund') {
+            return 'refund';
+        }
+        if (in_array($t, ['void', 'avoid', 'reversal', 'cancel'], true)) {
             return 'cancel';
         }
         return 'charge';

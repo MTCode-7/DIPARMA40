@@ -601,7 +601,14 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
             return $stripe->capture($id, (float)($params['amount'] ?? 0) ?: null);
         }
         if (in_array($txnType, ['refund', 'avoid'], true)) {
-            return ['success' => false, 'message' => 'Refund/Avoid on Stripe POS uses the Stripe dashboard or checkout Stripe page.'];
+            $id = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string)($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
+            if ($id === '') {
+                return ['success' => false, 'message' => 'Original Stripe payment id required'];
+            }
+            if ($txnType === 'refund') {
+                return $stripe->refund($id, (float) ($params['amount'] ?? 0) ?: null, (string) ($params['currency'] ?? 'USD'));
+            }
+            return $stripe->cancel($id, $txnType);
         }
         return $stripe->charge($payload);
     }
@@ -624,7 +631,18 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
             }
             return pos_format_gateway_result($square->capture($id, (float) ($params['amount'] ?? 0) ?: null));
         }
-        if (in_array($txnType, ['refund', 'avoid'], true)) {
+        if ($txnType === 'refund') {
+            $id = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string) ($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
+            if ($id === '') {
+                return ['success' => false, 'message' => 'Original Square payment id required for refund'];
+            }
+            $amount = (float) ($params['amount'] ?? 0);
+            if ($amount <= 0) {
+                return ['success' => false, 'message' => 'Square refund amount must be greater than 0'];
+            }
+            return pos_format_gateway_result($square->refund($id, $amount, (string) ($params['currency'] ?? 'USD')));
+        }
+        if ($txnType === 'avoid') {
             $id = (string) ($params['related_transaction_id'] ?? $params['orig_ref'] ?? '');
             if ($id === '') {
                 return ['success' => false, 'message' => 'Original Square payment id required for cancel'];
@@ -758,7 +776,10 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
         if ($txnType === 'auth') {
             return $gate->hold($params);
         }
-        if (in_array($txnType, ['refund', 'avoid'], true)) {
+        if ($txnType === 'refund') {
+            return ['success' => false, 'message' => 'Gate.io does not support a card refund. Cancel the order with avoid when it is still open.'];
+        }
+        if ($txnType === 'avoid') {
             $id = (string)($params['related_transaction_id'] ?? $params['orig_ref'] ?? '');
             if ($id === '') {
                 return ['success' => false, 'message' => 'Original Gate.io order id required'];
@@ -785,7 +806,10 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
         if ($txnType === 'auth') {
             return $binance->hold($payload);
         }
-        if (in_array($txnType, ['refund', 'avoid'], true)) {
+        if ($txnType === 'refund') {
+            return ['success' => false, 'message' => 'Binance does not support a card refund. Cancel the order with avoid when it is still open.'];
+        }
+        if ($txnType === 'avoid') {
             $id = (string)($params['related_transaction_id'] ?? $params['orig_ref'] ?? '');
             if ($id === '') {
                 return ['success' => false, 'message' => 'Original Binance order id required'];

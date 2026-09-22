@@ -2,15 +2,11 @@
 /**
  * ============================================================
  * DI PARMA | GatewayAdapterFactory + GatewayManager
- * يختار المحول المناسب تلقائياً — يدعم 7 بوابات
+ * يختار المحول المناسب تلقائياً
  * ============================================================
  * البوابات المدعومة:
- *   stripe       — Stripe (2D/3D/hold/capture/cancel)
- *   checkout     — Checkout.com (2D/3D/hold/capture/cancel)
- *   myfatoorah   — MyFatoorah (2D/3D فقط)
- *   paytabs      — PayTabs (2D-MOTO/3D/hold/capture/cancel)
- *   authorizenet — Authorize.Net (2D/3D/hold/capture/cancel)
- *   gate_io      — Gate.io APIv4 (charge/withdraw/balance)
+ *   stripe, square, checkout, myfatoorah, paytabs, authorizenet,
+ *   braintree, paypal, nuvei, gate_io, binance, payram, whop, wise
  * ============================================================
  */
 
@@ -28,6 +24,10 @@ require_once __DIR__ . '/GateIOAdapter.php';
 require_once __DIR__ . '/NuveiAdapter.php';
 require_once __DIR__ . '/SquareAdapter.php';
 require_once __DIR__ . '/LedgerGatewayAdapter.php';
+require_once __DIR__ . '/BinanceOTCAdapter.php';
+require_once __DIR__ . '/PayRamGatewayAdapter.php';
+require_once __DIR__ . '/WhopGatewayAdapter.php';
+require_once __DIR__ . '/WiseGatewayAdapter.php';
 require_once __DIR__ . '/../gateways/DIPARMAGateway.php';
 
 class GatewayAdapterFactory
@@ -50,22 +50,32 @@ class GatewayAdapterFactory
         'gateio'        => GateIOAdapter::class,
         'nuvei'         => NuveiAdapter::class,
         'diparma'       => DIPARMAGateway::class,
+        'binance'       => BinanceOTCAdapter::class,
+        'binance_otc'   => BinanceOTCAdapter::class,
+        'payram'        => PayRamGatewayAdapter::class,
+        'whop'          => WhopGatewayAdapter::class,
+        'wise'          => WiseGatewayAdapter::class,
     ];
 
     // ── البوابات التي تدعم كل عملية ──────────────────────────
     private static array $capabilities = [
-        'square'       => ['2D','3D','hold','capture','cancel'],
-        'stripe'       => ['2D','3D','hold','capture','cancel'],
+        'square'       => ['2D','3D','hold','capture','cancel','refund'],
+        'stripe'       => ['2D','3D','hold','capture','cancel','refund'],
         'myfatoorah'   => ['2D','3D'],
         'checkout'     => ['2D','3D','hold','capture','cancel'],
         'paytabs'      => ['2D','3D','hold','capture','cancel'],
         'authorizenet' => ['2D','3D','hold','capture','cancel'],
         'braintree'    => ['2D','3D','hold','capture','cancel'],
-        'paypal'       => ['2D','3D','hold','capture','cancel'],
+        'paypal'       => ['2D','3D','hold','capture','cancel','refund'],
         'gate_io'      => ['charge','withdraw','balance'],
         'gateio'       => ['charge','withdraw','balance'],
         'nuvei'        => ['2D','3D','hold','capture','cancel','refund','void'],
         'diparma'      => ['2D','3D','hold','capture','cancel','refund','void','moto','offline'],
+        'binance'      => ['2D','3D','hold','cancel','charge'],
+        'binance_otc'  => ['2D','3D','hold','cancel','charge'],
+        'payram'       => ['2D','3D','charge'],
+        'whop'         => ['2D','3D','charge'],
+        'wise'         => ['2D','3D','charge'],
     ];
 
     // ══════════════════════════════════════════════════════════
@@ -103,7 +113,7 @@ class GatewayAdapterFactory
     // ══════════════════════════════════════════════════════════
     /**
      * @param array       $universalPayload  الـ Payload الموحد من normalizePayload()
-     * @param string      $operation         charge | hold | capture | cancel
+     * @param string      $operation         charge | hold | capture | cancel | refund
      * @param string|null $gateway           اسم البوابة أو null
      */
     public static function process(
@@ -114,7 +124,7 @@ class GatewayAdapterFactory
         $operation = strtolower(trim($operation));
         $mode      = strtoupper($universalPayload['processing_mode'] ?? '3D');
 
-        $modeForFactory = in_array($operation, ['hold','capture','cancel'])
+        $modeForFactory = in_array($operation, ['hold','capture','cancel','refund'], true)
             ? strtoupper($operation)
             : $mode;
 
@@ -139,6 +149,25 @@ class GatewayAdapterFactory
                 return $adapter->cancel(
                     $universalPayload['transaction_id'] ?? '',
                     $universalPayload['reason'] ?? 'requested_by_customer'
+                );
+
+            case 'refund':
+                if (!method_exists($adapter, 'refund')) {
+                    return GatewayErrorMapper::buildErrorResponse(
+                        'GATEWAY_ERROR',
+                        (string) ($universalPayload['reference'] ?? $universalPayload['transaction_id'] ?? ''),
+                        (float) ($universalPayload['amount'] ?? 0),
+                        (string) ($universalPayload['currency'] ?? ''),
+                        'Refund is not supported on this gateway'
+                    );
+                }
+                $refundAmount = isset($universalPayload['partial_amount']) && $universalPayload['partial_amount'] !== null
+                    ? (float) $universalPayload['partial_amount']
+                    : (float) ($universalPayload['amount'] ?? 0);
+                return $adapter->refund(
+                    (string) ($universalPayload['transaction_id'] ?? ''),
+                    $refundAmount > 0 ? $refundAmount : 0.0,
+                    (string) ($universalPayload['currency'] ?? 'USD')
                 );
 
             default:

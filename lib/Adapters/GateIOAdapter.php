@@ -34,7 +34,7 @@ class GateIOAdapter implements GatewayAdapterInterface
 
     public function supports(string $mode): bool
     {
-        return in_array(strtoupper($mode), ['CHARGE', 'HOLD', 'WITHDRAW', 'BALANCE']);
+        return in_array(strtoupper($mode), ['CHARGE', 'HOLD', 'WITHDRAW', 'BALANCE', '2D', '3D', 'CAPTURE', 'CANCEL']);
     }
 
     public function normalizeError(array $raw): string { return $raw['label'] ?? 'GATEWAY_ERROR'; }

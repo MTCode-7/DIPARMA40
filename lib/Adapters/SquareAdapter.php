@@ -47,7 +47,7 @@ class SquareAdapter implements GatewayAdapterInterface
 
     public function supports(string $mode): bool
     {
-        return in_array(strtoupper($mode), ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL', 'OFFLINE', 'MOTO'], true);
+        return in_array(strtoupper($mode), ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL', 'REFUND', 'OFFLINE', 'MOTO'], true);
     }
 
     public function normalizeError(array $rawResponse): string
@@ -154,6 +154,47 @@ class SquareAdapter implements GatewayAdapterInterface
             $out['message'] = $reason;
         }
         return $out;
+    }
+
+    public function refund(string $transactionId, ?float $amount = null, string $currency = 'USD'): array
+    {
+        if ($this->accessToken === '') {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, $amount ?? 0, $currency, 'SQUARE_ACCESS_TOKEN missing');
+        }
+        if ($transactionId === '') {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', '', $amount ?? 0, $currency, 'Square payment id is required for refund');
+        }
+        if ($amount === null || $amount <= 0) {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, 0, $currency, 'Square refund amount must be greater than 0');
+        }
+
+        $currency = strtoupper($currency !== '' ? $currency : 'USD');
+        $body = [
+            'idempotency_key' => $this->buildIdempotencyKey('refund|' . $transactionId, $amount),
+            'payment_id' => $transactionId,
+            'amount_money' => [
+                'amount' => (int) round($amount * 100),
+                'currency' => $currency,
+            ],
+            'reason' => 'requested_by_customer',
+        ];
+        $res = $this->request('POST', '/v2/refunds', $body);
+        $refund = is_array($res['refund'] ?? null) ? $res['refund'] : [];
+        $status = strtoupper((string) ($refund['status'] ?? ''));
+        if (in_array($status, ['PENDING', 'COMPLETED'], true)) {
+            return [
+                'success' => true,
+                'status' => $status === 'PENDING' ? 'pending' : 'refunded',
+                'transaction_id' => (string) ($refund['id'] ?? $transactionId),
+                'reference' => $transactionId,
+                'amount' => isset($refund['amount_money']['amount']) ? ((float) $refund['amount_money']['amount'] / 100) : $amount,
+                'currency' => strtoupper((string) ($refund['amount_money']['currency'] ?? $currency)),
+                'message' => 'Square refund submitted',
+                'requires_3ds' => false,
+                'raw' => $res,
+            ];
+        }
+        return $this->declineFromSquare($res, $transactionId, $amount, $currency);
     }
 
     /** Resolve Square location if env empty. */

@@ -32,7 +32,7 @@ class StripeAdapter implements GatewayAdapterInterface
 
     public function supports(string $mode): bool
     {
-        return in_array(strtoupper($mode), ['2D','3D','HOLD','CAPTURE','CANCEL']);
+        return in_array(strtoupper($mode), ['2D','3D','HOLD','CAPTURE','CANCEL','REFUND']);
     }
 
     public function normalizeError(array $rawResponse): string
@@ -430,6 +430,44 @@ class StripeAdapter implements GatewayAdapterInterface
         $errCode = $this->normalizeError($res);
         GatewayLogger::log('stripe', 'cancel', ['transaction_id' => $transactionId], $res, $errCode, $duration);
         return GatewayErrorMapper::buildErrorResponse($errCode, '', 0, '', $res['error']['message'] ?? 'فشل الإلغاء');
+    }
+
+    public function refund(string $transactionId, ?float $amount = null, string $currency = 'USD'): array
+    {
+        $start = microtime(true);
+        if ($this->secretKey === '') {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, $amount ?? 0, $currency, 'Stripe live secret required (sk_live_). Test keys are rejected.');
+        }
+        if ($transactionId === '') {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', '', $amount ?? 0, $currency, 'Stripe payment intent is required for refund');
+        }
+
+        $params = ['payment_intent' => $transactionId];
+        if ($amount !== null && $amount > 0) {
+            $params['amount'] = (int) round($amount * 100);
+        }
+        $res = $this->request('POST', '/v1/refunds', $params, $this->buildIdempotencyKey('refund|' . $transactionId, $amount ?? 0));
+        $duration = microtime(true) - $start;
+        $status = strtolower((string) ($res['status'] ?? ''));
+        if (!empty($res['id']) && in_array($status, ['succeeded', 'pending'], true)) {
+            $result = [
+                'success' => true,
+                'status' => $status === 'pending' ? 'pending' : 'refunded',
+                'transaction_id' => (string) $res['id'],
+                'reference' => $transactionId,
+                'amount' => isset($res['amount']) ? ((float) $res['amount'] / 100) : ($amount ?? 0),
+                'currency' => strtoupper((string) ($res['currency'] ?? $currency)),
+                'message' => 'Stripe refund submitted',
+                'requires_3ds' => false,
+                'raw' => $res,
+            ];
+            GatewayLogger::log('stripe', 'refund', ['transaction_id' => $transactionId], $result, '', $duration);
+            return $result;
+        }
+
+        $errCode = $this->normalizeError($res);
+        GatewayLogger::log('stripe', 'refund', ['transaction_id' => $transactionId], $res, $errCode, $duration);
+        return GatewayErrorMapper::buildErrorResponse($errCode, $transactionId, $amount ?? 0, $currency, $res['error']['message'] ?? 'Stripe refund failed');
     }
 
     // ── مساعدات ──────────────────────────────────────────────

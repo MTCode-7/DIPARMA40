@@ -8,7 +8,7 @@
  * ============================================================
  */
 
-require_once __DIR__ . '/../includes/base58.php';
+require_once __DIR__ . '/TronSigner.php';
 
 if (class_exists('HotWalletService', false)) {
     return;
@@ -246,8 +246,8 @@ class HotWalletService
     // ── Broadcast TRC20 ──────────────────────────────────────
 
     /**
-     * بناء وبثّ معاملة USDT TRC20 عبر TronGrid
-     * في الإنتاج: يحتاج مكتبة IEXBase/tron-api أو php-tron
+     * بناء وبثّ معاملة USDT TRC20 عبر TronGrid.
+     * التوقيع محلي. المفتاح الخاص لا يُرسل إلى TronGrid.
      */
     private function broadcastTRC20(string $toAddress, float $amount): array
     {
@@ -259,8 +259,8 @@ class HotWalletService
         // [A] بناء المعاملة عبر TronGrid
         $buildUrl  = self::TRON_FULLNODE . '/wallet/triggersmartcontract';
         $buildBody = [
-            'owner_address'     => $this->tronAddressToHex($this->hotWalletAddress),
-            'contract_address'  => $this->tronAddressToHex(self::USDT_CONTRACT),
+            'owner_address'     => TronSigner::addressHex($this->hotWalletAddress),
+            'contract_address'  => TronSigner::addressHex(self::USDT_CONTRACT),
             'function_selector' => 'transfer(address,uint256)',
             'parameter'         => $this->encodeTransferParams($toAddress, $amountSun),
             'fee_limit'         => 100_000_000, // 100 TRX
@@ -304,17 +304,10 @@ class HotWalletService
 
     // ── مساعدات Tron ────────────────────────────────────────
 
-    private function tronAddressToHex(string $base58Address): string
-    {
-        // تحويل Base58Check → Hex
-        $decoded = $this->base58Decode($base58Address);
-        return '0x' . bin2hex(substr($decoded, 0, -4));
-    }
-
     private function encodeTransferParams(string $toAddress, int $amountSun): string
     {
         // ABI encoding: (address, uint256)
-        $toHex     = str_pad(ltrim($this->tronAddressToHex($toAddress), '0x'), 64, '0', STR_PAD_LEFT);
+        $toHex     = TronSigner::abiWord($toAddress);
         $amountHex = str_pad(dechex($amountSun), 64, '0', STR_PAD_LEFT);
         return $toHex . $amountHex;
     }
@@ -326,36 +319,13 @@ class HotWalletService
             throw new \RuntimeException('signTransaction: txID أو privateKey فارغ');
         }
 
-        if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
-            @require_once __DIR__ . '/../vendor/autoload.php';
+        try {
+            $signature = TronSigner::signTxId($txId, $privateKey);
+        } catch (Throwable $e) {
+            throw new RuntimeException('TRON signature failed: ' . $e->getMessage(), 0, $e);
         }
-        if (class_exists('\\phpseclib3\\Crypt\\EC', false)) {
-            try {
-                $privBin = hex2bin(ltrim($privateKey, '0x'));
-                $key     = \phpseclib3\Crypt\EC::loadPrivateKeyFormat('Raw', $privBin)->withCurve('secp256k1');
-                $sig     = bin2hex($key->withSignatureFormat('IEEE')->sign(hex2bin($txId)));
-                $this->log("✓ Transaction signed locally: txID={$txId}");
-                return array_merge($rawTx, ['signature' => [$sig]]);
-            } catch (\Throwable $e) {
-                $this->log("local sign failed: " . $e->getMessage());
-            }
-        }
-
-        // احتياطي فقط إن لم تتوفر مكتبة التوقيع المحلية
-        $apiKey = getenv('TRONGRID_API_KEY') ?: '';
-        $signResponse = $this->httpPost(
-            self::TRON_FULLNODE . '/wallet/gettransactionsign',
-            ['transaction' => $rawTx, 'privateKey' => $privateKey],
-            $apiKey
-        );
-        if (!empty($signResponse['signature']) && is_array($signResponse['signature'])) {
-            $this->log("✓ Transaction signed via TronGrid fallback: txID={$txId}");
-            return $signResponse;
-        }
-
-        throw new \RuntimeException(
-            'لا يمكن توقيع معاملة Tron محلياً. شغّل: composer require phpseclib/phpseclib:~3.0'
-        );
+        $this->log("✓ Transaction signed locally: txID={$txId}");
+        return array_merge($rawTx, ['signature' => [$signature]]);
     }
 
     private function getHotWalletPrivateKey(): string
@@ -503,11 +473,6 @@ class HotWalletService
 
         if ($res === false || $code < 200 || $code >= 300) return null;
         return json_decode($res, true);
-    }
-
-    private function base58Decode(string $input): string
-    {
-        return dp_base58_decode($input);
     }
 
     private function fail(string $reference, string $message, array $extra = []): array

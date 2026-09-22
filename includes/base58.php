@@ -105,6 +105,34 @@ function dp_base58_decode(string $input): string
     return str_repeat("\x00", $leadOnes) . $bytes;
 }
 
+function dp_tron_address_payload(string $address): string
+{
+    $bin = dp_base58_decode($address);
+    if (strlen($bin) !== 25) {
+        throw new InvalidArgumentException('Invalid Tron address');
+    }
+    $payload = substr($bin, 0, 21);
+    $checksum = substr($bin, 21, 4);
+    $hash = hash('sha256', hash('sha256', $payload, true), true);
+    if (!hash_equals($checksum, substr($hash, 0, 4))) {
+        throw new InvalidArgumentException('Invalid Tron address checksum');
+    }
+    if ($payload[0] !== "\x41") {
+        throw new InvalidArgumentException('Invalid Tron address version');
+    }
+    return $payload;
+}
+
+function dp_tron_address_hex(string $address): string
+{
+    return bin2hex(dp_tron_address_payload($address));
+}
+
+function dp_tron_address_abi(string $address): string
+{
+    return str_pad(bin2hex(substr(dp_tron_address_payload($address), 1)), 64, '0', STR_PAD_LEFT);
+}
+
 function dp_tron_base58_to_hex(string $address): string
 {
     $bin = dp_base58_decode($address);

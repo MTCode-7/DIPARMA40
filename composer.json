@@ -1,0 +1,10 @@
+{
+    "name": "diparma/gateway",
+    "description": "DI PARMA payment gateway",
+    "require": {
+        "php": ">=8.1"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

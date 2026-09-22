@@ -9,6 +9,8 @@
  * • Return TXID for monitoring
  * ============================================================
  */
+require_once __DIR__ . '/../lib/TronSigner.php';
+
 class BlockchainExecutor
 {
     const USDT_CONTRACT   = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
@@ -98,13 +100,13 @@ class BlockchainExecutor
         $amountSun = (int)bcmul((string)$amount, '1000000', 0);
 
         // ABI encode: transfer(address,uint256)
-        $addressHex = $this->tronAddressToHex($toAddress);
+        $addressHex = TronSigner::abiWord($toAddress);
         $amountHex  = str_pad(dechex($amountSun), 64, '0', STR_PAD_LEFT);
-        $parameter  = str_pad(ltrim($addressHex, '0'), 64, '0', STR_PAD_LEFT) . $amountHex;
+        $parameter  = $addressHex . $amountHex;
 
         $body = [
-            'owner_address'    => $this->tronAddressToHex($this->hotWalletAddr),
-            'contract_address' => $this->tronAddressToHex(self::USDT_CONTRACT),
+            'owner_address'    => TronSigner::addressHex($this->hotWalletAddr),
+            'contract_address' => TronSigner::addressHex(self::USDT_CONTRACT),
             'function_selector'=> 'transfer(address,uint256)',
             'parameter'        => $parameter,
             'fee_limit'        => self::FEE_LIMIT_SUN,
@@ -140,9 +142,10 @@ class BlockchainExecutor
         }
 
         // Sign hash with private key (requires openssl/secp256k1)
-        $signature = $this->signHash(hex2bin($txHash), $privKey);
-        if (empty($signature)) {
-            return ['success'=>false,'message'=>'Signature generation failed'];
+        try {
+            $signature = TronSigner::signTxId($txHash, $privKey);
+        } catch (Throwable $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
         }
 
         $tx['signature'] = [$signature];
@@ -239,35 +242,9 @@ class BlockchainExecutor
         return is_array($r) ? $r : [];
     }
 
-    private function tronAddressToHex(string $address): string
-    {
-        // Base58Check decode → hex (simplified)
-        // Full implementation needs base58 library
-        // For now returns placeholder — real implementation requires php-tron
-        return $address;
-    }
-
     private function isValidTronAddress(string $address): bool
     {
         return str_starts_with($address, 'T') && strlen($address) === 34;
-    }
-
-    private function signHash(string $hash, string $privKey): string
-    {
-        // secp256k1 ECDSA signing for TRON
-        // Requires: ext-secp256k1 or php-elliptic-curve library
-        // Returns empty string if not available — falls back to queue
-        if (!function_exists('secp256k1_context_create')) return '';
-
-        try {
-            $ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN);
-            $sig = '';
-            $rec = 0;
-            $privBin = hex2bin($privKey);
-            secp256k1_ecdsa_sign_recoverable($ctx, $sig, $hash, $privBin);
-            secp256k1_ecdsa_recoverable_signature_serialize_compact($ctx, $sigBin, $rec, $sig);
-            return bin2hex($sigBin) . str_pad(dechex($rec + 27), 2, '0', STR_PAD_LEFT);
-        } catch (Exception $e) { return ''; }
     }
 
     private function decryptKey(string $encrypted): string
