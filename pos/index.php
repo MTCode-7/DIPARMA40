@@ -2703,6 +2703,7 @@ if (typeof resetCardAuto === 'function') resetCardAuto();
 <script>
 // ── Process Transaction ────────────────────────────
 window.processTransaction = async function() {
+  try {
   if (!POS_GW || !EXEC_GWS[POS_GW]) {
     toast(AR ? 'اختر بوابة من القائمة المتصلة' : 'Pick a gateway from the connected list', 'error');
     return;
@@ -2764,14 +2765,14 @@ window.processTransaction = async function() {
   const cardType = document.getElementById('cardType').value;
   const cardNetwork = document.getElementById('cardNetwork')?.value || 'auto';
   const cloudToken = document.getElementById('cloudToken').value.trim();
-  if (POS_REQUIRES_CARD && cardType !== 'CLOUD' && meta.requires_card && cardNum && !luhnOk(cardNum)) {
-    toast(AR ? 'رقم البطاقة غير صالح' : 'Card number failed checksum', 'error');
-    return;
-  }
   const origRef  = document.getElementById('origRef')?.value || '';
   const approval = document.getElementById('approvalCode')?.value || '';
   const chargeMode = document.getElementById('chargeMode')?.value || '';
   const meta     = TXN_META[type] || {};
+  if (POS_REQUIRES_CARD && cardType !== 'CLOUD' && meta.requires_card && cardNum && !luhnOk(cardNum)) {
+    toast(AR ? 'رقم البطاقة غير صالح' : 'Card number failed checksum', 'error');
+    return;
+  }
 
   const walletSel = document.getElementById('linkedWallet');
   const walletAddr = walletSel?.value || '';
@@ -3051,6 +3052,18 @@ window.processTransaction = async function() {
     const label = TXN_LABELS[type] || { ar: type, en: type };
     btn.innerHTML = `<i class="fas fa-credit-card"></i> ${escapeHtml(AR ? 'تنفيذ '+label.ar : 'Process '+label.en)}`;
   }
+  } catch (err) {
+    const btnEl = document.getElementById('processBtn');
+    if (btnEl) {
+      btnEl.disabled = false;
+      const t = (window.POS && POS.txnType) || '';
+      const label = (typeof TXN_LABELS !== 'undefined' && TXN_LABELS[t]) || { ar: t, en: t };
+      btnEl.innerHTML = `<i class="fas fa-credit-card"></i> ${escapeHtml(AR ? 'تنفيذ '+label.ar : 'Process '+label.en)}`;
+    }
+    const msg = String((err && err.message) || err || 'Process failed');
+    if (typeof toast === 'function') toast(msg, 'error');
+    if (typeof setPosStatus === 'function') setPosStatus('DECLINED');
+  }
 };
 
 window.openFullReceipt = function() {
@@ -3300,17 +3313,28 @@ window.connectLedger = async function() {
 };
 
 async function loadLedgerBalance(address) {
-  if (!address) return;
+  const bal = document.getElementById('ledgerBal');
+  const trx = document.getElementById('ledgerTRX');
+  if (!address) {
+    if (bal) bal.textContent = '— USDT';
+    if (trx) trx.textContent = AR ? 'عنوان Ledger غير مضبوط' : 'Ledger address is not set';
+    return;
+  }
   try {
     const r = await fetch(`../api/ledger_tron.php?action=balance&address=${encodeURIComponent(address)}`, {
       credentials: 'same-origin',
     });
     const payload = await r.json();
-    if (!r.ok || !payload.success) throw new Error(payload.message || ('HTTP ' + r.status));
-    document.getElementById('ledgerBal').textContent = Number(payload.usdt || 0).toFixed(2) + ' USDT';
-    document.getElementById('ledgerTRX').textContent = Number(payload.trx || 0).toFixed(4) + ' TRX';
-  } catch(e) {
-    console.warn('[POS] Ledger balance failed', e);
+    if (!r.ok || !payload.success) {
+      if (bal) bal.textContent = '— USDT';
+      if (trx) trx.textContent = payload.message || ('HTTP ' + r.status);
+      return;
+    }
+    if (bal) bal.textContent = Number(payload.usdt || 0).toFixed(2) + ' USDT';
+    if (trx) trx.textContent = Number(payload.trx || 0).toFixed(4) + ' TRX';
+  } catch (e) {
+    if (bal) bal.textContent = '— USDT';
+    if (trx) trx.textContent = (e && e.message) ? e.message : (AR ? 'تعذر قراءة الرصيد' : 'Balance unavailable');
   }
 }
 

@@ -497,7 +497,8 @@ class PayPalService
         $authorization = $payments['authorizations'][0] ?? [];
         $paymentId = (string)($capture['id'] ?? $authorization['id'] ?? $orderId);
         $processor = $capture['processor_response'] ?? $authorization['processor_response'] ?? [];
-        $approvalCode = (string)($processor['avs_code'] ?? $capture['id'] ?? $authorization['id'] ?? '');
+        $approvalCode = trim((string)($processor['auth_code'] ?? $processor['authorization_code'] ?? ''));
+        $responseCode = trim((string)($processor['response_code'] ?? ''));
 
         if (in_array($status, ['COMPLETED', 'APPROVED'], true) && $paymentId !== '') {
             $this->log("✓ Card {$intent}: {$orderId} | {$amount} {$currency}");
@@ -510,6 +511,7 @@ class PayPalService
                 'authorization_id' => $authorization['id'] ?? '',
                 'approval_code' => $approvalCode,
                 'gateway_approval_code' => $approvalCode,
+                'response_code' => $responseCode,
                 'reference' => $reference,
                 'amount' => $amount,
                 'currency' => $currency,
@@ -549,6 +551,7 @@ class PayPalService
             'status' => 'declined',
             'message' => $description,
             'error_code' => $issue !== '' ? $issue : 'CARD_DECLINED',
+            'response_code' => $responseCode,
             'order_id' => $orderId,
             'reference' => $reference,
             'amount' => $amount,

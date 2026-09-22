@@ -25,13 +25,52 @@ if ($address === '' && defined('LEDGER_TRC20_ADDRESS')) {
     $address = (string) LEDGER_TRC20_ADDRESS;
 }
 
-if (!preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $address)) {
+if (!tron_address_ok($address)) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Invalid Tron address']);
+    echo json_encode([
+        'success' => false,
+        'message' => 'عنوان Ledger غير صالح: فحص base58 checksum فشل',
+        'address' => $address,
+    ]);
     exit;
 }
 
 const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+
+function tron_address_ok(string $address): bool
+{
+    if (!preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $address)) {
+        return false;
+    }
+    $alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    $decoded = '0';
+    $length = strlen($address);
+    for ($i = 0; $i < $length; $i++) {
+        $digit = strpos($alphabet, $address[$i]);
+        if ($digit === false) {
+            return false;
+        }
+        $decoded = bcmul($decoded, '58', 0);
+        $decoded = bcadd($decoded, (string) $digit, 0);
+    }
+    $raw = '';
+    while (bccomp($decoded, '0') === 1) {
+        $raw = chr((int) bcmod($decoded, '256')) . $raw;
+        $decoded = bcdiv($decoded, '256', 0);
+    }
+    $pad = 0;
+    for ($i = 0; $i < $length && $address[$i] === '1'; $i++) {
+        $pad++;
+    }
+    $raw = str_repeat("\x00", $pad) . $raw;
+    if (strlen($raw) !== 25 || $raw[0] !== "\x41") {
+        return false;
+    }
+    $payload = substr($raw, 0, 21);
+    $checksum = substr($raw, 21, 4);
+    $hash = substr(hash('sha256', hash('sha256', $payload, true), true), 0, 4);
+    return hash_equals($hash, $checksum);
+}
 
 function trongrid_get(string $url): array
 {
@@ -54,7 +93,12 @@ function trongrid_get(string $url): array
     curl_close($ch);
 
     if ($body === false || $code >= 400) {
-        throw new RuntimeException($err !== '' ? $err : ('TronGrid HTTP ' . $code));
+        $detail = '';
+        $parsed = json_decode((string) $body, true);
+        if (is_array($parsed)) {
+            $detail = trim((string) ($parsed['error'] ?? $parsed['message'] ?? ''));
+        }
+        throw new RuntimeException($detail !== '' ? $detail : ($err !== '' ? $err : ('TronGrid HTTP ' . $code)));
     }
     $json = json_decode($body, true);
     if (!is_array($json)) {
