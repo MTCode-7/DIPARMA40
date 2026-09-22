@@ -62,6 +62,36 @@ try {
                 'cancel_url'  => (defined('SITE_URL') ? SITE_URL : 'https://diparmas.com') . '/checkout_router.php?gateway=paypal&destination=gateway&error=paypal_cancelled',
             ]);
 
+            if (!empty($result['success']) && $reference !== '' && !$db->find('transactions', ['reference' => $reference])) {
+                try {
+                    $db->insert('transactions', [
+                        'reference' => $reference,
+                        'gateway' => 'paypal',
+                        'amount' => $amount,
+                        'currency' => strtoupper($currency),
+                        'customer_name' => trim((string) ($payload['name'] ?? 'Customer')) ?: 'Customer',
+                        'customer_email' => trim((string) ($payload['email'] ?? 'guest@diparmas.com')) ?: 'guest@diparmas.com',
+                        'status' => 'pending',
+                        'transaction_type' => $transactionType,
+                        'user_id' => intval($_SESSION['user_id'] ?? 0),
+                        'fees' => 0,
+                        'net_amount' => $amount,
+                        'security_mode' => '3D',
+                        'gateway_response' => json_encode([
+                            'type' => 'paypal_order',
+                            'order_id' => $result['order_id'] ?? '',
+                            'intent' => $intent,
+                            'destination' => $destination,
+                        ]),
+                        'created_at' => date('Y-m-d H:i:s'),
+                    ]);
+                    $result['persisted'] = true;
+                } catch (Throwable $e) {
+                    $result['persisted'] = false;
+                    $result['persist_error'] = $e->getMessage();
+                }
+            }
+
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
             break;
 
@@ -83,6 +113,22 @@ try {
             $authorizationId = $authorizationId ?: trim($orderAuthorization['id'] ?? '');
             $resolvedReference = $reference ?: ($order['purchase_units'][0]['reference_id'] ?? '');
             $orderStatus = strtoupper((string)($order['status'] ?? ($paypalTxn['status'] ?? '')));
+            if ($authorizationId === '' && $orderStatus === 'APPROVED') {
+                $authorized = $svc->authorizeOrder($orderId);
+                if (empty($authorized['success'])) {
+                    echo json_encode($authorized, JSON_UNESCAPED_UNICODE);
+                    break;
+                }
+                $authorizationId = trim((string) ($authorized['authorization_id'] ?? ''));
+                $orderStatus = 'COMPLETED';
+                $authorization = [
+                    'id' => $authorizationId,
+                    'amount' => [
+                        'value' => $authorized['amount'] ?? ($order['purchase_units'][0]['amount']['value'] ?? 0),
+                        'currency_code' => $authorized['currency'] ?? ($order['purchase_units'][0]['amount']['currency_code'] ?? 'USD'),
+                    ],
+                ];
+            }
 
             $txn = $resolvedReference !== '' ? $db->find('transactions', ['reference' => $resolvedReference]) : null;
             if ($txn && intval($txn['user_id'] ?? 0) !== intval($_SESSION['user_id'])) {
@@ -91,7 +137,7 @@ try {
             }
 
             if (in_array($orderStatus, ['APPROVED', 'COMPLETED'], true) && $authorizationId !== '') {
-                $gatewayData = json_decode($txn['gateway_response'] ?? '{}', true) ?: [];
+                $gatewayData = is_array($txn) ? (json_decode($txn['gateway_response'] ?? '{}', true) ?: []) : [];
                 $gatewayData['type'] = 'paypal_authorization';
                 $gatewayData['order_id'] = $orderId;
                 $gatewayData['authorization_id'] = $authorizationId;
@@ -309,32 +355,48 @@ try {
                 break;
             }
 
-            $eventType = $data['event_type'] ?? '';
-
-            if (str_contains($eventType, 'PAYMENT.CAPTURE.COMPLETED')) {
-                $orderId   = $data['resource']['supplementary_data']['related_ids']['order_id'] ?? '';
-                $order = $svc->getOrder($orderId);
-                $reference = $order['purchase_units'][0]['reference_id']
-                    ?? $data['resource']['custom_id']
-                    ?? '';
-                if ($reference) {
-                    $db->update('transactions', ['status' => 'completed'], ['reference' => $reference]);
-                    try {
-                        require_once __DIR__.'/../lib/LedgerSettlementService.php';
-                        $txn = $db->find('transactions', ['reference' => $reference]);
-                        if ($txn) {
-                            LedgerSettlementService::getInstance()->settleToLedger([
-                                'reference' => $reference,
-                                'amount'    => (float)$txn['amount'],
-                                'currency'  => (string)($txn['currency'] ?? 'USD'),
-                                'gateway'   => 'paypal',
-                                'user_id'   => (int)($txn['user_id'] ?? 0),
-                                'txn_type'  => 'purchase',
-                                'destination' => 'ledger',
-                            ]);
+            $eventType = strtoupper((string) ($data['event_type'] ?? ''));
+            $statusMap = [
+                'PAYMENT.CAPTURE.COMPLETED' => 'completed',
+                'PAYMENT.CAPTURE.DENIED' => 'declined',
+                'PAYMENT.CAPTURE.REFUNDED' => 'refunded',
+                'PAYMENT.AUTHORIZATION.CREATED' => 'authorized',
+                'PAYMENT.AUTHORIZATION.VOIDED' => 'cancelled',
+            ];
+            if (isset($statusMap[$eventType])) {
+                $resource = is_array($data['resource'] ?? null) ? $data['resource'] : [];
+                $orderId = (string) ($resource['supplementary_data']['related_ids']['order_id'] ?? '');
+                $reference = '';
+                if ($orderId !== '') {
+                    $order = $svc->getOrder($orderId);
+                    $reference = (string) ($order['purchase_units'][0]['reference_id'] ?? '');
+                }
+                if ($reference === '') {
+                    $reference = (string) ($resource['custom_id'] ?? $resource['invoice_id'] ?? '');
+                }
+                if ($reference !== '') {
+                    $db->update('transactions', [
+                        'status' => $statusMap[$eventType],
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ], ['reference' => $reference]);
+                    if ($statusMap[$eventType] === 'completed') {
+                        try {
+                            require_once __DIR__.'/../lib/LedgerSettlementService.php';
+                            $txn = $db->find('transactions', ['reference' => $reference]);
+                            if ($txn) {
+                                LedgerSettlementService::getInstance()->settleToLedger([
+                                    'reference' => $reference,
+                                    'amount'    => (float)$txn['amount'],
+                                    'currency'  => (string)($txn['currency'] ?? 'USD'),
+                                    'gateway'   => 'paypal',
+                                    'user_id'   => (int)($txn['user_id'] ?? 0),
+                                    'txn_type'  => 'purchase',
+                                    'destination' => 'ledger',
+                                ]);
+                            }
+                        } catch (Throwable $e) {
+                            error_log('[PayPal][Ledger] ' . $e->getMessage());
                         }
-                    } catch (Throwable $e) {
-                        error_log('[PayPal][Ledger] ' . $e->getMessage());
                     }
                 }
             }

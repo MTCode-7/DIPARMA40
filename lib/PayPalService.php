@@ -571,12 +571,16 @@ class PayPalService
             return ['success' => false, 'message' => 'المبلغ غير صالح', 'error_code' => 'GATEWAY_ERROR'];
         }
         $useVault = $cloudToken !== '' && strlen($cardNumber) < 13;
-        if (!$useVault && (strlen($cardNumber) < 13 || $expiry === '' || !preg_match('/^\d{3,4}$/', $cvv))) {
+        $txnType = strtolower(trim((string)($payload['txn_type'] ?? '')));
+        $authChannel = strtolower(trim((string)($payload['auth_channel'] ?? $payload['moto_channel'] ?? '')));
+        $isMoto = in_array($txnType, ['online_sale_moto', 'offline_sale_moto'], true)
+            || ($txnType === 'auth' && in_array($authChannel, ['online', 'offline'], true));
+        $cvvOk = (bool) preg_match('/^\d{3,4}$/', $cvv);
+        if (!$useVault && (strlen($cardNumber) < 13 || $expiry === '' || (!$isMoto && !$cvvOk))) {
             return ['success' => false, 'message' => 'بيانات البطاقة غير مكتملة', 'error_code' => 'INVALID_CARD'];
         }
 
         $mode = strtoupper(trim((string)($payload['processing_mode'] ?? $payload['security_mode'] ?? '')));
-        $txnType = strtolower(trim((string)($payload['txn_type'] ?? '')));
         $want3ds = ($mode === '3D' || $txnType === 'purchase_3d');
 
         try {
@@ -588,8 +592,17 @@ class PayPalService
                     'name' => $name !== '' ? $name : 'Customer',
                     'number' => $cardNumber,
                     'expiry' => $expiry,
-                    'security_code' => $cvv,
                 ];
+                if ($cvvOk) {
+                    $card['security_code'] = $cvv;
+                }
+                if ($isMoto && !$want3ds) {
+                    $card['stored_credential'] = [
+                        'payment_initiator' => 'MERCHANT',
+                        'payment_type' => 'ONE_TIME',
+                        'usage' => 'DERIVED',
+                    ];
+                }
                 if ($want3ds) {
                     $returnBase = $this->publicBaseUrl() . '/checkout/paypal.php';
                     $qs = $reference !== '' ? ('&ref=' . rawurlencode($reference)) : '';

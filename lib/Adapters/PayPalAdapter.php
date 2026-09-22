@@ -69,7 +69,7 @@ final class PayPalAdapter implements GatewayAdapterInterface
     public function capture(string $transactionId, ?float $amount = null): array
     {
         $start = microtime(true);
-        $result = $this->svc->captureAuthorization($transactionId, $amount);
+        $result = $this->svc->captureAuthorization($transactionId, $amount, 'USD', ['final_capture' => false]);
         GatewayLogger::log('paypal', 'capture', ['transaction_id' => $transactionId], $result, empty($result['success']) ? 'GATEWAY_ERROR' : '', microtime(true) - $start);
         if (!empty($result['success'])) {
             return $result;
@@ -94,6 +94,17 @@ final class PayPalAdapter implements GatewayAdapterInterface
             return $this->braintree->cancel($transactionId, $reason);
         }
         return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, 0, '', $this->describeFailure($result));
+    }
+
+    public function refund(string $captureId, ?float $amount = null, string $currency = 'USD'): array
+    {
+        $start = microtime(true);
+        $result = $this->svc->refundCapture($captureId, $amount, $currency);
+        GatewayLogger::log('paypal', 'refund', ['capture_id' => $captureId], $result, empty($result['success']) ? 'GATEWAY_ERROR' : '', microtime(true) - $start);
+        if (!empty($result['success'])) {
+            return $result;
+        }
+        return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $captureId, $amount ?? 0, $currency, $this->describeFailure($result));
     }
 
     private function runCard(array $payload, string $intent, string $operation): array

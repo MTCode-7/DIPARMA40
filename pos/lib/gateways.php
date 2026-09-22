@@ -273,6 +273,92 @@ function pos_sale_operations(): array
     ];
 }
 
+function pos_prime_paypal_env(): void
+{
+    if (!function_exists('pos_gateway_db_row')) {
+        return;
+    }
+    $row = pos_gateway_db_row('paypal');
+    if (!$row) {
+        return;
+    }
+    $creds = json_decode((string) ($row['credentials'] ?? ''), true) ?: [];
+    $client = trim((string) ($creds['client_id'] ?? ''));
+    $secret = trim((string) ($creds['secret'] ?? $creds['client_secret'] ?? ''));
+    if ($client !== '' && !getenv('PAYPAL_CLIENT_ID')) {
+        putenv('PAYPAL_CLIENT_ID=' . $client);
+        $_ENV['PAYPAL_CLIENT_ID'] = $client;
+    }
+    if ($secret !== '' && !getenv('PAYPAL_CLIENT_SECRET')) {
+        putenv('PAYPAL_CLIENT_SECRET=' . $secret);
+        putenv('PAYPAL_SECRET=' . $secret);
+        $_ENV['PAYPAL_CLIENT_SECRET'] = $secret;
+        $_ENV['PAYPAL_SECRET'] = $secret;
+    }
+}
+
+function pos_paypal_host_id(array $params, string $kind): string
+{
+    $candidates = [];
+    if (function_exists('pos_host_payment_id')) {
+        $candidates[] = pos_host_payment_id($params);
+    }
+    foreach (['payment_id', 'related_transaction_id', 'transaction_id', 'orig_ref', 'rrn'] as $key) {
+        $candidates[] = trim((string) ($params[$key] ?? ''));
+    }
+    foreach ($candidates as $value) {
+        if ($value !== '' && !preg_match('/^\d{12}$/', $value)) {
+            return $value;
+        }
+    }
+    $needle = '';
+    foreach ($candidates as $value) {
+        if ($value !== '') {
+            $needle = $value;
+            break;
+        }
+    }
+    if ($needle === '' || !function_exists('db')) {
+        return '';
+    }
+    try {
+        $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $needle) . '%';
+        $rows = db()->query(
+            'SELECT gateway_response FROM ' . (defined('DB_PREFIX') ? DB_PREFIX : 'dp_') . "transactions
+             WHERE gateway = 'paypal' AND (reference = ? OR rrn = ? OR gateway_response LIKE ?)
+             ORDER BY id DESC LIMIT 3",
+            [$needle, preg_replace('/\D/', '', $needle), $like]
+        );
+    } catch (Throwable $e) {
+        return '';
+    }
+    $keys = $kind === 'capture'
+        ? ['capture_id', 'payment_id', 'transaction_id']
+        : ['authorization_id', 'payment_id', 'transaction_id'];
+    foreach ($rows ?: [] as $row) {
+        $blob = json_decode((string) ($row['gateway_response'] ?? ''), true);
+        $id = pos_paypal_id_from_node(is_array($blob) ? $blob : [], $keys);
+        if ($id !== '') {
+            return $id;
+        }
+    }
+    return '';
+}
+
+function pos_paypal_id_from_node(array $node, array $keys): string
+{
+    foreach ($keys as $key) {
+        $value = trim((string) ($node[$key] ?? ''));
+        if ($value !== '' && !preg_match('/^\d{12}$/', $value) && preg_match('/^[A-Za-z0-9_-]{10,40}$/', $value)) {
+            return $value;
+        }
+    }
+    if (isset($node['raw']) && is_array($node['raw'])) {
+        return pos_paypal_id_from_node($node['raw'], $keys);
+    }
+    return '';
+}
+
 function pos_format_gateway_result(array $result, string $fallbackMessage = 'DECLINED'): array
 {
     if (empty($result['success']) && empty($result['requires_3ds']) && empty($result['redirect_url']) && empty($result['checkout_url'])) {
@@ -350,9 +436,10 @@ function pos_dispatch_direct_advice_to_gateway(string $gateway, array $params): 
     }
 
     if ($adapter === 'paypal') {
+        pos_prime_paypal_env();
         require_once POS_APP_ROOT . '/lib/Adapters/PayPalAdapter.php';
         $paypal = new PayPalAdapter();
-        $related = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string) ($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
+        $related = pos_paypal_host_id($params, 'authorization');
         if ($related !== '') {
             return pos_format_gateway_result($paypal->capture($related, (float) ($params['amount'] ?? 0) ?: null));
         }
@@ -551,6 +638,7 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
     }
 
     if ($adapter === 'paypal') {
+        pos_prime_paypal_env();
         require_once POS_APP_ROOT . '/lib/Adapters/PayPalAdapter.php';
         $paypal = new PayPalAdapter();
         $payload = array_merge($params, [
@@ -562,16 +650,23 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
             return pos_format_gateway_result($paypal->hold($payload));
         }
         if ($txnType === 'capture') {
-            $id = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string)($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
+            $id = pos_paypal_host_id($params, 'authorization');
             if ($id === '') {
-                return ['success' => false, 'message' => 'Original PayPal id required for capture'];
+                return ['success' => false, 'message' => 'PayPal authorization id مطلوب للتحصيل. Payment ID من إيصال الحجز، وليس RRN وحده.'];
             }
             return pos_format_gateway_result($paypal->capture($id, (float)($params['amount'] ?? 0) ?: null));
         }
-        if (in_array($txnType, ['refund', 'avoid'], true)) {
-            $id = (string)($params['related_transaction_id'] ?? $params['orig_ref'] ?? '');
+        if ($txnType === 'refund') {
+            $id = pos_paypal_host_id($params, 'capture');
             if ($id === '') {
-                return ['success' => false, 'message' => 'Original PayPal id required for refund/avoid'];
+                return ['success' => false, 'message' => 'PayPal capture id مطلوب للاسترجاع. الاسترجاع يتم بعد التحصيل وعلى نفس البطاقة.'];
+            }
+            return pos_format_gateway_result($paypal->refund($id, (float)($params['amount'] ?? 0) ?: null, (string)($params['currency'] ?? 'USD')));
+        }
+        if ($txnType === 'avoid') {
+            $id = pos_paypal_host_id($params, 'authorization');
+            if ($id === '') {
+                return ['success' => false, 'message' => 'PayPal authorization id مطلوب لإلغاء التفويض.'];
             }
             return pos_format_gateway_result($paypal->cancel($id, $txnType));
         }
