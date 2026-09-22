@@ -33,6 +33,7 @@ class HotWalletService
     private string $hotWalletAddress;
     private string $hotWalletEncryptedKey;
     private string $logFile;
+    private string $keyError = '';
 
     private function __construct()
     {
@@ -77,7 +78,7 @@ class HotWalletService
             return $this->fail($reference, 'HOT_WALLET_TRC20_ADDRESS غير مضبوط في .env', ['error_code' => 'CONFIG']);
         }
         if ($this->getHotWalletPrivateKey() === '') {
-            return $this->fail($reference, 'مفتاح Hot Wallet غير متاح', ['error_code' => 'CONFIG']);
+            return $this->fail($reference, $this->keyError !== '' ? $this->keyError : 'مفتاح Hot Wallet غير متاح', ['error_code' => 'CONFIG']);
         }
 
         // [2] منع الإرسال المزدوج فقط إذا وُجد بث سابق (hash أو حالة قيد التنفيذ)
@@ -330,13 +331,27 @@ class HotWalletService
 
     private function getHotWalletPrivateKey(): string
     {
-        if (empty($this->hotWalletEncryptedKey)) return '';
-
+        if ($this->hotWalletEncryptedKey === '') {
+            return '';
+        }
+        $enc = defined('ENCRYPTION_KEY') ? (string) ENCRYPTION_KEY : (string) (getenv('ENCRYPTION_KEY') ?: '');
         try {
-            $walletService = WalletService::getInstance();
-            return $walletService->decryptKey($this->hotWalletEncryptedKey);
-        } catch (Exception $e) {
-            $this->log("فشل فك تشفير مفتاح Hot Wallet: " . $e->getMessage());
+            $key = TronSigner::openPrivateKey($this->hotWalletEncryptedKey, $enc);
+            if ($key === '') {
+                $this->keyError = 'فشل فك تشفير مفتاح Hot Wallet';
+                $this->log($this->keyError);
+                return '';
+            }
+            $derived = TronSigner::addressFromPrivateKey($key);
+            if (!hash_equals($this->hotWalletAddress, $derived)) {
+                $this->keyError = 'مفتاح Hot Wallet لا يطابق HOT_WALLET_TRC20_ADDRESS';
+                $this->log($this->keyError);
+                return '';
+            }
+            return $key;
+        } catch (Throwable $e) {
+            $this->keyError = 'فشل فك تشفير مفتاح Hot Wallet';
+            $this->log($this->keyError);
             return '';
         }
     }

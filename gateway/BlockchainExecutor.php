@@ -250,14 +250,7 @@ class BlockchainExecutor
     private function decryptKey(string $encrypted): string
     {
         $encKey = defined('ENCRYPTION_KEY') && ENCRYPTION_KEY !== '' ? ENCRYPTION_KEY : (getenv('ENCRYPTION_KEY') ?: '');
-        $decoded = base64_decode($encrypted);
-        if (strlen($decoded) < 28) return $encrypted;
-        $iv = substr($decoded, 0, 12);
-        $tag = substr($decoded, 12, 16);
-        $cipher = substr($decoded, 28);
-        $aesKey = hash('sha256', $encKey, true);
-        $plain = openssl_decrypt($cipher, 'aes-256-gcm', $aesKey, OPENSSL_RAW_DATA, $iv, $tag);
-        return $plain ?: '';
+        return TronSigner::openPrivateKey($encrypted, (string) $encKey);
     }
 
     private function fail(string $code, string $msg, string $ref): array

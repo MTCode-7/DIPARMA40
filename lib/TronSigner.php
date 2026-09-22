@@ -261,4 +261,197 @@ final class TronSigner
         }
         return str_pad($hex === '' ? '0' : $hex, $bytes * 2, '0', STR_PAD_LEFT);
     }
+
+    /** Decrypt a stored hot-wallet key. Accepts raw hex, AES-256-CBC, or AES-256-GCM. */
+    public static function openPrivateKey(string $stored, string $encryptionKey): string
+    {
+        $stored = trim($stored);
+        if ($stored === '') {
+            return '';
+        }
+        if (preg_match('/^(?:0x)?[0-9a-fA-F]{64}$/', $stored)) {
+            return strtolower(ltrim($stored, '0x'));
+        }
+        $decoded = base64_decode($stored, true);
+        if (!is_string($decoded) || $decoded === '') {
+            return '';
+        }
+        if (str_contains($decoded, '::')) {
+            [$iv, $encrypted] = explode('::', $decoded, 2);
+            $plain = openssl_decrypt($encrypted, 'AES-256-CBC', $encryptionKey, 0, $iv);
+            $plain = is_string($plain) ? strtolower(trim($plain)) : '';
+            if (preg_match('/^[0-9a-f]{64}$/', $plain)) {
+                return $plain;
+            }
+        }
+        if (strlen($decoded) >= 28) {
+            $iv = substr($decoded, 0, 12);
+            $tag = substr($decoded, 12, 16);
+            $cipher = substr($decoded, 28);
+            $plain = openssl_decrypt($cipher, 'aes-256-gcm', hash('sha256', $encryptionKey, true), OPENSSL_RAW_DATA, $iv, $tag);
+            $plain = is_string($plain) ? strtolower(trim($plain)) : '';
+            if (preg_match('/^[0-9a-f]{64}$/', $plain)) {
+                return $plain;
+            }
+        }
+        return '';
+    }
+
+    public static function addressFromPrivateKey(string $privateKeyHex): string
+    {
+        $point = self::publicKey($privateKeyHex);
+        $pub = hex2bin(self::decToFixedHex($point[0], 32) . self::decToFixedHex($point[1], 32));
+        $hash = self::keccak256($pub);
+        $body = "\x41" . substr($hash, -20);
+        $check = substr(hash('sha256', hash('sha256', $body, true), true), 0, 4);
+        return dp_base58_encode($body . $check);
+    }
+
+    public static function keccak256(string $data): string
+    {
+        $rate = 136;
+        $state = array_fill(0, 25, array_fill(0, 8, 0));
+        $mod = strlen($data) % $rate;
+        $pad = $rate - $mod;
+        if ($pad === 1) {
+            $padded = $data . "\x81";
+        } else {
+            $padded = $data . "\x01" . str_repeat("\0", $pad - 2) . "\x80";
+        }
+        $blocks = str_split($padded, $rate);
+        $last = count($blocks) - 1;
+        foreach ($blocks as $index => $block) {
+            self::absorb($state, $block);
+            self::keccakF($state);
+            unset($last, $index);
+        }
+        $out = '';
+        for ($i = 0; $i < 4; $i++) {
+            for ($b = 0; $b < 8; $b++) {
+                $out .= chr($state[$i][$b]);
+            }
+        }
+        return $out;
+    }
+
+    /** @param array<int,array<int,int>> $state */
+    private static function absorb(array &$state, string $block): void
+    {
+        $n = strlen($block);
+        for ($i = 0; $i < $n; $i++) {
+            $lane = intdiv($i, 8);
+            $byte = $i % 8;
+            $state[$lane][$byte] ^= ord($block[$i]);
+        }
+    }
+
+    /** @param array<int,array<int,int>> $state */
+    private static function keccakF(array &$state): void
+    {
+        $rot = [
+            [0, 36, 3, 41, 18],
+            [1, 44, 10, 45, 2],
+            [62, 6, 43, 15, 61],
+            [28, 55, 25, 21, 56],
+            [27, 20, 39, 8, 14],
+        ];
+        $rc = [
+            '0000000000000001', '0000000000008082', '800000000000808a', '8000000080008000',
+            '000000000000808b', '0000000080000001', '8000000080008081', '8000000000008009',
+            '000000000000008a', '0000000000000088', '0000000080008009', '000000008000000a',
+            '000000008000808b', '800000000000008b', '8000000000008089', '8000000000008003',
+            '8000000000008002', '8000000000000080', '000000000000800a', '800000008000000a',
+            '8000000080008081', '8000000000008080', '0000000080000001', '8000000080008008',
+        ];
+        for ($round = 0; $round < 24; $round++) {
+            $c = [];
+            for ($x = 0; $x < 5; $x++) {
+                $c[$x] = $state[$x];
+                for ($y = 1; $y < 5; $y++) {
+                    $c[$x] = self::xorLane($c[$x], $state[$x + 5 * $y]);
+                }
+            }
+            $d = [];
+            for ($x = 0; $x < 5; $x++) {
+                $d[$x] = self::xorLane($c[($x + 4) % 5], self::rotLane($c[($x + 1) % 5], 1));
+            }
+            for ($x = 0; $x < 5; $x++) {
+                for ($y = 0; $y < 5; $y++) {
+                    $state[$x + 5 * $y] = self::xorLane($state[$x + 5 * $y], $d[$x]);
+                }
+            }
+            $b = array_fill(0, 25, array_fill(0, 8, 0));
+            for ($x = 0; $x < 5; $x++) {
+                for ($y = 0; $y < 5; $y++) {
+                    $nx = $y;
+                    $ny = (2 * $x + 3 * $y) % 5;
+                    $b[$nx + 5 * $ny] = self::rotLane($state[$x + 5 * $y], $rot[$x][$y]);
+                }
+            }
+            for ($x = 0; $x < 5; $x++) {
+                for ($y = 0; $y < 5; $y++) {
+                    $i = $x + 5 * $y;
+                    $notNext = [];
+                    $next = $b[(($x + 1) % 5) + 5 * $y];
+                    $next2 = $b[(($x + 2) % 5) + 5 * $y];
+                    for ($k = 0; $k < 8; $k++) {
+                        $notNext[$k] = (~$next[$k]) & 0xFF;
+                    }
+                    $and = [];
+                    for ($k = 0; $k < 8; $k++) {
+                        $and[$k] = $notNext[$k] & $next2[$k];
+                    }
+                    $state[$i] = self::xorLane($b[$i], $and);
+                }
+            }
+            $state[0] = self::xorLane($state[0], self::rcLane($rc[$round]));
+        }
+    }
+
+    /** @param array<int,int> $a @param array<int,int> $b @return array<int,int> */
+    private static function xorLane(array $a, array $b): array
+    {
+        $out = [];
+        for ($i = 0; $i < 8; $i++) {
+            $out[$i] = ($a[$i] ^ $b[$i]) & 0xFF;
+        }
+        return $out;
+    }
+
+    /** @param array<int,int> $lane @return array<int,int> */
+    private static function rotLane(array $lane, int $shift): array
+    {
+        $shift %= 64;
+        if ($shift === 0) {
+            return $lane;
+        }
+        $bits = [];
+        for ($byte = 0; $byte < 8; $byte++) {
+            for ($bit = 0; $bit < 8; $bit++) {
+                $bits[] = ($lane[$byte] >> $bit) & 1;
+            }
+        }
+        $rotated = array_fill(0, 64, 0);
+        for ($i = 0; $i < 64; $i++) {
+            $rotated[($i + $shift) % 64] = $bits[$i];
+        }
+        $out = array_fill(0, 8, 0);
+        for ($i = 0; $i < 64; $i++) {
+            if ($rotated[$i]) {
+                $out[intdiv($i, 8)] |= 1 << ($i % 8);
+            }
+        }
+        return $out;
+    }
+
+    /** @return array<int,int> */
+    private static function rcLane(string $hex): array
+    {
+        $hex = str_pad(strtolower($hex), 16, '0', STR_PAD_LEFT);
+        $out = [];
+        for ($i = 0; $i < 8; $i++) {
+            $out[$i] = hexdec(substr($hex, 14 - (2 * $i), 2));
+        }
+        return $out;
+    }
 }

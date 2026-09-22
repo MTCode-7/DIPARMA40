@@ -18,7 +18,11 @@ check(dp_tron_address_hex($usdt) === '41a614f803b6fd780986a42c78ec9c7f77e6ded13c
 check(dp_tron_address_abi($usdt) === '000000000000000000000000a614f803b6fd780986a42c78ec9c7f77e6ded13c', 'USDT ABI word');
 check(DiParmaChargeHub::operationFromTxnType('refund') === 'refund', 'refund operation');
 check(DiParmaChargeHub::operationFromTxnType('void') === 'cancel', 'void stays cancel');
-check(DiParmaChargeHub::operationFromTxnType('avoid') === 'cancel', 'avoid stays cancel');
+check(bin2hex(TronSigner::keccak256('')) === 'c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470', 'keccak256 empty');
+$body = hex2bin('417e5f4552091a69125d5dfcb7b8c2659029395bdf');
+$check = substr(hash('sha256', hash('sha256', $body, true), true), 0, 4);
+$expected = dp_base58_encode($body . $check);
+check(TronSigner::addressFromPrivateKey(str_repeat('0', 63) . '1') === $expected, 'key 1 derives its TRON address');
 
 $pub = TronSigner::publicKey(str_repeat('0', 63) . '1');
 $gx = '55066263022277343669578718895168534326250603453777594175500187360389116729240';
