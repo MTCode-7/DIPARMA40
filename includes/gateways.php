@@ -1505,6 +1505,25 @@ function square_request_is_diparma_offline(array $params): bool
 }
 }
 
+/** PayPal Offline is PayPal Reader card-present SAF, not a keyed charge from this screen. */
+if (!function_exists('paypal_offline_device_only_message')) {
+function paypal_offline_device_only_message(): string
+{
+    return 'أوفلاين PayPal يعمل فقط على PayPal Reader مع تطبيق PayPal Point of Sale بعد تحديث البرنامج. '
+        . 'الشريحة واللمس فقط: Visa وMastercard وMaestro وAmerican Express وApple Pay وGoogle Pay. المسح المغناطيسي وإدخال الرقم يدوياً غير مدعومين. '
+        . 'العملية تُخزَّن مشفّرة على الجهاز وتُرسل تفويض حضور البطاقة عند عودة الإنترنت خلال 24 ساعة، وبعدها يتوقف الأوفلاين. '
+        . 'الحد 1,000 دولار للعملية و10,000 دولار للمجموع المعلّق، بما فيه البقشيش. العملية غير مفوَّضة لحظة البيع، والتاجر يتحمّل الرفض والنزاع والخسارة. '
+        . 'الاسترجاع بعد معالجة العملية المتصلة فقط، وعلى نفس البطاقة خلال 30 يوماً. DIPARMA لا يخزّن البطاقة على هذه الشاشة.';
+}
+}
+
+if (!function_exists('paypal_request_is_diparma_offline')) {
+function paypal_request_is_diparma_offline(array $params): bool
+{
+    return square_request_is_diparma_offline($params);
+}
+}
+
 /** Per-transaction USD cap from catalog, or null if the gateway has no per-sale cap. */
 function gateway_max_per_txn_usd(string $code): ?float
 {

@@ -424,7 +424,7 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
         ];
     }
 
-    if (!function_exists('square_offline_device_only_message')) {
+    if (!function_exists('square_offline_device_only_message') || !function_exists('paypal_offline_device_only_message')) {
         $catalog = POS_APP_ROOT . '/includes/gateways.php';
         if (is_file($catalog)) {
             require_once $catalog;
@@ -438,6 +438,17 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
             'status' => 'DECLINED',
             'message' => square_offline_device_only_message(),
             'gateway' => 'square',
+            'error_code' => 'GATEWAY_ERROR',
+        ];
+    }
+
+    if ($adapter === 'paypal' && function_exists('paypal_request_is_diparma_offline')
+        && paypal_request_is_diparma_offline(array_merge($params, ['txn_type' => $txnType]))) {
+        return [
+            'success' => false,
+            'status' => 'DECLINED',
+            'message' => paypal_offline_device_only_message(),
+            'gateway' => 'paypal',
             'error_code' => 'GATEWAY_ERROR',
         ];
     }

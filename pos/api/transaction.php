@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // ============================================================
 
 require_once dirname(__DIR__) . '/bootstrap.php';
-if (!function_exists('square_request_is_diparma_offline') && is_file(POS_APP_ROOT . '/includes/gateways.php')) {
+if ((!function_exists('square_request_is_diparma_offline') || !function_exists('paypal_request_is_diparma_offline')) && is_file(POS_APP_ROOT . '/includes/gateways.php')) {
     require_once POS_APP_ROOT . '/includes/gateways.php';
 }
 pos_restore_operator();
@@ -325,6 +325,18 @@ if ($posGateway === 'square' && function_exists('square_request_is_diparma_offli
         $errors[] = function_exists('square_offline_device_only_message')
             ? square_offline_device_only_message()
             : 'Square Offline is only on Square POS hardware.';
+    }
+}
+if ($posGateway === 'paypal' && function_exists('paypal_request_is_diparma_offline')) {
+    $paypalOfflineProbe = array_merge($data, $extra, [
+        'txn_type' => $txnType,
+        'auth_channel' => $extra['auth_channel'] ?? $data['auth_channel'] ?? '',
+        'is_offline' => $extra['is_offline'] ?? $data['is_offline'] ?? false,
+    ]);
+    if (paypal_request_is_diparma_offline($paypalOfflineProbe)) {
+        $errors[] = function_exists('paypal_offline_device_only_message')
+            ? paypal_offline_device_only_message()
+            : 'PayPal Offline is only on a PayPal Reader.';
     }
 }
 if ($posGateway === 'square' && function_exists('gateway_max_per_txn_usd')) {

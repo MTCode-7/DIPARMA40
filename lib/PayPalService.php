@@ -238,32 +238,297 @@ class PayPalService
         }
     }
 
-    public function captureAuthorization(string $authorizationId, ?float $amount = null, string $currency = 'USD'): array
+    public function getAuthorization(string $authorizationId): array
     {
-        try {
-            $token = $this->getAccessToken();
-            $body = $amount !== null ? ['amount' => [
+        return $this->paymentResource('GET', '/v2/payments/authorizations/' . rawurlencode($authorizationId), [], 'PayPal authorization lookup failed');
+    }
+
+    public function captureAuthorization(string $authorizationId, ?float $amount = null, string $currency = 'USD', array $options = []): array
+    {
+        $body = [];
+        if ($amount !== null && $amount > 0) {
+            $body['amount'] = [
                 'currency_code' => strtoupper($currency),
                 'value' => number_format($amount, 2, '.', ''),
-            ]] : [];
-            $response = $this->request('POST', "/v2/payments/authorizations/" . rawurlencode($authorizationId) . '/capture', $token, $body);
-            $capture = !empty($response['id']) ? $response : [];
+            ];
+        }
+        if (array_key_exists('final_capture', $options)) {
+            $body['final_capture'] = (bool) $options['final_capture'];
+        }
+        $invoice = trim((string) ($options['invoice_id'] ?? ''));
+        if ($invoice !== '') {
+            $body['invoice_id'] = substr($invoice, 0, 127);
+        }
+        $result = $this->paymentResource(
+            'POST',
+            '/v2/payments/authorizations/' . rawurlencode($authorizationId) . '/capture',
+            $body,
+            'PayPal capture failed'
+        );
+        if (!empty($result['success'])) {
+            $result['capture_id'] = (string) ($result['id'] ?? '');
+            $result['payment_id'] = $result['capture_id'];
+            $result['transaction_id'] = $result['capture_id'];
+            $result['message'] = 'تم تحصيل التفويض عبر PayPal بنجاح';
+        }
+        return $result;
+    }
 
-            if (($response['status'] ?? '') === 'COMPLETED' && !empty($capture['id'])) {
-                return [
-                    'success'    => true,
-                    'capture_id' => $capture['id'],
-                    'status'     => 'completed',
-                    'amount'     => floatval($capture['amount']['value'] ?? 0),
-                    'currency'   => $capture['amount']['currency_code'] ?? '',
-                    'message'    => 'تم تحصيل التفويض عبر PayPal بنجاح',
-                ];
+    public function reauthorizeAuthorization(string $authorizationId, ?float $amount = null, string $currency = 'USD'): array
+    {
+        $body = [];
+        if ($amount !== null && $amount > 0) {
+            $body['amount'] = [
+                'currency_code' => strtoupper($currency),
+                'value' => number_format($amount, 2, '.', ''),
+            ];
+        }
+        $result = $this->paymentResource(
+            'POST',
+            '/v2/payments/authorizations/' . rawurlencode($authorizationId) . '/reauthorize',
+            $body,
+            'PayPal reauthorize failed'
+        );
+        if (!empty($result['success'])) {
+            $result['authorization_id'] = (string) ($result['id'] ?? $authorizationId);
+            $result['payment_id'] = $result['authorization_id'];
+            $result['status'] = 'authorized';
+            $result['message'] = 'تمت إعادة تفويض PayPal. الفترة الجديدة 3 أيام، وداخل 29 يوماً من التفويض الأصلي.';
+        }
+        return $result;
+    }
+
+    public function getCapture(string $captureId): array
+    {
+        return $this->paymentResource('GET', '/v2/payments/captures/' . rawurlencode($captureId), [], 'PayPal capture lookup failed');
+    }
+
+    public function refundCapture(string $captureId, ?float $amount = null, string $currency = 'USD', string $note = ''): array
+    {
+        $body = [];
+        if ($amount !== null && $amount > 0) {
+            $body['amount'] = [
+                'currency_code' => strtoupper($currency),
+                'value' => number_format($amount, 2, '.', ''),
+            ];
+        }
+        $note = trim($note);
+        if ($note !== '') {
+            $body['note_to_payer'] = substr($note, 0, 255);
+        }
+        $result = $this->paymentResource(
+            'POST',
+            '/v2/payments/captures/' . rawurlencode($captureId) . '/refund',
+            $body,
+            'PayPal refund failed'
+        );
+        if (!empty($result['success'])) {
+            $result['refund_id'] = (string) ($result['id'] ?? '');
+            $result['status'] = strtolower((string) ($result['status'] ?? 'completed')) === 'pending' ? 'pending' : 'refunded';
+            $result['message'] = 'تم استرجاع التحصيل عبر PayPal';
+        }
+        return $result;
+    }
+
+    public function getRefund(string $refundId): array
+    {
+        return $this->paymentResource('GET', '/v2/payments/refunds/' . rawurlencode($refundId), [], 'PayPal refund lookup failed');
+    }
+
+    public function listPaymentTokens(string $customerId, int $pageSize = 10, int $page = 1): array
+    {
+        $customerId = trim($customerId);
+        if ($customerId === '') {
+            return ['success' => false, 'message' => 'customer_id مطلوب'];
+        }
+        $query = http_build_query([
+            'customer_id' => $customerId,
+            'page_size' => max(1, min(20, $pageSize)),
+            'page' => max(1, $page),
+            'total_required' => 'true',
+        ]);
+        return $this->paymentResource('GET', '/v3/vault/payment-tokens?' . $query, [], 'PayPal payment tokens lookup failed');
+    }
+
+    public function getPaymentToken(string $tokenId): array
+    {
+        $tokenId = trim($tokenId);
+        if ($tokenId === '') {
+            return ['success' => false, 'message' => 'payment token id مطلوب'];
+        }
+        return $this->paymentResource('GET', '/v3/vault/payment-tokens/' . rawurlencode($tokenId), [], 'PayPal payment token lookup failed');
+    }
+
+    /**
+     * Shipment Tracking v1. transaction_id is the PayPal capture id, not the order id.
+     * Tracker id is {transaction_id}-{tracking_number}.
+     */
+    public function addTracker(string $transactionId, string $trackingNumber, string $status = 'SHIPPED', string $carrier = 'OTHER', array $options = []): array
+    {
+        $built = $this->trackerBody($transactionId, $trackingNumber, $status, $carrier, $options);
+        if (empty($built['success'])) {
+            return $built;
+        }
+        return $this->trackerResource('POST', '/v1/shipping/trackers', $built['body'], 'PayPal tracking add failed');
+    }
+
+    public function listTrackers(string $transactionId = '', string $trackingNumber = ''): array
+    {
+        $query = [];
+        if (trim($transactionId) !== '') {
+            $query['transaction_id'] = trim($transactionId);
+        }
+        if (trim($trackingNumber) !== '') {
+            $query['tracking_number'] = trim($trackingNumber);
+        }
+        $path = '/v1/shipping/trackers' . ($query ? ('?' . http_build_query($query)) : '');
+        return $this->trackerResource('GET', $path, [], 'PayPal tracking list failed');
+    }
+
+    public function getTracker(string $trackerId): array
+    {
+        $trackerId = trim($trackerId);
+        if ($trackerId === '') {
+            return ['success' => false, 'message' => 'tracker id مطلوب'];
+        }
+        return $this->trackerResource('GET', '/v1/shipping/trackers/' . rawurlencode($trackerId), [], 'PayPal tracking lookup failed');
+    }
+
+    public function updateTracker(string $trackerId, string $transactionId, string $trackingNumber, string $status, string $carrier = 'OTHER', array $options = []): array
+    {
+        $trackerId = trim($trackerId);
+        if ($trackerId === '') {
+            return ['success' => false, 'message' => 'tracker id مطلوب'];
+        }
+        $built = $this->trackerBody($transactionId, $trackingNumber, $status, $carrier, $options);
+        if (empty($built['success'])) {
+            return $built;
+        }
+        return $this->trackerResource('PUT', '/v1/shipping/trackers/' . rawurlencode($trackerId), $built['body'], 'PayPal tracking update failed');
+    }
+
+    private function trackerBody(string $transactionId, string $trackingNumber, string $status, string $carrier, array $options): array
+    {
+        $transactionId = trim($transactionId);
+        $trackingNumber = trim($trackingNumber);
+        $status = strtoupper(trim($status));
+        $carrier = strtoupper(trim($carrier !== '' ? $carrier : 'OTHER'));
+        $allowed = ['SHIPPED', 'ON_HOLD', 'DELIVERED', 'CANCELLED', 'SHIPMENT_CREATED', 'DROPPED_OFF', 'IN_TRANSIT', 'RETURNED', 'LABEL_PRINTED', 'ERROR', 'UNCONFIRMED', 'PICKUP_FAILED', 'DELIVERY_DELAYED', 'DELIVERY_SCHEDULED', 'DELIVERY_FAILED', 'INRETURN', 'IN_PROCESS', 'NEW', 'VOID', 'PROCESSED', 'NOT_SHIPPED', 'LOCAL_PICKUP'];
+        if ($transactionId === '') {
+            return ['success' => false, 'message' => 'transaction_id مطلوب، وهو معرف التحصيل في PayPal وليس رقم الطلب'];
+        }
+        if (!in_array($status, $allowed, true)) {
+            return ['success' => false, 'message' => 'حالة التتبع غير معروفة'];
+        }
+        if ($trackingNumber === '' && $status !== 'CANCELLED') {
+            return ['success' => false, 'message' => 'tracking_number مطلوب'];
+        }
+        if ($carrier === 'OTHER' && trim((string) ($options['carrier_name_other'] ?? '')) === '') {
+            return ['success' => false, 'message' => 'carrier_name_other مطلوب عندما تكون شركة الشحن OTHER'];
+        }
+        $body = [
+            'transaction_id' => $transactionId,
+            'status' => $status,
+            'carrier' => $carrier,
+        ];
+        if ($trackingNumber !== '') {
+            $body['tracking_number'] = $trackingNumber;
+        }
+        if ($carrier === 'OTHER') {
+            $body['carrier_name_other'] = substr(trim((string) $options['carrier_name_other']), 0, 64);
+        }
+        $shipmentDate = trim((string) ($options['shipment_date'] ?? ''));
+        if ($shipmentDate !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $shipmentDate)) {
+            $body['shipment_date'] = $shipmentDate;
+        }
+        return ['success' => true, 'body' => $body];
+    }
+
+    private function trackerResource(string $method, string $path, array $body, string $fallback): array
+    {
+        try {
+            $response = $this->request($method, $path, $this->getAccessToken(), $body);
+            $http = (int) ($response['_http_code'] ?? 0);
+            if ($http >= 200 && $http < 300) {
+                $id = (string) ($response['id'] ?? '');
+                if ($id === '' && !empty($body['transaction_id']) && !empty($body['tracking_number'])) {
+                    $id = $body['transaction_id'] . '-' . $body['tracking_number'];
+                }
+                return array_merge($response, [
+                    'success' => true,
+                    'id' => $id,
+                    'tracker_id' => $id,
+                    'status' => (string) ($response['status'] ?? ($body['status'] ?? '')),
+                    'message' => 'تم تسجيل تتبع الشحنة في PayPal',
+                ]);
             }
-
-            return ['success' => false, 'status' => $response['status'] ?? '', 'message' => 'PayPal capture failed'];
+            return [
+                'success' => false,
+                'message' => $this->hostMessage($response, $fallback),
+                'error_code' => strtoupper((string) ($response['details'][0]['issue'] ?? $response['name'] ?? '')),
+                'raw' => $response,
+            ];
         } catch (Exception $e) {
             return ['success' => false, 'message' => $e->getMessage()];
         }
+    }
+
+    private function paymentResource(string $method, string $path, array $body, string $fallback): array
+    {
+        try {
+            $response = $this->request($method, $path, $this->getAccessToken(), $body, [
+                'Prefer: return=representation',
+            ]);
+            $http = (int) ($response['_http_code'] ?? 0);
+            $status = strtoupper((string) ($response['status'] ?? ''));
+            $okStatus = in_array($status, ['COMPLETED', 'CREATED', 'PENDING', 'PARTIALLY_REFUNDED', 'REFUNDED', 'CAPTURED'], true);
+            if (($http >= 200 && $http < 300) && ($status === '' || $okStatus || isset($response['payment_tokens']) || isset($response['id']))) {
+                if ($status !== '' && !in_array($status, ['COMPLETED', 'CREATED', 'PENDING', 'PARTIALLY_REFUNDED', 'REFUNDED', 'CAPTURED', 'VOIDED', 'DENIED', 'DECLINED'], true) && $http !== 204) {
+                    return [
+                        'success' => false,
+                        'status' => strtolower($status),
+                        'message' => $this->hostMessage($response, $fallback),
+                        'error_code' => strtoupper((string) ($response['details'][0]['issue'] ?? $response['name'] ?? '')),
+                        'raw' => $response,
+                    ];
+                }
+                return array_merge($response, [
+                    'success' => true,
+                    'status' => strtolower($status !== '' ? $status : 'completed'),
+                    'id' => (string) ($response['id'] ?? ''),
+                    'amount' => floatval($response['amount']['value'] ?? 0),
+                    'currency' => (string) ($response['amount']['currency_code'] ?? ''),
+                ]);
+            }
+            if ($http === 204) {
+                return ['success' => true, 'status' => 'completed'];
+            }
+            return [
+                'success' => false,
+                'status' => strtolower($status),
+                'message' => $this->hostMessage($response, $fallback),
+                'error_code' => strtoupper((string) ($response['details'][0]['issue'] ?? $response['name'] ?? '')),
+                'raw' => $response,
+            ];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    private function hostMessage(array $response, string $fallback): string
+    {
+        $description = trim((string) ($response['details'][0]['description'] ?? ''));
+        $issue = trim((string) ($response['details'][0]['issue'] ?? ''));
+        $message = trim((string) ($response['message'] ?? ''));
+        $text = $description !== '' ? $description : ($message !== '' ? $message : $fallback);
+        if ($issue !== '' && stripos($text, $issue) === false) {
+            $text .= ' [' . $issue . ']';
+        }
+        $debug = trim((string) ($response['debug_id'] ?? ''));
+        if ($debug !== '') {
+            $text .= ' (debug_id: ' . $debug . ')';
+        }
+        return $text;
     }
 
     public function getOrder(string $orderId): array
@@ -392,18 +657,171 @@ class PayPalService
     // [5] التحقق من Webhook
     // ══════════════════════════════════════════════════════════
 
+    public function listWebhooks(): array
+    {
+        return $this->managementCall('GET', '/v1/notifications/webhooks', [], 'PayPal webhook list failed');
+    }
+
+    public function createWebhook(string $url, array $eventNames = []): array
+    {
+        $url = trim($url);
+        if ($url === '') {
+            $site = defined('SITE_URL') ? rtrim((string) SITE_URL, '/') : 'https://diparmas.com';
+            $url = $site . '/api/paypal.php?action=webhook';
+        }
+        if ($eventNames === []) {
+            $eventNames = [
+                'PAYMENT.CAPTURE.COMPLETED',
+                'PAYMENT.CAPTURE.DENIED',
+                'PAYMENT.CAPTURE.REFUNDED',
+                'PAYMENT.AUTHORIZATION.CREATED',
+                'PAYMENT.AUTHORIZATION.VOIDED',
+            ];
+        }
+        $events = [];
+        foreach ($eventNames as $name) {
+            $name = strtoupper(trim((string) $name));
+            if ($name !== '') {
+                $events[] = ['name' => $name];
+            }
+        }
+        if ($events === []) {
+            return ['success' => false, 'message' => 'event_types مطلوبة'];
+        }
+        return $this->managementCall('POST', '/v1/notifications/webhooks', [
+            'url' => $url,
+            'event_types' => $events,
+        ], 'PayPal webhook create failed');
+    }
+
+    public function getWebhook(string $webhookId): array
+    {
+        $webhookId = trim($webhookId);
+        if ($webhookId === '') {
+            return ['success' => false, 'message' => 'webhook_id مطلوب'];
+        }
+        return $this->managementCall('GET', '/v1/notifications/webhooks/' . rawurlencode($webhookId), [], 'PayPal webhook lookup failed');
+    }
+
+    public function updateWebhook(string $webhookId, array $patch): array
+    {
+        $webhookId = trim($webhookId);
+        if ($webhookId === '' || $patch === []) {
+            return ['success' => false, 'message' => 'webhook_id و patch مطلوبان'];
+        }
+        return $this->managementCall(
+            'PATCH',
+            '/v1/notifications/webhooks/' . rawurlencode($webhookId),
+            $patch,
+            'PayPal webhook update failed',
+            ['Content-Type: application/json-patch+json']
+        );
+    }
+
+    public function deleteWebhook(string $webhookId): array
+    {
+        $webhookId = trim($webhookId);
+        if ($webhookId === '') {
+            return ['success' => false, 'message' => 'webhook_id مطلوب'];
+        }
+        return $this->managementCall('DELETE', '/v1/notifications/webhooks/' . rawurlencode($webhookId), [], 'PayPal webhook delete failed');
+    }
+
+    public function listWebhookSubscriptions(string $webhookId): array
+    {
+        $webhookId = trim($webhookId);
+        if ($webhookId === '') {
+            return ['success' => false, 'message' => 'webhook_id مطلوب'];
+        }
+        return $this->managementCall('GET', '/v1/notifications/webhooks/' . rawurlencode($webhookId) . '/event-types', [], 'PayPal webhook events failed');
+    }
+
+    public function listAvailableWebhookEvents(): array
+    {
+        return $this->managementCall('GET', '/v1/notifications/webhooks-event-types', [], 'PayPal event catalog failed');
+    }
+
+    public function listWebProfiles(): array
+    {
+        return $this->managementCall('GET', '/v1/payment-experience/web-profiles', [], 'PayPal web profile list failed');
+    }
+
+    public function createWebProfile(array $profile): array
+    {
+        $name = trim((string) ($profile['name'] ?? ''));
+        if ($name === '') {
+            return ['success' => false, 'message' => 'اسم ملف تجربة الدفع مطلوب'];
+        }
+        $profile['name'] = $name;
+        return $this->managementCall('POST', '/v1/payment-experience/web-profiles', $profile, 'PayPal web profile create failed');
+    }
+
+    public function getWebProfile(string $profileId): array
+    {
+        $profileId = trim($profileId);
+        if ($profileId === '') {
+            return ['success' => false, 'message' => 'web profile id مطلوب'];
+        }
+        return $this->managementCall('GET', '/v1/payment-experience/web-profiles/' . rawurlencode($profileId), [], 'PayPal web profile lookup failed');
+    }
+
+    public function replaceWebProfile(string $profileId, array $profile): array
+    {
+        $profileId = trim($profileId);
+        if ($profileId === '' || trim((string) ($profile['name'] ?? '')) === '') {
+            return ['success' => false, 'message' => 'web profile id والاسم مطلوبان'];
+        }
+        return $this->managementCall('PUT', '/v1/payment-experience/web-profiles/' . rawurlencode($profileId), $profile, 'PayPal web profile update failed');
+    }
+
+    public function deleteWebProfile(string $profileId): array
+    {
+        $profileId = trim($profileId);
+        if ($profileId === '') {
+            return ['success' => false, 'message' => 'web profile id مطلوب'];
+        }
+        return $this->managementCall('DELETE', '/v1/payment-experience/web-profiles/' . rawurlencode($profileId), [], 'PayPal web profile delete failed');
+    }
+
+    private function managementCall(string $method, string $path, array $body, string $fallback, array $headers = []): array
+    {
+        try {
+            $response = $this->request($method, $path, $this->getAccessToken(), $body, $headers);
+            $http = (int) ($response['_http_code'] ?? 0);
+            if ($http >= 200 && $http < 300) {
+                return array_merge($response, [
+                    'success' => true,
+                    'message' => 'ok',
+                ]);
+            }
+            return [
+                'success' => false,
+                'message' => $this->hostMessage($response, $fallback),
+                'error_code' => strtoupper((string) ($response['details'][0]['issue'] ?? $response['name'] ?? '')),
+                'raw' => $response,
+            ];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
     public function verifyWebhook(array $headers, string $rawBody, string $webhookId): bool
     {
         if (empty($webhookId) || empty($rawBody)) return false;
 
+        $normalized = [];
+        foreach ($headers as $key => $value) {
+            $normalized[strtoupper(str_replace('_', '-', (string) $key))] = $value;
+        }
+
         try {
             $token = $this->getAccessToken();
             $body  = [
-                'auth_algo'         => $headers['PAYPAL-AUTH-ALGO']         ?? '',
-                'cert_url'          => $headers['PAYPAL-CERT-URL']          ?? '',
-                'transmission_id'   => $headers['PAYPAL-TRANSMISSION-ID']   ?? '',
-                'transmission_sig'  => $headers['PAYPAL-TRANSMISSION-SIG']  ?? '',
-                'transmission_time' => $headers['PAYPAL-TRANSMISSION-TIME'] ?? '',
+                'auth_algo'         => $normalized['PAYPAL-AUTH-ALGO']         ?? '',
+                'cert_url'          => $normalized['PAYPAL-CERT-URL']          ?? '',
+                'transmission_id'   => $normalized['PAYPAL-TRANSMISSION-ID']   ?? '',
+                'transmission_sig'  => $normalized['PAYPAL-TRANSMISSION-SIG']  ?? '',
+                'transmission_time' => $normalized['PAYPAL-TRANSMISSION-TIME'] ?? '',
                 'webhook_id'        => $webhookId,
                 'webhook_event'     => json_decode($rawBody, true),
             ];
@@ -427,10 +845,19 @@ class PayPalService
                 break;
             }
         }
+        $hasContentType = false;
+        foreach ($extraHeaders as $header) {
+            if (stripos((string) $header, 'Content-Type:') === 0) {
+                $hasContentType = true;
+                break;
+            }
+        }
         $headers = [
             'Authorization: Bearer ' . $token,
-            'Content-Type: application/json',
         ];
+        if (!$hasContentType) {
+            $headers[] = 'Content-Type: application/json';
+        }
         if (!$hasRequestId) {
             $headers[] = 'PayPal-Request-Id: ' . uniqid('diparma_', true);
         }

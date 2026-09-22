@@ -4,6 +4,7 @@
  * GET  /api/paypal.php?action=client_token
  * POST /api/paypal.php?action=create_order
  * POST /api/paypal.php?action=capture_order
+ * POST /api/paypal.php?action=add_tracker
  * POST /api/paypal.php?action=webhook
  */
 require_once __DIR__ . '/../includes/config.php';
@@ -204,6 +205,92 @@ try {
                 }
             }
 
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'list_webhooks':
+        case 'create_webhook':
+        case 'get_webhook':
+        case 'update_webhook':
+        case 'delete_webhook':
+        case 'list_web_profiles':
+        case 'create_web_profile':
+        case 'get_web_profile':
+        case 'update_web_profile':
+        case 'delete_web_profile':
+            if (!verifyCsrfToken($payload['csrf_token'] ?? '')) {
+                echo json_encode(['success' => false, 'message' => 'CSRF invalid']); break;
+            }
+            if ($action === 'list_webhooks') {
+                $result = $svc->listWebhooks();
+            } elseif ($action === 'create_webhook') {
+                $events = $payload['event_types'] ?? [];
+                if (isset($events[0]['name'])) {
+                    $events = array_column($events, 'name');
+                }
+                $result = $svc->createWebhook(trim((string) ($payload['url'] ?? '')), is_array($events) ? $events : []);
+            } elseif ($action === 'get_webhook') {
+                $result = $svc->getWebhook(trim((string) ($payload['webhook_id'] ?? '')));
+            } elseif ($action === 'update_webhook') {
+                $patch = $payload['patch'] ?? [];
+                $result = $svc->updateWebhook(trim((string) ($payload['webhook_id'] ?? '')), is_array($patch) ? $patch : []);
+            } elseif ($action === 'delete_webhook') {
+                $result = $svc->deleteWebhook(trim((string) ($payload['webhook_id'] ?? '')));
+            } elseif ($action === 'list_web_profiles') {
+                $result = $svc->listWebProfiles();
+            } elseif ($action === 'create_web_profile') {
+                $profile = $payload['profile'] ?? $payload;
+                unset($profile['csrf_token'], $profile['action']);
+                $result = $svc->createWebProfile(is_array($profile) ? $profile : []);
+            } elseif ($action === 'get_web_profile') {
+                $result = $svc->getWebProfile(trim((string) ($payload['profile_id'] ?? $payload['id'] ?? '')));
+            } elseif ($action === 'update_web_profile') {
+                $profile = $payload['profile'] ?? [];
+                $result = $svc->replaceWebProfile(trim((string) ($payload['profile_id'] ?? $payload['id'] ?? '')), is_array($profile) ? $profile : []);
+            } else {
+                $result = $svc->deleteWebProfile(trim((string) ($payload['profile_id'] ?? $payload['id'] ?? '')));
+            }
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            break;
+
+        case 'add_tracker':
+        case 'update_tracker':
+        case 'get_tracker':
+        case 'list_trackers':
+            if (!verifyCsrfToken($payload['csrf_token'] ?? '')) {
+                echo json_encode(['success' => false, 'message' => 'CSRF invalid']); break;
+            }
+            if ($action === 'list_trackers') {
+                $result = $svc->listTrackers(
+                    trim((string) ($payload['transaction_id'] ?? '')),
+                    trim((string) ($payload['tracking_number'] ?? ''))
+                );
+            } elseif ($action === 'get_tracker') {
+                $result = $svc->getTracker(trim((string) ($payload['tracker_id'] ?? $payload['id'] ?? '')));
+            } elseif ($action === 'update_tracker') {
+                $result = $svc->updateTracker(
+                    trim((string) ($payload['tracker_id'] ?? $payload['id'] ?? '')),
+                    trim((string) ($payload['transaction_id'] ?? '')),
+                    trim((string) ($payload['tracking_number'] ?? '')),
+                    trim((string) ($payload['status'] ?? 'SHIPPED')),
+                    trim((string) ($payload['carrier'] ?? 'OTHER')),
+                    [
+                        'carrier_name_other' => $payload['carrier_name_other'] ?? '',
+                        'shipment_date' => $payload['shipment_date'] ?? '',
+                    ]
+                );
+            } else {
+                $result = $svc->addTracker(
+                    trim((string) ($payload['transaction_id'] ?? '')),
+                    trim((string) ($payload['tracking_number'] ?? '')),
+                    trim((string) ($payload['status'] ?? 'SHIPPED')),
+                    trim((string) ($payload['carrier'] ?? 'OTHER')),
+                    [
+                        'carrier_name_other' => $payload['carrier_name_other'] ?? '',
+                        'shipment_date' => $payload['shipment_date'] ?? '',
+                    ]
+                );
+            }
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
             break;
 
