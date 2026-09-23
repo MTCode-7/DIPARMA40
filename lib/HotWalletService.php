@@ -329,6 +329,90 @@ class HotWalletService
         return array_merge($rawTx, ['signature' => [$signature]]);
     }
 
+    /**
+     * Live status for admin: never returns the private key.
+     *
+     * @return array{address:string,key_ready:bool,key_error:string,usdt:float,trx:float,can_send:bool}
+     */
+    public function readiness(): array
+    {
+        $address = $this->hotWalletAddress;
+        $keyReady = $this->getHotWalletPrivateKey() !== '';
+        $account = $address !== '' ? $this->fetchAccount($address) : [];
+        $usdt = $this->parseUsdtBalance($account);
+        $trx = isset($account['balance']) ? ((float) $account['balance'] / 1_000_000) : 0.0;
+
+        return [
+            'address' => $address,
+            'key_ready' => $keyReady,
+            'key_error' => $this->keyError,
+            'usdt' => $usdt,
+            'trx' => $trx,
+            'can_send' => $keyReady && $usdt > 0 && $trx >= self::ESTIMATED_FEE_TRX,
+        ];
+    }
+
+    /**
+     * Store an encrypted key only when it derives the configured Hot Wallet address.
+     */
+    public function installMatchingKey(string $privateKeyHex): array
+    {
+        $hex = strtolower(preg_replace('/^0x/i', '', preg_replace('/\s+/', '', $privateKeyHex) ?? '') ?? '');
+        if (!preg_match('/^[0-9a-f]{64}$/', $hex)) {
+            return ['success' => false, 'message' => 'المفتاح يجب أن يكون 64 حرفاً hex'];
+        }
+        if ($this->hotWalletAddress === '') {
+            return ['success' => false, 'message' => 'HOT_WALLET_TRC20_ADDRESS غير مضبوط'];
+        }
+
+        $derived = TronSigner::addressFromPrivateKey($hex);
+        if (!hash_equals($this->hotWalletAddress, $derived)) {
+            return ['success' => false, 'message' => 'المفتاح لا يخص عنوان Hot Wallet المضبوط'];
+        }
+
+        $enc = defined('ENCRYPTION_KEY') ? (string) ENCRYPTION_KEY : (string) (getenv('ENCRYPTION_KEY') ?: '');
+        if ($enc === '') {
+            return ['success' => false, 'message' => 'ENCRYPTION_KEY غير مضبوط'];
+        }
+
+        $iv = random_bytes(16);
+        $encrypted = openssl_encrypt($hex, 'AES-256-CBC', $enc, 0, $iv);
+        if (!is_string($encrypted) || $encrypted === '') {
+            return ['success' => false, 'message' => 'فشل تشفير المفتاح'];
+        }
+
+        $stored = base64_encode($iv . '::' . $encrypted);
+        if (!$this->writeEnvValue('HOT_WALLET_TRC20_KEY', $stored)) {
+            return ['success' => false, 'message' => 'تعذر كتابة .env'];
+        }
+
+        $this->hotWalletEncryptedKey = $stored;
+        $this->keyError = '';
+        return ['success' => true, 'message' => 'تم ربط مفتاح Hot Wallet بالعنوان المضبوط'];
+    }
+
+    private function writeEnvValue(string $key, string $value): bool
+    {
+        $path = defined('ROOT_PATH') ? ROOT_PATH . DIRECTORY_SEPARATOR . '.env' : dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env';
+        if (!is_file($path) || !is_writable($path)) {
+            return false;
+        }
+        $raw = (string) file_get_contents($path);
+        $line = $key . '=' . $value;
+        if (preg_match('/^' . preg_quote($key, '/') . '=.*$/m', $raw)) {
+            $raw = preg_replace('/^' . preg_quote($key, '/') . '=.*$/m', $line, $raw, 1);
+        } else {
+            $raw = rtrim($raw) . PHP_EOL . $line . PHP_EOL;
+        }
+        if (file_put_contents($path, $raw) === false) {
+            return false;
+        }
+        putenv($key . '=' . $value);
+        $_ENV[$key] = $value;
+        $_SERVER[$key] = $value;
+        return true;
+    }
+
     private function getHotWalletPrivateKey(): string
     {
         if ($this->hotWalletEncryptedKey === '') {

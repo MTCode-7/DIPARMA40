@@ -3,9 +3,26 @@ require_once __DIR__ . '/../includes/auth_check.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
 requireAdmin();
+require_once __DIR__ . '/../includes/base58.php';
+require_once __DIR__ . '/../lib/HotWalletService.php';
 $csrfToken = generateCsrfToken();
 $db  = db();
 $msg = '';
+$hotWallet = HotWalletService::getInstance();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'install_hot_key') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $msg = ['type' => 'error', 'text' => 'رمز الأمان غير صالح'];
+    } else {
+        $installed = $hotWallet->installMatchingKey((string) ($_POST['hot_wallet_key'] ?? ''));
+        $msg = [
+            'type' => !empty($installed['success']) ? 'success' : 'error',
+            'text' => (string) ($installed['message'] ?? 'تعذر حفظ المفتاح'),
+        ];
+    }
+}
+
+$hotStatus = $hotWallet->readiness();
 
 // ── تحويل للمحفظة الخارجية ───────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'withdraw') {
@@ -190,6 +207,38 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <div class="stat-val" style="font-size:1rem"><?=substr(getenv('HOT_WALLET_TRC20_ADDRESS')?:'—',0,12)?>...</div>
       <div class="stat-sub">محفظة الإرسال</div>
     </div>
+  </div>
+
+  <div class="tbl-wrap" style="padding:20px 22px;margin-bottom:28px">
+    <div class="sec-title" style="margin-bottom:10px">
+      <i class="fas fa-key" style="color:var(--gold)"></i>
+      ربط مفتاح Hot Wallet
+    </div>
+    <div style="font-size:.82rem;color:var(--muted);margin-bottom:12px;word-break:break-all">
+      العنوان: <?=htmlspecialchars((string)($hotStatus['address'] ?? ''))?><br>
+      الحالة:
+      <?php if (!empty($hotStatus['key_ready'])): ?>
+        <span style="color:var(--green);font-weight:800">المفتاح مطابق وجاهز للإرسال</span>
+      <?php else: ?>
+        <span style="color:var(--red);font-weight:800"><?=htmlspecialchars((string)($hotStatus['key_error'] ?: 'المفتاح غير مطابق'))?></span>
+      <?php endif; ?>
+      — USDT <?=number_format((float)($hotStatus['usdt'] ?? 0), 2)?>
+      — TRX <?=number_format((float)($hotStatus['trx'] ?? 0), 4)?>
+      <?php if ((float)($hotStatus['trx'] ?? 0) < 15): ?>
+        <span style="color:var(--red)"> (يلزم حوالي 15 TRX للغاز)</span>
+      <?php endif; ?>
+    </div>
+    <?php if (empty($hotStatus['key_ready'])): ?>
+    <form method="POST" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+      <input type="hidden" name="action" value="install_hot_key">
+      <div class="fld">
+        <label>المفتاح الخاص لحساب DIPARMA في TronLink (لا يُعرض بعد الحفظ)</label>
+        <input type="password" name="hot_wallet_key" placeholder="64 hex" required autocomplete="new-password">
+      </div>
+      <button type="submit" class="btn-full" style="max-width:280px"><i class="fas fa-link"></i> ربط المفتاح بالعنوان</button>
+    </form>
+    <?php endif; ?>
   </div>
 
   <!-- محافظ الكريبتو -->
