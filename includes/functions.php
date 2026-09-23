@@ -658,4 +658,155 @@ function diparma_discard_unsuccessful_transaction($db, string $reference): void
     }
 }
 
+/**
+ * Extract host payment / capture / intent id from a stored transaction row.
+ */
+function diparma_host_payment_id_from_txn(array $txn): string
+{
+    $blob = json_decode((string) ($txn['gateway_response'] ?? ''), true);
+    if (!is_array($blob)) {
+        $blob = [];
+    }
+    $keys = [
+        'capture_id', 'payment_id', 'charge_id', 'payment_intent_id', 'payment_intent',
+        'transaction_id', 'provider_payment_id', 'nuvei_txn_id', 'id', 'order_id',
+        'authorization_id',
+    ];
+    $nodes = [$blob];
+    if (isset($blob['raw']) && is_array($blob['raw'])) {
+        $nodes[] = $blob['raw'];
+    }
+    if (isset($blob['gateway_response']) && is_array($blob['gateway_response'])) {
+        $nodes[] = $blob['gateway_response'];
+    }
+    foreach ($nodes as $node) {
+        foreach ($keys as $key) {
+            $value = trim((string) ($node[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+    }
+    foreach (['rrn', 'gateway_txn_id', 'external_id', 'host_txn_id'] as $col) {
+        $value = trim((string) ($txn[$col] ?? ''));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+    return '';
+}
+
+/**
+ * Admin refund / void for a stored transaction via ChargeHub → gateway adapter.
+ */
+function processRefundTransaction(string $reference, float $amount = 0, string $reason = ''): array
+{
+    $reference = trim($reference);
+    $reason = trim($reason) !== '' ? trim($reason) : 'Refund requested by admin';
+    if ($reference === '') {
+        return ['success' => false, 'message' => 'المرجع مفقود'];
+    }
+
+    try {
+        $db = db();
+        $txn = $db->find('transactions', ['reference' => $reference]);
+        if (!$txn) {
+            return ['success' => false, 'message' => 'المعاملة غير موجودة'];
+        }
+
+        $status = strtolower(trim((string) ($txn['status'] ?? '')));
+        $gateway = strtolower(trim((string) ($txn['gateway'] ?? '')));
+        $currency = strtoupper(trim((string) ($txn['currency'] ?? 'USD'))) ?: 'USD';
+        $txnAmount = round((float) ($txn['amount'] ?? 0), 2);
+        $refundAmount = $amount > 0 ? round($amount, 2) : $txnAmount;
+
+        if ($gateway === '') {
+            return ['success' => false, 'message' => 'بوابة المعاملة غير معروفة'];
+        }
+        if (in_array($status, ['refunded', 'cancelled', 'canceled', 'voided'], true)) {
+            return ['success' => false, 'message' => 'المعاملة مسترجعة أو ملغاة مسبقاً'];
+        }
+        if (!in_array($status, ['completed', 'captured', 'settled', 'approved', 'authorized', 'partially_refunded'], true)) {
+            return ['success' => false, 'message' => 'لا يمكن استرجاع معاملة بحالة: ' . ($status !== '' ? $status : 'unknown')];
+        }
+        if ($refundAmount <= 0 || ($txnAmount > 0 && $refundAmount > $txnAmount + 0.009)) {
+            return ['success' => false, 'message' => 'مبلغ الاسترجاع غير صالح'];
+        }
+
+        $hostId = diparma_host_payment_id_from_txn($txn);
+        if ($hostId === '') {
+            return ['success' => false, 'message' => 'معرّف عملية البوابة غير موجود في سجل المعاملة'];
+        }
+
+        $isAuthOnly = in_array($status, ['authorized'], true);
+        $txnType = $isAuthOnly ? 'void' : 'refund';
+
+        require_once __DIR__ . '/../lib/MySystem/ChargeHub.php';
+        $result = DiParmaChargeHub::charge($gateway, $txnType, [
+            'amount' => $refundAmount,
+            'currency' => $currency,
+            'reference' => $reference . ($isAuthOnly ? '-VOID' : '-RF'),
+            'transaction_id' => $hostId,
+            'related_transaction_id' => $hostId,
+            'orig_ref' => $hostId,
+            'payment_id' => $hostId,
+            'reason' => $reason,
+            'channel' => 'admin_refund',
+            'txn_type' => $txnType,
+        ]);
+
+        if (empty($result['success'])) {
+            return [
+                'success' => false,
+                'message' => (string) ($result['message'] ?? 'فشل الاسترجاع عبر البوابة'),
+                'gateway' => $gateway,
+                'raw' => $result,
+            ];
+        }
+
+        $gatewayData = json_decode((string) ($txn['gateway_response'] ?? ''), true) ?: [];
+        $gatewayData[$isAuthOnly ? 'void' : 'refund'] = [
+            'host_id' => $hostId,
+            'amount' => $refundAmount,
+            'currency' => $currency,
+            'reason' => $reason,
+            'refund_id' => $result['refund_id'] ?? $result['transaction_id'] ?? '',
+            'at' => date('Y-m-d H:i:s'),
+            'result' => $result,
+        ];
+
+        $newStatus = $isAuthOnly
+            ? 'cancelled'
+            : (($txnAmount > 0 && round($refundAmount, 2) < round($txnAmount, 2)) ? 'partially_refunded' : 'refunded');
+
+        $db->update('transactions', [
+            'status' => $newStatus,
+            'gateway_response' => json_encode($gatewayData, JSON_UNESCAPED_UNICODE),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ], ['reference' => $reference]);
+
+        if (function_exists('logEvent')) {
+            logEvent("Refund {$reference} via {$gateway}: {$refundAmount} {$currency} ({$newStatus})", 'info');
+        }
+
+        return [
+            'success' => true,
+            'message' => $isAuthOnly
+                ? 'تم إلغاء التفويض بنجاح'
+                : 'تم الاسترجاع بنجاح',
+            'status' => $newStatus,
+            'reference' => $reference,
+            'amount' => $refundAmount,
+            'currency' => $currency,
+            'gateway' => $gateway,
+            'refund_id' => $result['refund_id'] ?? $result['transaction_id'] ?? '',
+        ];
+    } catch (Throwable $e) {
+        if (function_exists('logEvent')) {
+            logEvent('processRefundTransaction: ' . $e->getMessage(), 'error');
+        }
+        return ['success' => false, 'message' => 'خطأ أثناء الاسترجاع: ' . $e->getMessage()];
+    }
+}
+
 ?>

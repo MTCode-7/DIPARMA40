@@ -113,7 +113,8 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
         'features' => ['instant_transfer', 'subscriptions', 'payouts', '3ds', 'moto', 'authorize', 'capture', 'void'],
         'card_types' => ['Visa', 'Mastercard', 'Amex', 'Discover'],
-        'setup_complete' => !empty(getenv('PAYPAL_CLIENT_ID')) && !empty(getenv('PAYPAL_SECRET'))
+        'setup_complete' => !empty(getenv('PAYPAL_CLIENT_ID'))
+            && (!empty(getenv('PAYPAL_CLIENT_SECRET')) || !empty(getenv('PAYPAL_SECRET')))
     ],
 
     'nuvei' => [

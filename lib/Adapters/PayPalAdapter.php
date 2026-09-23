@@ -69,8 +69,32 @@ final class PayPalAdapter implements GatewayAdapterInterface
     public function capture(string $transactionId, ?float $amount = null): array
     {
         $start = microtime(true);
-        $result = $this->svc->captureAuthorization($transactionId, $amount, 'USD', ['final_capture' => false]);
-        GatewayLogger::log('paypal', 'capture', ['transaction_id' => $transactionId], $result, empty($result['success']) ? 'GATEWAY_ERROR' : '', microtime(true) - $start);
+        $currency = 'USD';
+        $finalCapture = true;
+        $auth = $this->svc->getAuthorization($transactionId);
+        if (is_array($auth) && (isset($auth['id']) || isset($auth['amount']) || !empty($auth['success']))) {
+            $rawCurrency = '';
+            if (!empty($auth['currency'])) {
+                $rawCurrency = (string) $auth['currency'];
+            } elseif (is_array($auth['amount'] ?? null) && !empty($auth['amount']['currency_code'])) {
+                $rawCurrency = (string) $auth['amount']['currency_code'];
+            }
+            $currency = strtoupper(trim($rawCurrency !== '' ? $rawCurrency : 'USD')) ?: 'USD';
+            $authAmount = floatval(is_array($auth['amount'] ?? null)
+                ? ($auth['amount']['value'] ?? 0)
+                : ($auth['amount'] ?? 0));
+            if ($amount !== null && $amount > 0 && $authAmount > 0
+                && round((float) $amount, 2) < round($authAmount, 2)) {
+                $finalCapture = false;
+            }
+        }
+        $result = $this->svc->captureAuthorization(
+            $transactionId,
+            $amount,
+            $currency,
+            ['final_capture' => $finalCapture]
+        );
+        GatewayLogger::log('paypal', 'capture', ['transaction_id' => $transactionId, 'currency' => $currency], $result, empty($result['success']) ? 'GATEWAY_ERROR' : '', microtime(true) - $start);
         if (!empty($result['success'])) {
             return $result;
         }
@@ -78,7 +102,7 @@ final class PayPalAdapter implements GatewayAdapterInterface
         if (in_array($flag, ['1', 'true', 'yes', 'on'], true) && $this->braintreeConfigured()) {
             return $this->braintree->capture($transactionId, $amount);
         }
-        return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, $amount ?? 0, '', $this->describeFailure($result));
+        return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, $amount ?? 0, $currency, $this->describeFailure($result));
     }
 
     public function cancel(string $transactionId, string $reason = 'requested_by_customer'): array

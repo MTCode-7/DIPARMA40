@@ -26,6 +26,15 @@ foreach (['client_id' => 'PAYPAL_CLIENT_ID', 'secret' => 'PAYPAL_SECRET', 'envir
         $_ENV[$envKey] = $paypalCredentials[$field];
     }
 }
+if (!empty($paypalCredentials['secret'])) {
+    putenv('PAYPAL_CLIENT_SECRET=' . $paypalCredentials['secret']);
+    $_ENV['PAYPAL_CLIENT_SECRET'] = $paypalCredentials['secret'];
+} elseif (!empty($paypalCredentials['client_secret'])) {
+    putenv('PAYPAL_CLIENT_SECRET=' . $paypalCredentials['client_secret']);
+    putenv('PAYPAL_SECRET=' . $paypalCredentials['client_secret']);
+    $_ENV['PAYPAL_CLIENT_SECRET'] = $paypalCredentials['client_secret'];
+    $_ENV['PAYPAL_SECRET'] = $paypalCredentials['client_secret'];
+}
 
 $svc = PayPalService::getInstance();
 
@@ -199,16 +208,52 @@ try {
                 ], JSON_UNESCAPED_UNICODE); break;
             }
 
+            $currency = strtoupper(trim((string) ($payload['currency'] ?? $txn['currency'] ?? 'USD'))) ?: 'USD';
+            $finalCapture = round($captureAmount, 2) >= round($authorizedAmount, 2);
             $result = $svc->captureAuthorization(
                 $authorizationId,
                 $captureAmount,
-                trim($payload['currency'] ?? 'USD')
+                $currency,
+                [
+                    'final_capture' => $finalCapture,
+                    'invoice_id' => $reference,
+                ]
             );
-            if ($result['success'] && $reference !== '') {
+            if (!empty($result['success']) && $reference !== '') {
+                $gatewayData = json_decode($txn['gateway_response'] ?? '{}', true) ?: [];
+                $captureId = trim((string) ($result['capture_id'] ?? $result['id'] ?? ''));
+                if ($captureId !== '') {
+                    $gatewayData['capture_id'] = $captureId;
+                    $gatewayData['payment_id'] = $captureId;
+                    $gatewayData['transaction_id'] = $captureId;
+                }
+                $gatewayData['authorization_id'] = $authorizationId;
                 $db->update('transactions', [
                     'status' => 'completed',
+                    'amount' => $captureAmount,
+                    'net_amount' => $captureAmount,
+                    'currency' => $currency,
+                    'gateway_response' => json_encode($gatewayData, JSON_UNESCAPED_UNICODE),
                     'updated_at' => date('Y-m-d H:i:s'),
                 ], ['reference' => $reference]);
+
+                try {
+                    require_once __DIR__ . '/../lib/LedgerSettlementService.php';
+                    $settle = LedgerSettlementService::getInstance()->settleToLedger([
+                        'reference' => $reference,
+                        'amount' => $captureAmount,
+                        'currency' => $currency,
+                        'gateway' => 'paypal',
+                        'ledger_address' => '',
+                        'user_id' => (int) ($txn['user_id'] ?? 0),
+                        'txn_type' => 'capture',
+                        'destination' => 'ledger',
+                    ]);
+                    $result['ledger_settlement'] = $settle;
+                } catch (Throwable $e) {
+                    error_log('[PayPal][Ledger][capture_authorization] ' . $e->getMessage());
+                    $result['ledger_settlement'] = ['success' => false, 'message' => $e->getMessage()];
+                }
             }
             echo json_encode($result, JSON_UNESCAPED_UNICODE);
             break;
