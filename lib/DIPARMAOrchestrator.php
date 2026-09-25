@@ -138,6 +138,10 @@ class DIPARMAOrchestrator
         $posId     = $input['pos_id']               ?? null;
         $gateway   = strtolower($input['gateway']   ?? '');
         $secMode   = strtoupper($input['sec_mode']  ?? '3D');
+        require_once __DIR__ . '/CardScaService.php';
+        if ($secMode === '3D' && !CardScaService::shouldChallenge($input)) {
+            $secMode = '2D';
+        }
 
         /* ── 1. اختيار الـ Processor — بدون تبديل صامت لبوابة أخرى ── */
         $fromPos = $posId || !empty($input['pos_device']) || strtolower((string)($input['source'] ?? '')) === 'pos';
@@ -199,6 +203,16 @@ class DIPARMAOrchestrator
             $this->save($reference, $input, $result, $processor, $posId, $ts);
         } elseif (!empty($result['reference'])) {
             $reference = (string) $result['reference'];
+        }
+
+        if (!empty($result['success']) && empty($result['requires_3ds']) && empty($result['redirect_url'])) {
+            require_once __DIR__ . '/CardScaService.php';
+            CardScaService::markCompleted(
+                (string) ($input['card_number'] ?? $input['cc_number'] ?? ''),
+                (string) ($input['card_expiry'] ?? $input['cc_expiry'] ?? ''),
+                (string) ($input['card_last4'] ?? ''),
+                $reference
+            );
         }
 
         /* ── 5b. تسوية فورية للصافي → Ledger (نسبة البوابة فقط) ── */

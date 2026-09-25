@@ -127,6 +127,11 @@ class MySystemPaymentOrchestrator
         $mode = (str_contains($txnType, '3d') || strtoupper((string) ($input['sec_mode'] ?? '')) === '3D')
             ? '3D'
             : '2D';
+        require_once __DIR__ . '/../CardScaService.php';
+        if ($mode === '3D' && !CardScaService::shouldChallenge($input)) {
+            $mode = '2D';
+            $txnType = 'purchase_2d';
+        }
         require_once __DIR__ . '/ChargeHub.php';
         $payerName = trim((string) ($input['card_name'] ?? $customer['name'] ?? ''));
         if (function_exists('pos_real_card_name')) {

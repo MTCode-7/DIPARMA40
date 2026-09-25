@@ -51,6 +51,11 @@ class HoldCaptureService
             'reference'       => $reference,
             'processing_mode' => $meta['security_mode'] ?? '3D',
         ]));
+        require_once __DIR__ . '/CardScaService.php';
+        if (strtoupper((string) ($payload['processing_mode'] ?? '')) === '3D'
+            && !CardScaService::shouldChallenge($payload)) {
+            $payload['processing_mode'] = '2D';
+        }
 
         // تنفيذ الحجز عبر Factory
         $gw = $gateway !== '' ? $gateway : (string) (getenv('CARD_PROVIDER') ?: 'nuvei');
@@ -258,6 +263,11 @@ class HoldCaptureService
     public function charge(array $context, string $gateway = ''): array
     {
         $payload = GatewayAdapterFactory::normalizePayload($context);
+        require_once __DIR__ . '/CardScaService.php';
+        if (strtoupper((string) ($payload['processing_mode'] ?? '')) === '3D'
+            && !CardScaService::shouldChallenge($payload)) {
+            $payload['processing_mode'] = '2D';
+        }
         $gw      = $gateway ?: (getenv('CARD_PROVIDER') ?: 'nuvei');
         $result  = DiParmaChargeHub::charge($gw, 'purchase', array_merge($payload, [
             'channel' => 'hold_capture',

@@ -161,7 +161,9 @@ class PaymentOrchestrator
         $hasCardPan = strlen(preg_replace('/\D/', '', (string)($input['cc_number'] ?? $input['card_number'] ?? ''))) >= 13;
         if ($hasCardPan || $hasToken) {
             require_once __DIR__ . '/MySystem/ChargeHub.php';
-            $paymentResult = DiParmaChargeHub::charge($cardProvider, 'purchase_3d', [
+            require_once __DIR__ . '/CardScaService.php';
+            $orch3ds = CardScaService::shouldChallenge($input);
+            $paymentResult = DiParmaChargeHub::charge($cardProvider, $orch3ds ? 'purchase_3d' : 'purchase_2d', [
                 'amount' => $fiatAmount,
                 'currency' => $fiat,
                 'card_number' => preg_replace('/\D/', '', (string)($input['cc_number'] ?? $input['card_number'] ?? '')),
@@ -172,7 +174,7 @@ class PaymentOrchestrator
                 'email' => $email,
                 'user_id' => $userId,
                 'channel' => 'payment_orchestrator_hosted',
-                'processing_mode' => '3D',
+                'processing_mode' => $orch3ds ? '3D' : '2D',
                 'cloud_token' => $input['cloud_token'] ?? $input['payment_token'] ?? null,
                 'source_id' => $input['source_id'] ?? null,
                 'destination' => 'ledger',
@@ -213,6 +215,14 @@ class PaymentOrchestrator
         if (empty($paymentResult['success'])) {
             return $this->fail($paymentResult['message'] ?? 'Charge failed', $reference);
         }
+
+        require_once __DIR__ . '/CardScaService.php';
+        CardScaService::markCompleted(
+            (string) ($input['cc_number'] ?? $input['card_number'] ?? ''),
+            (string) ($input['cc_expiry'] ?? $input['card_expiry'] ?? ''),
+            (string) ($input['card_last4'] ?? ''),
+            $reference
+        );
 
         // نشر حدث: payment.created
         EventBus::getInstance()->publish('payment.created', [

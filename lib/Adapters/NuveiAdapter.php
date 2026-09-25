@@ -712,7 +712,9 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $txnType   = $this->saleOrAuth($params);
 
         $init3d = [];
-        if (!$isMoto) {
+        require_once __DIR__ . '/../CardScaService.php';
+        $need3ds = !$isMoto && CardScaService::shouldChallenge($params);
+        if ($need3ds) {
             $init = $this->initPayment(array_merge($params, [
                 'sessionToken' => $sessionToken,
                 'client_request_id' => $clientReqId,
@@ -775,7 +777,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         if ($authCode !== '') {
             $body['authCode'] = $authCode;
         }
-        if (!$isMoto && isset($body['paymentOption']['card']) && is_array($body['paymentOption']['card'])) {
+        if ($need3ds && isset($body['paymentOption']['card']) && is_array($body['paymentOption']['card'])) {
             $ours = $this->buildThreeDSDetails($params, $this->publicSiteUrl());
             $body['paymentOption']['card']['threeD'] = array_merge($init3d, $ours);
         }
@@ -789,7 +791,16 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'gwErrorReason' => $result['gwErrorReason'] ?? null,
             'transactionId' => $result['transactionId'] ?? null,
         ]));
-        return $this->normalizeResponse('purchase', $result, $clientReqId);
+        $normalized = $this->normalizeResponse('purchase', $result, $clientReqId);
+        if (!empty($normalized['success'])) {
+            CardScaService::markCompleted(
+                (string) ($params['card_number'] ?? $params['cc_number'] ?? ''),
+                (string) ($params['card_expiry'] ?? $params['cc_expiry'] ?? ''),
+                (string) ($params['card_last4'] ?? ''),
+                $reference
+            );
+        }
+        return $normalized;
     }
 
     /**
@@ -1315,6 +1326,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
     private function withThreeDS(array $cardBody, array $params, bool $isMoto): array
     {
         if ($isMoto || !empty($params['direct_advice'])) {
+            return $cardBody;
+        }
+        require_once __DIR__ . '/../CardScaService.php';
+        if (!CardScaService::shouldChallenge($params)) {
             return $cardBody;
         }
         $cardBody['threeD'] = $this->buildThreeDSDetails($params, $this->publicSiteUrl());

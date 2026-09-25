@@ -53,6 +53,10 @@ class MyFatoorahAdapter implements GatewayAdapterInterface
         }
 
         $mode      = strtoupper($payload['processing_mode'] ?? '3D');
+        require_once __DIR__ . '/../CardScaService.php';
+        if ($mode === '3D' && !CardScaService::shouldChallenge($payload)) {
+            $mode = '2D';
+        }
         $amount    = floatval($payload['amount']   ?? 0);
         $currency  = strtoupper($payload['currency'] ?? 'USD');
         $reference = $payload['reference'] ?? uniqid('mf_', true);
@@ -134,6 +138,12 @@ class MyFatoorahAdapter implements GatewayAdapterInterface
                     'hard_block'     => false,
                 ];
                 GatewayLogger::log('myfatoorah', "charge[$mode]", $payload, $result, '', $duration);
+                CardScaService::markCompleted(
+                    (string) ($payload['card_number'] ?? $payload['cc_number'] ?? ''),
+                    (string) ($payload['card_expiry'] ?? $payload['cc_expiry'] ?? ''),
+                    (string) ($payload['card_last4'] ?? ''),
+                    $reference
+                );
                 return $result;
             }
 
