@@ -54,8 +54,8 @@ p{line-height:1.7;color:#8fa5b4}
       ? 'شركة 10 على Square Online: طلبات استلام وتوصيل لهذه الخدمات. الخصم بالبطاقة يبقى على Square 1 ثم الصافي USDT → Ledger.'
       : 'Company 10 on Square Online: pickup and delivery for these services. Card charges stay on Square 1, then net USDT → Ledger.' ?></p>
     <p><?= $ar
-      ? 'أوفلاين Square يكون على جهاز Square POS بعد تفعيله من Dashboard، وليس بإدخال الرقم في DIPARMA.'
-      : 'Square Offline is on Square POS hardware after you allow it in Dashboard — not keyed PAN in DIPARMA.' ?></p>
+      ? 'أوفلاين Square يكون على جهاز Square POS بعد تفعيله من Dashboard. المعلّق يُعرض في تطبيق Square فقط (Transactions). ليس بإدخال الرقم في DIPARMA.'
+      : 'Square Offline is on Square POS hardware after you allow it in Dashboard. Pending is visible only in the Square POS app (Transactions) — not keyed PAN in DIPARMA.' ?></p>
     <p style="font-family:monospace;font-size:.78rem;color:#6aa8ff">Merchant <?= htmlspecialchars($merchantId) ?><br>Location <?= htmlspecialchars($locationId) ?><br>Site <?= htmlspecialchars($siteId) ?></p>
     <a class="btn primary" href="<?= htmlspecialchars($dash) ?>" target="_blank" rel="noopener">Pickup &amp; delivery</a>
     <a class="btn primary" href="<?= htmlspecialchars($site) ?>" target="_blank" rel="noopener">Square Online site</a>

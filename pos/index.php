@@ -1183,8 +1183,8 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       <div id="square-card-container" dir="ltr" style="min-height:96px;width:100%;background:rgba(0,0,0,.25);border-radius:10px;padding:8px"></div>
       <div style="font-size:.68rem;color:var(--muted2);line-height:1.55;margin-top:8px">
         <?=$ar
-          ? 'هذه الشاشة تخصم أونلاين عبر Square Web Payments. أوفلاين Square يكون على جهاز Square POS فقط (حد 50,000 دولار، رفع خلال 24 ساعة / انتهاء 72). إدخال الرقم يدوياً غير مدعوم أوفلاين.'
-          : 'This screen charges live via Square Web Payments. Square Offline is only on Square POS hardware (50,000 USD max, upload within 24 hours / expires 72). Keyed PAN is not available offline.'?>
+          ? 'هذه الشاشة تخصم أونلاين عبر Square Web Payments. أوفلاين Square على جهاز Square POS فقط (حد 50,000 دولار، رفع خلال 24 ساعة / انتهاء 72 من أول عملية). المعلّق يظهر في تطبيق Square: Transactions أو More > Transactions. إدخال الرقم يدوياً غير مدعوم أوفلاين.'
+          : 'This screen charges live via Square Web Payments. Square Offline is only on Square POS hardware (50,000 USD max, upload within 24 hours / expires 72 from the first payment). Pending shows only in the Square POS app: Transactions or More > Transactions. Keyed PAN is not available offline.'?>
       </div>
       <div id="square-error" style="color:var(--red);font-size:.7rem;margin-top:6px"></div>
     </div>
@@ -2748,8 +2748,8 @@ window.processTransaction = async function() {
   }
   if (POS_GW === 'square' && (type === 'offline_sale_moto' || (type === 'auth' && document.getElementById('authChannel')?.value === 'offline'))) {
     toast(AR
-      ? 'أوفلاين Square على جهاز Square POS فقط. هذه الشاشة لا تخزّن البطاقة بدون نت ولا تقبل إدخال الرقم يدوياً أوفلاين.'
-      : 'Square Offline is only on Square POS hardware. This screen cannot store a keyed card offline.', 'error');
+      ? 'أوفلاين Square على جهاز Square POS فقط. المعلّق يُعرض في تطبيق Square (Transactions) وليس هنا. هذه الشاشة لا تخزّن البطاقة بدون نت ولا تقبل إدخال الرقم يدوياً أوفلاين.'
+      : 'Square Offline is only on Square POS hardware. Pending shows in the Square POS app (Transactions), not here. This screen cannot store a keyed card offline.', 'error');
     return;
   }
   if (POS_GW === 'paypal' && (type === 'offline_sale_moto' || (type === 'auth' && document.getElementById('authChannel')?.value === 'offline'))) {

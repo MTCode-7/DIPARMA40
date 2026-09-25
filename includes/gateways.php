@@ -438,18 +438,26 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'limits' => ['min' => 0.5, 'max_per_txn' => 50000, 'max_offline' => 50000, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
         'features' => ['pos', 'online', 'invoicing', 'auth', 'capture', 'offline'],
         'offline_guide' => [
-            'source' => 'Square Process offline payments + GTM00173',
+            'source' => 'Square Process offline payments + View offline payments',
             'channel' => 'square_pos_device',
             'take_hours' => 24,
             'reconnect_hours' => 72,
             'reconnect_recommend_hours' => 24,
             'max_usd' => 50000,
-            'unsupported' => 'EBT/SNAP, Afterpay, Cash App Pay, Square Gift Cards, Tap to Pay, keyed PAN',
+            'min_offline_usd' => 1,
+            'unsupported' => 'EBT/SNAP, Afterpay, Cash App Pay, Square Gift Cards, Tap to Pay, keyed PAN, Invoices app, POS services mode, Kiosk, Terminal API buyer-facing, Reader contactless 1st gen v1/v2',
+            'supported_apps' => 'Square POS (full service, quick service, bar, retail, bookings, standard), Restaurants, Retail, Appointments',
+            'hardware_take_24h' => 'Reader contactless/chip 2nd gen, Reader 1st gen v3, Stand 1st/2nd gen',
+            'hardware_upload_72h' => 'Register, Terminal, Handheld; also mobile + connected Square hardware',
             'do_not' => 'sign out, delete the Square app, switch mode or location, factory reset while payments are pending',
             'auto_enable' => 'April 2026 on all devices unless the seller keeps existing settings',
             'pos_path' => 'More > Settings > Checkout > Offline payments',
-            'dashboard_path' => 'Settings > Device Management > Modes > Manage > Offline payments',
-            'help_url' => 'https://squareup.com/help/us/en/article/3796-process-offline-payments',
+            'dashboard_path' => 'Settings > Device management > Modes > Manage > Checkout settings > Offline payments',
+            'pending_where' => 'Square POS apps only: Transactions or More > Transactions (circle with arrows)',
+            'completed_where' => 'Square Dashboard and POS after upload: Orders & payments > Transactions (Complete + Offline payment note) or Orders',
+            'declined_where' => 'Dashboard Orders (red note) or Reports > Payments > Discounts named Offline Declined Payment; also POS Orders',
+            'help_url' => 'https://squareup.com/help/us/en/article/7777-process-card-payments-with-offline-mode',
+            'view_url' => 'https://squareup.com/help/us/en/article/8551-view-offline-payments',
             'status_url' => 'https://issquareup.com',
         ],
         'card_types' => getAllAcceptedCardTypes(),
@@ -1484,13 +1492,33 @@ function getGatewayConfig($code) {
 }
 
 /** Square Offline is Square POS hardware SAF — DIPARMA Payments API cannot store keyed cards. */
+if (!function_exists('square_offline_guide')) {
+function square_offline_guide(): array
+{
+    $cfg = function_exists('getGatewayConfig') ? getGatewayConfig('square') : null;
+    return is_array($cfg['offline_guide'] ?? null) ? $cfg['offline_guide'] : [];
+}
+}
+
+if (!function_exists('square_offline_view_message')) {
+function square_offline_view_message(): string
+{
+    return 'المعلّق يُعرض فقط داخل تطبيق Square POS: Transactions أو More > Transactions (أيقونة دائرة بأسهم). '
+        . 'لا يظهر المعلّق في Square Dashboard ولا في DIPARMA. '
+        . 'بعد إعادة الاتصال والرفع خلال 72 ساعة من أول عملية: المكتمل في Dashboard من Orders & payments > Transactions (Complete + ملاحظة Offline payment) أو Orders، والمرفوض بإشعار أحمر في Orders أو Reports > Payments > Discounts باسم Offline Declined Payment. '
+        . 'لا إشعارات رفض أثناء الأوفلاين. التاجر يتحمّل المنتهي والمرفوض والنزاع، وSquare لا يعطي بيانات العميل.';
+}
+}
+
 if (!function_exists('square_offline_device_only_message')) {
 function square_offline_device_only_message(): string
 {
-    return 'أوفلاين Square يعمل فقط على تطبيق Square POS / Terminal / Register / Handheld بعد تفعيله من Dashboard (Modes) أو More > Settings > Checkout > Offline payments. '
-        . 'Square لا يدعم إدخال الرقم يدوياً أوفلاين، وDIPARMA لا يخزّن البطاقة محلياً. '
-        . 'ارفع العمليات خلال 24 ساعة (تنتهي بعد 72). الحد 50,000 دولار. '
-        . 'لا تسجّل خروجاً ولا تحذف التطبيق ولا تبدّل الوضع/الموقع أثناء المعلّق. بعد الرفع والموافقة: الصافي USDT → Ledger.';
+    return 'أوفلاين Square يعمل فقط على تطبيق Square POS / Terminal / Register / Handheld / Stand / Reader بعد تفعيله من Dashboard (Settings > Device management > Modes) أو More > Settings > Checkout > Offline payments. '
+        . 'Square لا يدعم إدخال الرقم يدوياً أوفلاين، ولا Tap to Pay ولا بطاقات الهدايا ولا Afterpay ولا Cash App Pay ولا EBT، وDIPARMA لا يخزّن البطاقة محلياً. '
+        . 'ارفع خلال 24 ساعة ويُفضَّل ذلك؛ تنتهي المعلّقة بعد 72 ساعة من بدء الجلسة ولا تُستعاد. Readers/Stand: قبول 24 ساعة ثم أعد الاتصال. الحد 1–50,000 دولار. '
+        . 'لا تسجّل خروجاً ولا تحذف التطبيق ولا تبدّل الوضع/الموقع ولا تعمل إعادة ضبط أثناء المعلّق. الاسترجاع بعد الرفع فقط. '
+        . square_offline_view_message()
+        . ' بعد الرفع والموافقة: الصافي USDT → Ledger.';
 }
 }
 

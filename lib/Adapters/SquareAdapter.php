@@ -5,9 +5,12 @@
  * Docs: https://developer.squareup.com
  *
  * Card data: require source_id / cloud_token from Web Payments SDK (live API).
- * Square Offline: Square POS/hardware store-and-forward only (24h take/upload,
- * 72h expiry, 50k USD). Keyed PAN is unsupported offline. This Payments API
+ * Square Offline: Square POS/hardware store-and-forward only (24h take,
+ * 72h upload from first payment, 50k USD). Pending is viewable only in
+ * Square POS apps. Keyed PAN is unsupported offline. This Payments API
  * adapter is live connect.squareup.com only.
+ * https://squareup.com/help/us/en/article/7777-process-card-payments-with-offline-mode
+ * https://squareup.com/help/us/en/article/8551-view-offline-payments
  */
 require_once __DIR__ . '/GatewayAdapterInterface.php';
 require_once __DIR__ . '/GatewayErrorMapper.php';

@@ -49,8 +49,8 @@ function pos_terminal_gateways(): array
             'color' => '#006AFF',
             'adapter' => 'square',
             'rail' => 'card',
-            'desc_ar' => 'Square → Ledger عبر Payments API أونلاين (Web Payments). أوفلاين Square فقط على جهاز Square POS/Terminal/Register: يُخزَّن على الجهاز ويُرفع خلال 24 ساعة (ينتهي بعد 72). حد العملية 50,000 دولار. إدخال الرقم يدوياً غير مدعوم أوفلاين.',
-            'desc_en' => 'Square → Ledger via live Payments API (Web Payments). Square Offline is Square POS/Terminal/Register only: stored on the device, upload within 24 hours (expires 72). Max 50,000 USD. Keyed PAN is not available offline.',
+            'desc_ar' => 'Square → Ledger عبر Payments API أونلاين (Web Payments). أوفلاين Square فقط على جهاز Square POS: يُخزَّن على الجهاز، رفع خلال 24 ساعة وينتهي بعد 72 من أول عملية. المعلّق يُعرض في تطبيق Square فقط (Transactions). حد العملية 50,000 دولار. إدخال الرقم يدوياً غير مدعوم أوفلاين.',
+            'desc_en' => 'Square → Ledger via live Payments API (Web Payments). Square Offline is Square POS hardware only: stored on the device, upload within 24 hours (expires 72 from first payment). Pending is visible only in the Square POS app (Transactions). Max 50,000 USD. Keyed PAN is not available offline.',
         ],
         'square_online' => [
             'name' => 'Square 2 · Online',
