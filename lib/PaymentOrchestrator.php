@@ -395,7 +395,7 @@ class PaymentOrchestrator
                 'ledger_address' => $input['ledger_address'] ?? $input['ledger_addr'] ?? $walletAddr ?? '',
                 'user_id'        => $userId,
                 'txn_type'       => $transactionType ?: 'moto_purchase',
-                'destination'    => 'ledger',
+                'destination'    => ($cardProvider === 'paypal' ? 'gateway' : 'ledger'),
             ]);
         }
 

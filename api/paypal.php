@@ -247,7 +247,7 @@ try {
                         'ledger_address' => '',
                         'user_id' => (int) ($txn['user_id'] ?? 0),
                         'txn_type' => 'capture',
-                        'destination' => 'ledger',
+                        'destination' => 'gateway',
                     ]);
                     $result['ledger_settlement'] = $settle;
                 } catch (Throwable $e) {
@@ -290,7 +290,7 @@ try {
                         'ledger_address' => '',
                         'user_id'        => (int)($txn['user_id'] ?? 0),
                         'txn_type'       => 'purchase',
-                        'destination'    => 'ledger',
+                        'destination'    => 'gateway',
                     ]);
                     $result['ledger_settlement'] = $settle;
                 }
@@ -436,7 +436,7 @@ try {
                                     'gateway'   => 'paypal',
                                     'user_id'   => (int)($txn['user_id'] ?? 0),
                                     'txn_type'  => 'purchase',
-                                    'destination' => 'ledger',
+                                    'destination' => 'gateway',
                                 ]);
                             }
                         } catch (Throwable $e) {

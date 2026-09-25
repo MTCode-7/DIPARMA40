@@ -281,7 +281,18 @@ $ledgerStatus = strtolower((string)(
     ?? $gwSettle['message']
     ?? ''
 ));
-if ($ledgerTxid) {
+$settleTarget = strtolower(trim((string) (
+    $gwSettle['settlement_target']
+    ?? $gwResp['settlement_target']
+    ?? ''
+)));
+$fundsOnGateway = !empty($gwSettle['retained'])
+    || $settleTarget === 'gateway'
+    || $ledgerStatus === 'retained'
+    || (strtolower((string) ($txn['gateway'] ?? '')) === 'paypal' && empty($ledgerTxid));
+if ($fundsOnGateway) {
+    $ledgerStatusLabel = 'ON GATEWAY';
+} elseif ($ledgerTxid) {
     $ledgerStatusLabel = 'SENT';
 } elseif (!empty($gwSettle['queued']) || $ledgerStatus === 'queued') {
     $ledgerStatusLabel = 'QUEUED';
@@ -1020,7 +1031,7 @@ if (function_exists('redact_protocol_numbers')) {
                 </div>
                 <div class="bank-row">
                     <span class="bank-label">TARGET</span>
-                    <span class="bank-value">LEDGER USDT TRC20</span>
+                    <span class="bank-value"><?= !empty($fundsOnGateway) ? 'PAYPAL GATEWAY' : 'LEDGER USDT TRC20' ?></span>
                 </div>
                 <div class="bank-row">
                     <span class="bank-label">BANK PAYOUT</span>
@@ -1029,13 +1040,15 @@ if (function_exists('redact_protocol_numbers')) {
             </div>
         </div>
 
-        <!-- تسوية الصافي → Ledger USDT -->
-        <?php if ($showLedgerSection): ?>
+        <!-- تسوية: بوابة PayPal أو Ledger USDT -->
+        <?php if ($showLedgerSection || !empty($fundsOnGateway)): ?>
         <div class="section">
-            <div class="divider">— CRYPTO LEDGER SETTLEMENT —</div>
+            <div class="divider"><?= !empty($fundsOnGateway) ? '— GATEWAY SETTLEMENT —' : '— CRYPTO LEDGER SETTLEMENT —' ?></div>
             <div class="crypto-details">
-                <div class="crypto-label">⬡ USDT TRC20 → LEDGER</div>
+                <div class="crypto-label"><?= !empty($fundsOnGateway) ? '⬡ FIAT RETAINED ON PAYPAL' : '⬡ USDT TRC20 → LEDGER' ?></div>
+                <?php if (empty($fundsOnGateway)): ?>
                 <div class="crypto-addr"><?=htmlspecialchars($maskedLedgerAddr)?></div>
+                <?php endif; ?>
                 <?php if ($gatewayFeeAmt > 0 || $feeBase > 0): ?>
                 <div class="row" style="margin-top:4px">
                     <span class="label">GATEWAY FEE BASE<?=$feePct !== null ? ' ('.$feePct.'%)' : ''?></span>
@@ -1052,7 +1065,7 @@ if (function_exists('redact_protocol_numbers')) {
                     <span class="value"><?=number_format($netAmt, 4)?> <?=htmlspecialchars((string)($txn['currency'] ?? 'USD'))?></span>
                 </div>
                 <?php endif; ?>
-                <?php if ($usdtRaw > 0): ?>
+                <?php if ($usdtRaw > 0 && empty($fundsOnGateway)): ?>
                 <div class="row" style="margin-top:4px">
                     <span class="label">SENT TO LEDGER</span>
                     <span class="value highlight"><?=$usdtAmt?> USDT</span>

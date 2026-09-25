@@ -882,8 +882,8 @@ try {
         'gateway_response' => json_encode(pos_redact_pci([
             'channel' => $entryChannel,
             'orchestrator' => !empty($result['orchestrator']) ? $result['orchestrator'] : null,
-            'settlement_path' => $posGateway . '_to_ledger',
-            'settlement_target' => 'ledger',
+            'settlement_path' => $posGateway === 'paypal' ? 'paypal_to_gateway' : ($posGateway . '_to_ledger'),
+            'settlement_target' => $posGateway === 'paypal' ? 'gateway' : 'ledger',
             'status_message' => $message,
             'card_use' => $cardUseAlert['card_use'],
             'card_use_ar' => $cardUseAlert['card_use_ar'],
@@ -1003,14 +1003,16 @@ if ($success && $alreadyLedger) {
             'user_id'        => $userId,
             'txn_type'       => $txnType,
             'transaction_id' => !empty($transactionId) ? (int) $transactionId : null,
-            'destination'    => 'ledger',
+            'destination'    => $feeGateway === 'paypal' ? 'gateway' : 'ledger',
         ]);
-        $ledgerTransfer = !empty($transferResult['success']) && empty($transferResult['skipped']);
+        $ledgerTransfer = !empty($transferResult['success']) && empty($transferResult['skipped']) && empty($transferResult['retained']);
         $ledgerTxid = $transferResult['txid'] ?? null;
         $ledgerFee = $transferResult['fee'] ?? null;
         $ledgerNet = $transferResult['net_fiat'] ?? null;
         $ledgerUsdt = $transferResult['usdt_amount'] ?? null;
-        if (!empty($transferResult['skipped'])) {
+        if (!empty($transferResult['retained'])) {
+            $ledgerStatus = 'retained';
+        } elseif (!empty($transferResult['skipped'])) {
             $ledgerStatus = 'skipped';
         } elseif ($ledgerTransfer) {
             $ledgerStatus = 'completed';

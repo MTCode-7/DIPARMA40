@@ -71,6 +71,90 @@ class LedgerSettlementService
         return $code;
     }
 
+    /** PayPal (and explicit destination=gateway) keep fiat on the acquirer. */
+    public function keepsFundsOnGateway(string $gatewayCode, string $destination = ''): bool
+    {
+        $gw = $this->normalizeGatewayCode($gatewayCode);
+        if (in_array($gw, ['paypal', 'braintree'], true)) {
+            return true;
+        }
+        return strtolower(trim($destination)) === 'gateway' && $gw === 'paypal';
+    }
+
+    /**
+     * Mark a successful PayPal capture as settled on the gateway — no USDT send.
+     */
+    public function retainOnGateway(array $params): array
+    {
+        $reference = trim((string) ($params['reference'] ?? ''));
+        $amount = (float) ($params['amount'] ?? 0);
+        $currency = strtoupper(trim((string) ($params['currency'] ?? 'USD'))) ?: 'USD';
+        $gateway = $this->normalizeGatewayCode((string) ($params['gateway'] ?? 'paypal'));
+        $txnId = isset($params['transaction_id']) ? (int) $params['transaction_id'] : null;
+        $txnType = strtolower(trim((string) ($params['txn_type'] ?? '')));
+        $skipTypes = ['auth', 'auth_hold', 'auth_moto', 'hold', 'refund', 'avoid', 'void', 'reversal'];
+        if ($txnType !== '' && in_array($txnType, $skipTypes, true)) {
+            return [
+                'success' => false,
+                'skipped' => true,
+                'retained' => false,
+                'message' => 'Settlement skipped for txn type ' . $txnType,
+            ];
+        }
+        if ($reference === '' || $amount <= 0) {
+            return ['success' => false, 'message' => 'Invalid settlement params', 'queued' => false];
+        }
+
+        $fee = $this->calculateGatewayFee($gateway, $amount);
+        $result = [
+            'success' => true,
+            'retained' => true,
+            'skipped' => false,
+            'queued' => false,
+            'reference' => $reference,
+            'gateway' => $gateway,
+            'fee' => $fee,
+            'net_fiat' => $fee['net_amount'],
+            'usdt_amount' => 0,
+            'settlement_asset' => strtoupper($currency),
+            'settlement_target' => 'gateway',
+            'ledger_address' => '',
+            'txid' => null,
+            'message' => 'المبلغ بقي في بوابة ' . $gateway . ' — لا تحويل Ledger',
+        ];
+        $this->persistGatewayRetention($reference, $txnId, $result);
+        return $result;
+    }
+
+    private function persistGatewayRetention(string $reference, ?int $txnId, array $settle): void
+    {
+        try {
+            $db = db();
+            $txn = $txnId ? $db->find('transactions', ['id' => $txnId]) : $db->find('transactions', ['reference' => $reference]);
+            $blob = [];
+            if (is_array($txn)) {
+                $blob = json_decode((string) ($txn['gateway_response'] ?? ''), true) ?: [];
+            }
+            $blob['settlement_target'] = 'gateway';
+            $blob['settlement_path'] = ($settle['gateway'] ?? 'paypal') . '_to_gateway';
+            $blob['ledger_settlement'] = $settle;
+            $blob['ledger_status'] = 'retained';
+            $data = [
+                'fees' => $settle['fee']['fee_amount'] ?? 0,
+                'net_amount' => $settle['net_fiat'] ?? 0,
+                'gateway_response' => json_encode($blob, JSON_UNESCAPED_UNICODE),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+            if ($txnId) {
+                $db->update('transactions', $data, ['id' => $txnId]);
+            } else {
+                $db->update('transactions', $data, ['reference' => $reference]);
+            }
+        } catch (Throwable $e) {
+            error_log('[Ledger][gateway-retain] ' . $e->getMessage());
+        }
+    }
+
     /**
      * رسوم البوابة ثم مضاعفتها (دبل افتراضياً)، والصافي = المبلغ − الرسوم المضاعفة.
      * مثال: 100 − (3×2) = 94 → يُرسل 94 USDT إلى Ledger.
@@ -159,6 +243,9 @@ class LedgerSettlementService
         $txnId     = isset($params['transaction_id']) ? (int) $params['transaction_id'] : null;
 
         $target = strtolower(trim((string) ($params['destination'] ?? $params['settlement_target'] ?? 'ledger')));
+        if ($this->keepsFundsOnGateway($gateway, $target)) {
+            return $this->retainOnGateway($params);
+        }
         $ledgerAliases = ['', 'ledger', 'ledger_trx', 'crypto', 'wallet'];
         $blocked = ['bank', 'mashreq', 'iban', 'gateway'];
         if (in_array($target, $blocked, true) || ($target !== '' && !in_array($target, $ledgerAliases, true))) {
