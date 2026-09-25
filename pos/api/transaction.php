@@ -278,6 +278,20 @@ if ($cardType === 'CLOUD') {
 } else {
     $secMode = strtoupper($extra['sec_mode'] ?? $extra['processing_mode'] ?? ($opMeta['security'] ?? '2D'));
 }
+if ($secMode === '3D' && $cardType !== 'CLOUD') {
+    require_once POS_APP_ROOT . '/lib/CardScaService.php';
+    if (CardScaService::hasCompleted3ds($cardNumber, $cardExpiry, substr($cardNumber, -4))) {
+        $secMode = '2D';
+        if ($txnType === 'purchase_3d') {
+            $txnType = 'purchase_2d';
+        }
+        $data['processing_mode'] = '2D';
+        $data['security_mode'] = '2D';
+        $extra['otp_policy'] = 'subsequent_skip';
+    } else {
+        $extra['otp_policy'] = 'first_challenge';
+    }
+}
 
 // توليد مرجع فريد
 $reference = $data['reference'] ?? 'POS-' . strtoupper(substr($txnType, 0, 4)) . '-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
@@ -749,6 +763,9 @@ if ($useCardGateway) {
         if ($requires3ds) {
             $success = false;
             $message = '3DS_REQUIRED';
+        } elseif ($success) {
+            require_once POS_APP_ROOT . '/lib/CardScaService.php';
+            CardScaService::markCompleted($cardNumber, $cardExpiry, $cardLast4, (string) $reference);
         }
 
     } catch (Exception $e) {

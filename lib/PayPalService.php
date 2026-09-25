@@ -582,6 +582,10 @@ class PayPalService
 
         $mode = strtoupper(trim((string)($payload['processing_mode'] ?? $payload['security_mode'] ?? '')));
         $want3ds = ($mode === '3D' || $txnType === 'purchase_3d');
+        require_once __DIR__ . '/CardScaService.php';
+        if ($want3ds && !CardScaService::shouldChallenge($payload)) {
+            $want3ds = false;
+        }
 
         try {
             $token = $this->getAccessToken();
@@ -613,6 +617,12 @@ class PayPalService
                         'return_url' => $returnBase . '?paypal_3ds=ok' . $qs,
                         'cancel_url' => $returnBase . '?paypal_3ds=cancel' . $qs,
                     ];
+                } elseif (!$isMoto && !CardScaService::shouldChallenge($payload)) {
+                    $card['stored_credential'] = [
+                        'payment_initiator' => 'CUSTOMER',
+                        'payment_type' => 'UNSCHEDULED',
+                        'usage' => 'SUBSEQUENT',
+                    ];
                 }
                 $paymentSource = ['card' => $card];
             }
@@ -634,7 +644,11 @@ class PayPalService
                 'PayPal-Request-Id: ' . ($reference !== '' ? $reference : uniqid('ppcard_', true)),
             ]);
 
-            return $this->formatCardOrderResponse($response, $intent, $reference, $amount, $currency);
+            $formatted = $this->formatCardOrderResponse($response, $intent, $reference, $amount, $currency);
+            if (!empty($formatted['success']) && empty($formatted['requires_3ds'])) {
+                CardScaService::markCompleted($cardNumber, (string) ($payload['card_expiry'] ?? $payload['cc_expiry'] ?? ''), substr($cardNumber, -4), $reference);
+            }
+            return $formatted;
         } catch (Exception $e) {
             $this->log('✗ processCard failed: ' . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage(), 'error_code' => 'NETWORK_ERROR'];

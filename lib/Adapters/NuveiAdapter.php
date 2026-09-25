@@ -941,6 +941,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
     // ── Purchase 3D Secure — يرجع redirectUrl لـ OTP ──────
     public function purchase3D(array $params): array
     {
+        require_once __DIR__ . '/../CardScaService.php';
+        if (!CardScaService::shouldChallenge($params)) {
+            return $this->purchase2D($params);
+        }
         $ident = $this->missingPayerIdentity($params);
         if ($ident !== null) {
             return $ident;
