@@ -29,6 +29,8 @@ $GATEWAY_NAMES = [
     'binance' => 'Binance', 'gate_io' => 'Gate.io', 'mashreq' => 'Mashreq Bank',
     'hsbc_uae' => 'HSBC UAE', 'nbe_egypt' => 'NBE Egypt', 'jpmorgan' => 'JP Morgan Chase',
     'whop' => 'Whop', 'ledger' => 'Ledger CHECKOUT',
+    'checkout' => 'Checkout.com', 'paytabs' => 'PayTabs',
+    'authorizenet' => 'Authorize.Net', 'braintree' => 'Braintree',
 ];
 $gwName = $GATEWAY_NAMES[$gwCode] ?? strtoupper($gwCode);
 

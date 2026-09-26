@@ -1125,7 +1125,8 @@ async function go() {
     // MY POS pipe: CHECKOUT / LINK / WEB → same as POS devices
     var posPipeGateways = {
       nuvei:1, diparma:1, square:1, stripe:1, paypal:1,
-      gate_io:1, binance:1, whop:1
+      gate_io:1, binance:1, whop:1, myfatoorah:1,
+      checkout:1, paytabs:1, authorizenet:1, braintree:1
     };
     var apiUrl = CHARGE_ENDPOINT || (BASE + 'api/checkout_charge.php');
     var pipeGw = CHARGE_GW || GW;

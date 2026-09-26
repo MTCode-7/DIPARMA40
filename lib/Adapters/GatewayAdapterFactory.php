@@ -129,23 +129,27 @@ class GatewayAdapterFactory
             : $mode;
 
         $adapter = self::make($gateway, $modeForFactory);
-        $resolved = strtolower(trim((string) ($gateway ?: $adapter->getName())));
-        if ($resolved === 'nuvei' && !($adapter instanceof NuveiAdapter)) {
+        $canon = static function (string $name): string {
+            $name = strtolower(trim($name));
+            $aliases = [
+                'binance_otc' => 'binance',
+                'checkout.com' => 'checkout',
+                'authorize_net' => 'authorizenet',
+                'authnet' => 'authorizenet',
+                'pay_tabs' => 'paytabs',
+                'gateio' => 'gate_io',
+            ];
+            return $aliases[$name] ?? $name;
+        };
+        $resolved = $canon((string) ($gateway ?: $adapter->getName()));
+        $adapterName = $canon((string) $adapter->getName());
+        if ($resolved !== '' && $adapterName !== '' && $adapterName !== $resolved) {
             return GatewayErrorMapper::buildErrorResponse(
                 'GATEWAY_ERROR',
                 (string) ($universalPayload['reference'] ?? ''),
                 (float) ($universalPayload['amount'] ?? 0),
                 strtoupper((string) ($universalPayload['currency'] ?? 'USD')),
-                'Nuvei path rejected a non-Nuvei adapter'
-            );
-        }
-        if ($adapter instanceof NuveiAdapter && $resolved !== 'nuvei') {
-            return GatewayErrorMapper::buildErrorResponse(
-                'GATEWAY_ERROR',
-                (string) ($universalPayload['reference'] ?? ''),
-                (float) ($universalPayload['amount'] ?? 0),
-                strtoupper((string) ($universalPayload['currency'] ?? 'USD')),
-                'Nuvei adapter cannot run for ' . $resolved
+                $adapterName . ' adapter cannot run for ' . $resolved
             );
         }
 

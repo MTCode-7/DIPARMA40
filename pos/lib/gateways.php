@@ -539,11 +539,12 @@ function pos_run_isolated_card_gateway(string $gateway, string $adapter, string 
 {
     $gateway = pos_normalize_gateway($gateway);
     $adapter = strtolower(trim($adapter));
-    if ($gateway === 'nuvei' && $adapter !== 'nuvei') {
-        return ['success' => false, 'message' => 'Nuvei runs only on the Nuvei adapter', 'gateway' => 'nuvei'];
+    $isolated = pos_isolated_card_adapters();
+    if (in_array($gateway, $isolated, true) && $adapter !== $gateway) {
+        return ['success' => false, 'message' => $gateway . ' runs only on the ' . $gateway . ' adapter', 'gateway' => $gateway];
     }
-    if ($adapter === 'nuvei' && $gateway !== 'nuvei') {
-        return ['success' => false, 'message' => 'Nuvei adapter cannot charge for ' . $gateway, 'gateway' => $gateway];
+    if (in_array($adapter, $isolated, true) && $gateway !== $adapter) {
+        return ['success' => false, 'message' => $adapter . ' adapter cannot charge for ' . $gateway, 'gateway' => $gateway];
     }
     $params = pos_prepare_operation_payload($txnType, $params);
     $params['gateway'] = $gateway;

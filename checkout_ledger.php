@@ -47,6 +47,10 @@ $allGateways = [
     'nbe_egypt'     => ['name' => 'NBE Egypt',         'icon' => 'fas fa-landmark',       'color' => '#006633'],
     'jpmorgan'      => ['name' => 'JP Morgan Chase',   'icon' => 'fas fa-landmark',       'color' => '#003087'],
     'whop'          => ['name' => 'Whop',              'icon' => 'fas fa-bolt',           'color' => '#7C3AED'],
+    'checkout'      => ['name' => 'Checkout.com',      'icon' => 'fas fa-credit-card',    'color' => '#1A1F36'],
+    'paytabs'       => ['name' => 'PayTabs',           'icon' => 'fas fa-credit-card',    'color' => '#00AEEF'],
+    'authorizenet'  => ['name' => 'Authorize.Net',     'icon' => 'fas fa-credit-card',    'color' => '#1A4E8A'],
+    'braintree'     => ['name' => 'Braintree',         'icon' => 'fas fa-credit-card',    'color' => '#00A3E0'],
 ];
 
 $gatewayRoutes = [];

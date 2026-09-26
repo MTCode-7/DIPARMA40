@@ -42,6 +42,10 @@ $allGateways = [
     'nbe_egypt'  => ['name'=>'NBE Egypt',     'icon'=>'fas fa-landmark',       'color'=>'#006633','type'=>'bank',   'desc_ar'=>'تحويل بنكي + كل الشبكات والمُصدرين','desc_en'=>'Bank transfer + all networks and issuers'],
     'jpmorgan'   => ['name'=>'JP Morgan Chase','icon'=>'fas fa-landmark',      'color'=>'#003087','type'=>'bank',   'desc_ar'=>'تحويل بنكي + كل الشبكات والمُصدرين','desc_en'=>'Bank transfer + all networks and issuers'],
     'whop'       => ['name'=>'Whop',          'icon'=>'fas fa-bolt',           'color'=>'#7C3AED','type'=>'digital','desc_ar'=>'كل الشبكات والمُصدرين','desc_en'=>'All networks and issuers'],
+    'checkout'   => ['name'=>'Checkout.com',  'icon'=>'fas fa-credit-card',    'color'=>'#1A1F36','type'=>'card',   'desc_ar'=>'خصم البطاقة — المبلغ يبقى على Checkout.com','desc_en'=>'Card charge — funds stay on Checkout.com'],
+    'paytabs'    => ['name'=>'PayTabs',       'icon'=>'fas fa-credit-card',    'color'=>'#00AEEF','type'=>'card',   'desc_ar'=>'خصم البطاقة — المبلغ يبقى على PayTabs','desc_en'=>'Card charge — funds stay on PayTabs'],
+    'authorizenet'=> ['name'=>'Authorize.Net','icon'=>'fas fa-credit-card',    'color'=>'#1A4E8A','type'=>'card',   'desc_ar'=>'خصم البطاقة — المبلغ يبقى على Authorize.Net','desc_en'=>'Card charge — funds stay on Authorize.Net'],
+    'braintree'  => ['name'=>'Braintree',     'icon'=>'fas fa-credit-card',    'color'=>'#00A3E0','type'=>'card',   'desc_ar'=>'خصم البطاقة — المبلغ يبقى على Braintree','desc_en'=>'Card charge — funds stay on Braintree'],
 ];
 
 $gateways = $allGateways;

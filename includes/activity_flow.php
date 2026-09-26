@@ -83,6 +83,7 @@ function activity_gateway_page_codes(): array
         'payram', 'diparma', 'nuvei', 'stripe', 'square', 'square_online',
         'paypal', 'wise', 'myfatoorah', 'binance', 'gate_io',
         'mashreq', 'hsbc_uae', 'nbe_egypt', 'jpmorgan', 'whop', 'ledger',
+        'checkout', 'paytabs', 'authorizenet', 'braintree',
     ];
 }
 
@@ -352,6 +353,10 @@ function activity_checkout_route(string $code): string
         'payram' => 'checkout/payram.php',
         'diparma' => 'checkout/diparma.php',
         'ledger' => 'checkout_ledger.php',
+        'checkout' => 'checkout/checkout.php',
+        'paytabs' => 'checkout/paytabs.php',
+        'authorizenet' => 'checkout/authorizenet.php',
+        'braintree' => 'checkout/braintree.php',
     ];
     return $routes[$code] ?? '';
 }

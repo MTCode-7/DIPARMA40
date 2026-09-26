@@ -63,6 +63,10 @@ $GATEWAY_META = [
     'whop'       => ['name' => 'Whop',              'icon' => 'fas fa-bolt',            'color' => '#7C3AED', 'currencies' => ['USD','EUR']],
     'payram'     => ['name' => 'PayRam',            'icon' => 'fas fa-server',          'color' => '#10B981', 'currencies' => ['USDT','USD']],
     'ledger'     => ['name' => 'Ledger CHECKOUT',   'icon' => 'fas fa-wallet',          'color' => '#10B981', 'currencies' => ['USDT','USD']],
+    'checkout'   => ['name' => 'Checkout.com',      'icon' => 'fas fa-credit-card',     'color' => '#1A1F36', 'currencies' => ['USD','EUR','GBP','AED']],
+    'paytabs'    => ['name' => 'PayTabs',           'icon' => 'fas fa-credit-card',     'color' => '#00AEEF', 'currencies' => ['USD','AED','SAR','EUR']],
+    'authorizenet' => ['name' => 'Authorize.Net',   'icon' => 'fas fa-credit-card',     'color' => '#1A4E8A', 'currencies' => ['USD','EUR','GBP','CAD']],
+    'braintree'  => ['name' => 'Braintree',         'icon' => 'fas fa-credit-card',     'color' => '#00A3E0', 'currencies' => ['USD','EUR','GBP','AUD']],
 ];
 
 $meta = $GATEWAY_META[$gwCode] ?? [
