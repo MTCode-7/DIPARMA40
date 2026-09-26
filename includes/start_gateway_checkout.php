@@ -17,6 +17,8 @@ require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/pos_operations.php';
 require_once __DIR__ . '/gateways.php';
+require_once __DIR__ . '/activity_flow.php';
+require_once __DIR__ . '/gateway_channel_bar.php';
 
 if (empty($gwCode)) {
     header('Location: ' . (isset($checkoutBase) ? $checkoutBase : '') . 'checkout_router.php');
@@ -24,6 +26,11 @@ if (empty($gwCode)) {
 }
 
 $gwCode = strtolower(trim((string)$gwCode));
+
+if ($gwCode === 'ledger') {
+    header('Location: ' . (isset($checkoutBase) ? $checkoutBase : '') . 'checkout_ledger.php' . (!empty($_SERVER['QUERY_STRING']) ? ('?' . $_SERVER['QUERY_STRING']) : ''), true, 302);
+    exit;
+}
 
 // منع الوصول المباشر لصفحة بوابة غير مفعّلة أو غير متصلة أو بلا مفاتيح
 try {
@@ -55,6 +62,7 @@ $GATEWAY_META = [
     'jpmorgan'   => ['name' => 'JP Morgan Chase',   'icon' => 'fas fa-landmark',        'color' => '#003087', 'currencies' => ['USD','EUR','GBP']],
     'whop'       => ['name' => 'Whop',              'icon' => 'fas fa-bolt',            'color' => '#7C3AED', 'currencies' => ['USD','EUR']],
     'payram'     => ['name' => 'PayRam',            'icon' => 'fas fa-server',          'color' => '#10B981', 'currencies' => ['USDT','USD']],
+    'ledger'     => ['name' => 'Ledger CHECKOUT',   'icon' => 'fas fa-wallet',          'color' => '#10B981', 'currencies' => ['USDT','USD']],
 ];
 
 $meta = $GATEWAY_META[$gwCode] ?? [
@@ -116,9 +124,10 @@ if ($basePath === '' && strpos(str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ??
 // استعلام اختياري من الراوتر
 $prefillAmount   = floatval($_GET['amount'] ?? 0);
 $prefillCurrency = strtoupper(trim((string)($_GET['currency'] ?? ($currencies[0] ?? 'USD'))));
-$prefillDest     = 'ledger';
+$ledgerCheckout  = isset($_GET['ledger_checkout']) && (string) $_GET['ledger_checkout'] === '1';
+$prefillDest     = $ledgerCheckout ? 'ledger' : 'gateway';
 $prefillWallet   = trim((string)($_GET['wallet'] ?? ''));
-if ($prefillWallet === '' && defined('LEDGER_TRC20_ADDRESS')) {
+if ($ledgerCheckout && $prefillWallet === '' && defined('LEDGER_TRC20_ADDRESS')) {
     $prefillWallet = (string) LEDGER_TRC20_ADDRESS;
 }
 $prefillOp = '';
@@ -136,16 +145,31 @@ if ($secQ === '2D' && isset($checkoutOps['purchase_2d'])) {
     $prefillOp = 'purchase_3d';
 }
 $activityLine = strtolower(trim((string)($_GET['line'] ?? '')));
-if ($gwCode === 'diparma_gateway' || $prefillDest === 'ledger') {
-    $prefillDest = 'ledger';
-    if (defined('LEDGER_TRC20_ADDRESS')) {
-        $prefillWallet = (string) LEDGER_TRC20_ADDRESS;
-    }
-}
 $prefillRef      = trim((string)($_GET['ref'] ?? ''));
 $prefillLink     = trim((string)($_GET['link'] ?? ''));
+$reqChannel = strtolower(trim((string) ($_GET['channel'] ?? $_GET['ch'] ?? '')));
+if ($reqChannel === 'pos') {
+    $posQs = array_filter([
+        'line' => $activityLine,
+        'op' => $prefillOp,
+        'amount' => $prefillAmount > 0 ? $prefillAmount : '',
+        'currency' => $prefillCurrency,
+        'ledger_checkout' => !empty($ledgerCheckout) ? '1' : '',
+    ]);
+    header('Location: ' . $basePath . activity_pos_route($gwCode) . ($posQs ? ('?' . http_build_query($posQs)) : ''), true, 302);
+    exit;
+}
+if ($reqChannel === 'link' && $prefillLink === '') {
+    $linkQs = array_filter([
+        'ledger_checkout' => !empty($ledgerCheckout) ? '1' : '',
+        'amount' => $prefillAmount > 0 ? $prefillAmount : '',
+        'currency' => $prefillCurrency,
+    ]);
+    header('Location: ' . $basePath . activity_link_route($gwCode) . ($linkQs ? ('?' . http_build_query($linkQs)) : ''), true, 302);
+    exit;
+}
 // MY POS channels: checkout | link | web — all feed the same POS transaction pipe
-$checkoutChannel = $checkoutChannel ?? ($prefillLink !== '' ? 'link' : 'checkout');
+$checkoutChannel = $checkoutChannel ?? ($prefillLink !== '' || $reqChannel === 'link' ? 'link' : 'checkout');
 if (!in_array($checkoutChannel, ['checkout', 'link', 'web'], true)) {
     $checkoutChannel = 'checkout';
 }

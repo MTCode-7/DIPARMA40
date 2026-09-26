@@ -7,6 +7,8 @@
 require_once __DIR__ . '/../includes/auth_check.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/activity_flow.php';
+require_once __DIR__ . '/../includes/gateway_channel_bar.php';
 
 $lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang']==='ar' ? 'ar' : 'en';
 $ar   = ($lang==='ar'); $dir=$ar?'rtl':'ltr';
@@ -15,7 +17,11 @@ $db   = db();
 
 $amount      = floatval($_GET['amount']      ?? 0);
 $currency    = strtoupper($_GET['currency']  ?? $BANK_CONFIG['default_currency'] ?? 'AED');
-$destination = $_GET['destination']          ?? 'gateway';
+$ledgerCheckout = isset($_GET['ledger_checkout']) && (string) $_GET['ledger_checkout'] === '1';
+$destination = $ledgerCheckout ? 'ledger_trx' : (string) ($_GET['destination'] ?? 'gateway');
+if (!$ledgerCheckout && in_array($destination, ['ledger', 'ledger_trx'], true)) {
+    $destination = 'gateway';
+}
 $txnTypeInit = $_GET['txn_type']             ?? 'purchase';
 $ref         = $_GET['ref']                  ?? ($BANK_CONFIG['prefix'].'-'.strtoupper(substr(uniqid(),0,8)));
 
@@ -134,6 +140,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 
 <div class="layout">
 <div>
+  <?= diparma_gateway_channel_bar((string) ($BANK_CONFIG['gateway_code'] ?? ''), 'checkout', '../', $ar, !empty($ledgerCheckout) ? ['ledger_checkout' => '1'] : []) ?>
 
   <!-- Stats -->
   <div class="card">
@@ -381,6 +388,7 @@ async function processBank(extra={}){
       body:JSON.stringify({txn_type:STATE2.txnType,amount,currency,destination:STATE2.dest,reference:REF,
         card_name:name,email:email||'',csrf_token:CSRF,
         ledger_address:wallet,auto_transfer:STATE2.dest==='ledger_trx',
+        ledger_checkout: STATE2.dest==='ledger_trx' ? 1 : 0,
         orig_ref:document.getElementById('bankOrigRef')?.value||'',
         pos_device:'BANK_'+BNK_CODE.toUpperCase(),
         extra:{bank:BNK_CODE,transfer_ref:tref,method:STATE2.method,sec_mode:STATE2.secMode,custom_dest:custDest,...extra}})});

@@ -10,6 +10,9 @@ if (!defined('DI_PARMA_CHECKOUT')) {
 if (!function_exists('pos_operation_catalog')) {
     require_once __DIR__ . '/includes/pos_operations.php';
 }
+if (!function_exists('diparma_gateway_channel_bar')) {
+    require_once __DIR__ . '/includes/gateway_channel_bar.php';
+}
 $checkoutOps = $checkoutOps ?? pos_operation_catalog();
 $basePath = $basePath ?? '';
 $lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
@@ -27,7 +30,7 @@ if (!empty($prefillOp) && isset($checkoutOps[$prefillOp])) {
 }
 $isPayram = (($gwCode ?? '') === 'payram');
 $isDiparmaGw = (($gwCode ?? '') === 'diparma_gateway');
-$isLedgerGw = false;
+$isLedgerGw = !empty($ledgerCheckout);
 $chargeEndpoint = ($basePath ?? '') . 'api/checkout_charge.php';
 $chargeGwCode = $chargeGwCode ?? $gwCode;
 $isNuveiFamily = in_array(($chargeGwCode ?? $gwCode ?? ''), ['nuvei', 'diparma'], true);
@@ -127,6 +130,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="top-nav">
       <a href="<?=htmlspecialchars($basePath)?>dashboard.php"><i class="fas fa-th-large"></i></a>
       <a href="<?=htmlspecialchars($basePath)?>checkout_router.php"><i class="fas fa-exchange-alt"></i></a>
+      <a href="<?=htmlspecialchars($basePath)?>checkout_ledger.php" title="Ledger CHECKOUT"><i class="fas fa-wallet"></i></a>
       <a href="<?=htmlspecialchars($basePath)?>pos/index.php"><i class="fas fa-cash-register"></i></a>
       <?php if (($gwCode ?? '') === 'paypal'): ?>
       <a href="<?=htmlspecialchars($basePath)?>holds.php" title="<?= $ar ? 'حجوزات PayPal' : 'PayPal Holds' ?>" style="color:#4DA6FF">
@@ -138,14 +142,23 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 </nav>
 
 <div style="max-width:1060px;margin:14px auto;padding:0 20px">
-  <a href="<?=htmlspecialchars($basePath)?>checkout_router.php" class="back-link">
+  <a href="<?=htmlspecialchars($isLedgerGw ? ($basePath . 'checkout_ledger.php') : ($basePath . 'checkout_router.php'))?>" class="back-link">
     <i class="fas fa-arrow-<?=$ar?'right':'left'?>"></i>
-    <?=$ar?'رجوع لاختيار البوابة':'Back to Gateway Selection'?>
+    <?=$isLedgerGw ? ($ar ? 'رجوع لـ Ledger CHECKOUT' : 'Back to Ledger CHECKOUT') : ($ar ? 'رجوع لاختيار البوابة' : 'Back to Gateway Selection')?>
   </a>
+  <?= diparma_gateway_channel_bar(
+      (string) ($gwCode ?? ''),
+      (string) (($checkoutChannel ?? 'checkout') === 'link' ? 'link' : 'checkout'),
+      (string) ($basePath ?? ''),
+      $ar,
+      !empty($ledgerCheckout) ? ['ledger_checkout' => '1'] : []
+  ) ?>
   <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px">
     <?=$ar?'صفحة مستقلة لبوابة':'Dedicated gateway page:'?>
     <strong style="color:var(--gw)"><?=htmlspecialchars($gwName)?></strong>
-    — <?=$ar?'كل عمليات الشراء متاحة هنا':'all purchase operations available here'?>
+    — <?=$isLedgerGw
+      ? ($ar ? 'خصم من صفحة Ledger CHECKOUT — الصافي يصل إلى Ledger' : 'charged from Ledger CHECKOUT — net arrives at Ledger')
+      : ($ar ? 'كل عمليات الشراء متاحة هنا — المبلغ يبقى على هذه البوابة' : 'all purchase operations available here — funds stay on this gateway')?>
     · <span style="color:var(--gold);font-weight:800">ENDPOINT</span>
     <code style="color:var(--text);font-size:.72rem">POST <?=htmlspecialchars($chargeEndpoint)?></code>
     <?php if (($gwCode ?? '') === 'paypal'): ?>
@@ -178,8 +191,12 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
   <div class="info-note" style="margin-top:8px">
     <i class="fas fa-link" style="color:var(--gw)"></i>
     <?=$ar
-      ? 'Nuvei / DI PARMA — التحصيل عبر Nuvei. الوجهة بعد الموافقة: Ledger USDT. الحقول الإلزامية تتغير حسب نوع العملية.'
-      : 'Nuvei / DI PARMA — Nuvei charges the card. After approval: Ledger USDT. Required fields change by operation type.'?>
+      ? ($isLedgerGw
+        ? 'Nuvei / DI PARMA — التحصيل عبر Nuvei من Ledger CHECKOUT. بعد الموافقة يصل الصافي إلى Ledger.'
+        : 'Nuvei / DI PARMA — التحصيل عبر Nuvei. المبلغ يبقى على Nuvei. الحقول الإلزامية تتغير حسب نوع العملية.')
+      : ($isLedgerGw
+        ? 'Nuvei / DI PARMA — Nuvei charges the card from Ledger CHECKOUT. After approval the net arrives at Ledger.'
+        : 'Nuvei / DI PARMA — Nuvei charges the card. Funds stay on Nuvei. Required fields change by operation type.')?>
   </div>
   <?php endif; ?>
   <div id="txDesc" class="info-note">
@@ -195,9 +212,11 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 <div class="co-card hidden" id="cardSection">
   <div class="co-title">
     <i class="fas fa-credit-card" style="color:var(--gw)"></i>
-    <?=$isDiparmaGw
+    <?=$isLedgerGw
       ? ($ar ? 'بطاقة → Ledger USDT' : 'Card → Ledger USDT')
-      : ($isPayram ? ($ar ? 'بطاقة → كريبتو (PayRam)' : 'Card → Crypto (PayRam)') : ($ar ? 'بيانات البطاقة' : 'Card Details'))?>
+      : ($isDiparmaGw
+        ? ($ar ? 'بطاقة — المبلغ على البوابة' : 'Card — funds on gateway')
+        : ($isPayram ? ($ar ? 'بطاقة → كريبتو (PayRam)' : 'Card → Crypto (PayRam)') : ($ar ? 'بيانات البطاقة' : 'Card Details')))?>
     <span id="modeLabel" style="font-size:.72rem;color:var(--muted);font-weight:600;margin-<?=$ar?'right':'left'?>:auto"></span>
   </div>
   <div class="info-note" style="margin-bottom:12px">
@@ -211,8 +230,12 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
   <div class="info-note" style="margin-bottom:12px">
     <i class="fas fa-credit-card" style="color:var(--gw)"></i>
     <?=$ar
-      ? 'DIPARMA GATEWAY: اسحب من البطاقة بأي عملة. الأفضل للوصول: USDT TRC20 على Ledger. لا بنك ولا IBAN كوجهة.'
-      : 'DIPARMA GATEWAY: charge the card in any currency. Best arrival: USDT TRC20 on Ledger. No bank or IBAN destination.'?>
+      ? ($isLedgerGw
+        ? 'من Ledger CHECKOUT: الخصم على هذه البوابة ثم الصافي → عنوان Ledger. لا بنك ولا IBAN.'
+        : 'DIPARMA GATEWAY: الخصم على هذه البوابة والمبلغ يبقى عليها. للوصول إلى Ledger افتح صفحة Ledger CHECKOUT.')
+      : ($isLedgerGw
+        ? 'From Ledger CHECKOUT: charge on this gateway then net → Ledger address. No bank or IBAN.'
+        : 'DIPARMA GATEWAY: charge on this gateway and keep the funds here. To send to Ledger open Ledger CHECKOUT.')?>
   </div>
   <?php elseif ($isPayram): ?>
   <div class="info-note" style="margin-bottom:12px">
@@ -571,7 +594,8 @@ function luhnCheck(num) {
 var GW   = '<?=htmlspecialchars($gwCode)?>';
 var CHARGE_GW = '<?=htmlspecialchars((string)($chargeGwCode ?? $gwCode))?>';
 var BASE = '<?=htmlspecialchars($basePath)?>';
-var DEST = '<?=htmlspecialchars($prefillDest ?? 'ledger')?>';
+var DEST = '<?=htmlspecialchars($prefillDest ?? 'gateway')?>';
+var LEDGER_CHECKOUT = <?= !empty($ledgerCheckout) ? 'true' : 'false' ?>;
 var WALLET = '<?=htmlspecialchars(($prefillWallet ?? '') !== '' ? $prefillWallet : (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''))?>';
 var REF  = '<?=htmlspecialchars($prefillRef ?? '')?>';
 var CHECKOUT_CHANNEL = '<?=htmlspecialchars($checkoutChannel ?? 'checkout')?>';
@@ -1061,9 +1085,10 @@ async function go() {
     payload.extra = { charge_mode: mode, channel: 'system_pos', scheme_route: detectCardNetwork((document.getElementById('ccNumber')||{}).value || '') };
   }
 
-  payload.destination = DEST || 'ledger';
+  payload.destination = LEDGER_CHECKOUT ? 'ledger' : (DEST || 'gateway');
+  payload.ledger_checkout = LEDGER_CHECKOUT ? 1 : 0;
   payload.ledger_address = WALLET || <?=json_encode(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '')?>;
-  payload.auto_transfer = true;
+  payload.auto_transfer = LEDGER_CHECKOUT;
   if (REF) payload.reference = REF;
   payload.gateway = CHARGE_GW || GW;
   payload.card_provider = CHARGE_GW || GW;
@@ -1096,7 +1121,7 @@ async function go() {
     var pipeGw = CHARGE_GW || GW;
 
     if (GW === 'diparma_gateway' && !CHARGE_GW) {
-      showToast(<?=json_encode($ar ? 'فعّل بوابة دفع للخصم. DIPARMA GATEWAY للتسوية إلى Ledger فقط.' : 'Enable a charge gateway. DIPARMA GATEWAY is Ledger settlement only.')?>, 'error');
+      showToast(<?=json_encode($ar ? 'فعّل بوابة دفع للخصم. Ledger CHECKOUT صفحة مستقلة.' : 'Enable a charge gateway. Ledger CHECKOUT is a separate page.')?>, 'error');
       btn.disabled=false; resetBtn(); return;
     }
 
@@ -1148,7 +1173,7 @@ async function go() {
     var d = await readJson(r);
     var redir = d.redirect_url || d.checkout_url || (d.payment && (d.payment.redirect_url || d.payment.checkout_url));
     if ((d.requires_3ds || redir) && redir) {
-      showToast(<?=json_encode($ar ? 'أكمل الدفع على البوابة — التسوية بعد الموافقة فقط' : 'Complete gateway payment — Ledger settles only after approval')?>, 'info');
+      showToast(<?=json_encode($ar ? 'أكمل الدفع على البوابة — المبلغ يبقى على نفس البوابة' : 'Complete gateway payment — funds stay on the same gateway')?>, 'info');
       window.location.href = redir;
       return;
     }

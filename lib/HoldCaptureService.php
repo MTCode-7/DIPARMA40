@@ -58,7 +58,10 @@ class HoldCaptureService
         }
 
         // تنفيذ الحجز عبر Factory
-        $gw = $gateway !== '' ? $gateway : (string) (getenv('CARD_PROVIDER') ?: 'nuvei');
+        $gw = strtolower(trim($gateway !== '' ? $gateway : (string) (getenv('CARD_PROVIDER') ?: '')));
+        if ($gw === '') {
+            return ['success' => false, 'message' => 'Gateway is required. Nuvei is not assumed.'];
+        }
         $result = DiParmaChargeHub::charge($gw, 'auth_hold', array_merge($payload, [
             'channel' => 'hold_capture',
             'user_id' => $userId,

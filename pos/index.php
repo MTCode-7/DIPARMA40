@@ -8,6 +8,9 @@ require_once __DIR__ . '/bootstrap.php';
 if (!function_exists('activity_operations')) {
     require_once POS_APP_ROOT . '/includes/activity_flow.php';
 }
+if (!function_exists('diparma_gateway_channel_bar')) {
+    require_once POS_APP_ROOT . '/includes/gateway_channel_bar.php';
+}
 pos_require_operator();
 
 $lang = 'en';
@@ -74,6 +77,7 @@ $posGw = pos_normalize_gateway((string)($_GET['gw'] ?? ''));
 if ($posGw !== '' && !pos_gateway_is_live($posGw)) {
     $posGw = '';
 }
+$ledgerCheckout = isset($_GET['ledger_checkout']) && (string) $_GET['ledger_checkout'] === '1';
 $posMerchant = pos_merchant_profile((string)($_GET['line'] ?? $_COOKIE['di_parma_pos_line'] ?? 'hajj'));
 $canonDevice = (string)($posDevice['model'] ?? 'generic_pos');
 $canonQs = array_filter([
@@ -86,6 +90,7 @@ $canonQs = array_filter([
     'mode' => (string)($_GET['mode'] ?? ''),
     'arrival' => (string)($_GET['arrival'] ?? ''),
     'payout' => (string)($_GET['payout'] ?? ''),
+    'ledger_checkout' => $ledgerCheckout ? '1' : '',
 ]);
 $canonTid = (string) ($posDevice['terminal_id'] ?? '');
 $getTid = pos_normalize_terminal_id((string) ($_GET['tid'] ?? ''));
@@ -453,7 +458,7 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
       <i class="fas fa-coins"></i> DI PARMA
     </a>
     <span style="color:var(--muted)">|</span>
-    <div class="tb-badge"><i class="fas fa-cash-register"></i> <?= $posHub ? 'POS' : ('POS · ' . htmlspecialchars($posGwMeta['name'] ?? ($ar ? 'اختر البوابة' : 'Choose gateway')) . ' → Ledger') ?></div>
+    <div class="tb-badge"><i class="fas fa-cash-register"></i> <?= $posHub ? 'POS' : ('POS · ' . htmlspecialchars($posGwMeta['name'] ?? ($ar ? 'اختر البوابة' : 'Choose gateway')) . (!empty($ledgerCheckout) ? ' → Ledger' : '')) ?></div>
     <?php if (!$posHub): ?>
     <div class="tb-badge" style="margin-inline-start:8px"><?=htmlspecialchars(($posDevice['terminal_id'] ?? '') !== '' ? $posDevice['terminal_id'] : '—')?></div>
     <?php endif; ?>
@@ -469,6 +474,14 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
     <?php endif; ?>
   </div>
 </nav>
+<?php
+$posBarCode = !empty($ledgerCheckout) && $posGw === '' ? 'ledger' : $posGw;
+if ($posBarCode !== ''):
+    echo '<div style="max-width:1280px;margin:12px auto 0;padding:0 24px">';
+    echo diparma_gateway_channel_bar($posBarCode, 'pos', '../', $ar, !empty($ledgerCheckout) ? ['ledger_checkout' => '1'] : []);
+    echo '</div>';
+endif;
+?>
 
 <?php if ($posHub): ?>
 <?php $hubGwsPos = $liveGwsPos; ?>
@@ -1352,13 +1365,17 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
 
   <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.35);border-radius:12px;padding:12px;margin-bottom:12px">
     <div style="font-size:.78rem;font-weight:800;color:var(--green);margin-bottom:6px" id="settleGwTitle">
-      <i class="fas fa-lock"></i> POS: <?=htmlspecialchars($posGwMeta['name'] ?? ($ar ? 'اختر البوابة' : 'Choose gateway'))?> → Ledger
+      <i class="fas fa-lock"></i> POS: <?=htmlspecialchars($posGwMeta['name'] ?? ($ar ? 'اختر البوابة' : 'Choose gateway'))?><?= !empty($ledgerCheckout) ? ' → Ledger' : '' ?>
     </div>
-    <input type="hidden" id="autoTransfer" checked>
+    <input type="hidden" id="autoTransfer" <?= !empty($ledgerCheckout) ? 'checked' : '' ?>>
     <div style="font-size:.68rem;color:var(--muted2);line-height:1.6" id="settleGwHint">
-      <?=htmlspecialchars($posGwMeta['name'] ?? '')?><?=$ar
-        ? ' تسحب من البطاقة بأي عملة. الأفضل للوصول: USDT TRC20 على Ledger. بعد الموافقة: الرسوم×2 ثم الصافي → Ledger. لا بنك ولا IBAN كوجهة.'
-        : ' charges the card in any currency. Best arrival: USDT TRC20 on Ledger. After approval: fee×2 then net → Ledger. No bank/IBAN destination.'?>
+      <?=htmlspecialchars($posGwMeta['name'] ?? '')?><?= !empty($ledgerCheckout)
+        ? ($ar
+          ? ' من Ledger CHECKOUT: الخصم على هذه البوابة ثم الصافي → Ledger. لا بنك ولا IBAN.'
+          : ' from Ledger CHECKOUT: charge on this gateway then net → Ledger. No bank/IBAN.')
+        : ($ar
+          ? ' تسحب من البطاقة بأي عملة. المبلغ يبقى على نفس البوابة. للوصول إلى Ledger افتح صفحة Ledger CHECKOUT.'
+          : ' charges the card in any currency. Funds stay on this gateway. To send to Ledger open Ledger CHECKOUT.') ?>
     </div>
   </div>
 
@@ -1619,6 +1636,7 @@ function selectPayoutRail(code, el) {
   document.querySelectorAll('[data-payout]').forEach(b => b.classList.toggle('active', b.dataset.payout === POS_PAYOUT));
 }
 let POS_GW = <?= json_encode((string)$posGw) ?>;
+const LEDGER_CHECKOUT = <?= !empty($ledgerCheckout) ? 'true' : 'false' ?>;
 let POS_REQUIRES_CARD = <?= !empty($posGw) && pos_gateway_requires_card($posGw) ? 'true' : 'false' ?>;
 function syncNuveiFxHint() {
   const el = document.getElementById('nuveiFxHint');
@@ -2951,10 +2969,11 @@ window.processTransaction = async function() {
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     email: (document.getElementById('posEmail')?.value || '').trim(),
     ledger_address: POS.ledgerAddress,
-    destination: 'gateway',
+    destination: LEDGER_CHECKOUT ? 'ledger' : 'gateway',
+    ledger_checkout: LEDGER_CHECKOUT ? 1 : 0,
     arrival: POS_ARRIVAL || 'wallet',
     payout_via: POS_ARRIVAL === 'payout' ? (POS_PAYOUT || '') : '',
-    auto_transfer: POS_ARRIVAL !== 'payout',
+    auto_transfer: LEDGER_CHECKOUT,
     csrf_token: CSRF,
     gateway: POS_GW,
     card_provider: POS_GW,

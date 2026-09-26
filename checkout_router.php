@@ -27,10 +27,10 @@ $db   = db();
 // ── البوابات المتاحة في الواجهة ───────────────────────────────────────
 $allGateways = [
     'payram'     => ['name'=>'PayRam',        'icon'=>'fas fa-server',         'color'=>'#10B981','type'=>'crypto', 'desc_ar'=>'بعد الموافقة يبقى المبلغ على PayRam','desc_en'=>'After approval the funds stay on PayRam'],
-    'diparma'    => ['name'=>'DI PARMA',      'icon'=>'fas fa-coins',          'color'=>'#FFD700','type'=>'card',   'desc_ar'=>'بوابة مفعّلة تخصم البطاقة ثم الصافي → Ledger','desc_en'=>'Enabled gateway charges the card, then net → Ledger'],
-    'nuvei'      => ['name'=>'Nuvei',        'icon'=>'fas fa-credit-card',   'color'=>'#F97316','type'=>'card',   'desc_ar'=>'خصم البطاقة على Nuvei إن كانت مفعّلة. الصافي → Ledger','desc_en'=>'Card charge on Nuvei if enabled. Net → Ledger'],
-    'stripe'     => ['name'=>'Stripe',       'icon'=>'fab fa-stripe-s',       'color'=>'#6772e5','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين','desc_en'=>'All networks and issuers'],
-    'square'     => ['name'=>'Square 1',     'icon'=>'fas fa-square',          'color'=>'#006AFF','type'=>'card',   'desc_ar'=>'خصم البطاقة Payments API ثم الصافي → Ledger','desc_en'=>'Card charge via Payments API, then net → Ledger'],
+    'diparma'    => ['name'=>'DI PARMA',      'icon'=>'fas fa-coins',          'color'=>'#FFD700','type'=>'card',   'desc_ar'=>'خصم البطاقة — المبلغ يبقى على DI PARMA','desc_en'=>'Card charge — funds stay on DI PARMA'],
+    'nuvei'      => ['name'=>'Nuvei',        'icon'=>'fas fa-credit-card',   'color'=>'#F97316','type'=>'card',   'desc_ar'=>'خصم البطاقة على Nuvei — المبلغ يبقى على Nuvei','desc_en'=>'Card charge on Nuvei — funds stay on Nuvei'],
+    'stripe'     => ['name'=>'Stripe',       'icon'=>'fab fa-stripe-s',       'color'=>'#6772e5','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين — المبلغ يبقى على Stripe','desc_en'=>'All networks and issuers — funds stay on Stripe'],
+    'square'     => ['name'=>'Square 1',     'icon'=>'fas fa-square',          'color'=>'#006AFF','type'=>'card',   'desc_ar'=>'خصم البطاقة Payments API — المبلغ يبقى على Square','desc_en'=>'Card charge via Payments API — funds stay on Square'],
     'square_online' => ['name'=>'Square 2 · Online', 'icon'=>'fas fa-store',   'color'=>'#006AFF','type'=>'fulfillment','desc_ar'=>'شركة 10 — سياحة، حجوزات، إيجارات، عقارات، فنادق. متجر الإمارات. الخصم على Square 1.','desc_en'=>'Company 10 — tourism, bookings, rentals, real estate, hotels. UAE store. Card charge stays on Square 1.'],
     'paypal'     => ['name'=>'PayPal',        'icon'=>'fab fa-paypal',         'color'=>'#003087','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين','desc_en'=>'All networks and issuers'],
     'wise'       => ['name'=>'Wise',          'icon'=>'fas fa-exchange-alt',   'color'=>'#9fe870','type'=>'digital','desc_ar'=>'كل الشبكات والمُصدرين عبر Wise','desc_en'=>'All networks and issuers via Wise'],
@@ -124,7 +124,14 @@ $destinations = [
   $activityOps = activity_operations();
   $ledgerAddr = activity_ledger_address();
   $connectedPos = activity_connected_gateways('pos');
+  $connectedCheckout = activity_connected_gateways('checkout');
   $connectedLink = activity_connected_gateways('link');
+  $posRoutes = [];
+  $linkRoutes = [];
+  foreach (array_keys($gateways) as $code) {
+      $posRoutes[$code] = activity_pos_route($code);
+      $linkRoutes[$code] = activity_link_route($code);
+  }
 ?><!DOCTYPE html>
 <html lang="<?=$lang?>" dir="<?=$dir?>">
 <head>
@@ -201,13 +208,14 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 <header class="topbar">
   <div class="tb-brand"><i class="fas fa-coins"></i> DI PARMA <span style="color:var(--muted);margin:0 4px">|</span> <span style="color:var(--gold);font-size:.85rem"><?=$ar?'الدفع':'Checkout'?></span></div>
   <div class="tb-nav">
+    <a href="checkout_ledger.php"><i class="fas fa-wallet"></i> Ledger CHECKOUT</a>
     <a href="dashboard.php"><i class="fas fa-th-large"></i> <?=$ar?'لوحة التحكم':'Dashboard'?></a>
   </div>
 </header>
 
 <div class="wrap">
   <div class="page-title"><i class="fas fa-briefcase"></i> <?=$ar?'الدفع حسب النشاط':'Pay by activity'?></div>
-  <div class="page-sub"><?=$ar?'نشاط الشركة → POS أو رابط → البوابة المتصلة → نوع العملية. المبلغ يصل لمحفظة Ledger.':'Business activity → POS or Link → connected gateway → operation. Amount arrives at the Ledger wallet.'?></div>
+  <div class="page-sub"><?=$ar?'نشاط الشركة → POS أو رابط → البوابة المتصلة → نوع العملية. المبلغ يبقى على نفس البوابة.':'Business activity → POS or Link → connected gateway → operation. Funds stay on the same gateway.'?></div>
 
   <!-- Steps Bar -->
   <div class="steps-bar">
@@ -269,9 +277,9 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <?php endforeach; ?>
     </div>
     <div class="amount-section" style="margin-top:8px">
-      <div style="font-size:.75rem;font-weight:800;color:var(--green);margin-bottom:6px">LEDGER</div>
-      <div style="font-family:monospace;font-size:.8rem;word-break:break-all"><?=htmlspecialchars($ledgerAddr !== '' ? $ledgerAddr : 'LEDGER_TRC20_ADDRESS')?></div>
-      <div style="font-size:.7rem;color:var(--muted2);margin-top:8px"><?=$ar?'وجهة المبلغ ثابتة: عنوان المحفظة في LEDGER.':'Amount destination is fixed: the LEDGER wallet address.'?></div>
+      <div style="font-size:.75rem;font-weight:800;color:var(--orange);margin-bottom:6px"><?=$ar?'نفس البوابة':'Same gateway'?></div>
+      <div style="font-size:.7rem;color:var(--muted2);line-height:1.6"><?=$ar?'المبلغ يبقى على البوابة المستخدمة. للوصول إلى Ledger استخدم صفحة Ledger CHECKOUT — بوابة مستقلة.':'Funds stay on the gateway you use. To send to Ledger open Ledger CHECKOUT — a standalone gateway.'?></div>
+      <div style="margin-top:10px"><a href="checkout_ledger.php" style="color:var(--gold);font-weight:800;text-decoration:none"><i class="fas fa-wallet"></i> Ledger CHECKOUT</a></div>
     </div>
     <div style="display:flex;gap:12px">
       <button class="continue-btn" style="background:rgba(255,255,255,.06);color:var(--text);box-shadow:none;flex:0 0 120px" onclick="goStep(1)"><i class="fas fa-arrow-right"></i> <?=$ar?'رجوع':'Back'?></button>
@@ -325,6 +333,16 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <?php endforeach; ?>
     </div>
     <?php endforeach; ?>
+
+    <div class="section-title" style="font-size:.65rem;margin-top:18px;color:var(--muted)">— <?=$ar?'بوابة مستقلة':'Standalone'?> —</div>
+    <div class="gw-grid">
+      <a class="gw-card" href="checkout_ledger.php" style="text-decoration:none;color:inherit">
+        <div class="gw-type-badge" style="background:rgba(16,185,129,.12);color:var(--green)">ledger</div>
+        <div class="gw-icon" style="background:#10B98122;color:#10B981"><i class="fas fa-wallet"></i></div>
+        <div class="gw-name">Ledger CHECKOUT</div>
+        <div class="gw-desc"><?=$ar?'بوابة خاصة لوحدها — أضف بوابات الخصم ليصل الصافي إلى Ledger':'Its own gateway — attach charge gateways so the net arrives at Ledger'?></div>
+      </a>
+    </div>
 
     <div style="display:flex;gap:12px">
       <button class="continue-btn" style="background:rgba(255,255,255,.06);color:var(--text);box-shadow:none;flex:0 0 120px" onclick="goStep(2)"><i class="fas fa-arrow-right"></i> <?=$ar?'رجوع':'Back'?></button>
@@ -466,7 +484,7 @@ const STATE = {
   line: null,
   channel: null,
   gateway: null,
-  destination: 'ledger_trx',
+  destination: 'gateway',
   walletAddr: <?=json_encode($ledgerAddr)?>,
   amount: 0,
   currency: 'USD',
@@ -474,9 +492,12 @@ const STATE = {
 };
 const LEDGER_ADDR = <?=json_encode($ledgerAddr)?>;
 const POS_GWS = <?=json_encode(array_keys($connectedPos), JSON_UNESCAPED_UNICODE)?>;
+const CHECKOUT_GWS = <?=json_encode(array_keys($connectedCheckout), JSON_UNESCAPED_UNICODE)?>;
 const LINK_GWS = <?=json_encode(array_keys($connectedLink), JSON_UNESCAPED_UNICODE)?>;
 
 const GW_ROUTES = <?=json_encode($gatewayRoutes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
+const POS_ROUTES = <?=json_encode($posRoutes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
+const LINK_ROUTES = <?=json_encode($linkRoutes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
 
 function selectActivity(code, el) {
   STATE.line = code || null;
@@ -493,7 +514,7 @@ function selectChannel(code, el) {
   if (el) el.classList.add('selected');
   const btn = document.getElementById('btn-step2');
   if (btn) btn.disabled = false;
-  const allow = code === 'pos' ? POS_GWS : LINK_GWS;
+  const allow = code === 'pos' ? POS_GWS : (code === 'link' ? LINK_GWS : CHECKOUT_GWS);
   document.querySelectorAll('.gw-card[id^="gw-"]').forEach(card => {
     const id = (card.id || '').replace('gw-', '');
     card.style.display = allow.indexOf(id) >= 0 ? '' : 'none';
@@ -511,8 +532,8 @@ function selectGateway(code, el) {
   if (el) el.classList.add('selected');
   const btn = document.getElementById('btn-step3gw');
   if (btn) btn.disabled = false;
-  STATE.destination = 'ledger_trx';
-  STATE.walletAddr = LEDGER_ADDR;
+  STATE.destination = 'gateway';
+  STATE.walletAddr = '';
 }
 window.selectGateway = selectGateway;
 
@@ -635,11 +656,7 @@ window.addEventListener('DOMContentLoaded', function() {
 });
 
 function selectDestination(code, el) {
-  if (code !== 'ledger_trx') {
-    toast(AR ? 'وجهة التسوية Ledger فقط. ليست IBAN بنك.' : 'Settlement destination is Ledger only. Not a bank IBAN.', 'error');
-    return;
-  }
-  STATE.destination = code;
+  STATE.destination = code || 'gateway';
   document.querySelectorAll('.dest-card').forEach(c => c.classList.remove('selected'));
   if (el) el.classList.add('selected');
   const btn = document.getElementById('btn-step2');
@@ -728,12 +745,8 @@ window.proceedToCheckout = function() {
     toast(AR ? 'أكمل النشاط والقناة والبوابة' : 'Complete activity, channel, and gateway', 'error');
     return;
   }
-  if (!LEDGER_ADDR) {
-    toast(AR ? 'أضف LEDGER_TRC20_ADDRESS' : 'Set LEDGER_TRC20_ADDRESS', 'error');
-    return;
-  }
-  STATE.destination = 'ledger_trx';
-  STATE.walletAddr = LEDGER_ADDR;
+  STATE.destination = 'gateway';
+  STATE.walletAddr = '';
   STATE.txnType = STATE_TXN.type;
   STATE.amount = parseFloat(document.getElementById('txnAmount')?.value) || 0;
   STATE.currency = document.getElementById('txnCurrency')?.value || 'USD';
@@ -750,7 +763,18 @@ window.proceedToCheckout = function() {
     const routerTidRaw = <?= json_encode(strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', (string) ($_GET['tid'] ?? ''))), JSON_UNESCAPED_UNICODE) ?>;
     const routerTid = routerTidRaw;
     if (routerTid) q.set('tid', routerTid);
-    window.location.href = 'pos/index.php?' + q.toString();
+    window.location.href = (POS_ROUTES[STATE.gateway] || 'pos/index.php') + '?' + q.toString();
+    return;
+  }
+
+  if (STATE.channel === 'link') {
+    const q = new URLSearchParams({
+      gateway: STATE.gateway,
+      amount: String(STATE.amount || 0),
+      currency: STATE.currency,
+      line: STATE.line
+    });
+    window.location.href = (LINK_ROUTES[STATE.gateway] || 'links.php') + '?' + q.toString();
     return;
   }
 
@@ -761,7 +785,8 @@ window.proceedToCheckout = function() {
   }
   const params = new URLSearchParams({
     gateway: STATE.gateway,
-    destination: 'ledger',
+    destination: 'gateway',
+    channel: 'checkout',
     amount: String(STATE.amount || 0),
     currency: STATE.currency,
     txn_type: STATE.txnType,
@@ -771,7 +796,6 @@ window.proceedToCheckout = function() {
     orig_ref: document.getElementById('txnOrigRef')?.value.trim() || '',
     approval_code: document.getElementById('txnApprovalCode')?.value.trim() || '',
     notes: document.getElementById('txnNotes')?.value.trim() || '',
-    wallet: LEDGER_ADDR,
     csrf_token: CSRF
   });
   window.location.href = route + '?' + params.toString();

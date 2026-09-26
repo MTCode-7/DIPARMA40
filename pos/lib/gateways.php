@@ -85,7 +85,7 @@ function pos_terminal_gateways(): array
             'name' => 'DI PARMA',
             'icon' => 'fas fa-coins',
             'color' => '#FFD700',
-            'adapter' => 'nuvei',
+            'adapter' => 'diparma',
             'rail' => 'card',
             'desc_ar' => 'DI PARMA. ' . $acceptNoteAr . ' بعد الموافقة يبقى المبلغ على نفس البوابة.',
             'desc_en' => 'DI PARMA. ' . $acceptNoteEn . ' After approval the funds stay on the same gateway.',
@@ -94,7 +94,7 @@ function pos_terminal_gateways(): array
             'name' => 'DIPARMA GATEWAY',
             'icon' => 'fas fa-credit-card',
             'color' => '#E8C547',
-            'adapter' => 'nuvei',
+            'adapter' => '',
             'rail' => 'card',
             'chargeable' => false,
             'desc_ar' => 'بعد موافقة البوابة المفعّلة يبقى المبلغ عليها.',
@@ -408,8 +408,13 @@ function pos_paypal_id_from_node(array $node, array $keys): string
     return '';
 }
 
-function pos_format_gateway_result(array $result, string $fallbackMessage = 'DECLINED'): array
+function pos_format_gateway_result(array $result, string $fallbackMessage = 'DECLINED', string $gateway = ''): array
 {
+    if ($gateway !== '') {
+        $result['gateway'] = $gateway;
+        $result['provider'] = $gateway;
+        $result['isolated'] = true;
+    }
     if (empty($result['success']) && empty($result['requires_3ds']) && empty($result['redirect_url']) && empty($result['checkout_url'])) {
         $result['success'] = false;
         $result['message'] = $result['message'] ?? $fallbackMessage;
@@ -527,7 +532,17 @@ function pos_related_host_id(string $gateway, array $params): string
 
 function pos_run_isolated_card_gateway(string $gateway, string $adapter, string $txnType, array $params): array
 {
+    $gateway = pos_normalize_gateway($gateway);
+    $adapter = strtolower(trim($adapter));
+    if ($gateway === 'nuvei' && $adapter !== 'nuvei') {
+        return ['success' => false, 'message' => 'Nuvei runs only on the Nuvei adapter', 'gateway' => 'nuvei'];
+    }
+    if ($adapter === 'nuvei' && $gateway !== 'nuvei') {
+        return ['success' => false, 'message' => 'Nuvei adapter cannot charge for ' . $gateway, 'gateway' => $gateway];
+    }
     $params = pos_prepare_operation_payload($txnType, $params);
+    $params['gateway'] = $gateway;
+    $params['provider'] = $gateway;
     $effective = strtolower((string) ($params['txn_type'] ?? $txnType));
     [$file, $class] = pos_adapter_class_file($adapter);
     if ($file === '' || $class === '') {
@@ -545,20 +560,20 @@ function pos_run_isolated_card_gateway(string $gateway, string $adapter, string 
 
     if (in_array($effective, ['auth', 'auth_hold', 'auth_moto', 'hold', 'authorize'], true)) {
         if ($adapter === 'nuvei' && method_exists($obj, 'authorize')) {
-            return pos_format_gateway_result($obj->authorize($params));
+            return pos_format_gateway_result($obj->authorize($params), 'DECLINED', $gateway);
         }
-        return pos_format_gateway_result($obj->hold($params));
+        return pos_format_gateway_result($obj->hold($params), 'DECLINED', $gateway);
     }
 
     if (in_array($effective, ['capture', 'auth_complete', 'auth_capture'], true)) {
         if ($adapter === 'nuvei') {
-            return pos_format_gateway_result($obj->capture($params, $amount > 0 ? $amount : null));
+            return pos_format_gateway_result($obj->capture($params, $amount > 0 ? $amount : null), 'DECLINED', $gateway);
         }
         $id = pos_related_host_id($gateway, $params);
         if ($id === '') {
             return ['success' => false, 'message' => 'Original payment id required for capture on ' . $gateway, 'gateway' => $gateway];
         }
-        return pos_format_gateway_result($obj->capture($id, $amount > 0 ? $amount : null));
+        return pos_format_gateway_result($obj->capture($id, $amount > 0 ? $amount : null), 'DECLINED', $gateway);
     }
 
     if ($effective === 'refund') {
@@ -571,7 +586,7 @@ function pos_run_isolated_card_gateway(string $gateway, string $adapter, string 
         if (!method_exists($obj, 'refund')) {
             return ['success' => false, 'message' => 'Refund is not supported on ' . $gateway, 'gateway' => $gateway];
         }
-        return pos_format_gateway_result($obj->refund($id, $amount > 0 ? $amount : 0.0, (string) ($params['currency'] ?? 'USD')));
+        return pos_format_gateway_result($obj->refund($id, $amount > 0 ? $amount : 0.0, (string) ($params['currency'] ?? 'USD')), 'DECLINED', $gateway);
     }
 
     if (in_array($effective, ['avoid', 'void', 'cancel', 'reversal'], true)) {
@@ -580,19 +595,19 @@ function pos_run_isolated_card_gateway(string $gateway, string $adapter, string 
             return ['success' => false, 'message' => 'Original payment id required to cancel on ' . $gateway, 'gateway' => $gateway];
         }
         if ($adapter === 'nuvei' && method_exists($obj, 'void')) {
-            return pos_format_gateway_result($obj->void($params));
+            return pos_format_gateway_result($obj->void($params), 'DECLINED', $gateway);
         }
-        return pos_format_gateway_result($obj->cancel($id, $effective));
+        return pos_format_gateway_result($obj->cancel($id, $effective), 'DECLINED', $gateway);
     }
 
     if ($effective === 'purchase_3d' && method_exists($obj, 'purchase3D')) {
-        return pos_format_gateway_result($obj->purchase3D($params));
+        return pos_format_gateway_result($obj->purchase3D($params), 'DECLINED', $gateway);
     }
     if (in_array($effective, ['purchase_2d', 'online_sale_moto', 'offline_sale_moto', 'purchase_advice'], true)
         && method_exists($obj, 'purchase2D')) {
-        return pos_format_gateway_result($obj->purchase2D($params));
+        return pos_format_gateway_result($obj->purchase2D($params), 'DECLINED', $gateway);
     }
-    return pos_format_gateway_result($obj->charge($params));
+    return pos_format_gateway_result($obj->charge($params), 'DECLINED', $gateway);
 }
 
 /**

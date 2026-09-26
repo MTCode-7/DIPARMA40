@@ -308,11 +308,10 @@ class DIPARMAOrchestrator
         /* USD/EUR/GBP مبالغ كبيرة → Wise */
         if (in_array($currency, ['USD','EUR','GBP']) && $amount > 50000) return 'wise';
 
-        /* AED → Nuvei (Mashreq) */
+        /* AED → Nuvei only when auto-select is explicitly allowed */
         if ($currency === 'AED') return 'nuvei';
 
-        /* Default → Nuvei */
-        return 'nuvei';
+        return '';
     }
 
     private function selectFallback(string $failed, string $currency, float $amount): ?string

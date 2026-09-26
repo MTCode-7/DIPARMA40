@@ -152,7 +152,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
 <form method="POST" id="captureForm">
 <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($csrfToken)?>">
-<input type="hidden" name="gateway" id="selectedGateway" value="nuvei">
+<input type="hidden" name="gateway" id="selectedGateway" value="">
 <input type="hidden" name="tx_type" id="selectedTxType" value="capture">
 
 <!-- اختيار البوابة -->

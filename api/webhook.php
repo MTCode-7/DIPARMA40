@@ -47,7 +47,13 @@ $logFile = $logDir . '/webhook.log';
 
 $rawPayload = file_get_contents('php://input');
 $headers    = function_exists('getallheaders') ? getallheaders() : [];
-$gateway    = strtolower(trim($_GET['gateway'] ?? $_POST['gateway'] ?? 'nuvei'));
+$gateway    = strtolower(trim($_GET['gateway'] ?? $_POST['gateway'] ?? ''));
+if ($gateway === '') {
+    http_response_code(400);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['status' => 'error', 'message' => 'gateway is required']);
+    exit;
+}
 if ($rawPayload === '' && empty($_POST)) {
     http_response_code(200);
     header('Content-Type: text/html; charset=utf-8');

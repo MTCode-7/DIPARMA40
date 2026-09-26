@@ -1,7 +1,8 @@
 <?php
 /**
  * Activity-first payment flow:
- * نشاط الشركة → POS أو رابط → بوابة متصلة → 13 عملية → Ledger
+ * نشاط الشركة → POS أو رابط → بوابة متصلة → العملية. المبلغ يبقى على نفس البوابة.
+ * Ledger بوابة مستقلة: checkout_ledger.php
  */
 if (defined('DI_PARMA_ACTIVITY_FLOW')) {
     return;
@@ -50,22 +51,70 @@ function activity_channels(): array
 {
     return [
         'pos' => [
-            'ar' => 'سحب POS',
+            'ar' => 'POS',
             'en' => 'POS',
             'icon' => 'fa-cash-register',
             'color' => '#F97316',
             'desc_ar' => 'نقطة البيع — شريحة أو NFC أو إدخال يدوي',
             'desc_en' => 'Terminal — chip, NFC, or keyed entry',
         ],
+        'checkout' => [
+            'ar' => 'CHECKOUT',
+            'en' => 'CHECKOUT',
+            'icon' => 'fa-shopping-cart',
+            'color' => '#FFD700',
+            'desc_ar' => 'صفحة الدفع الخاصة بهذه البوابة',
+            'desc_en' => 'This gateway’s dedicated checkout page',
+        ],
         'link' => [
-            'ar' => 'رابط دفع',
-            'en' => 'Payment link',
+            'ar' => 'LINK',
+            'en' => 'LINK',
             'icon' => 'fa-link',
             'color' => '#3B82F6',
-            'desc_ar' => 'رابط للكاشير أو للعميل — نفس البوابة والعملية',
-            'desc_en' => 'Link for cashier or customer — same gateway and operation',
+            'desc_ar' => 'رابط دفع للكاشير أو للعميل — نفس البوابة',
+            'desc_en' => 'Payment link for cashier or customer — same gateway',
         ],
     ];
+}
+
+function activity_gateway_page_codes(): array
+{
+    return [
+        'payram', 'diparma', 'nuvei', 'stripe', 'square', 'square_online',
+        'paypal', 'wise', 'myfatoorah', 'binance', 'gate_io',
+        'mashreq', 'hsbc_uae', 'nbe_egypt', 'jpmorgan', 'whop', 'ledger',
+    ];
+}
+
+function activity_pos_route(string $code): string
+{
+    $code = strtolower(trim($code));
+    if ($code === '' || !in_array($code, activity_gateway_page_codes(), true)) {
+        return 'pos/index.php';
+    }
+    return 'pos/' . $code . '.php';
+}
+
+function activity_link_route(string $code): string
+{
+    $code = strtolower(trim($code));
+    if ($code === '' || !in_array($code, activity_gateway_page_codes(), true)) {
+        return 'links.php';
+    }
+    return 'link/' . $code . '.php';
+}
+
+function activity_channel_route(string $code, string $channel): string
+{
+    $channel = strtolower(trim($channel));
+    if ($channel === 'pos') {
+        return activity_pos_route($code);
+    }
+    if ($channel === 'link') {
+        return activity_link_route($code);
+    }
+    $checkout = activity_checkout_route($code);
+    return $checkout !== '' ? $checkout : 'checkout_router.php';
 }
 
 function activity_ledger_address(): string
@@ -241,7 +290,8 @@ function activity_connected_gateways(string $channel = 'pos'): array
     foreach (pos_live_gateways() as $code => $gw) {
         $out[$code] = $gw;
     }
-    if ($channel !== 'link') {
+    $channel = strtolower(trim($channel));
+    if ($channel !== 'link' && $channel !== 'checkout') {
         return $out;
     }
     if (!function_exists('isGatewayVisibleInCheckout')) {
@@ -301,6 +351,7 @@ function activity_checkout_route(string $code): string
         'whop' => 'checkout/whop.php',
         'payram' => 'checkout/payram.php',
         'diparma' => 'checkout/diparma.php',
+        'ledger' => 'checkout_ledger.php',
     ];
     return $routes[$code] ?? '';
 }

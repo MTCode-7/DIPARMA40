@@ -236,6 +236,7 @@ function globalNav(string $activePage = ''): string {
     $pages = [
         'index'      => ['icon'=>'fas fa-home',          'url'=>'index.php',                     'label_ar'=>'الرئيسية',      'label_en'=>'Home'],
         'checkout'   => ['icon'=>'fas fa-shopping-cart', 'url'=>'checkout_router.php',           'label_ar'=>'الدفع',         'label_en'=>'Checkout'],
+        'ledger'     => ['icon'=>'fas fa-wallet',        'url'=>'checkout_ledger.php',           'label_ar'=>'Ledger',        'label_en'=>'Ledger'],
         'wallets'    => ['icon'=>'fas fa-wallet',        'url'=>'wallets.php',                   'label_ar'=>'المحافظ',       'label_en'=>'Wallets'],
         'history'    => ['icon'=>'fas fa-history',       'url'=>'transactions.php',              'label_ar'=>'السجل',         'label_en'=>'History'],
         'reports'    => ['icon'=>'fas fa-chart-bar',     'url'=>'reports.php',                   'label_ar'=>'التقارير',      'label_en'=>'Reports'],
@@ -276,6 +277,7 @@ function globalNav(string $activePage = ''): string {
     $searchPages = $isAr ? [
         ['url'=>'index.php','icon'=>'fas fa-home','label'=>'الصفحة الرئيسية'],
         ['url'=>'checkout_router.php','icon'=>'fas fa-credit-card','label'=>'Checkout — الدفع'],
+        ['url'=>'checkout_ledger.php','icon'=>'fas fa-wallet','label'=>'Ledger CHECKOUT'],
         ['url'=>'wallets.php','icon'=>'fas fa-wallet','label'=>'المحافظ المالية'],
         ['url'=>'transactions.php','icon'=>'fas fa-history','label'=>'سجل المعاملات'],
         ['url'=>'reports.php','icon'=>'fas fa-chart-bar','label'=>'التقارير المالية'],
@@ -294,6 +296,7 @@ function globalNav(string $activePage = ''): string {
     ] : [
         ['url'=>'index.php','icon'=>'fas fa-home','label'=>'Home'],
         ['url'=>'checkout_router.php','icon'=>'fas fa-credit-card','label'=>'Checkout'],
+        ['url'=>'checkout_ledger.php','icon'=>'fas fa-wallet','label'=>'Ledger CHECKOUT'],
         ['url'=>'wallets.php','icon'=>'fas fa-wallet','label'=>'Wallets'],
         ['url'=>'transactions.php','icon'=>'fas fa-history','label'=>'Transaction History'],
         ['url'=>'reports.php','icon'=>'fas fa-chart-bar','label'=>'Reports'],

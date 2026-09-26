@@ -97,13 +97,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay_now'])) {
             if ($route === '') {
                 $route = 'checkout_router.php';
             }
-            $qs = http_build_query([
+            $qsArr = [
                 'gateway'  => $gw,
                 'amount'   => $linkData['amount'] ?? 0,
                 'currency' => $linkData['currency'] ?? 'USD',
                 'link'     => $linkData['link_id'] ?? $postedLinkId,
                 'channel'  => 'link',
-            ]);
+            ];
+            if (str_starts_with(strtolower((string) ($linkData['protocol'] ?? '')), 'ledger.')) {
+                $qsArr['ledger_checkout'] = '1';
+            }
+            $qs = http_build_query($qsArr);
             header('Location: ' . $route . '?' . $qs);
             exit();
         }

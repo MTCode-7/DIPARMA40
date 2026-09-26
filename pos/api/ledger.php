@@ -49,9 +49,9 @@ if (!$txn) {
 }
 
 $gw = strtolower((string)($txn['gateway'] ?? ''));
-if (!in_array($gw, ['nuvei', 'diparma', 'diparma_gateway'], true)) {
+if ($gw !== 'nuvei') {
     http_response_code(422);
-    echo json_encode(['success' => false, 'message' => 'Only Nuvei POS sales can settle to Ledger']);
+    echo json_encode(['success' => false, 'message' => 'This endpoint is Nuvei-only. Other gateways keep their own path.']);
     exit;
 }
 

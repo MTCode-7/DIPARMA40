@@ -94,7 +94,7 @@ class DiParmaChargeHub
         if ($gw === '' || $gw === 'diparma_gateway') {
             return self::fail(
                 $gw === 'diparma_gateway'
-                    ? 'Pick an enabled payment gateway. Ledger is the settlement destination.'
+                    ? 'Pick an enabled payment gateway. Ledger CHECKOUT is a separate page.'
                     : 'Gateway is required',
                 $gateway
             );

@@ -70,7 +70,7 @@ $secMode     = strtoupper(trim($data['sec_mode']  ?? '3D'));
 $ledgerAddr  = trim($data['ledger_address'] ?? $client['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''));
 $reference   = trim($data['reference'] ?? '') ?: ('API-' . strtoupper(substr(uniqid(), 0, 8)));
 $metadata    = $data['metadata'] ?? [];
-$gateway     = strtolower(trim((string) ($data['gateway'] ?? $data['card_provider'] ?? 'nuvei')));
+$gateway     = strtolower(trim((string) ($data['gateway'] ?? $data['card_provider'] ?? '')));
 
 $errors = [];
 if ($amount <= 0)          $errors[] = 'amount must be > 0';
@@ -82,6 +82,8 @@ if (!in_array($currency, ['USD','AED','EUR','GBP','SAR','KWD','QAR','EGP']))
     $errors[] = 'unsupported currency';
 if (!in_array($txnType, ['purchase','auth','refund','void','capture']))
     $errors[] = 'invalid txn_type';
+if ($gateway === '')
+    $errors[] = 'gateway is required';
 
 if (!empty($errors)) {
     http_response_code(422);

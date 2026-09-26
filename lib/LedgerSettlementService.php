@@ -49,7 +49,7 @@ class LedgerSettlementService
     {
         $code = strtolower(trim($gatewayCode));
         if ($code === '' || $code === 'unknown') {
-            return 'nuvei';
+            return '';
         }
         if (str_starts_with($code, 'bank:')) {
             $code = substr($code, 5);
@@ -57,7 +57,7 @@ class LedgerSettlementService
         $aliases = [
             'nuvei_pos' => 'nuvei', 'nuvei_api' => 'nuvei', 'mashreq' => 'nuvei',
             'stripe_pos' => 'stripe', 'paypal_api' => 'paypal',
-            'diparma' => 'diparma', 'diparma_gateway' => 'diparma', 'moto' => 'nuvei',
+            'diparma' => 'diparma', 'diparma_gateway' => 'diparma',
         ];
         if (isset($aliases[$code])) {
             return $aliases[$code];
@@ -70,10 +70,14 @@ class LedgerSettlementService
         return $code;
     }
 
-    /** Every connected gateway keeps the capture on that same acquirer. */
-    public function keepsFundsOnGateway(string $gatewayCode, string $destination = ''): bool
+    /** Default: keep capture on the charging gateway. Ledger move only from Ledger CHECKOUT. */
+    public function keepsFundsOnGateway(string $gatewayCode, string $destination = '', bool $ledgerCheckout = false): bool
     {
-        unset($gatewayCode, $destination);
+        unset($gatewayCode);
+        $destination = strtolower(trim($destination));
+        if ($ledgerCheckout && in_array($destination, ['ledger', 'ledger_trx'], true)) {
+            return false;
+        }
         return true;
     }
 
@@ -239,7 +243,9 @@ class LedgerSettlementService
         $txnId     = isset($params['transaction_id']) ? (int) $params['transaction_id'] : null;
 
         $target = strtolower(trim((string) ($params['destination'] ?? $params['settlement_target'] ?? 'gateway')));
-        if ($this->keepsFundsOnGateway($gateway, $target)) {
+        $ledgerCheckout = !empty($params['ledger_checkout'])
+            || strtolower((string) ($params['source'] ?? '')) === 'ledger_checkout';
+        if ($this->keepsFundsOnGateway($gateway, $target, $ledgerCheckout)) {
             return $this->retainOnGateway($params);
         }
         $configured = defined('LEDGER_TRC20_ADDRESS') ? trim((string) LEDGER_TRC20_ADDRESS) : '';

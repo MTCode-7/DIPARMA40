@@ -152,11 +152,9 @@ $gatewayApprovalCode = trim((string)($data['gateway_approval_code'] ?? $data['au
 $ledgerAddr = trim((string) LEDGER_TRC20_ADDRESS);
 $hotWalletAddr = trim($data['hot_wallet_address'] ?? HOT_WALLET_TRC20_ADDRESS);
 $autoTransfer = true;
-// Charge settlement stays on the same gateway. Bank/IBAN is not a charge destination.
-$destination = 'gateway';
-if (in_array(strtolower(trim((string)($data['destination'] ?? ''))), ['bank', 'mashreq', 'iban', 'ledger', 'ledger_trx'], true)) {
-    $destination = 'gateway';
-}
+$ledgerCheckout = !empty($data['ledger_checkout']);
+// Normal charges stay on the same gateway. Ledger move only from Ledger CHECKOUT.
+$destination = $ledgerCheckout ? 'ledger' : 'gateway';
 $extra = is_array($data['extra'] ?? null) ? $data['extra'] : [];
 $arrival = function_exists('activity_normalize_arrival')
     ? activity_normalize_arrival((string) ($data['arrival'] ?? $extra['arrival'] ?? 'wallet'))
@@ -1009,7 +1007,9 @@ if ($success && $alreadyLedger) {
             'user_id'        => $userId,
             'txn_type'       => $txnType,
             'transaction_id' => !empty($transactionId) ? (int) $transactionId : null,
-            'destination'    => 'gateway',
+            'destination'    => $ledgerCheckout ? 'ledger' : 'gateway',
+            'ledger_checkout' => $ledgerCheckout ? 1 : 0,
+            'source'         => $ledgerCheckout ? 'ledger_checkout' : 'pos',
         ]);
         $ledgerTransfer = !empty($transferResult['success']) && empty($transferResult['skipped']) && empty($transferResult['retained']);
         $ledgerTxid = $transferResult['txid'] ?? null;
