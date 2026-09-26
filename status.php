@@ -90,6 +90,9 @@ $tunnelActive = ($tunnelCode > 0 && $tunnelCode < 500);
 // [5] ط¢ط®ط± 10 ظ…ط¹ط§ظ…ظ„ط§طھ
 // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
 try {
+    if (function_exists('diparma_peer_pull_transactions')) {
+        diparma_peer_pull_transactions(100);
+    }
     if (function_exists('diparma_reconcile_pending_transactions')) {
         diparma_reconcile_pending_transactions($db, 25);
     }

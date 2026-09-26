@@ -21,6 +21,9 @@ require_once __DIR__ . '/includes/functions.php';
 $db = db();
 dp_ensure_indexes();
 try {
+    if (function_exists('diparma_peer_pull_transactions')) {
+        diparma_peer_pull_transactions(100);
+    }
     diparma_reconcile_pending_transactions($db, 25);
 } catch (Throwable $e) {
 }

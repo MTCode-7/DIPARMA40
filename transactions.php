@@ -21,6 +21,14 @@ $db = db();
 $csrfToken = generateCsrfToken();
 dp_ensure_indexes();
 $reconcileReport = [];
+$peerPull = [];
+try {
+    if (function_exists('diparma_peer_pull_transactions')) {
+        $peerPull = diparma_peer_pull_transactions(100);
+    }
+} catch (Throwable $e) {
+    $peerPull = [];
+}
 try {
     $reconcileReport = diparma_reconcile_pending_transactions($db, 25);
 } catch (Throwable $e) {
@@ -616,6 +624,13 @@ $totalPages = ceil($totalTransactions / $limit);
     $stillPending = array_values(array_filter($reconcileReport, static fn($row) => !empty($row['still_pending'])));
     $nowCompleted = array_values(array_filter($reconcileReport, static fn($row) => empty($row['still_pending'])));
     ?>
+    <?php if (!empty($peerPull['pulled'])): ?>
+        <div class="alert alert-success">
+            <?= $ar
+                ? 'استعادة من البعيد: ' . (int) $peerPull['pulled'] . ' معاملة.'
+                : 'Restored from remote: ' . (int) $peerPull['pulled'] . ' transaction(s).' ?>
+        </div>
+    <?php endif; ?>
     <?php if (!empty($reconcileReport)): ?>
         <div class="alert <?= empty($stillPending) ? 'alert-success' : 'alert-error' ?>">
             <?= $ar

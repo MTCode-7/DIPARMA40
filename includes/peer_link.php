@@ -107,3 +107,134 @@ function peer_notify_async(string $action, array $payload): void
         error_log('[Peer] ' . $action . ' error: ' . $e->getMessage());
     }
 }
+
+function peer_status_rank(string $status): int
+{
+    $status = strtolower(trim($status));
+    if (in_array($status, ['completed', 'captured', 'settled', 'approved', 'refunded'], true)) {
+        return 3;
+    }
+    if ($status === 'authorized') {
+        return 2;
+    }
+    if (in_array($status, ['pending', 'processing', 'pending_ledger'], true)) {
+        return 1;
+    }
+    return 0;
+}
+
+function peer_txn_export_row(array $row): array
+{
+    $hang = function_exists('diparma_transaction_hang_reason')
+        ? diparma_transaction_hang_reason($row)
+        : [];
+    return [
+        'reference' => (string) ($row['reference'] ?? ''),
+        'gateway' => (string) ($row['gateway'] ?? ''),
+        'amount' => (float) ($row['amount'] ?? 0),
+        'currency' => strtoupper((string) ($row['currency'] ?? 'USD')),
+        'status' => (string) ($row['status'] ?? ''),
+        'txn_type' => (string) ($row['transaction_type'] ?? ''),
+        'transaction_label' => (string) ($row['transaction_label'] ?? ''),
+        'created_at' => (string) ($row['created_at'] ?? ''),
+        'hang_live_status' => (string) ($hang['live_status'] ?? ''),
+        'hang_code' => (string) ($hang['code'] ?? ''),
+    ];
+}
+
+function peer_upsert_txn(array $body): array
+{
+    $ref = trim((string) ($body['reference'] ?? ''));
+    if ($ref === '' || !preg_match('/^[A-Za-z0-9._:-]{6,80}$/', $ref)) {
+        return ['success' => false, 'message' => 'reference required'];
+    }
+    $db = db();
+    $existing = $db->find('transactions', ['reference' => $ref]);
+    $incomingStatus = strtolower(trim((string) ($body['status'] ?? 'pending')));
+    if ($existing && peer_status_rank($incomingStatus) < peer_status_rank((string) ($existing['status'] ?? ''))) {
+        return ['success' => true, 'reference' => $ref, 'kept' => (string) $existing['status']];
+    }
+    $blob = [];
+    if ($existing && !empty($existing['gateway_response'])) {
+        $decoded = json_decode((string) $existing['gateway_response'], true);
+        if (is_array($decoded)) {
+            $blob = $decoded;
+        }
+    }
+    if (!empty($body['gateway_response']) && is_array($body['gateway_response'])) {
+        $blob = array_merge($blob, $body['gateway_response']);
+    }
+    $blob['peer_origin'] = (string) ($body['origin'] ?? 'peer');
+    $blob['peer_synced_at'] = date('c');
+    if (!empty($body['hang_live_status'])) {
+        $blob['payram_live_status'] = (string) $body['hang_live_status'];
+    }
+    $row = [
+        'reference' => $ref,
+        'gateway' => (string) ($body['gateway'] ?? ($existing['gateway'] ?? 'peer')),
+        'amount' => (float) ($body['amount'] ?? ($existing['amount'] ?? 0)),
+        'currency' => strtoupper((string) ($body['currency'] ?? ($existing['currency'] ?? 'USD'))),
+        'status' => $incomingStatus !== '' ? $incomingStatus : 'pending',
+        'transaction_type' => (string) ($body['txn_type'] ?? $body['transaction_type'] ?? ($existing['transaction_type'] ?? 'purchase')),
+        'transaction_label' => (string) ($body['transaction_label'] ?? ($existing['transaction_label'] ?? '')),
+        'gateway_response' => json_encode($blob, JSON_UNESCAPED_UNICODE),
+        'updated_at' => date('Y-m-d H:i:s'),
+    ];
+    if ($existing) {
+        $db->update('transactions', $row, ['reference' => $ref]);
+    } else {
+        $row['created_at'] = (string) ($body['created_at'] ?? date('Y-m-d H:i:s'));
+        if (method_exists($db, 'insertAvailable')) {
+            $db->insertAvailable('transactions', $row);
+        } else {
+            $db->insert('transactions', $row);
+        }
+    }
+    return ['success' => true, 'reference' => $ref, 'status' => $row['status']];
+}
+
+function diparma_peer_pull_transactions(int $limit = 100): array
+{
+    if (!PEER_SYNC_ENABLED || PEER_SYNC_SECRET === '') {
+        return ['success' => false, 'pulled' => 0, 'message' => 'Peer sync is not configured'];
+    }
+    $result = peer_request('list_txns', ['limit' => $limit], 15);
+    $rows = $result['transactions'] ?? [];
+    if (!is_array($rows)) {
+        return ['success' => false, 'pulled' => 0, 'message' => $result['message'] ?? 'Peer list failed'];
+    }
+    $pulled = 0;
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $row['origin'] = $result['role'] ?? 'peer';
+        $upsert = peer_upsert_txn($row);
+        if (!empty($upsert['success'])) {
+            $pulled++;
+        }
+    }
+    if (class_exists('DPCache')) {
+        DPCache::delete('recent_txn_10');
+        DPCache::delete('dashboard_stats_30');
+    }
+    return [
+        'success' => !empty($result['success']),
+        'pulled' => $pulled,
+        'role' => $result['role'] ?? peer_this_role(),
+        'message' => $result['message'] ?? '',
+    ];
+}
+
+function diparma_peer_push_txn(array $txn): void
+{
+    if (!PEER_SYNC_ENABLED || PEER_SYNC_SECRET === '' || empty($txn['reference'])) {
+        return;
+    }
+    $payload = peer_txn_export_row($txn);
+    $payload['origin'] = peer_this_role();
+    if (!empty($txn['gateway_response']) && is_array($txn['gateway_response'])) {
+        $payload['gateway_response'] = $txn['gateway_response'];
+    }
+    peer_notify_async('sync_txn', $payload);
+}

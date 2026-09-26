@@ -945,6 +945,19 @@ try {
         $saved = !empty($transactionId);
     }
     }
+    if ($saved && empty($data['_peer_mirror']) && function_exists('diparma_peer_push_txn')) {
+        diparma_peer_push_txn([
+            'reference' => $reference,
+            'gateway' => $posGateway,
+            'amount' => $amount,
+            'currency' => $currency,
+            'status' => $requires3ds ? 'pending' : ($success ? ($txnType === 'auth' ? 'authorized' : 'completed') : 'failed'),
+            'transaction_type' => $txnType,
+            'transaction_label' => $displayOperation,
+            'created_at' => date('Y-m-d H:i:s'),
+            'gateway_response' => is_array($gatewayDetails) ? pos_redact_pci($gatewayDetails) : [],
+        ]);
+    }
 } catch (Throwable $e) {
     pos_safe_log('[POS][DB]', $e->getMessage());
 }

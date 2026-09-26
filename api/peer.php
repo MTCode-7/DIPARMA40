@@ -22,6 +22,7 @@ if ($method === 'GET' && ($action === 'health' || $action === '')) {
         'ok'      => true,
         'role'    => peer_this_role(),
         'enabled' => PEER_SYNC_ENABLED,
+        'peer_url' => peer_other_url(),
     ]);
     exit;
 }
@@ -58,32 +59,38 @@ switch ($action) {
         break;
 
     case 'sync_txn':
-        $ref = trim((string) ($body['reference'] ?? ''));
-        if ($ref === '') {
-            http_response_code(422);
-            echo json_encode(['success' => false, 'message' => 'reference required']);
-            exit;
-        }
         try {
-            $db = db();
-            $existing = $db->find('transactions', ['reference' => $ref]);
-            $row = [
-                'reference'        => $ref,
-                'gateway'          => $body['gateway'] ?? 'peer',
-                'amount'           => (float) ($body['amount'] ?? 0),
-                'currency'         => strtoupper((string) ($body['currency'] ?? 'USD')),
-                'status'           => $body['status'] ?? 'completed',
-                'transaction_type' => $body['txn_type'] ?? 'withdrawal_pos',
-                'notes'            => 'peer:' . ($body['origin'] ?? 'unknown'),
-                'gateway_response' => json_encode($body['gateway_response'] ?? $body, JSON_UNESCAPED_UNICODE),
-            ];
-            if ($existing) {
-                $db->update('transactions', $row, ['reference' => $ref]);
-            } else {
-                $row['created_at'] = date('Y-m-d H:i:s');
-                $db->insert('transactions', $row);
+            $body['origin'] = $body['origin'] ?? peer_this_role();
+            echo json_encode(array_merge(peer_upsert_txn($body), ['role' => peer_this_role()]));
+        } catch (Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        break;
+
+    case 'list_txns':
+        try {
+            $limit = max(1, min(200, (int) ($body['limit'] ?? 100)));
+            $visible = function_exists('diparma_visible_transaction_sql')
+                ? diparma_visible_transaction_sql()
+                : '1=1';
+            $rows = db()->query(
+                "SELECT reference, gateway, amount, currency, status, transaction_type, transaction_label, created_at, gateway_response
+                 FROM " . DB_PREFIX . "transactions
+                 WHERE {$visible}
+                 ORDER BY created_at DESC
+                 LIMIT {$limit}"
+            );
+            $out = [];
+            foreach ($rows as $row) {
+                $out[] = peer_txn_export_row($row);
             }
-            echo json_encode(['success' => true, 'reference' => $ref, 'role' => peer_this_role()]);
+            echo json_encode([
+                'success' => true,
+                'role' => peer_this_role(),
+                'count' => count($out),
+                'transactions' => $out,
+            ], JSON_UNESCAPED_UNICODE);
         } catch (Throwable $e) {
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);

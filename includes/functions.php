@@ -861,6 +861,9 @@ function diparma_reconcile_pending_transaction($db, array $txn): array
     }
 
     $out['reason'] = diparma_transaction_hang_reason($txn);
+    if (function_exists('diparma_peer_push_txn')) {
+        diparma_peer_push_txn($txn);
+    }
     return $out;
 }
 
