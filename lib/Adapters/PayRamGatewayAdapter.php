@@ -15,7 +15,7 @@ class PayRamGatewayAdapter implements GatewayAdapterInterface
 
     public function supports(string $mode): bool
     {
-        return in_array(strtoupper(trim($mode)), ['2D', '3D', 'CHARGE'], true);
+        return in_array(strtoupper(trim($mode)), ['2D', '3D', 'CHARGE', 'HOLD', 'CAPTURE', 'CANCEL', 'MOTO', 'OFFLINE', 'ADVICE'], true);
     }
 
     public function normalizeError(array $rawResponse): string
@@ -60,7 +60,7 @@ class PayRamGatewayAdapter implements GatewayAdapterInterface
 
     public function hold(array $payload): array
     {
-        return $this->unsupported($payload, 'hold');
+        return $this->charge($payload);
     }
 
     public function capture(string $transactionId, ?float $amount = null): array

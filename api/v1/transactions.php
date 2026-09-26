@@ -115,7 +115,7 @@ $sql = "SELECT
             error_message,
             created_at
         FROM dp_transactions
-        WHERE 1=1";
+        WHERE " . diparma_visible_transaction_sql();
 
 $params = [];
 
@@ -246,6 +246,9 @@ foreach ($rows as $row) {
         'ledger' => $ledgerInfo,
         'card_info' => $cardInfo,
         'error_message' => $row['error_message'],
+        'hang_reason' => function_exists('diparma_transaction_hang_reason')
+            ? diparma_transaction_hang_reason($row)
+            : null,
         'created_at' => $row['created_at'],
         'timestamp' => strtotime($row['created_at']),
     ];
@@ -255,7 +258,7 @@ foreach ($rows as $row) {
 // 8. حساب العدد الإجمالي (لصفحات التصفح)
 // ============================================================
 
-$countSql = "SELECT COUNT(*) as total FROM dp_transactions WHERE 1=1";
+$countSql = "SELECT COUNT(*) as total FROM dp_transactions WHERE " . diparma_visible_transaction_sql();
 $countParams = [];
 
 // نسخ نفس الشروط (بدون LIMIT و ORDER)

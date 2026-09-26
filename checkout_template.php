@@ -315,7 +315,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <div id="square-card-container" dir="ltr" style="padding:8px 10px;background:rgba(255,255,255,.04);border:1.5px solid var(--border);border-radius:10px;min-height:96px;width:100%"></div>
       <div id="square-error" style="color:var(--red);font-size:.73rem;margin-top:4px"></div>
       <div style="font-size:.68rem;color:var(--muted2);margin-top:6px">
-        <?=!empty($squareSdk['live']) ? 'LIVE' : 'SANDBOX'?> · token → DIPARMA → Ledger
+        <?=!empty($squareSdk['live']) ? 'LIVE' : 'LIVE REQUIRED'?> · Square token → Square only
       </div>
     </div>
   </div>

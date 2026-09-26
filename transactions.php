@@ -20,6 +20,12 @@ $ar = function_exists('is_ar') ? is_ar() : (($currentLang ?? 'en') === 'ar');
 $db = db();
 $csrfToken = generateCsrfToken();
 dp_ensure_indexes();
+$reconcileReport = [];
+try {
+    $reconcileReport = diparma_reconcile_pending_transactions($db, 25);
+} catch (Throwable $e) {
+    $reconcileReport = [];
+}
 
 $refundMessage = '';
 $refundStatus = '';
@@ -67,7 +73,7 @@ if (!empty($search)) {
 }
 
 $where[] = diparma_visible_transaction_sql();
-if (!empty($status) && !in_array(strtolower($status), ['failed', 'declined', 'error', 'cancelled', 'canceled'], true)) {
+if (!empty($status)) {
     $where[] = "status COLLATE utf8mb4_general_ci = ?";
     $params[] = $status;
 }
@@ -606,6 +612,17 @@ $totalPages = ceil($totalTransactions / $limit);
             <?= htmlspecialchars($refundMessage) ?>
         </div>
     <?php endif; ?>
+    <?php
+    $stillPending = array_values(array_filter($reconcileReport, static fn($row) => !empty($row['still_pending'])));
+    $nowCompleted = array_values(array_filter($reconcileReport, static fn($row) => empty($row['still_pending'])));
+    ?>
+    <?php if (!empty($reconcileReport)): ?>
+        <div class="alert <?= empty($stillPending) ? 'alert-success' : 'alert-error' ?>">
+            <?= $ar
+                ? 'مراجعة الحي: ' . count($reconcileReport) . ' معلّقة سابقاً — ' . count($nowCompleted) . ' اكتملت و' . count($stillPending) . ' ما زالت معلّقة لأن الفاتورة لم تُدفع على البوابة.'
+                : 'Live review: ' . count($reconcileReport) . ' previously pending — ' . count($nowCompleted) . ' completed and ' . count($stillPending) . ' still pending because the gateway invoice was never paid.' ?>
+        </div>
+    <?php endif; ?>
 
     <!-- ===== الإحصائيات ===== -->
     <div class="stats-grid fade-in">
@@ -734,6 +751,7 @@ $totalPages = ceil($totalTransactions / $limit);
                             <th>Gateway</th>
                             <th>Protocol</th>
                             <th>Status</th>
+                            <th><?= $ar ? 'سبب التعليق' : 'Hang reason' ?></th>
                             <th>Operation</th>
                             <th>Date</th>
                             <th>Contract</th>
@@ -779,6 +797,15 @@ $totalPages = ceil($totalTransactions / $limit);
                                     <span class="status-badge status-<?= htmlspecialchars($tx['status']) ?>">
                                         <?= getStatusLabel($tx['status']) ?>
                                     </span>
+                                </td>
+                                <td style="max-width:280px;font-size:0.68rem;line-height:1.35;color:#c9b37a;">
+                                    <?php
+                                    $hang = diparma_transaction_hang_reason($tx);
+                                    echo htmlspecialchars($ar ? ($hang['ar'] ?? '') : ($hang['en'] ?? ''));
+                                    if (!empty($hang['live_status'])) {
+                                        echo '<div style="color:#888;margin-top:4px;">Live: ' . htmlspecialchars((string) $hang['live_status']) . '</div>';
+                                    }
+                                    ?>
                                 </td>
                                 <td>
                                     <strong style="color:var(--gold);">

@@ -27,7 +27,7 @@ class DIPARMAGateway implements GatewayAdapterInterface
 
     public function supports(string $mode): bool
     {
-        return in_array(strtoupper(trim($mode)), ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL', 'REFUND', 'VOID'], true);
+        return in_array(strtoupper(trim($mode)), ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL', 'REFUND', 'VOID', 'MOTO', 'OFFLINE', 'ADVICE'], true);
     }
 
     public function charge(array $payload): array

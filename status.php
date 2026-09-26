@@ -89,7 +89,15 @@ $tunnelActive = ($tunnelCode > 0 && $tunnelCode < 500);
 // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
 // [5] ط¢ط®ط± 10 ظ…ط¹ط§ظ…ظ„ط§طھ
 // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
-$recentTransactions = $db->query("SELECT * FROM " . DB_PREFIX . "transactions ORDER BY created_at DESC LIMIT 10");
+try {
+    if (function_exists('diparma_reconcile_pending_transactions')) {
+        diparma_reconcile_pending_transactions($db, 25);
+    }
+} catch (Throwable $e) {
+}
+$recentTransactions = $db->query(
+    "SELECT * FROM " . DB_PREFIX . "transactions WHERE " . diparma_visible_transaction_sql() . " ORDER BY created_at DESC LIMIT 10"
+);
 
 $csrfToken = generateCsrfToken();
 ?>
@@ -390,6 +398,7 @@ $csrfToken = generateCsrfToken();
                     <th><?= dp_t('Gateway', 'البوابة') ?></th>
                     <th><?= dp_t('Amount', 'المبلغ') ?></th>
                     <th><?= dp_t('Status', 'الحالة') ?></th>
+                    <th><?= dp_t('Hang reason', 'سبب التعليق') ?></th>
                     <th><?= dp_t('Date', 'التاريخ') ?></th>
                 </tr>
             </thead>
@@ -403,7 +412,11 @@ $csrfToken = generateCsrfToken();
                         <?php
                         $statusClass = $tx['status'] === 'completed' ? 'badge-success' : ($tx['status'] === 'pending' ? 'badge-warning' : 'badge-danger');
                         echo '<span class="status-badge ' . $statusClass . '">' . getStatusLabel($tx['status']) . '</span>';
+                        $hang = function_exists('diparma_transaction_hang_reason') ? diparma_transaction_hang_reason($tx) : [];
                         ?>
+                    </td>
+                    <td style="font-size:0.75rem;max-width:260px;">
+                        <?= htmlspecialchars(dp_t($hang['en'] ?? '', $hang['ar'] ?? '')) ?>
                     </td>
                     <td><?= date('Y-m-d H:i', strtotime($tx['created_at'])) ?></td>
                 </tr>

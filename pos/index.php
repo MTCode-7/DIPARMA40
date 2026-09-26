@@ -2746,18 +2746,6 @@ window.processTransaction = async function() {
     toast(AR ? 'حد Square 50,000 دولار لكل عملية بما فيها الأوفلاين' : 'Square limit is 50,000 USD per transaction, including offline', 'error');
     return;
   }
-  if (POS_GW === 'square' && (type === 'offline_sale_moto' || (type === 'auth' && document.getElementById('authChannel')?.value === 'offline'))) {
-    toast(AR
-      ? 'أوفلاين Square على جهاز Square POS فقط. المعلّق يُعرض في تطبيق Square (Transactions) وليس هنا. هذه الشاشة لا تخزّن البطاقة بدون نت ولا تقبل إدخال الرقم يدوياً أوفلاين.'
-      : 'Square Offline is only on Square POS hardware. Pending shows in the Square POS app (Transactions), not here. This screen cannot store a keyed card offline.', 'error');
-    return;
-  }
-  if (POS_GW === 'paypal' && (type === 'offline_sale_moto' || (type === 'auth' && document.getElementById('authChannel')?.value === 'offline'))) {
-    toast(AR
-      ? 'أوفلاين PayPal على PayPal Reader فقط: شريحة أو لمس، تخزين على الجهاز، رفع خلال 24 ساعة. الحد 1,000 دولار والمجموع 10,000. هذه الشاشة لا تخزّن البطاقة.'
-      : 'PayPal Offline is only on a PayPal Reader: chip or contactless, stored on the device, upload within 24 hours. Limit 1,000 USD each and 10,000 queued. This screen cannot store the card.', 'error');
-    return;
-  }
   const currency = document.getElementById('txnCurrency').value;
   if (POS_GW === 'nuvei' && String(currency).toUpperCase() === 'USD' && Number(amount) >= 100) {
     toast(AR

@@ -134,6 +134,16 @@ if (!$txn) {
     exit;
 }
 
+if (function_exists('diparma_reconcile_pending_transaction')) {
+    $recon = diparma_reconcile_pending_transaction($db, $txn);
+    if (!empty($recon['updated'])) {
+        $fresh = $db->find('transactions', ['id' => (int) ($txn['id'] ?? 0)]);
+        if (is_array($fresh) && $fresh) {
+            $txn = $fresh;
+        }
+    }
+}
+
 // ============================================================
 // 6. استخراج جميع تفاصيل المعاملة الحقيقية
 // ============================================================
@@ -343,9 +353,13 @@ $sealedCardLast4 = $seal($cardLast4);
 $sealedAddress = $seal('Al Barsha 1, Dubai, UAE | diparmas.com');
 $sealedLedgerTxid = $ledgerTxid ? $seal($ledgerTxid) : '';
 
+$hangReason = function_exists('diparma_transaction_hang_reason')
+    ? diparma_transaction_hang_reason($txn)
+    : ['ar' => '', 'en' => '', 'still_pending' => false, 'live_status' => ''];
+
 // 6.10 تحديد الحالة النهائية
 $isApproved = in_array(strtolower($txn['status'] ?? ''), ['completed', 'captured', 'authorized', 'settled', 'approved']);
-$isPending = in_array(strtolower((string) ($txn['status'] ?? '')), ['pending', 'processing'], true);
+$isPending = in_array(strtolower((string) ($txn['status'] ?? '')), ['pending', 'processing', 'pending_ledger'], true);
 $declineReason = '';
 $cardUseAlert = ['card_use' => '', 'card_use_ar' => '', 'card_use_en' => ''];
 if ($isApproved) {
@@ -870,6 +884,14 @@ if (function_exists('redact_protocol_numbers')) {
             <div class="status-type">
                 <?=htmlspecialchars($txnType)?>
             </div>
+            <?php if ($isPending && (($ar ? ($hangReason['ar'] ?? '') : ($hangReason['en'] ?? '')) !== '')): ?>
+            <div style="margin-top:10px;font-size:11px;font-weight:800;color:#92400e;line-height:1.45">
+                <?= htmlspecialchars($ar ? ($hangReason['ar'] ?? '') : ($hangReason['en'] ?? '')) ?>
+                <?php if (!empty($hangReason['live_status'])): ?>
+                    <div style="margin-top:4px;color:#78350f">Live: <?= htmlspecialchars((string) $hangReason['live_status']) ?></div>
+                <?php endif; ?>
+            </div>
+            <?php endif; ?>
             <?php if ($statusText === 'DECLINED'): ?>
             <?php
                 $cardUseLine = $ar

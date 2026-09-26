@@ -15,7 +15,7 @@ $dateTo   = $_GET["date_to"]   ?? date("Y-m-d");
 $gwFilter  = $_GET["gateway"]  ?? "";
 $curFilter = $_GET["currency"] ?? "";
 $stFilter  = $_GET["status"]   ?? "";
-$where  = "WHERE created_at BETWEEN ? AND ?";
+$where  = "WHERE " . diparma_visible_transaction_sql() . " AND created_at BETWEEN ? AND ?";
 $params = [$dateFrom . " 00:00:00", $dateTo . " 23:59:59"];
 if ($gwFilter)  { $where .= " AND gateway=?";  $params[] = $gwFilter; }
 if ($curFilter) { $where .= " AND currency=?"; $params[] = $curFilter; }

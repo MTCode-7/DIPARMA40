@@ -188,22 +188,7 @@ class KYCService
      */
     public function approveManual(int $userId, int $level = 1): array
     {
-        $existing = $this->db->find('kyc_verifications', ['user_id' => $userId]);
-        $data = [
-            'provider'       => 'manual',
-            'level'          => $level,
-            'status'         => 'approved',
-            'daily_limit'    => self::LEVEL_LIMITS[$level]['daily'],
-            'monthly_limit'  => self::LEVEL_LIMITS[$level]['monthly'],
-            'verified_at'    => date('Y-m-d H:i:s'),
-            'created_at'     => date('Y-m-d H:i:s'),
-        ];
-        if ($existing) {
-            $this->db->update('kyc_verifications', $data, ['user_id' => $userId]);
-        } else {
-            $this->db->insert('kyc_verifications', array_merge($data, ['user_id' => $userId]));
-        }
-        return ['success' => true, 'level' => $level, 'status' => 'approved'];
+        return ['success' => false, 'message' => 'Manual KYC approval is disabled. Use the live provider.'];
     }
 
     // ── Sumsub API ───────────────────────────────────────────

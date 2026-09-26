@@ -58,13 +58,7 @@ class WhopGatewayAdapter implements GatewayAdapterInterface
 
     public function hold(array $payload): array
     {
-        return GatewayErrorMapper::buildErrorResponse(
-            'GATEWAY_ERROR',
-            (string) ($payload['reference'] ?? ''),
-            (float) ($payload['amount'] ?? 0),
-            strtoupper((string) ($payload['currency'] ?? 'USD')),
-            'Whop does not support hold'
-        );
+        return $this->charge($payload);
     }
 
     public function capture(string $transactionId, ?float $amount = null): array

@@ -69,6 +69,13 @@ switch($action){
         if(!$txn){ echo json_encode(['success'=>false,'message'=>'معاملة غير موجودة']); break; }
         if($txn['status']==='completed'){ echo json_encode(['success'=>true,'message'=>'مكتمل مسبقاً']); break; }
 
+        $liveTxn = db()->find('transactions', ['reference' => $ref]);
+        $liveStatus = strtolower((string) ($liveTxn['status'] ?? ''));
+        if (!in_array($liveStatus, ['completed', 'captured', 'settled', 'approved'], true)) {
+            echo json_encode(['success'=>false,'message'=>'لا يُؤكد الإيداع إلا بعد اكتمال الدفع على البوابة الحية.']);
+            break;
+        }
+
         $result = $wm->depositFiat($userId,$txn['amount'],$txn['currency'],$txn['gateway'],$ref);
         if($result['success']){
             db()->query("UPDATE " . dp_table('wallet_transactions') . " SET status='completed' WHERE reference=?",[$ref]);

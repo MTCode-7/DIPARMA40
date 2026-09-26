@@ -96,8 +96,10 @@ function dp_get_gateway_stats(int $days = 30): array {
 function dp_get_recent_transactions(int $limit = 10): array {
     return DPCache::remember("recent_txn_{$limit}", 30, function () use ($limit) {
         return db()->query("
-            SELECT id, reference, gateway, amount, currency, status, customer_name, created_at
+            SELECT id, reference, gateway, amount, currency, status, customer_name, created_at,
+                   gateway_response, transaction_type
             FROM " . DB_PREFIX . "transactions
+            WHERE " . (function_exists('diparma_visible_transaction_sql') ? diparma_visible_transaction_sql() : "1=1") . "
             ORDER BY created_at DESC
             LIMIT ?
         ", [$limit]);

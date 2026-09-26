@@ -32,36 +32,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$rrn || !$apCode || !$gateway || $amount < 1) {
         $msg = 'RRN + Approval Code + Gateway + Amount — مطلوبة'; $msgType = 'error';
     } else {
-        $ref = 'CAP' . strtoupper(bin2hex(random_bytes(5))) . date('Ymd');
-        try {
-            $db->execute(
-                "INSERT INTO dp_transactions
-                 (reference, gateway, protocol, amount, currency,
-                  customer_email, status, transaction_type, security_mode,
-                  gateway_response, created_at)
-                 VALUES (?,?,?,?,?,?,'pending',?,?,?,NOW())",
-                [
-                    $ref, $gateway, $txType === 'offline' ? '201.3' : '101.1',
-                    $amount, $currency, $email,
-                    strtoupper($txType) . " — RRN:{$rrn} / AP:{$apCode}",
-                    '2D',
-                    json_encode([
-                        'rrn'           => $rrn,
-                        'approval_code' => $apCode,
-                        'gw_txn_id'     => $gwTxnId,
-                        'card_last4'    => $cardNum ? substr($cardNum, -4) : '',
-                        'card_expiry'   => $cardExp,
-                        'card_name'     => $cardName,
-                        'tx_type'       => $txType,
-                        'gateway'       => $gateway,
-                    ])
-                ]
-            );
-            $msg = ($ar ? '✅ تم تسجيل العملية — المرجع: ' : '✅ Recorded — Ref: ') . $ref;
-            $msgType = 'success';
-        } catch (Exception $e) {
-            $msg = 'Error: ' . $e->getMessage(); $msgType = 'error';
-        }
+        $msg = $ar
+            ? 'التسجيل المحلي بلا بوابة أُلغي. نفّذ Capture من نقطة البيع على البوابة الحية نفسها.'
+            : 'Local recording without a live gateway is disabled. Run Capture from POS on the same live gateway.';
+        $msgType = 'error';
     }
     }
 }

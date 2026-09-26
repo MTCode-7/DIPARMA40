@@ -20,6 +20,10 @@ require_once __DIR__ . '/includes/functions.php';
 
 $db = db();
 dp_ensure_indexes();
+try {
+    diparma_reconcile_pending_transactions($db, 25);
+} catch (Throwable $e) {
+}
 
 // إحصائيات المعاملات — Cache 2 دقيقة
 $_rawStats        = dp_get_dashboard_stats(30);
@@ -557,6 +561,14 @@ foreach ($dailyStats as $day) {
                                         echo getStatusLabel($tx['status']);
                                         ?>
                                     </span>
+                                    <?php
+                                    $hang = function_exists('diparma_transaction_hang_reason') ? diparma_transaction_hang_reason($tx) : [];
+                                    if (!empty($hang['still_pending'])) {
+                                        echo '<div style="font-size:0.65rem;color:#c9b37a;margin-top:4px;max-width:220px;line-height:1.3">'
+                                            . htmlspecialchars(($currentLang ?? 'en') === 'ar' ? ($hang['ar'] ?? '') : ($hang['en'] ?? ''))
+                                            . '</div>';
+                                    }
+                                    ?>
                                 </td>
                                 <td style="font-size:0.75rem;color:#888;">
                                     <?= date('d/m/Y H:i', strtotime($tx['created_at'])) ?>

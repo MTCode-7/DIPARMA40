@@ -50,7 +50,7 @@ class SquareAdapter implements GatewayAdapterInterface
 
     public function supports(string $mode): bool
     {
-        return in_array(strtoupper($mode), ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL', 'REFUND', 'OFFLINE', 'MOTO'], true);
+        return in_array(strtoupper($mode), ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL', 'REFUND', 'OFFLINE', 'MOTO', 'ADVICE'], true);
     }
 
     public function normalizeError(array $rawResponse): string

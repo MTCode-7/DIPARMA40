@@ -107,6 +107,12 @@ class DiParmaChargeHub
         $params['provider'] = $gw;
         $txnType = strtolower(trim($txnType !== '' ? $txnType : (string) ($params['txn_type'] ?? 'purchase')));
         $params['txn_type'] = $txnType;
+        self::ensurePosLoaded();
+        if (function_exists('pos_prepare_operation_payload')) {
+            $params = pos_prepare_operation_payload($txnType, $params);
+            $txnType = strtolower((string) ($params['txn_type'] ?? $txnType));
+            $params['txn_type'] = $txnType;
+        }
 
         if (self::supports($gw) && function_exists('pos_run_payment_orchestrator')) {
             $result = pos_run_payment_orchestrator($gw, $txnType, $params);
@@ -165,6 +171,9 @@ class DiParmaChargeHub
         }
         if (in_array($t, ['capture', 'auth_complete', 'auth_capture'], true)) {
             return 'capture';
+        }
+        if (in_array($t, ['purchase_advice', 'offline_sale_moto', 'online_sale_moto', 'purchase_2d', 'purchase_offline', 'purchase_online'], true)) {
+            return 'charge';
         }
         if ($t === 'refund') {
             return 'refund';

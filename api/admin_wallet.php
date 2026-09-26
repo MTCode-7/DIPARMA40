@@ -18,57 +18,7 @@ $action = $p['action'] ?? '';
 switch($action){
 
     case 'admin_adjust':
-        $uid      = intval($p['user_id']??0);
-        $type     = $p['type']??'admin_credit'; // admin_credit | admin_debit
-        $wallet   = $p['wallet_type']??'fiat';  // fiat | crypto
-        $currency = strtoupper(trim($p['currency']??'USD'));
-        $amount   = floatval($p['amount']??0);
-        $note     = trim($p['note']??'');
-        $network  = strtoupper(trim($p['network']??'TRC20'));
-
-        if($amount<=0){echo json_encode(['success'=>false,'message'=>'مبلغ غير صالح']);break;}
-
-        $ref = 'ADJ'.date('Ymd').strtoupper(substr(bin2hex(random_bytes(4)),0,8));
-
-        try {
-            if($wallet==='fiat'){
-                if($type==='admin_credit'){
-                    $db->query(
-                        "INSERT INTO " . dp_table('user_fiat_wallets') . " (user_id,currency,balance) VALUES (?,?,?)
-                         ON DUPLICATE KEY UPDATE balance=balance+?",
-                        [$uid,$currency,$amount,$amount]
-                    );
-                } else {
-                    $db->query(
-                        "UPDATE " . dp_table('user_fiat_wallets') . " SET balance=GREATEST(0,balance-?) WHERE user_id=? AND currency=?",
-                        [$amount,$uid,$currency]
-                    );
-                }
-            } else {
-                if($type==='admin_credit'){
-                    $db->query(
-                        "INSERT INTO " . dp_table('user_crypto_wallets') . " (user_id,coin,network,balance) VALUES (?,?,?,?)
-                         ON DUPLICATE KEY UPDATE balance=balance+?",
-                        [$uid,$currency,$network,$amount,$amount]
-                    );
-                } else {
-                    $db->query(
-                        "UPDATE " . dp_table('user_crypto_wallets') . " SET balance=GREATEST(0,balance-?) WHERE user_id=? AND coin=? AND network=?",
-                        [$amount,$uid,$currency,$network]
-                    );
-                }
-            }
-
-            $db->query(
-                "INSERT INTO " . dp_table('wallet_transactions') . " (reference,user_id,type,wallet_type,currency,network,amount,fee,net_amount,status,note)
-                 VALUES (?,?,?,?,?,?,?,0,?,'completed',?)",
-                [$ref,$uid,$type,$wallet,$currency,$network,$amount,$amount,$note?:"تعديل يدوي من الإدارة"]
-            );
-
-            echo json_encode(['success'=>true,'reference'=>$ref]);
-        } catch(Exception $e){
-            echo json_encode(['success'=>false,'message'=>$e->getMessage()]);
-        }
+        echo json_encode(['success'=>false,'message'=>'التعديل اليدوي للرصيد أُلغي. الرصيد يتغير فقط بعد دفع حي على البوابة.']);
         break;
 
     case 'approve_withdraw':

@@ -162,7 +162,22 @@ try {
 // [9] ط§ظ„طھط­ظ‚ظ‚ ظ…ظ† ط§ظ„ط­ط§ظ„ط© ط­ط³ط¨ ط§ظ„ط¨ظˆط§ط¨ط© (Live Sync)
 // ============================================================
 
-if (in_array($currentStatus, ['pending', 'processing'], true)) {
+if (in_array($currentStatus, ['pending', 'processing', 'pending_ledger'], true)
+    && function_exists('diparma_reconcile_pending_transaction')
+) {
+    $recon = diparma_reconcile_pending_transaction($db, $transaction);
+    $source = $recon['source'] ?? $source;
+    if (!empty($recon['live'])) {
+        $liveData = $recon['live'];
+    }
+    if (!empty($recon['updated'])) {
+        $updated = true;
+        $newStatus = (string) ($recon['status'] ?? $newStatus);
+        $transaction['status'] = $newStatus;
+    }
+}
+
+if (!$updated && in_array($currentStatus, ['pending', 'processing'], true)) {
 
     // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
     // 9.1 WISE
@@ -773,6 +788,9 @@ $responseData = [
     'status_color' => getStatusColor($newStatus),
     'updated' => $updated,
     'source' => $source,
+    'hang_reason' => function_exists('diparma_transaction_hang_reason')
+        ? diparma_transaction_hang_reason(array_merge($transaction, ['status' => $newStatus]))
+        : null,
     'timestamp' => date('c'),
 ];
 

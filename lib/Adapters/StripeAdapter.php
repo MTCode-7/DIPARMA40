@@ -32,7 +32,7 @@ class StripeAdapter implements GatewayAdapterInterface
 
     public function supports(string $mode): bool
     {
-        return in_array(strtoupper($mode), ['2D','3D','HOLD','CAPTURE','CANCEL','REFUND']);
+        return in_array(strtoupper($mode), ['2D','3D','HOLD','CAPTURE','CANCEL','REFUND','MOTO','OFFLINE','ADVICE'], true);
     }
 
     public function normalizeError(array $rawResponse): string

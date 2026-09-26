@@ -354,6 +354,9 @@ function getStatusLabel($status) {
         'refunded' => ['en' => 'Refunded', 'ar' => 'مسترد'],
         'chargeback' => ['en' => 'Chargeback', 'ar' => 'إلغاء'],
         'cancelled' => ['en' => 'Cancelled', 'ar' => 'ملغى'],
+        'processing' => ['en' => 'Processing', 'ar' => 'قيد المعالجة'],
+        'pending_ledger' => ['en' => 'Pending ledger', 'ar' => 'بانتظار Ledger'],
+        'declined' => ['en' => 'Declined', 'ar' => 'مرفوضة'],
         'active' => ['en' => 'Active', 'ar' => 'نشط'],
         'inactive' => ['en' => 'Inactive', 'ar' => 'غير نشط'],
         'expired' => ['en' => 'Expired', 'ar' => 'منتهي'],
@@ -577,10 +580,10 @@ function saveSiteTerms(string $text) {
     }
 }
 
-/** Statuses shown in DIPARMA lists; declined attempts are stored separately. */
+/** Statuses shown in DIPARMA lists. Failed rows stay visible for history review. */
 function diparma_visible_transaction_sql(): string
 {
-    return "LOWER(COALESCE(status,'')) IN ('completed','authorized','captured','settled','approved','refunded','pending','processing','pending_ledger')";
+    return "LOWER(COALESCE(status,'')) NOT IN ('deleted')";
 }
 
 function diparma_should_persist_charge(bool $success, bool $pending3ds = false): bool
@@ -647,15 +650,252 @@ function diparma_discard_unsuccessful_transaction($db, string $reference): void
             return;
         }
         $st = strtolower(trim((string) ($row['status'] ?? '')));
-        if (in_array($st, ['completed', 'authorized', 'captured', 'settled', 'approved', 'refunded'], true)) {
+        if (in_array($st, [
+            'completed', 'authorized', 'captured', 'settled', 'approved', 'refunded',
+            'pending', 'processing', 'pending_ledger',
+        ], true)) {
             return;
         }
-        $db->delete('transactions', ['id' => (int) $row['id']]);
     } catch (Throwable $e) {
         if (function_exists('logEvent')) {
             logEvent('discard unsuccessful txn: ' . $e->getMessage(), 'error');
         }
     }
+}
+
+function diparma_payram_ref_from_txn(array $txn): string
+{
+    $blob = json_decode((string) ($txn['gateway_response'] ?? ''), true);
+    if (!is_array($blob)) {
+        $blob = [];
+    }
+    $candidates = [
+        $blob['payram_ref'] ?? '',
+        $blob['reference_id'] ?? '',
+        $blob['rrn'] ?? '',
+        $blob['redirect_url'] ?? '',
+        $blob['payram_url'] ?? '',
+        $blob['raw']['reference_id'] ?? '',
+        $blob['raw']['raw']['reference_id'] ?? '',
+        $blob['gateway_details']['response']['reference_id'] ?? '',
+        $txn['rrn'] ?? '',
+        $txn['gateway_txn_id'] ?? '',
+    ];
+    foreach ($candidates as $candidate) {
+        $candidate = trim((string) $candidate);
+        if (preg_match('/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i', $candidate, $match)) {
+            return $match[0];
+        }
+    }
+    return '';
+}
+
+function diparma_map_host_status(string $raw): string
+{
+    $status = strtoupper(trim($raw));
+    if ($status === '') {
+        return 'pending';
+    }
+    if (preg_match('/COMPLETE|SUCCESS|PAID|FILL|CONFIRM|CAPTURE|SETTLE|APPROV/', $status)) {
+        return 'completed';
+    }
+    if (preg_match('/FAIL|DECLIN|REJECT|ERROR/', $status)) {
+        return 'failed';
+    }
+    if (preg_match('/EXPIR|CANCEL|VOID/', $status)) {
+        return 'cancelled';
+    }
+    return 'pending';
+}
+
+function diparma_transaction_hang_reason(array $txn): array
+{
+    $status = strtolower(trim((string) ($txn['status'] ?? '')));
+    $gateway = strtolower(trim((string) ($txn['gateway'] ?? '')));
+    $type = strtolower(trim((string) ($txn['transaction_type'] ?? '')));
+    $blob = json_decode((string) ($txn['gateway_response'] ?? ''), true);
+    if (!is_array($blob)) {
+        $blob = [];
+    }
+    $created = (string) ($txn['created_at'] ?? '');
+    $ageDays = $created !== '' ? max(0, (int) floor((time() - strtotime($created)) / 86400)) : 0;
+    $live = trim((string) ($blob['payram_live_status'] ?? $blob['live_status'] ?? ''));
+    $redirect = trim((string) ($blob['redirect_url'] ?? $blob['payram_url'] ?? ''));
+    $msg = strtoupper((string) ($blob['status_message'] ?? $blob['status'] ?? ''));
+
+    $base = [
+        'code' => $status !== '' ? $status : 'unknown',
+        'still_pending' => false,
+        'live_status' => $live !== '' ? $live : strtoupper($status !== '' ? $status : 'UNKNOWN'),
+        'redirect_url' => $redirect,
+        'age_days' => $ageDays,
+        'ar' => '',
+        'en' => '',
+    ];
+
+    if (in_array($status, ['completed', 'captured', 'settled', 'approved'], true)) {
+        $base['code'] = 'completed';
+        $base['ar'] = 'مكتملة في السجل.';
+        $base['en'] = 'Completed in the ledger.';
+        return $base;
+    }
+    if ($status === 'authorized') {
+        $base['code'] = 'authorized';
+        $base['ar'] = 'مفوّضة ولم تُخصم بعد.';
+        $base['en'] = 'Authorized hold, not captured yet.';
+        return $base;
+    }
+    if (in_array($status, ['failed', 'declined', 'cancelled', 'canceled'], true)) {
+        $detail = trim((string) ($blob['status_message'] ?? $blob['message'] ?? $txn['error_message'] ?? $status));
+        $base['code'] = 'failed';
+        $base['ar'] = 'غير مكتملة: ' . $detail;
+        $base['en'] = 'Not completed: ' . $detail;
+        return $base;
+    }
+    if (!in_array($status, ['pending', 'processing', 'pending_ledger'], true)) {
+        $base['ar'] = 'حالة السجل: ' . $status;
+        $base['en'] = 'Recorded status: ' . $status;
+        return $base;
+    }
+
+    $base['still_pending'] = true;
+    $requires3ds = !empty($blob['requires_3ds']) || $msg === '3DS_REQUIRED';
+    if ($gateway === 'payram' && ($requires3ds || $type === 'purchase_advice')) {
+        $base['code'] = 'payram_hosted_unpaid';
+        $base['live_status'] = $live !== '' ? $live : 'OPEN';
+        $base['ar'] = "ما زالت معلّقة لأن فاتورة PayRam لم تُدفع. أُنشئت صفحة الدفع/3DS ولم تكتمل. مضى {$ageDays} يوماً. ليست خصماً معلّقاً على البطاقة.";
+        $base['en'] = "Still pending because the PayRam invoice was never paid. Hosted checkout/3DS was created and never finished. Age: {$ageDays} days. This is not a stuck card capture.";
+        return $base;
+    }
+    if ($gateway === 'payram') {
+        $chain = trim((string) ($blob['chain'] ?? ''));
+        $token = trim((string) ($blob['token'] ?? ''));
+        $pair = trim($chain . ' ' . $token);
+        $base['code'] = 'payram_crypto_unpaid';
+        $base['live_status'] = $live !== '' ? $live : 'OPEN';
+        $base['ar'] = 'ما زالت معلّقة: فاتورة PayRam' . ($pair !== '' ? " ({$pair})" : '') . " بلا إيداع على السلسلة. مضى {$ageDays} يوماً.";
+        $base['en'] = 'Still pending: PayRam invoice' . ($pair !== '' ? " ({$pair})" : '') . " has no on-chain fill. Age: {$ageDays} days.";
+        return $base;
+    }
+    if ($status === 'pending_ledger') {
+        $base['code'] = 'pending_ledger';
+        $base['ar'] = 'الدفع سُجّل وبانتظار تسوية Ledger.';
+        $base['en'] = 'Payment is recorded and Ledger settlement is still queued.';
+        return $base;
+    }
+    $base['code'] = 'awaiting_gateway';
+    $base['ar'] = "بانتظار تأكيد البوابة أو الـ webhook. مضى {$ageDays} يوماً.";
+    $base['en'] = "Waiting for gateway confirmation or webhook. Age: {$ageDays} days.";
+    return $base;
+}
+
+function diparma_reconcile_pending_transaction($db, array $txn): array
+{
+    $status = strtolower(trim((string) ($txn['status'] ?? '')));
+    $gateway = strtolower(trim((string) ($txn['gateway'] ?? '')));
+    $out = [
+        'updated' => false,
+        'status' => $status,
+        'reason' => diparma_transaction_hang_reason($txn),
+        'source' => 'local',
+        'live' => null,
+    ];
+    if ($db === null || !in_array($status, ['pending', 'processing', 'pending_ledger'], true)) {
+        return $out;
+    }
+
+    if ($gateway === 'payram') {
+        $payramRef = diparma_payram_ref_from_txn($txn);
+        if ($payramRef === '') {
+            return $out;
+        }
+        $adapterFile = dirname(__DIR__) . '/lib/PayRamAdapter.php';
+        if (!class_exists('PayRamAdapter') && is_file($adapterFile)) {
+            require_once $adapterFile;
+        }
+        if (!class_exists('PayRamAdapter')) {
+            return $out;
+        }
+        try {
+            $live = (new PayRamAdapter())->getPaymentStatus($payramRef);
+            $out['source'] = 'payram_api';
+            $out['live'] = $live;
+            $blob = json_decode((string) ($txn['gateway_response'] ?? ''), true);
+            if (!is_array($blob)) {
+                $blob = [];
+            }
+            $blob['live_checked_at'] = date('c');
+            if (!empty($live['success'])) {
+                $liveStatus = (string) ($live['status'] ?? '');
+                $mapped = diparma_map_host_status($liveStatus);
+                $filled = (float) ($live['filled_amount'] ?? 0);
+                $amount = (float) ($live['amount'] ?? $txn['amount'] ?? 0);
+                if ($mapped === 'pending' && $amount > 0 && $filled >= $amount) {
+                    $mapped = 'completed';
+                }
+                $blob['payram_live_status'] = $liveStatus;
+                $blob['filled_amount'] = $live['filled_amount'] ?? null;
+                $update = [
+                    'gateway_response' => json_encode($blob, JSON_UNESCAPED_UNICODE),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ];
+                if ($mapped !== $status) {
+                    $update['status'] = $mapped;
+                    $out['updated'] = true;
+                    $out['status'] = $mapped;
+                    $txn['status'] = $mapped;
+                }
+                $db->update('transactions', $update, ['id' => (int) $txn['id']]);
+                $txn['gateway_response'] = $update['gateway_response'];
+            } else {
+                $blob['payram_live_status'] = (string) ($live['message'] ?? 'UNREACHABLE');
+                $db->update('transactions', [
+                    'gateway_response' => json_encode($blob, JSON_UNESCAPED_UNICODE),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ], ['id' => (int) $txn['id']]);
+                $txn['gateway_response'] = json_encode($blob, JSON_UNESCAPED_UNICODE);
+            }
+        } catch (Throwable $e) {
+            $out['source'] = 'payram_error';
+        }
+    }
+
+    $out['reason'] = diparma_transaction_hang_reason($txn);
+    return $out;
+}
+
+function diparma_reconcile_pending_transactions($db, int $limit = 25): array
+{
+    if ($db === null) {
+        return [];
+    }
+    $limit = max(1, min(100, $limit));
+    $rows = $db->query(
+        "SELECT * FROM " . DB_PREFIX . "transactions
+         WHERE LOWER(COALESCE(status,'')) IN ('pending','processing','pending_ledger')
+         ORDER BY id ASC
+         LIMIT " . $limit
+    );
+    $results = [];
+    foreach ($rows as $row) {
+        $recon = diparma_reconcile_pending_transaction($db, $row);
+        $results[] = [
+            'id' => (int) $row['id'],
+            'reference' => (string) ($row['reference'] ?? ''),
+            'updated' => !empty($recon['updated']),
+            'status' => $recon['status'] ?? $row['status'],
+            'still_pending' => !empty($recon['reason']['still_pending']),
+            'live_status' => $recon['reason']['live_status'] ?? '',
+            'reason_ar' => $recon['reason']['ar'] ?? '',
+            'reason_en' => $recon['reason']['en'] ?? '',
+            'source' => $recon['source'] ?? 'local',
+        ];
+    }
+    if (class_exists('DPCache')) {
+        DPCache::delete('recent_txn_10');
+        DPCache::delete('dashboard_stats_30');
+    }
+    return $results;
 }
 
 /**

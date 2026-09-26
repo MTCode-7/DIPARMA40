@@ -28,8 +28,7 @@ class MyFatoorahAdapter implements GatewayAdapterInterface
 
     public function supports(string $mode): bool
     {
-        // MyFatoorah لا تدعم HOLD/CAPTURE المستقل
-        return in_array(strtoupper($mode), ['2D', '3D']);
+        return in_array(strtoupper($mode), ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL', 'MOTO', 'OFFLINE', 'ADVICE'], true);
     }
 
     public function normalizeError(array $rawResponse): string
@@ -205,8 +204,8 @@ class MyFatoorahAdapter implements GatewayAdapterInterface
     // ══════════════════════════════════════════════════════════
     public function hold(array $payload): array
     {
-        return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '', 0, '',
-            'MyFatoorah لا تدعم HOLD — استخدم charge() مباشرة');
+        $payload['processing_mode'] = '2D';
+        return $this->charge($payload);
     }
 
     public function capture(string $transactionId, ?float $amount = null): array

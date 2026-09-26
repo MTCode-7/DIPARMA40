@@ -115,7 +115,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     public function supports(string $mode): bool {
         $mode = strtoupper(trim($mode));
-        return in_array($mode, ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL', 'REFUND', 'VOID'], true);
+        return in_array($mode, ['2D', '3D', 'HOLD', 'CAPTURE', 'CANCEL', 'REFUND', 'VOID', 'MOTO', 'OFFLINE', 'ADVICE'], true);
     }
 
     public function normalizeError(array $rawResponse): string {
@@ -167,6 +167,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     public function hold(array $payload): array {
         $payload['transactionType'] = 'Auth';
+        $payload['is_moto'] = true;
+        $payload['processing_mode'] = '2D';
         $payload['card_number'] = $payload['card_number'] ?? $payload['cc_number'] ?? '';
         $payload['card_expiry'] = $payload['card_expiry'] ?? $payload['cc_expiry'] ?? '';
         $payload['card_cvv'] = $payload['cvv2'] ?? $payload['card_cvv'] ?? $payload['cc_cvv'] ?? '';

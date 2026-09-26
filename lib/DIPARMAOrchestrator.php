@@ -37,6 +37,10 @@ class DIPARMAOrchestrator
         'diparma'     => ['name'=>'DI PARMA → Ledger',   'type'=>'card',   'priority'=>1, 'currencies'=>['USD','AED','EUR','GBP','SAR'],'max_amount'=>PHP_FLOAT_MAX],
         'diparma_gateway' => ['name'=>'DIPARMA GATEWAY → Ledger','type'=>'card','priority'=>1, 'currencies'=>['USD','USDT','AED','EUR','GBP','SAR','KWD','QAR','EGP'],'max_amount'=>PHP_FLOAT_MAX],
         'myfatoorah'  => ['name'=>'MyFatoorah',          'type'=>'card',   'priority'=>4, 'currencies'=>['AED','SAR','KWD','QAR','EGP'],'max_amount'=>PHP_FLOAT_MAX],
+        'checkout'    => ['name'=>'Checkout.com',        'type'=>'card',   'priority'=>4, 'currencies'=>['USD','EUR','GBP','AED'],     'max_amount'=>PHP_FLOAT_MAX],
+        'paytabs'     => ['name'=>'PayTabs',             'type'=>'card',   'priority'=>4, 'currencies'=>['USD','AED','SAR','EUR'],    'max_amount'=>PHP_FLOAT_MAX],
+        'authorizenet'=> ['name'=>'Authorize.Net',       'type'=>'card',   'priority'=>4, 'currencies'=>['USD','EUR','GBP','CAD'],    'max_amount'=>PHP_FLOAT_MAX],
+        'braintree'   => ['name'=>'Braintree',           'type'=>'card',   'priority'=>4, 'currencies'=>['USD','EUR','GBP','AUD'],    'max_amount'=>PHP_FLOAT_MAX],
         'wise'        => ['name'=>'Wise',                'type'=>'bank',   'priority'=>1, 'currencies'=>['USD','EUR','GBP','AED'],     'max_amount'=>PHP_FLOAT_MAX],
         'binance'     => ['name'=>'Binance Pay',         'type'=>'crypto', 'priority'=>1, 'currencies'=>['USD','USDT','BNB'],         'max_amount'=>PHP_FLOAT_MAX],
         'gate_io'     => ['name'=>'Gate.io',             'type'=>'crypto', 'priority'=>2, 'currencies'=>['USD','USDT'],               'max_amount'=>PHP_FLOAT_MAX],
@@ -151,7 +155,7 @@ class DIPARMAOrchestrator
             $input['allow_fallback'] = false;
             $input['destination'] = 'gateway';
         }
-        $allowFallback = !$fromPos && !empty($input['allow_fallback']);
+        $allowFallback = false;
         $processor = $fromPos
             ? $gateway
             : $this->selectProcessor($gateway, $currency, $amount, $posId, $txnType, $allowFallback);
@@ -267,10 +271,7 @@ class DIPARMAOrchestrator
         if ($requested !== '') {
             if (isset($this->GATEWAYS[$requested])) {
                 $gw = $this->GATEWAYS[$requested];
-                if (in_array($currency, $gw['currencies'], true) && $amount <= $gw['max_amount']) {
-                    return $requested;
-                }
-                return '';
+                return $requested;
             }
             if (isset($this->BANKS[$requested])) {
                 return 'bank:' . $requested;
@@ -316,16 +317,7 @@ class DIPARMAOrchestrator
 
     private function selectFallback(string $failed, string $currency, float $amount): ?string
     {
-        if (str_starts_with($failed, 'pos') || $failed === 'nuvei') {
-            return null;
-        }
-        $fallbacks = [
-            'stripe'     => 'nuvei',
-            'myfatoorah' => 'nuvei',
-            'paypal'     => 'nuvei',
-            'wise'       => 'bank:mashreq',
-        ];
-        return $fallbacks[$failed] ?? null;
+        return null;
     }
 
     /* ════════════════════════════════════════════════════

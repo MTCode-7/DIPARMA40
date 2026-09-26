@@ -127,6 +127,51 @@ function pos_terminal_gateways(): array
             'desc_ar' => 'Binance. ' . $acceptNoteAr . ' بعد القبول يبقى المبلغ على Binance.',
             'desc_en' => 'Binance. ' . $acceptNoteEn . ' After accept the funds stay on Binance.',
         ],
+        'checkout' => [
+            'name' => 'Checkout.com',
+            'icon' => 'fas fa-credit-card',
+            'color' => '#1A1F36',
+            'adapter' => 'checkout',
+            'rail' => 'card',
+            'desc_ar' => 'Checkout.com. ' . $acceptNoteAr . ' مسار مستقل. بعد الموافقة يبقى المبلغ على Checkout.',
+            'desc_en' => 'Checkout.com. ' . $acceptNoteEn . ' Isolated path. After approval the funds stay on Checkout.',
+        ],
+        'paytabs' => [
+            'name' => 'PayTabs',
+            'icon' => 'fas fa-credit-card',
+            'color' => '#00AEEF',
+            'adapter' => 'paytabs',
+            'rail' => 'card',
+            'desc_ar' => 'PayTabs. ' . $acceptNoteAr . ' مسار مستقل. بعد الموافقة يبقى المبلغ على PayTabs.',
+            'desc_en' => 'PayTabs. ' . $acceptNoteEn . ' Isolated path. After approval the funds stay on PayTabs.',
+        ],
+        'authorizenet' => [
+            'name' => 'Authorize.Net',
+            'icon' => 'fas fa-credit-card',
+            'color' => '#1A4E8A',
+            'adapter' => 'authorizenet',
+            'rail' => 'card',
+            'desc_ar' => 'Authorize.Net. ' . $acceptNoteAr . ' مسار مستقل. بعد الموافقة يبقى المبلغ على Authorize.Net.',
+            'desc_en' => 'Authorize.Net. ' . $acceptNoteEn . ' Isolated path. After approval the funds stay on Authorize.Net.',
+        ],
+        'braintree' => [
+            'name' => 'Braintree',
+            'icon' => 'fas fa-credit-card',
+            'color' => '#00A3E0',
+            'adapter' => 'braintree',
+            'rail' => 'card',
+            'desc_ar' => 'Braintree. ' . $acceptNoteAr . ' مسار مستقل. بعد الموافقة يبقى المبلغ على Braintree.',
+            'desc_en' => 'Braintree. ' . $acceptNoteEn . ' Isolated path. After approval the funds stay on Braintree.',
+        ],
+        'myfatoorah' => [
+            'name' => 'MyFatoorah',
+            'icon' => 'fas fa-credit-card',
+            'color' => '#7C3AED',
+            'adapter' => 'myfatoorah',
+            'rail' => 'card',
+            'desc_ar' => 'MyFatoorah. ' . $acceptNoteAr . ' مسار مستقل. بعد الموافقة يبقى المبلغ على MyFatoorah.',
+            'desc_en' => 'MyFatoorah. ' . $acceptNoteEn . ' Isolated path. After approval the funds stay on MyFatoorah.',
+        ],
     ];
     foreach ($list as &$meta) {
         $meta['card_types'] = $allTypes;
@@ -158,6 +203,10 @@ function pos_normalize_gateway(string $code): string
         'square_2' => 'square_online',
         'square2' => 'square_online',
         'square-online' => 'square_online',
+        'authorize_net' => 'authorizenet',
+        'authnet' => 'authorizenet',
+        'checkout.com' => 'checkout',
+        'pay_tabs' => 'paytabs',
     ];
     if (isset($aliases[$code])) {
         $code = $aliases[$code];
@@ -269,7 +318,7 @@ function pos_sale_operations(): array
 {
     return [
         'purchase_2d', 'purchase_3d', 'online_sale_moto', 'offline_sale_moto',
-        'purchase_advice', 'capture', 'withdrawal_pos', 'withdrawal_nfc',
+        'purchase_advice', 'auth', 'capture', 'withdrawal_pos', 'withdrawal_nfc',
     ];
 }
 
@@ -381,6 +430,171 @@ function pos_format_gateway_result(array $result, string $fallbackMessage = 'DEC
     return $result;
 }
 
+/** Isolated card adapters — each gateway runs only its own class. */
+function pos_isolated_card_adapters(): array
+{
+    return ['nuvei', 'stripe', 'square', 'paypal', 'checkout', 'paytabs', 'authorizenet', 'braintree', 'myfatoorah', 'diparma'];
+}
+
+function pos_adapter_class_file(string $adapter): array
+{
+    $map = [
+        'nuvei' => ['NuveiAdapter.php', 'NuveiAdapter'],
+        'stripe' => ['StripeAdapter.php', 'StripeAdapter'],
+        'square' => ['SquareAdapter.php', 'SquareAdapter'],
+        'paypal' => ['PayPalAdapter.php', 'PayPalAdapter'],
+        'checkout' => ['CheckoutAdapter.php', 'CheckoutAdapter'],
+        'paytabs' => ['PayTabsAdapter.php', 'PayTabsAdapter'],
+        'authorizenet' => ['AuthorizeNetAdapter.php', 'AuthorizeNetAdapter'],
+        'braintree' => ['BraintreeAdapter.php', 'BraintreeAdapter'],
+        'myfatoorah' => ['MyFatoorahAdapter.php', 'MyFatoorahAdapter'],
+        'diparma' => ['../gateways/DIPARMAGateway.php', 'DIPARMAGateway'],
+    ];
+    return $map[$adapter] ?? ['', ''];
+}
+
+function pos_prepare_operation_payload(string $txnType, array $params): array
+{
+    $txnType = strtolower(trim($txnType));
+    $params['txn_type'] = $txnType;
+    $name = trim((string) ($params['card_name'] ?? $params['name'] ?? ''));
+    if (function_exists('pos_real_card_name')) {
+        $name = pos_real_card_name($name);
+    }
+    $params['name'] = $name;
+    $params['card_name'] = $name;
+
+    if ($txnType === 'purchase_3d') {
+        if (!class_exists('CardScaService', false)) {
+            require_once POS_APP_ROOT . '/lib/CardScaService.php';
+        }
+        if (!CardScaService::shouldChallenge($params)) {
+            $params['processing_mode'] = '2D';
+            $params['txn_type'] = 'purchase_2d';
+            $params['is_moto'] = true;
+        } else {
+            $params['processing_mode'] = '3D';
+            $params['is_moto'] = false;
+        }
+        return $params;
+    }
+
+    $params['processing_mode'] = '2D';
+    $params['is_moto'] = true;
+    $params['moto_indicator'] = $params['moto_indicator'] ?? 'M';
+
+    if ($txnType === 'offline_sale_moto') {
+        $params['is_offline'] = true;
+        $params['moto_channel'] = 'offline';
+        $params['auth_channel'] = 'offline';
+    }
+    if ($txnType === 'online_sale_moto') {
+        $params['moto_channel'] = 'online';
+        $params['auth_channel'] = 'online';
+    }
+    if ($txnType === 'purchase_advice') {
+        $params['direct_advice'] = true;
+        $params['card_cvv'] = '';
+    }
+    if (in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold', 'capture'], true)) {
+        $params['card_cvv'] = $params['card_cvv'] ?? '';
+    }
+    return $params;
+}
+
+function pos_related_host_id(string $gateway, array $params): string
+{
+    if ($gateway === 'paypal' && function_exists('pos_paypal_host_id')) {
+        $id = pos_paypal_host_id($params, 'authorization');
+        if ($id !== '') {
+            return $id;
+        }
+    }
+    if (function_exists('pos_host_payment_id')) {
+        $id = pos_host_payment_id($params);
+        if ($id !== '') {
+            return $id;
+        }
+    }
+    foreach (['payment_id', 'related_transaction_id', 'nuvei_txn_id', 'transaction_id', 'orig_ref'] as $key) {
+        $value = trim((string) ($params[$key] ?? ''));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+    return '';
+}
+
+function pos_run_isolated_card_gateway(string $gateway, string $adapter, string $txnType, array $params): array
+{
+    $params = pos_prepare_operation_payload($txnType, $params);
+    $effective = strtolower((string) ($params['txn_type'] ?? $txnType));
+    [$file, $class] = pos_adapter_class_file($adapter);
+    if ($file === '' || $class === '') {
+        return ['success' => false, 'message' => 'Isolated adapter missing for ' . $gateway, 'gateway' => $gateway];
+    }
+    if ($adapter === 'paypal' && function_exists('pos_prime_paypal_env')) {
+        pos_prime_paypal_env();
+    }
+    require_once POS_APP_ROOT . '/lib/Adapters/' . $file;
+    if (!class_exists($class, false)) {
+        return ['success' => false, 'message' => 'Adapter class not found: ' . $class, 'gateway' => $gateway];
+    }
+    $obj = new $class();
+    $amount = (float) ($params['amount'] ?? 0);
+
+    if (in_array($effective, ['auth', 'auth_hold', 'auth_moto', 'hold', 'authorize'], true)) {
+        if ($adapter === 'nuvei' && method_exists($obj, 'authorize')) {
+            return pos_format_gateway_result($obj->authorize($params));
+        }
+        return pos_format_gateway_result($obj->hold($params));
+    }
+
+    if (in_array($effective, ['capture', 'auth_complete', 'auth_capture'], true)) {
+        if ($adapter === 'nuvei') {
+            return pos_format_gateway_result($obj->capture($params, $amount > 0 ? $amount : null));
+        }
+        $id = pos_related_host_id($gateway, $params);
+        if ($id === '') {
+            return ['success' => false, 'message' => 'Original payment id required for capture on ' . $gateway, 'gateway' => $gateway];
+        }
+        return pos_format_gateway_result($obj->capture($id, $amount > 0 ? $amount : null));
+    }
+
+    if ($effective === 'refund') {
+        $id = $gateway === 'paypal' && function_exists('pos_paypal_host_id')
+            ? pos_paypal_host_id($params, 'capture')
+            : pos_related_host_id($gateway, $params);
+        if ($id === '') {
+            return ['success' => false, 'message' => 'Original payment id required for refund on ' . $gateway, 'gateway' => $gateway];
+        }
+        if (!method_exists($obj, 'refund')) {
+            return ['success' => false, 'message' => 'Refund is not supported on ' . $gateway, 'gateway' => $gateway];
+        }
+        return pos_format_gateway_result($obj->refund($id, $amount > 0 ? $amount : 0.0, (string) ($params['currency'] ?? 'USD')));
+    }
+
+    if (in_array($effective, ['avoid', 'void', 'cancel', 'reversal'], true)) {
+        $id = pos_related_host_id($gateway, $params);
+        if ($id === '') {
+            return ['success' => false, 'message' => 'Original payment id required to cancel on ' . $gateway, 'gateway' => $gateway];
+        }
+        if ($adapter === 'nuvei' && method_exists($obj, 'void')) {
+            return pos_format_gateway_result($obj->void($params));
+        }
+        return pos_format_gateway_result($obj->cancel($id, $effective));
+    }
+
+    if ($effective === 'purchase_3d' && method_exists($obj, 'purchase3D')) {
+        return pos_format_gateway_result($obj->purchase3D($params));
+    }
+    if (in_array($effective, ['purchase_2d', 'online_sale_moto', 'offline_sale_moto', 'purchase_advice'], true)
+        && method_exists($obj, 'purchase2D')) {
+        return pos_format_gateway_result($obj->purchase2D($params));
+    }
+    return pos_format_gateway_result($obj->charge($params));
+}
+
 /**
  * Direct Advice → البوابة المختارة فقط (بدون افتراض Nuvei).
  * لا يستدعي purchase_advice من pos_run_standalone_gateway لتفادي الحلقة.
@@ -400,57 +614,11 @@ function pos_dispatch_direct_advice_to_gateway(string $gateway, array $params): 
     $params['direct_advice'] = true;
     $params['txn_type'] = 'purchase_advice';
 
-    if ($adapter === 'nuvei') {
-        require_once POS_APP_ROOT . '/lib/Adapters/NuveiAdapter.php';
-        $nuvei = new NuveiAdapter();
-        return method_exists($nuvei, 'purchaseAdvice')
-            ? $nuvei->purchaseAdvice($params)
-            : $nuvei->purchase($params);
+    if (in_array($adapter, pos_isolated_card_adapters(), true)) {
+        return pos_run_isolated_card_gateway($gateway, $adapter, 'purchase_advice', $params);
     }
 
-    if ($adapter === 'stripe') {
-        require_once POS_APP_ROOT . '/lib/Adapters/StripeAdapter.php';
-        $stripe = new StripeAdapter();
-        $related = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string) ($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
-        if ($related !== '') {
-            return $stripe->capture($related, (float) ($params['amount'] ?? 0) ?: null);
-        }
-        return $stripe->charge(array_merge($params, [
-            'name' => function_exists('pos_real_card_name') ? pos_real_card_name((string) ($params['card_name'] ?? $params['name'] ?? '')) : trim((string) ($params['card_name'] ?? $params['name'] ?? '')),
-            'processing_mode' => '2D',
-        ]));
-    }
-
-    if ($adapter === 'square') {
-        require_once POS_APP_ROOT . '/lib/Adapters/SquareAdapter.php';
-        $square = new SquareAdapter();
-        $related = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string) ($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
-        if ($related !== '') {
-            return pos_format_gateway_result($square->capture($related, (float) ($params['amount'] ?? 0) ?: null));
-        }
-        return pos_format_gateway_result($square->charge(array_merge($params, [
-            'name' => function_exists('pos_real_card_name') ? pos_real_card_name((string) ($params['card_name'] ?? $params['name'] ?? '')) : trim((string) ($params['card_name'] ?? $params['name'] ?? '')),
-            'processing_mode' => '2D',
-            'txn_type' => 'purchase_advice',
-        ])));
-    }
-
-    if ($adapter === 'paypal') {
-        pos_prime_paypal_env();
-        require_once POS_APP_ROOT . '/lib/Adapters/PayPalAdapter.php';
-        $paypal = new PayPalAdapter();
-        $related = pos_paypal_host_id($params, 'authorization');
-        if ($related !== '') {
-            return pos_format_gateway_result($paypal->capture($related, (float) ($params['amount'] ?? 0) ?: null));
-        }
-        return pos_format_gateway_result($paypal->charge(array_merge($params, [
-            'name' => function_exists('pos_real_card_name') ? pos_real_card_name((string) ($params['card_name'] ?? $params['name'] ?? '')) : trim((string) ($params['card_name'] ?? $params['name'] ?? '')),
-            'processing_mode' => '2D',
-            'txn_type' => 'purchase_advice',
-        ])));
-    }
-
-    return ['success' => false, 'message' => 'Direct Advice is not supported on gateway: ' . $gateway];
+    return ['success' => false, 'message' => 'Purchase Advice is a card MOTO sale on the selected card gateway only.', 'gateway' => $gateway];
 }
 
 function pos_run_standalone_gateway(string $gateway, string $txnType, array $params): array
@@ -468,235 +636,16 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
         return ['success' => false, 'message' => 'Ledger is the settlement destination, not a card gateway. Pick a connected card gateway.'];
     }
 
-    // Direct Advice — دائماً عبر البوابة المختارة (ليست ثابتة على Nuvei)
-    if ($txnType === 'purchase_advice') {
-        if (!class_exists('DirectAdvicePOSProcessor', false)) {
-            require_once dirname(__DIR__) . '/lib/DirectAdvicePOSProcessor.php';
-        }
-        $params['card_cvv'] = '';
-        $params['is_moto'] = false;
-        $params['direct_advice'] = true;
-        $mid = trim((string) ($params['merchant_id'] ?? ''));
-        $tid = trim((string) ($params['terminal_id'] ?? $params['tid'] ?? ''));
-        $ref = trim((string) ($params['rrn'] ?? $params['orig_ref'] ?? $params['reference'] ?? $params['client_unique_id'] ?? ''));
-        $cardToken = $params['cloud_token'] ?? $params['payment_token'] ?? $params;
-        $posProcessor = new DirectAdvicePOSProcessor($mid, $tid, $gateway);
-        $result = $posProcessor->executeDirectAdviceSale($ref, (float) ($params['amount'] ?? 0), $cardToken);
-        $ok = (($result['status'] ?? '') === 'SUCCESS') || !empty($result['success']);
-        if (isset($result['gateway_response']) && is_array($result['gateway_response']) && array_key_exists('success', $result['gateway_response'])) {
-            return array_merge($result['gateway_response'], [
-                'success' => $ok,
-                'status' => $result['status'] ?? ($ok ? 'SUCCESS' : 'DECLINED'),
-                'message' => $result['message'] ?? ($result['gateway_response']['message'] ?? ''),
-                'response_code' => $result['response_code'] ?? null,
-                'reference' => $result['reference_number'] ?? $ref,
-                'amount' => $result['charged_amount'] ?? ($params['amount'] ?? 0),
-                'gateway' => $gateway,
-                'mti' => '0220',
-                'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
-            ]);
-        }
-        return [
-            'success' => $ok,
-            'status' => $result['status'] ?? ($ok ? 'SUCCESS' : 'DECLINED'),
-            'message' => $result['message'] ?? '',
-            'transaction_id' => $result['transaction_id'] ?? '',
-            'reference' => $result['reference_number'] ?? $ref,
-            'amount' => $result['charged_amount'] ?? ($params['amount'] ?? 0),
-            'approval_code' => $result['approval_code'] ?? '',
-            'response_code' => $result['response_code'] ?? '',
-            'gateway' => $gateway,
-            'mti' => '0220',
-            'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
-        ];
+    if (in_array($adapter, pos_isolated_card_adapters(), true)) {
+        return pos_run_isolated_card_gateway($gateway, $adapter, $txnType, $params);
     }
 
-    if (!function_exists('square_offline_device_only_message') || !function_exists('paypal_offline_device_only_message')) {
-        $catalog = POS_APP_ROOT . '/includes/gateways.php';
-        if (is_file($catalog)) {
-            require_once $catalog;
-        }
-    }
-
-    if ($adapter === 'square' && function_exists('square_request_is_diparma_offline')
-        && square_request_is_diparma_offline(array_merge($params, ['txn_type' => $txnType]))) {
-        return [
-            'success' => false,
-            'status' => 'DECLINED',
-            'message' => square_offline_device_only_message(),
-            'gateway' => 'square',
-            'error_code' => 'GATEWAY_ERROR',
-        ];
-    }
-
-    if ($adapter === 'paypal' && function_exists('paypal_request_is_diparma_offline')
-        && paypal_request_is_diparma_offline(array_merge($params, ['txn_type' => $txnType]))) {
-        return [
-            'success' => false,
-            'status' => 'DECLINED',
-            'message' => paypal_offline_device_only_message(),
-            'gateway' => 'paypal',
-            'error_code' => 'GATEWAY_ERROR',
-        ];
-    }
-
-    // Offline SALE — live MOTO on the selected gateway (no local approval).
-    if ($txnType === 'offline_sale_moto') {
-        $params['is_moto'] = true;
-        $params['is_offline'] = true;
-        $params['card_cvv'] = $params['card_cvv'] ?? '';
-        $txnType = 'online_sale_moto';
-    }
-
-    if ($adapter === 'nuvei') {
-        require_once POS_APP_ROOT . '/lib/Adapters/NuveiAdapter.php';
-        $nuvei = new NuveiAdapter();
-        switch ($txnType) {
-            case 'purchase_3d':
-                return $nuvei->purchase3D($params);
-            case 'purchase_2d':
-                return $nuvei->purchase2D($params);
-            case 'online_sale_moto':
-                $params['is_moto'] = true;
-                return $nuvei->purchase2D($params);
-            case 'auth':
-                $authCh = strtolower(trim((string) ($params['auth_channel'] ?? $params['moto_channel'] ?? 'ecom')));
-                if (in_array($authCh, ['online', 'offline'], true)) {
-                    $params['is_moto'] = true;
-                    $params['moto_indicator'] = 'M';
-                    if ($authCh === 'offline') {
-                        $params['is_offline'] = true;
-                    }
-                } else {
-                    $params['is_moto'] = false;
-                    $params['auth_channel'] = 'ecom';
-                }
-                return $nuvei->authorize($params);
-            case 'capture':
-                return $nuvei->capture($params);
-            case 'refund':
-                return $nuvei->refund($params);
-            case 'avoid':
-                return $nuvei->void($params);
-            default:
-                return $nuvei->purchase($params);
-        }
-    }
-
-    if ($adapter === 'stripe') {
-        require_once POS_APP_ROOT . '/lib/Adapters/StripeAdapter.php';
-        $stripe = new StripeAdapter();
-        $payload = array_merge($params, [
-            'name' => function_exists('pos_real_card_name') ? pos_real_card_name((string) ($params['card_name'] ?? $params['name'] ?? '')) : trim((string) ($params['card_name'] ?? $params['name'] ?? '')),
-            'processing_mode' => ($txnType === 'purchase_3d') ? '3D' : '2D',
-        ]);
-        if ($txnType === 'auth') {
-            return $stripe->hold($payload);
-        }
-        if ($txnType === 'capture') {
-            $id = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string)($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
-            if ($id === '') {
-                return ['success' => false, 'message' => 'Original Stripe payment id required for capture'];
-            }
-            return $stripe->capture($id, (float)($params['amount'] ?? 0) ?: null);
-        }
-        if (in_array($txnType, ['refund', 'avoid'], true)) {
-            $id = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string)($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
-            if ($id === '') {
-                return ['success' => false, 'message' => 'Original Stripe payment id required'];
-            }
-            if ($txnType === 'refund') {
-                return $stripe->refund($id, (float) ($params['amount'] ?? 0) ?: null, (string) ($params['currency'] ?? 'USD'));
-            }
-            return $stripe->cancel($id, $txnType);
-        }
-        return $stripe->charge($payload);
-    }
-
-    if ($adapter === 'square') {
-        require_once POS_APP_ROOT . '/lib/Adapters/SquareAdapter.php';
-        $square = new SquareAdapter();
-        $payload = array_merge($params, [
-            'name' => function_exists('pos_real_card_name') ? pos_real_card_name((string) ($params['card_name'] ?? $params['name'] ?? '')) : trim((string) ($params['card_name'] ?? $params['name'] ?? '')),
-            'processing_mode' => ($txnType === 'purchase_3d') ? '3D' : '2D',
-            'txn_type' => $txnType,
-        ]);
-        if ($txnType === 'auth') {
-            return pos_format_gateway_result($square->hold($payload));
-        }
-        if ($txnType === 'capture') {
-            $id = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string)($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
-            if ($id === '') {
-                return ['success' => false, 'message' => 'Original Square payment id required for capture'];
-            }
-            return pos_format_gateway_result($square->capture($id, (float) ($params['amount'] ?? 0) ?: null));
-        }
-        if ($txnType === 'refund') {
-            $id = function_exists('pos_host_payment_id') ? pos_host_payment_id($params) : trim((string) ($params['payment_id'] ?? $params['related_transaction_id'] ?? ''));
-            if ($id === '') {
-                return ['success' => false, 'message' => 'Original Square payment id required for refund'];
-            }
-            $amount = (float) ($params['amount'] ?? 0);
-            if ($amount <= 0) {
-                return ['success' => false, 'message' => 'Square refund amount must be greater than 0'];
-            }
-            return pos_format_gateway_result($square->refund($id, $amount, (string) ($params['currency'] ?? 'USD')));
-        }
-        if ($txnType === 'avoid') {
-            $id = (string) ($params['related_transaction_id'] ?? $params['orig_ref'] ?? '');
-            if ($id === '') {
-                return ['success' => false, 'message' => 'Original Square payment id required for cancel'];
-            }
-            return pos_format_gateway_result($square->cancel($id, $txnType));
-        }
-        if (in_array($txnType, ['purchase_advice', 'offline_sale_moto', 'online_sale_moto'], true)) {
-            $payload['card_cvv'] = $payload['card_cvv'] ?? ($params['card_cvv'] ?? '');
-        }
-        return pos_format_gateway_result($square->charge($payload));
-    }
-
-    if ($adapter === 'paypal') {
-        pos_prime_paypal_env();
-        require_once POS_APP_ROOT . '/lib/Adapters/PayPalAdapter.php';
-        $paypal = new PayPalAdapter();
-        $payload = array_merge($params, [
-            'name' => function_exists('pos_real_card_name') ? pos_real_card_name((string) ($params['card_name'] ?? $params['name'] ?? '')) : trim((string) ($params['card_name'] ?? $params['name'] ?? '')),
-            'processing_mode' => ($txnType === 'purchase_3d') ? '3D' : '2D',
-            'txn_type' => $txnType,
-        ]);
-        if ($txnType === 'auth') {
-            return pos_format_gateway_result($paypal->hold($payload));
-        }
-        if ($txnType === 'capture') {
-            $id = pos_paypal_host_id($params, 'authorization');
-            if ($id === '') {
-                return ['success' => false, 'message' => 'PayPal authorization id مطلوب للتحصيل. Payment ID من إيصال الحجز، وليس RRN وحده.'];
-            }
-            return pos_format_gateway_result($paypal->capture($id, (float)($params['amount'] ?? 0) ?: null));
-        }
-        if ($txnType === 'refund') {
-            $id = pos_paypal_host_id($params, 'capture');
-            if ($id === '') {
-                return ['success' => false, 'message' => 'PayPal capture id مطلوب للاسترجاع. الاسترجاع يتم بعد التحصيل وعلى نفس البطاقة.'];
-            }
-            return pos_format_gateway_result($paypal->refund($id, (float)($params['amount'] ?? 0) ?: null, (string)($params['currency'] ?? 'USD')));
-        }
-        if ($txnType === 'avoid') {
-            $id = pos_paypal_host_id($params, 'authorization');
-            if ($id === '') {
-                return ['success' => false, 'message' => 'PayPal authorization id مطلوب لإلغاء التفويض.'];
-            }
-            return pos_format_gateway_result($paypal->cancel($id, $txnType));
-        }
-        return pos_format_gateway_result($paypal->charge($payload));
-    }
+    $params = pos_prepare_operation_payload($txnType, $params);
+    $txnType = strtolower((string) ($params['txn_type'] ?? $txnType));
 
     if ($adapter === 'payram') {
         if (in_array($txnType, ['refund', 'avoid'], true)) {
             return ['success' => false, 'message' => 'PayRam POS refund/avoid is handled on the PayRam invoice, not as a card void.'];
-        }
-        if ($txnType === 'auth') {
-            return ['success' => false, 'message' => 'PayRam POS is sale → Ledger. AUTH hold is not used on this rail.'];
         }
         require_once POS_APP_ROOT . '/lib/PayRamAdapter.php';
         $payram = new PayRamAdapter();
@@ -721,8 +670,8 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
     }
 
     if ($adapter === 'whop') {
-        if (in_array($txnType, ['refund', 'avoid', 'auth'], true)) {
-            return ['success' => false, 'message' => 'Whop POS supports sale types → Ledger. AUTH/refund/avoid stay on Whop.'];
+        if (in_array($txnType, ['refund', 'avoid'], true)) {
+            return ['success' => false, 'message' => 'Whop refund/avoid stays on Whop.'];
         }
         require_once POS_APP_ROOT . '/lib/Adapters/WhopAdapter.php';
         $whop = new WhopAdapter();
@@ -745,9 +694,6 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
     if ($adapter === 'wise') {
         if (in_array($txnType, ['refund', 'avoid'], true)) {
             return ['success' => false, 'message' => 'Wise POS refund/avoid is not a card void. Use the Wise dashboard.'];
-        }
-        if ($txnType === 'auth') {
-            return ['success' => false, 'message' => 'Wise POS is sale → Ledger. AUTH hold is not used on this rail.'];
         }
         require_once POS_APP_ROOT . '/lib/WiseService.php';
         $wise = WiseService::fromConfig();

@@ -48,106 +48,9 @@ try {
 // [4] معالجة التنفيذ المباشر
 // ============================================================
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'direct_execute') {
-    
-    // 4.1 التحقق من CSRF Token
-    if (!isset($_POST['csrf_token']) || !verifyCsrfToken($_POST['csrf_token'])) {
-        $msg = '❌ فشل التحقق الأمني (CSRF). حاول مرة أخرى.';
-        $msgType = 'error';
-    } else {
-        
-        // 4.2 استقبال البيانات
-        $userId = intval($_POST['user_id'] ?? 0);
-        $amount = floatval($_POST['amount'] ?? 0);
-        $currency = strtoupper(trim($_POST['currency'] ?? 'USD'));
-        $coin = strtoupper(trim($_POST['coin'] ?? 'USDT'));
-        $network = strtoupper(trim($_POST['network'] ?? 'TRC20'));
-        $approval = trim($_POST['approval_code'] ?? '');
-        $cardLast4 = trim($_POST['card_last4'] ?? '');
-        $note = trim($_POST['note'] ?? '');
-        $txnType = trim($_POST['transaction_type'] ?? 'admin_direct');
-        $txnTypeInfo = getTransactionType($txnType);
-        
-        // 4.3 التحقق من صحة البيانات
-        if ($userId <= 0) {
-            $msg = '❌ يرجى اختيار مستخدم صالح.';
-            $msgType = 'error';
-        } elseif ($amount <= 0) {
-            $msg = '❌ المبلغ يجب أن يكون أكبر من صفر.';
-            $msgType = 'error';
-        } elseif (empty($approval) || strlen($approval) < 4) {
-            $msg = '❌ Approval Code مطلوب (4-6 أرقام).';
-            $msgType = 'error';
-        } else {
-            
-            try {
-                // 4.4 حساب التوزيع
-                $totalCrypto = $amount;
-                $adminShare = round($totalCrypto * 0.75, 8);
-                $clientShare = round($totalCrypto * 0.25, 8);
-                $unlockAt = date('Y-m-d H:i:s', strtotime('+24 hours'));
-                $reference = 'ADMIN' . date('Ymd') . '_' . strtoupper(bin2hex(random_bytes(4)));
-                
-                // 4.5 بدء المعاملة
-                $db->execute("START TRANSACTION");
-                
-                // 4.6 حفظ المعاملة في قاعدة البيانات
-                $db->insert('transactions', [
-                    'reference' => $reference,
-                    'user_id' => $userId,
-                    'gateway' => 'offline',
-                    'gateway_type' => 'manual',
-                    'transaction_type' => $txnType,
-                    'transaction_label' => ($txnTypeInfo['ar'] ?? 'إدارة يدوية') . ' - ' . $coin . '/' . $network,
-                    'amount' => $amount,
-                    'currency' => $currency,
-                    'card_last4' => $cardLast4,
-                    'cardholder_name' => $note ?: 'Admin Direct',
-                    'security_mode' => '2D',
-                    'status' => 'completed',
-                    'gateway_response' => json_encode([
-                        'protocol' => '201.3',
-                        'payment_type' => strtoupper($txnType),
-                        'transaction_type_code' => $txnType,
-                        'transaction_type_ar' => $txnTypeInfo['ar'] ?? 'غير محدد',
-                        'transaction_type_en' => $txnTypeInfo['en'] ?? 'Undefined',
-                        'coin' => $coin,
-                        'network' => $network,
-                        'crypto_amount' => $totalCrypto,
-                        'admin_share' => $adminShare,
-                        'client_share' => $clientShare,
-                        'approval_code' => $approval,
-                        'card_last4' => $cardLast4,
-                        'executed_by' => $_SESSION['username'] ?? 'admin',
-                        'executed_at' => date('Y-m-d H:i:s'),
-                    ]),
-                    'auth_code' => $approval,
-                    'rrn' => null,
-                    'acquirer' => 'Offline Manual',
-                    'created_at' => date('Y-m-d H:i:s'),
-                ]);
-                
-                // 4.7 إضافة رصيد للعميل
-                _addCryptoBalance($db, $userId, $coin, $network, $clientShare, $unlockAt, $reference);
-                
-                // 4.8 تسجيل في سجل التدقيق
-                _logAudit($db, $userId, 'admin_direct', $reference, $amount, $currency);
-                
-                // 4.9 إتمام المعاملة
-                $db->execute("COMMIT");
-                
-                $txnLabel = ($txnTypeInfo['ar'] ?? 'معاملة') . ' (' . ($txnTypeInfo['en'] ?? '') . ')';
-                $msg = '✅ تم التنفيذ — ' . $txnLabel . ' | ' . number_format($clientShare, 8) . ' ' . $coin . ' أُضيفت لمحفظة العميل #' . $userId . ' | مرجع: ' . $reference;
-                $msgType = 'success';
-                
-            } catch (Exception $e) {
-                $db->execute("ROLLBACK");
-                $msg = '❌ خطأ: ' . $e->getMessage();
-                $msgType = 'error';
-                error_log('[Offline Approvals] Error: ' . $e->getMessage());
-            }
-        }
-    }
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $msg = 'التنفيذ اليدوي والوهمي أُلغي. سجّل العملية من بوابة حية فقط عبر ChargeHub أو نقطة البيع.';
+    $msgType = 'error';
 }
 
 // ============================================================
@@ -341,7 +244,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <i class="fas fa-bolt"></i>
         تنفيذ مباشر — العميل حاضر
       </div>
-      <form method="POST">
+      <p class="msg error" style="margin-bottom:14px">التنفيذ الفوري اليدوي أُلغي. لا تُنشأ معاملة مكتملة إلا من بوابة حية.</p>
+      <form method="POST" onsubmit="return false">
         <input type="hidden" name="action" value="direct_execute">
         <input type="hidden" name="csrf_token" value="<?=$csrfToken?>">
         
@@ -428,8 +332,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
           75% → محفظة الشركة | 25% → محفظة العميل (مقفلة 24 ساعة)
         </div>
         
-        <button type="submit" class="btn btn-gold btn-full">
-          <i class="fas fa-bolt"></i> تنفيذ فوري
+        <button type="button" class="btn btn-gold btn-full" disabled>
+          <i class="fas fa-ban"></i> التنفيذ اليدوي معطّل
         </button>
       </form>
     </div>
