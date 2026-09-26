@@ -393,8 +393,8 @@ function pos_operation_catalog(): array
             'entry_mode' => 'pos_chip',
             'channel' => 'system_pos',
             'requires_charge_mode' => true,
-            'desc_ar' => 'سحب POS بدون OTP. يمكن تفعيل POS وNFC معاً مع مانول أو فيزيكل. اختر وضع التنفيذ 2D. التحصيل → Ledger.',
-            'desc_en' => 'POS withdrawal with no OTP. POS and NFC can both be on with Manual or Physical. Pick a 2D charge mode. Capture → Ledger.',
+            'desc_ar' => 'سحب POS بدون OTP على البوابة المتصلة المختارة. لا يحتاج ربطاً إضافياً. المبلغ يبقى على نفس البوابة.',
+            'desc_en' => 'POS withdrawal with no OTP on the selected connected gateway. No extra bind. Funds stay on that same gateway.',
         ],
         'withdrawal_nfc' => [
             'ar' => 'سحب عبر NFC',
@@ -415,8 +415,8 @@ function pos_operation_catalog(): array
             'entry_mode' => 'nfc_contactless',
             'channel' => 'system_pos',
             'requires_charge_mode' => true,
-            'desc_ar' => 'سحب NFC بدون OTP. يعمل مع POS في نفس العملية، مانول أو فيزيكل. نفس قواعد السحب وLedger.',
-            'desc_en' => 'NFC withdrawal with no OTP. Can run with POS on the same sale, Manual or Physical. Same Ledger rules.',
+            'desc_ar' => 'سحب NFC بدون OTP على البوابة المتصلة المختارة. لا يحتاج ربطاً إضافياً. المبلغ يبقى على نفس البوابة.',
+            'desc_en' => 'NFC withdrawal with no OTP on the selected connected gateway. No extra bind. Funds stay on that same gateway.',
         ],
     ];
 }
@@ -1125,6 +1125,38 @@ function pos_public_host_errors(array $result): array
  *
  * @param array<string,mixed> $result
  */
+function pos_receipt_decline_reason(array $txn, array $gwResp = []): string
+{
+    $nested = [];
+    foreach (['response', 'gateway_response', 'raw', 'ledger_settlement'] as $key) {
+        if (isset($gwResp[$key]) && is_array($gwResp[$key])) {
+            $nested = array_merge($nested, $gwResp[$key]);
+        }
+    }
+    $blob = array_merge($nested, $gwResp);
+    $blob['message'] = $blob['decline_reason'] ?? $blob['status_message'] ?? $blob['raw_message'] ?? $blob['message'] ?? ($txn['status'] ?? '');
+    $line = pos_host_decline_line($blob);
+    $generic = ['', 'FAILED', 'DECLINED', 'CARD_DECLINED', 'UNKNOWN', 'رُفضت العملية'];
+    if ($line !== '' && !in_array(strtoupper($line), $generic, true)) {
+        return $line;
+    }
+    foreach (['decline_reason', 'status_message', 'raw_message', 'reason', 'message'] as $key) {
+        $value = $blob[$key] ?? '';
+        if (!is_scalar($value)) {
+            continue;
+        }
+        $value = trim((string) $value);
+        if ($value === '' || $value[0] === '{' || $value[0] === '[') {
+            continue;
+        }
+        $plain = pos_plain_host_message($value);
+        if ($plain !== '' && !in_array(strtoupper($plain), $generic, true)) {
+            return $plain;
+        }
+    }
+    return $line !== '' ? $line : 'DECLINED';
+}
+
 function pos_host_decline_line(array $result): string
 {
     $errs = pos_public_host_errors($result);

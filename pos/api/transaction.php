@@ -695,7 +695,7 @@ if ($useCardGateway) {
 
         $success = !empty($result['success']);
         $message = $success
-            ? 'APPROVED'
+            ? (pos_is_withdrawal($txnType) ? 'SUCCESS' : 'APPROVED')
             : pos_host_decline_line(is_array($result) ? $result : ['message' => (string) $result]);
         $hostErrors = $success ? [] : pos_public_host_errors(is_array($result) ? $result : []);
         $squareErrorCode = trim((string) ($result['square_error_code'] ?? ''));
@@ -876,6 +876,12 @@ try {
             'settlement_path' => $posGateway . '_to_gateway',
             'settlement_target' => 'gateway',
             'status_message' => $message,
+            'decline_reason' => $success ? null : $message,
+            'raw_message' => $success ? null : trim((string) ($result['raw_message'] ?? $message)),
+            'error_code' => $success ? null : trim((string) ($squareErrorCode !== '' ? $squareErrorCode : ($result['error_code'] ?? $result['decline_code'] ?? ''))),
+            'response_code' => $responseCode,
+            'host_errors' => $success ? [] : $hostErrors,
+            'success' => $success,
             'card_use' => $cardUseAlert['card_use'],
             'card_use_ar' => $cardUseAlert['card_use_ar'],
             'card_use_en' => $cardUseAlert['card_use_en'],

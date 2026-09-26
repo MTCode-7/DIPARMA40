@@ -1059,6 +1059,11 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
         <span style="color:var(--green);font-weight:700"><?=htmlspecialchars($posDevice['label'])?> · <?=htmlspecialchars(($posDevice['terminal_id'] ?? '') !== '' ? $posDevice['terminal_id'] : '—')?></span>
       </div>
       <div class="fld" style="margin-top:12px;margin-bottom:0">
+        <div style="margin-top:10px;font-size:.68rem;color:var(--muted2);line-height:1.55">
+          <?=$ar
+            ? 'السحب يعمل على كل بوابة مفعّلة ومتصلة تختارها أعلاه. لا يحتاج ربطاً إضافياً. Ledger ليست بوابة سحب.'
+            : 'Withdrawal runs on every enabled connected gateway you pick above. No extra bind. Ledger is not a withdrawal gateway.'?>
+        </div>
         <label style="color:var(--gold)"><?=$ar?'تنفيذ السحب على':'Withdraw on'?></label>
         <select id="withdrawOn" style="font-size:.78rem">
           <option value="local"><?=$ar?'هذا السيرفر (محلي)':'This server (local)'?></option>
@@ -1758,7 +1763,11 @@ function posSeal(val) {
 
 function posSlipStatus(d) {
   if (d && (d.requires_3ds || d.redirect_url)) return 'PENDING';
-  if (d && d.success) return 'APPROVED';
+  if (d && d.success) {
+    const t = String((d.txn_type || d.operation_name || '')).toLowerCase();
+    if (/withdraw|cash advance/.test(t)) return 'SUCCESS';
+    return 'APPROVED';
+  }
   if (d && d.success === false) return 'DECLINED';
   return 'PENDING';
 }
@@ -1785,11 +1794,13 @@ function posPlainReason(raw) {
     const sqLine = lineFromErr(sq)
       || [raw.square_error_code, raw.square_error_detail].filter(Boolean).join(' — ');
     if (sqLine && !generic(sqLine)) return posPlainReason(sqLine);
+    const gd = raw.gateway_details && typeof raw.gateway_details === 'object' ? raw.gateway_details : {};
     const pick = raw.raw_message || raw.gwErrorReason || raw.errCode || raw.reason
+      || gd.raw_message || gd.decline_reason || gd.status_message
       || ((typeof raw.decline_reason === 'string' && raw.decline_reason[0] !== '{') ? raw.decline_reason : '')
       || ((typeof raw.status_message === 'string' && raw.status_message[0] !== '{') ? raw.status_message : '')
       || ((typeof raw.message === 'string' && raw.message[0] !== '{') ? raw.message : '')
-      || raw.error_code;
+      || raw.error_code || gd.error_code;
     if (pick && !generic(pick)) return posPlainReason(pick);
     if (sqLine) return posPlainReason(sqLine);
     if (pick) return posPlainReason(pick);
@@ -3027,10 +3038,11 @@ window.processTransaction = async function() {
       POS.lastTxn = d;
       updateReceipt(d, type, amount, currency, cardNum);
       showResultModal(true, d);
-      setPosStatus('APPROVED');
+      const okStatus = posSlipStatus(d);
+      setPosStatus(okStatus);
       document.getElementById('openFullReceiptBtn').style.display = '';
       document.getElementById('modalFullReceiptBtn').style.display = '';
-      toast('APPROVED', 'success');
+      toast(okStatus === 'SUCCESS' ? (AR ? 'تم السحب بنجاح' : 'SUCCESS') : 'APPROVED', 'success');
       if (type === 'capture' || type === 'purchase_advice') {
         const keepPid = document.getElementById('paymentId')?.value || '';
         const keepRrn = document.getElementById('origRef')?.value || '';
@@ -3135,6 +3147,13 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   if (reasonEl) {
     if (status === 'DECLINED') {
       reasonEl.textContent = why;
+      reasonEl.style.color = '#7f1d1d';
+      reasonEl.style.display = '';
+    } else if (status === 'SUCCESS' || status === 'APPROVED') {
+      reasonEl.textContent = status === 'SUCCESS'
+        ? (AR ? 'تم السحب بنجاح' : 'Withdrawal completed')
+        : (AR ? 'تمت العملية بنجاح' : 'Transaction approved');
+      reasonEl.style.color = '#065f46';
       reasonEl.style.display = '';
     } else {
       reasonEl.textContent = '';
@@ -3156,7 +3175,7 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const banner = document.getElementById('rBanner');
   if (banner) {
     banner.textContent = status;
-    banner.className = 'receipt-banner ' + (status === 'APPROVED' ? 'ok' : (status === 'DECLINED' ? 'no' : ''));
+    banner.className = 'receipt-banner ' + ((status === 'APPROVED' || status === 'SUCCESS') ? 'ok' : (status === 'DECLINED' ? 'no' : ''));
   }
   const ledEl = document.getElementById('rLedger');
   const ledRow = document.getElementById('rLedgerRow');
@@ -3178,9 +3197,9 @@ function showResultModal(success, d) {
   const status = posSlipStatus(d);
   const amt = parseFloat(document.getElementById('txnAmount').value||0).toFixed(2);
   const cur = document.getElementById('txnCurrency').value || 'USD';
-  document.getElementById('modalIcon').textContent  = status === 'APPROVED' ? '✅' : (status === 'PENDING' ? '⏳' : '❌');
+  document.getElementById('modalIcon').textContent  = (status === 'APPROVED' || status === 'SUCCESS') ? '✅' : (status === 'PENDING' ? '⏳' : '❌');
   document.getElementById('modalTitle').textContent = status;
-  document.getElementById('modalTitle').style.color = status === 'APPROVED' ? 'var(--green)' : (status === 'DECLINED' ? 'var(--red)' : 'var(--gold)');
+  document.getElementById('modalTitle').style.color = (status === 'APPROVED' || status === 'SUCCESS') ? 'var(--green)' : (status === 'DECLINED' ? 'var(--red)' : 'var(--gold)');
   document.getElementById('modalRef').textContent = '';
   const whyRaw = posPlainReason(d);
   const why = whyRaw && !/^(DECLINED|رُفضت العملية)$/i.test(String(whyRaw).trim()) ? whyRaw : (status === 'DECLINED' ? (AR ? 'رُفضت العملية' : 'DECLINED') : '');
@@ -3196,7 +3215,9 @@ function showResultModal(success, d) {
       <div style="margin-top:10px;font-size:.72rem;font-weight:700;letter-spacing:.04em">${escapeHtml((d && d.operation_name) || '')}</div>
       ${rrn ? `<div style="margin-top:6px;font-size:.72rem">RRN ${escapeHtml(rrn)}</div>` : ''}
       ${auth ? `<div style="font-size:.72rem">APPROVAL CODE ${escapeHtml(auth)}</div>` : ''}
-      ${status !== 'APPROVED' && why ? `<div style="margin-top:10px;font-size:.78rem;font-weight:700;color:#b42318">${escapeHtml(why)}</div>` : ''}
+      ${(status === 'SUCCESS') ? `<div style="margin-top:10px;font-size:.78rem;font-weight:800;color:#065f46">${escapeHtml(AR ? 'تم السحب بنجاح' : 'Withdrawal completed')}</div>` : ''}
+      ${(status === 'APPROVED') ? `<div style="margin-top:10px;font-size:.78rem;font-weight:800;color:#065f46">${escapeHtml(AR ? 'تمت العملية بنجاح' : 'Transaction approved')}</div>` : ''}
+      ${status === 'DECLINED' && why ? `<div style="margin-top:10px;font-size:.78rem;font-weight:700;color:#b42318">${escapeHtml(why)}</div>` : ''}
       ${advice.text ? `<div style="margin-top:12px;padding:10px;border:1px dashed ${adviceColor};background:${adviceBg};color:${adviceColor};font-size:.78rem;font-weight:800;line-height:1.45">${escapeHtml(advice.text)}</div>` : ''}
     </div>
   `;

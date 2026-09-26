@@ -576,8 +576,18 @@ async function readJson(res) {
   catch (e) { throw new Error('Invalid JSON from ' + CHARGE_ENDPOINT); }
 }
 function failMessage(d) {
-  if (d && d.errors && d.errors.length) return d.errors.join(' · ');
-  return (d && d.message) || 'Failed';
+  if (!d || typeof d !== 'object') return 'DECLINED';
+  if (d.host_errors && d.host_errors[0]) {
+    var he = d.host_errors[0];
+    var code = String(he.code || '').trim();
+    var detail = String(he.detail || he.message || '').trim();
+    if (code && detail) return detail.toUpperCase().indexOf(code.toUpperCase()) >= 0 ? detail : (code + ' — ' + detail);
+    if (detail || code) return detail || code;
+  }
+  var line = d.decline_reason || d.raw_message || d.status_message || d.message || '';
+  if (d.errors && d.errors.length) line = d.errors.join(' · ');
+  line = String(line || '').trim();
+  return line || 'DECLINED';
 }
 function luhnCheck(num) {
   var d = String(num || '').replace(/\D/g, '');
@@ -1140,12 +1150,7 @@ async function go() {
       apiUrl = BASE + 'api/orchestrator.php?action=initiate';
     }
 
-    // السحب عبر POS فقط عندما تكون بوابة البطاقة Nuvei/DI PARMA
     if (curTx === 'withdrawal_pos' || curTx === 'withdrawal_nfc') {
-      if (pipeGw !== 'nuvei' && pipeGw !== 'diparma') {
-        showToast(<?=json_encode($ar ? 'السحب متاح عبر Nuvei/DI PARMA فقط' : 'Withdrawals are available via Nuvei/DI PARMA only')?>, 'error');
-        btn.disabled=false; resetBtn(); return;
-      }
       apiUrl = CHARGE_ENDPOINT || (BASE + 'api/checkout_charge.php');
     }
 
@@ -1157,7 +1162,11 @@ async function go() {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
       });
       var d1 = await readJson(r1);
-      if (!d1.success) { showToast(failMessage(d1),'error'); btn.disabled=false; resetBtn(); return; }
+      if (!d1.success) {
+        showToast(failMessage(d1),'error');
+        if (d1.reference) setTimeout(function(){ window.location.href=BASE+'receipt.php?ref='+encodeURIComponent(d1.reference); }, 1200);
+        btn.disabled=false; resetBtn(); return;
+      }
       if (d1.payment?.client_secret) {
         var res3d = await stripe.confirmCardPayment(d1.payment.client_secret, {payment_method:{card:stripeEl}});
         if (res3d.error) { document.getElementById('stripe-error').textContent=res3d.error.message; btn.disabled=false; resetBtn(); return; }
@@ -1177,8 +1186,15 @@ async function go() {
       window.location.href = redir;
       return;
     }
-    if (!d.success) { showToast(failMessage(d),'error'); btn.disabled=false; resetBtn(); return; }
-    showToast('Done ✓','success');
+    if (!d.success) {
+      showToast(failMessage(d),'error');
+      if (d.reference) setTimeout(function(){ window.location.href=BASE+'receipt.php?ref='+encodeURIComponent(d.reference); }, 1200);
+      btn.disabled=false; resetBtn(); return;
+    }
+    var okMsg = (curTx === 'withdrawal_pos' || curTx === 'withdrawal_nfc' || String(d.txn_type||'').indexOf('withdraw') === 0)
+      ? <?=json_encode($ar ? 'تم السحب بنجاح' : 'Withdrawal completed')?>
+      : <?=json_encode($ar ? 'تمت العملية بنجاح' : 'APPROVED')?>;
+    showToast(okMsg,'success');
     setTimeout(function(){ window.location.href=BASE+'receipt.php?ref='+encodeURIComponent(d.reference||d.order_id||REF||''); }, 1200);
 
   } catch(err) {

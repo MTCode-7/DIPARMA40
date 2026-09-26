@@ -82,6 +82,8 @@ if (!$txn) {
                 'created_at' => $attempt['created_at'],
                 'gateway_response' => json_encode(array_merge($details, [
                     'decline_reason' => $attempt['reason'],
+                    'status_message' => $attempt['reason'],
+                    'raw_message' => $attempt['reason'],
                     'attempt_status' => 'declined',
                 ]), JSON_UNESCAPED_UNICODE),
             ];
@@ -358,17 +360,25 @@ $hangReason = function_exists('diparma_transaction_hang_reason')
     : ['ar' => '', 'en' => '', 'still_pending' => false, 'live_status' => ''];
 
 // 6.10 تحديد الحالة النهائية
-$isApproved = in_array(strtolower($txn['status'] ?? ''), ['completed', 'captured', 'authorized', 'settled', 'approved']);
+$isApproved = in_array(strtolower($txn['status'] ?? ''), ['completed', 'captured', 'authorized', 'settled', 'approved', 'success']);
 $isPending = in_array(strtolower((string) ($txn['status'] ?? '')), ['pending', 'processing', 'pending_ledger'], true);
+$isWithdraw = function_exists('pos_is_withdrawal')
+    && pos_is_withdrawal((string) ($txn['transaction_type'] ?? $gwResp['type'] ?? ''));
 $declineReason = '';
+$successNote = '';
 $cardUseAlert = ['card_use' => '', 'card_use_ar' => '', 'card_use_en' => ''];
 if ($isApproved) {
-    $statusText = 'APPROVED';
+    $statusText = $isWithdraw ? 'SUCCESS' : 'APPROVED';
+    $successNote = $isWithdraw
+        ? ($ar ? 'تم السحب بنجاح' : 'Withdrawal completed')
+        : ($ar ? 'تمت العملية بنجاح' : 'Transaction approved');
 } elseif ($isPending) {
     $statusText = 'PENDING';
 } else {
     $statusText = 'DECLINED';
-    $declineReason = trim((string) ($gwResp['status_message'] ?? $gwResp['decline_reason'] ?? $txn['status'] ?? ''));
+    $declineReason = function_exists('pos_receipt_decline_reason')
+        ? pos_receipt_decline_reason($txn, $gwResp)
+        : trim((string) ($gwResp['status_message'] ?? $gwResp['decline_reason'] ?? $txn['status'] ?? 'DECLINED'));
     if (!empty($gwResp['card_use_ar']) || !empty($gwResp['card_use_en'])) {
         $cardUseAlert = [
             'card_use' => (string) ($gwResp['card_use'] ?? ''),
@@ -884,6 +894,9 @@ if (function_exists('redact_protocol_numbers')) {
             <div class="status-type">
                 <?=htmlspecialchars($txnType)?>
             </div>
+            <?php if ($isApproved && $successNote !== ''): ?>
+            <div style="margin-top:10px;font-size:12px;font-weight:800;color:#065f46;line-height:1.45"><?=htmlspecialchars($successNote)?></div>
+            <?php endif; ?>
             <?php if ($isPending && (($ar ? ($hangReason['ar'] ?? '') : ($hangReason['en'] ?? '')) !== '')): ?>
             <div style="margin-top:10px;font-size:11px;font-weight:800;color:#92400e;line-height:1.45">
                 <?= htmlspecialchars($ar ? ($hangReason['ar'] ?? '') : ($hangReason['en'] ?? '')) ?>

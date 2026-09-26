@@ -247,6 +247,11 @@ function pos_gateway_db_row(string $code): ?array
     return null;
 }
 
+function pos_gateway_supports_withdrawal(string $code): bool
+{
+    return pos_is_charge_processor($code) && pos_gateway_is_live($code);
+}
+
 function pos_is_charge_processor(string $code): bool
 {
     $code = pos_normalize_gateway($code);
