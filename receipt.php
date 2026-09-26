@@ -288,8 +288,7 @@ $settleTarget = strtolower(trim((string) (
 )));
 $fundsOnGateway = !empty($gwSettle['retained'])
     || $settleTarget === 'gateway'
-    || $ledgerStatus === 'retained'
-    || (strtolower((string) ($txn['gateway'] ?? '')) === 'paypal' && empty($ledgerTxid));
+    || $ledgerStatus === 'retained';
 if ($fundsOnGateway) {
     $ledgerStatusLabel = 'ON GATEWAY';
 } elseif ($ledgerTxid) {

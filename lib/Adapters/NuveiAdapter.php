@@ -1435,7 +1435,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'requires_3ds'     => $needs3ds,
             'redirect_url'     => $needs3ds ? $redirectUrl : '',
             'raw'              => $raw,
-            'settlement_target'=> 'ledger',
+            'settlement_target'=> 'gateway',
             'acquirer'         => 'nuvei',
             'merchant'         => 'TRANSCENDIO FZ-LLC',
         ];

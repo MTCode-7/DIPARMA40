@@ -51,8 +51,8 @@ p{line-height:1.7;color:#8fa5b4}
       <span><?= $ar ? 'فنادق' : 'Hotels' ?></span>
     </div>
     <p><?= $ar
-      ? 'شركة 10 على Square Online: طلبات استلام وتوصيل لهذه الخدمات. الخصم بالبطاقة يبقى على Square 1 ثم الصافي USDT → Ledger.'
-      : 'Company 10 on Square Online: pickup and delivery for these services. Card charges stay on Square 1, then net USDT → Ledger.' ?></p>
+      ? 'شركة 10 على Square Online: طلبات استلام وتوصيل لهذه الخدمات. الخصم بالبطاقة يبقى على Square 1 والمبلغ يبقى على Square.'
+      : 'Company 10 on Square Online: pickup and delivery for these services. Card charges stay on Square 1 and the funds stay on Square.' ?></p>
     <p><?= $ar
       ? 'أوفلاين Square يكون على جهاز Square POS بعد تفعيله من Dashboard. المعلّق يُعرض في تطبيق Square فقط (Transactions). ليس بإدخال الرقم في DIPARMA.'
       : 'Square Offline is on Square POS hardware after you allow it in Dashboard. Pending is visible only in the Square POS app (Transactions) — not keyed PAN in DIPARMA.' ?></p>

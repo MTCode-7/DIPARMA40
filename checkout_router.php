@@ -26,7 +26,7 @@ $db   = db();
 
 // ── البوابات المتاحة في الواجهة ───────────────────────────────────────
 $allGateways = [
-    'payram'     => ['name'=>'PayRam',        'icon'=>'fas fa-server',         'color'=>'#10B981','type'=>'crypto', 'desc_ar'=>'بعد الموافقة: الصافي USDT → Ledger','desc_en'=>'After approval: net USDT → Ledger'],
+    'payram'     => ['name'=>'PayRam',        'icon'=>'fas fa-server',         'color'=>'#10B981','type'=>'crypto', 'desc_ar'=>'بعد الموافقة يبقى المبلغ على PayRam','desc_en'=>'After approval the funds stay on PayRam'],
     'diparma'    => ['name'=>'DI PARMA',      'icon'=>'fas fa-coins',          'color'=>'#FFD700','type'=>'card',   'desc_ar'=>'بوابة مفعّلة تخصم البطاقة ثم الصافي → Ledger','desc_en'=>'Enabled gateway charges the card, then net → Ledger'],
     'nuvei'      => ['name'=>'Nuvei',        'icon'=>'fas fa-credit-card',   'color'=>'#F97316','type'=>'card',   'desc_ar'=>'خصم البطاقة على Nuvei إن كانت مفعّلة. الصافي → Ledger','desc_en'=>'Card charge on Nuvei if enabled. Net → Ledger'],
     'stripe'     => ['name'=>'Stripe',       'icon'=>'fab fa-stripe-s',       'color'=>'#6772e5','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين','desc_en'=>'All networks and issuers'],

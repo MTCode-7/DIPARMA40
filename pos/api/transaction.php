@@ -152,10 +152,10 @@ $gatewayApprovalCode = trim((string)($data['gateway_approval_code'] ?? $data['au
 $ledgerAddr = trim((string) LEDGER_TRC20_ADDRESS);
 $hotWalletAddr = trim($data['hot_wallet_address'] ?? HOT_WALLET_TRC20_ADDRESS);
 $autoTransfer = true;
-// Charge settlement is always Ledger. Bank/IBAN is not a charge destination.
-$destination = 'ledger';
-if (in_array(strtolower(trim((string)($data['destination'] ?? ''))), ['bank', 'mashreq', 'iban', 'gateway'], true)) {
-    $destination = 'ledger';
+// Charge settlement stays on the same gateway. Bank/IBAN is not a charge destination.
+$destination = 'gateway';
+if (in_array(strtolower(trim((string)($data['destination'] ?? ''))), ['bank', 'mashreq', 'iban', 'ledger', 'ledger_trx'], true)) {
+    $destination = 'gateway';
 }
 $extra = is_array($data['extra'] ?? null) ? $data['extra'] : [];
 $arrival = function_exists('activity_normalize_arrival')
@@ -603,8 +603,8 @@ if ($useCardGateway) {
             'allow_amount_override' => !empty($opMeta['amount_flexible']) || in_array($txnType, ['capture', 'purchase_advice'], true),
             'ledger_addr' => $ledgerAddr,
             'ledger_address' => $ledgerAddr,
-            'destination' => 'ledger',
-            'settlement_target' => 'ledger',
+            'destination' => 'gateway',
+            'settlement_target' => 'gateway',
         ];
 
         $runType = $txnType;
@@ -899,8 +899,8 @@ try {
         'gateway_response' => json_encode(pos_redact_pci([
             'channel' => $entryChannel,
             'orchestrator' => !empty($result['orchestrator']) ? $result['orchestrator'] : null,
-            'settlement_path' => $posGateway === 'paypal' ? 'paypal_to_gateway' : ($posGateway . '_to_ledger'),
-            'settlement_target' => $posGateway === 'paypal' ? 'gateway' : 'ledger',
+            'settlement_path' => $posGateway . '_to_gateway',
+            'settlement_target' => 'gateway',
             'status_message' => $message,
             'card_use' => $cardUseAlert['card_use'],
             'card_use_ar' => $cardUseAlert['card_use_ar'],
@@ -1020,7 +1020,7 @@ if ($success && $alreadyLedger) {
             'user_id'        => $userId,
             'txn_type'       => $txnType,
             'transaction_id' => !empty($transactionId) ? (int) $transactionId : null,
-            'destination'    => $feeGateway === 'paypal' ? 'gateway' : 'ledger',
+            'destination'    => 'gateway',
         ]);
         $ledgerTransfer = !empty($transferResult['success']) && empty($transferResult['skipped']) && empty($transferResult['retained']);
         $ledgerTxid = $transferResult['txid'] ?? null;
@@ -1145,9 +1145,9 @@ echo json_encode([
     'terminal_id' => $terminalId,
     'acquirer' => $posGateway,
     'merchant' => 'TRANSCENDIO FZ-LLC',
-    'settlement_path' => $posGateway . '_to_ledger',
-    'settlement_target' => 'ledger',
-    'destination' => 'ledger',
+    'settlement_path' => $posGateway . '_to_gateway',
+    'settlement_target' => 'gateway',
+    'destination' => 'gateway',
     'peer_sync' => $peerSync,
     'ledger_transfer' => $ledgerTransfer,
     'ledger_txid' => $ledgerTxid,

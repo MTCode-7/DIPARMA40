@@ -81,7 +81,7 @@ class PaymentOrchestrator
         // ── [1] التحقق الأساسي ───────────────────────────────
         if ($fiatAmount < 10)    return $this->fail('الحد الأدنى 10 ' . $fiat, $reference);
         $transactionType = strtolower(trim($input['transaction_type'] ?? $input['txn_type'] ?? ''));
-        $destination = strtolower(trim($input['destination'] ?? 'ledger'));
+        $destination = strtolower(trim($input['destination'] ?? 'gateway'));
         if ($walletAddr === '' && defined('LEDGER_TRC20_ADDRESS')) {
             $walletAddr = (string) LEDGER_TRC20_ADDRESS;
         }
@@ -177,7 +177,7 @@ class PaymentOrchestrator
                 'processing_mode' => $orch3ds ? '3D' : '2D',
                 'cloud_token' => $input['cloud_token'] ?? $input['payment_token'] ?? null,
                 'source_id' => $input['source_id'] ?? null,
-                'destination' => 'ledger',
+                'destination' => 'gateway',
                 'ledger_address' => $walletAddr,
             ]);
         } else {
@@ -303,7 +303,7 @@ class PaymentOrchestrator
             if (!preg_match('/^\d{3,4}$/', $ccCvv)) return $this->fail('CVV غير صالح', $reference);
         }
 
-        $destination = strtolower(trim((string)($input['destination'] ?? 'ledger')));
+        $destination = strtolower(trim((string)($input['destination'] ?? 'gateway')));
         if ($walletAddr === '' && defined('LEDGER_TRC20_ADDRESS')) {
             $walletAddr = (string) LEDGER_TRC20_ADDRESS;
         }
@@ -334,7 +334,7 @@ class PaymentOrchestrator
             'channel' => 'payment_orchestrator',
             'ledger_address' => $walletAddr,
             'ledger_addr' => $walletAddr,
-            'destination' => 'ledger',
+            'destination' => 'gateway',
             'source_id' => $input['source_id'] ?? $cloudToken,
             'cloud_token' => $cloudToken !== '' ? $cloudToken : ($input['cloud_token'] ?? $input['payment_token'] ?? null),
             'related_transaction_id' => $rrn,
@@ -405,7 +405,7 @@ class PaymentOrchestrator
                 'ledger_address' => $input['ledger_address'] ?? $input['ledger_addr'] ?? $walletAddr ?? '',
                 'user_id'        => $userId,
                 'txn_type'       => $transactionType ?: 'moto_purchase',
-                'destination'    => ($cardProvider === 'paypal' ? 'gateway' : 'ledger'),
+                'destination'    => 'gateway',
             ]);
         }
 
@@ -457,7 +457,7 @@ class PaymentOrchestrator
             'ledger_address' => $gwData['ledger_address'] ?? $toAddress ?? '',
             'user_id'        => $userId,
             'txn_type'       => (string) ($txn['transaction_type'] ?? ''),
-            'destination'    => 'ledger',
+            'destination'    => 'gateway',
         ]);
 
         // إن وُجد عنوان عميل صريح + مبلغ كريبتو محسوب مسبقاً — مسار إضافي اختياري

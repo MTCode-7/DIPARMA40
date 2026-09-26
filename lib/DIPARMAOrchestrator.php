@@ -149,7 +149,7 @@ class DIPARMAOrchestrator
             $gateway = strtolower(trim((string) ($input['gateway'] ?? $input['card_provider'] ?? $gateway)));
             $input['gateway'] = $gateway;
             $input['allow_fallback'] = false;
-            $input['destination'] = 'ledger';
+            $input['destination'] = 'gateway';
         }
         $allowFallback = !$fromPos && !empty($input['allow_fallback']);
         $processor = $fromPos
@@ -229,7 +229,7 @@ class DIPARMAOrchestrator
                     'ledger_address' => $params['ledger_addr'] ?? '',
                     'user_id'        => (int)($input['user_id'] ?? ($_SESSION['user_id'] ?? 0)),
                     'txn_type'       => $txnType,
-                    'destination'    => 'ledger',
+                    'destination'    => 'gateway',
                 ]);
             } catch (Throwable $e) {
                 error_log('[DIPARMA-ORCH] Ledger settle: ' . $e->getMessage());

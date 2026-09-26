@@ -108,7 +108,7 @@ $params = [
     'related_transaction_id' => $data['orig_reference'] ?? '',
     'orig_ref' => $data['orig_reference'] ?? '',
     'channel' => 'api_v1',
-    'destination' => 'ledger',
+    'destination' => 'gateway',
     'ledger_address' => $ledgerAddr,
     'user_id' => (int) ($client['user_id'] ?? 0),
 ];
@@ -177,7 +177,7 @@ if ($success && $txnType !== 'auth' && $txnType !== 'void' && $txnType !== 'refu
             'ledger_address' => $ledgerAddr,
             'user_id'        => (int)($client['user_id'] ?? 0),
             'txn_type'       => $txnType === 'purchase' ? 'purchase_2d' : $txnType,
-            'destination'    => 'ledger',
+            'destination'    => 'gateway',
         ]);
         $ledgerTxid = $ledgerSettle['txid'] ?? null;
         if (!empty($ledgerSettle['success']) && empty($ledgerSettle['skipped'])) {

@@ -102,7 +102,7 @@ try {
             'email' => $email,
             'user_id' => (int)($_SESSION['user_id'] ?? 0),
             'channel' => 'stripe_charge_api',
-            'destination' => 'ledger',
+            'destination' => 'gateway',
         ]);
 
         if (!empty($result['success']) && empty($result['order_persisted'])) {
@@ -137,7 +137,7 @@ try {
                 'gateway'   => 'stripe',
                 'user_id'   => (int)($_SESSION['user_id'] ?? 0),
                 'txn_type'  => $txnType ?: 'purchase_2d',
-                'destination' => 'ledger',
+                'destination' => 'gateway',
             ]);
             $result['ledger_settlement'] = $ledgerSettle;
         }

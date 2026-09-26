@@ -87,8 +87,8 @@ function activity_arrival_options(): array
             'icon' => 'fa-wallet',
             'color' => '#10B981',
             'preferred' => true,
-            'desc_ar' => 'الأفضل. البطاقة تُخصم عند البوابة ثم الصافي USDT يُرسل فوراً إلى عنوان Ledger.',
-            'desc_en' => 'Best. The card is charged at the gateway, then net USDT is sent to the Ledger address.',
+            'desc_ar' => 'البطاقة تُخصم عند البوابة ويبقى المبلغ على نفس البوابة.',
+            'desc_en' => 'The card is charged at the gateway and the funds stay on that same gateway.',
             'address' => $addr,
         ],
         'payout' => [

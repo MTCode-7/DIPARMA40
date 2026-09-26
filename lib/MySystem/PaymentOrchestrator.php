@@ -151,7 +151,7 @@ class MySystemPaymentOrchestrator
             'source_id' => $input['source_id'] ?? null,
             'cloud_token' => $input['cloud_token'] ?? $input['payment_token'] ?? null,
             'processing_mode' => $mode,
-            'destination' => 'ledger',
+            'destination' => 'gateway',
             'ledger_address' => $input['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
             'channel' => (string) ($input['channel'] ?? 'mysystem'),
         ]));

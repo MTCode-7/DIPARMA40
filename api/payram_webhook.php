@@ -154,7 +154,7 @@ if ($paymentRef !== null) {
         error_log('[PayRam Webhook] Payment DB: ' . $e->getMessage());
     }
 
-    /* إذا FILLED → نفس نظام التسوية: رسوم×2 ثم الصافي USDT → Ledger */
+    /* إذا FILLED → المبلغ يبقى على PayRam */
     if (in_array($status, ['FILLED', 'OVER_FILLED']) && $txHash) {
         error_log("[PayRam] Payment FILLED: ref={$refId} amount={$filled} USD tx={$txHash}");
         $lockName = 'payram-ledger-' . preg_replace('/[^A-Za-z0-9_-]/', '_', $refId);
@@ -179,7 +179,7 @@ if ($paymentRef !== null) {
                         'user_id'        => (int)($row[0]['user_id'] ?? 0),
                         'txn_type'       => 'purchase',
                         'transaction_id' => (int)$row[0]['id'],
-                        'destination'    => 'ledger',
+                        'destination'    => 'gateway',
                     ]);
                     $db->execute(
                         "UPDATE dp_transactions SET gateway_response=JSON_SET(COALESCE(gateway_response,'{}'), '$.ledger_settled', true, '$.ledger_settle', CAST(? AS JSON)) WHERE id=?",

@@ -464,7 +464,7 @@ try {
                         'gateway'   => (string)($transaction['gateway'] ?? $gateway ?? 'unknown'),
                         'user_id'   => (int)($transaction['user_id'] ?? 0),
                         'txn_type'  => (string)($transaction['transaction_type'] ?? 'purchase'),
-                        'destination' => 'ledger',
+                        'destination' => 'gateway',
                     ]);
                 } catch (Throwable $e2) {
                     file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Ledger settle error {$reference}: " . $e2->getMessage() . "\n", FILE_APPEND);

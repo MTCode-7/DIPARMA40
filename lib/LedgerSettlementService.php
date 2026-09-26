@@ -2,10 +2,9 @@
 /**
  * DI PARMA | LedgerSettlementService
  * قاعدة التسوية المطلوبة:
- *   - رسوم البوابة تُضاعف (مثال: 3 → 6) وتُحسب كتكلفة العملية
- *   - الصافي يُحوَّل فوراً كـ USDT (TRC20) إلى LEDGER
- *   - الوجهة: Ledger فقط — ليست البوابة وليست حساباً بنكياً
- * التنفيذ الفني: بعد نجاح الدفع، Hot Wallet يرسل الصافي USDT إلى Ledger.
+ *   - كل بوابة تحتفظ بالمبلغ عليها (PayPal→PayPal، Stripe→Stripe، …)
+ *   - لا تحويل USDT تلقائي إلى Ledger بعد الخصم
+ *   - رسوم البوابة تُحسب وتُسجَّل فقط
  */
 class LedgerSettlementService
 {
@@ -21,7 +20,7 @@ class LedgerSettlementService
 
     /**
      * نقطة موحّدة لكل البوابات المتصلة بعد نجاح الدفع:
-     * رسوم × GATEWAY_FEE_MULTIPLIER ثم الصافي USDT → Ledger.
+     * المبلغ يبقى على نفس البوابة.
      */
     public static function settleSuccessfulPayment(array $params): array
     {
@@ -71,18 +70,15 @@ class LedgerSettlementService
         return $code;
     }
 
-    /** PayPal (and explicit destination=gateway) keep fiat on the acquirer. */
+    /** Every connected gateway keeps the capture on that same acquirer. */
     public function keepsFundsOnGateway(string $gatewayCode, string $destination = ''): bool
     {
-        $gw = $this->normalizeGatewayCode($gatewayCode);
-        if (in_array($gw, ['paypal', 'braintree'], true)) {
-            return true;
-        }
-        return strtolower(trim($destination)) === 'gateway' && $gw === 'paypal';
+        unset($gatewayCode, $destination);
+        return true;
     }
 
     /**
-     * Mark a successful PayPal capture as settled on the gateway — no USDT send.
+     * Mark a successful capture as settled on the charging gateway — no USDT send.
      */
     public function retainOnGateway(array $params): array
     {
@@ -196,7 +192,7 @@ class LedgerSettlementService
             'fee_amount'         => $feeAmount,
             'net_amount'         => $net,
             'settlement_asset'   => $this->settlementAsset(),
-            'settlement_target'  => 'ledger',
+            'settlement_target'  => 'gateway',
         ];
     }
 
@@ -242,14 +238,9 @@ class LedgerSettlementService
         $userId    = (int) ($params['user_id'] ?? ($_SESSION['user_id'] ?? 0));
         $txnId     = isset($params['transaction_id']) ? (int) $params['transaction_id'] : null;
 
-        $target = strtolower(trim((string) ($params['destination'] ?? $params['settlement_target'] ?? 'ledger')));
+        $target = strtolower(trim((string) ($params['destination'] ?? $params['settlement_target'] ?? 'gateway')));
         if ($this->keepsFundsOnGateway($gateway, $target)) {
             return $this->retainOnGateway($params);
-        }
-        $ledgerAliases = ['', 'ledger', 'ledger_trx', 'crypto', 'wallet'];
-        $blocked = ['bank', 'mashreq', 'iban', 'gateway'];
-        if (in_array($target, $blocked, true) || ($target !== '' && !in_array($target, $ledgerAliases, true))) {
-            return ['success' => false, 'message' => 'Settlement destination is Ledger only. Bank/gateway payout is disabled.', 'queued' => false];
         }
         $configured = defined('LEDGER_TRC20_ADDRESS') ? trim((string) LEDGER_TRC20_ADDRESS) : '';
         $ledgerAddr = $configured !== '' ? $configured : trim((string) ($params['ledger_address'] ?? ''));

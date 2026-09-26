@@ -53,7 +53,7 @@ class PayRamGatewayAdapter implements GatewayAdapterInterface
             'reference' => (string) ($payload['reference'] ?? $ref),
             'amount' => (float) ($payload['amount'] ?? 0),
             'currency' => strtoupper((string) ($payload['currency'] ?? 'USD')),
-            'message' => 'Open PayRam, complete the purchase, then net USDT → Ledger.',
+            'message' => 'Open PayRam and complete the purchase. Funds stay on PayRam.',
             'raw' => $created,
         ];
     }

@@ -122,7 +122,7 @@ switch ($action) {
                         'chain'         => $chainCode,
                         'token'         => $tokenCode,
                         'txn_type'      => $txnType,
-                        'destination'   => 'ledger_trx',
+                        'destination'   => 'gateway',
                         'ledger_address'=> $ledgerAddress,
                         'deposit_addr'  => $depositAddr,
                         'payram_url'    => $result['url'],
@@ -147,7 +147,7 @@ switch ($action) {
             'deposit_address' => $depositAddr,
             'chain'         => $chainCode,
             'token'         => $tokenCode,
-            'destination'   => 'ledger_trx',
+            'destination'   => 'gateway',
             'ledger_address'=> $ledgerAddress,
             'amount_usd'    => $amount,
         ]);

@@ -475,8 +475,8 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
 <div style="max-width:1280px;margin:40px auto;padding:0 24px 60px">
   <p style="color:var(--muted2);font-size:.82rem;margin-bottom:14px;line-height:1.7">
     <?=$ar
-      ? 'الخصم على البوابة المفعّلة التي تختارها. بعد الموافقة يُحسب الصافي ويُرسل USDT TRC20 إلى عنوان Ledger — ليست IBAN بنك.'
-      : 'The card is charged on the enabled gateway you pick. After approval, net USDT TRC20 goes to the Ledger address — not a bank IBAN.'?>
+      ? 'الخصم على البوابة المفعّلة التي تختارها. بعد الموافقة يبقى المبلغ على نفس البوابة — PayPal على PayPal، Stripe على Stripe، Nuvei على Nuvei، Square على Square، PayRam على PayRam.'
+      : 'The card is charged on the enabled gateway you pick. After approval the funds stay on that same gateway — PayPal, Stripe, Nuvei, Square, PayRam, and the rest.'?>
   </p>
 
   <?php
@@ -1675,8 +1675,8 @@ function selectPosGateway(code, el) {
   if (settle) settle.innerHTML = '<i class="fas fa-lock"></i> POS: ' + escapeHtml(name) + ' → Ledger';
   if (settleHint) {
     settleHint.textContent = AR
-      ? (name + ' تسحب من البطاقة بأي عملة. بعد الموافقة: الصافي USDT → Ledger.')
-      : (name + ' charges the card. After approval: net USDT → Ledger.');
+      ? (name + ' تسحب من البطاقة بأي عملة. بعد الموافقة يبقى المبلغ على ' + name + '.')
+      : (name + ' charges the card. After approval the funds stay on ' + name + '.');
   }
   const badge = document.querySelector('.tb-badge');
   if (badge) badge.innerHTML = '<i class="fas fa-cash-register"></i> POS · ' + escapeHtml(name) + ' → Ledger';
@@ -2963,7 +2963,7 @@ window.processTransaction = async function() {
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     email: (document.getElementById('posEmail')?.value || '').trim(),
     ledger_address: POS.ledgerAddress,
-    destination: 'ledger',
+    destination: 'gateway',
     arrival: POS_ARRIVAL || 'wallet',
     payout_via: POS_ARRIVAL === 'payout' ? (POS_PAYOUT || '') : '',
     auto_transfer: POS_ARRIVAL !== 'payout',

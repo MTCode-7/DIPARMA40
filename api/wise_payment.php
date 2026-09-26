@@ -166,7 +166,7 @@ try {
                 'gateway'   => 'wise',
                 'user_id'   => (int)($_SESSION['user_id'] ?? 0),
                 'txn_type'  => 'purchase',
-                'destination' => 'ledger',
+                'destination' => 'gateway',
             ]);
         }
 

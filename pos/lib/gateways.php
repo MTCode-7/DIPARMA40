@@ -1,6 +1,6 @@
 <?php
 /**
- * POS gateways — standalone module. Each gateway runs alone, then net USDT → Ledger.
+ * POS gateways — standalone module. Each gateway keeps the capture on that same gateway.
  */
 if (!defined('POS_APP_ROOT')) {
     define('POS_APP_ROOT', dirname(__DIR__, 2));
@@ -22,8 +22,8 @@ function pos_terminal_gateways(): array
             'color' => '#F97316',
             'adapter' => 'nuvei',
             'rail' => 'card',
-            'desc_ar' => 'Nuvei → Ledger. ' . $acceptNoteAr . ' بعد الموافقة: USDT → Ledger.',
-            'desc_en' => 'Nuvei → Ledger. ' . $acceptNoteEn . ' After approval: USDT → Ledger.',
+            'desc_ar' => 'Nuvei. ' . $acceptNoteAr . ' بعد الموافقة يبقى المبلغ على Nuvei.',
+            'desc_en' => 'Nuvei. ' . $acceptNoteEn . ' After approval the funds stay on Nuvei.',
         ],
         'paypal' => [
             'name' => 'PayPal',
@@ -31,8 +31,8 @@ function pos_terminal_gateways(): array
             'color' => '#003087',
             'adapter' => 'paypal',
             'rail' => 'card',
-            'desc_ar' => 'PayPal → Ledger. ' . $acceptNoteAr . ' بعد الموافقة: USDT → Ledger.',
-            'desc_en' => 'PayPal → Ledger. ' . $acceptNoteEn . ' After approval: USDT → Ledger.',
+            'desc_ar' => 'PayPal. ' . $acceptNoteAr . ' بعد الموافقة يبقى المبلغ على PayPal.',
+            'desc_en' => 'PayPal. ' . $acceptNoteEn . ' After approval the funds stay on PayPal.',
         ],
         'stripe' => [
             'name' => 'Stripe',
@@ -40,8 +40,8 @@ function pos_terminal_gateways(): array
             'color' => '#6772e5',
             'adapter' => 'stripe',
             'rail' => 'card',
-            'desc_ar' => 'Stripe → Ledger. ' . $acceptNoteAr . ' بعد الموافقة: USDT → Ledger.',
-            'desc_en' => 'Stripe → Ledger. ' . $acceptNoteEn . ' After approval: USDT → Ledger.',
+            'desc_ar' => 'Stripe. ' . $acceptNoteAr . ' بعد الموافقة يبقى المبلغ على Stripe.',
+            'desc_en' => 'Stripe. ' . $acceptNoteEn . ' After approval the funds stay on Stripe.',
         ],
         'square' => [
             'name' => 'Square',
@@ -49,8 +49,8 @@ function pos_terminal_gateways(): array
             'color' => '#006AFF',
             'adapter' => 'square',
             'rail' => 'card',
-            'desc_ar' => 'Square → Ledger عبر Payments API أونلاين (Web Payments). أوفلاين Square فقط على جهاز Square POS: يُخزَّن على الجهاز، رفع خلال 24 ساعة وينتهي بعد 72 من أول عملية. المعلّق يُعرض في تطبيق Square فقط (Transactions). حد العملية 50,000 دولار. إدخال الرقم يدوياً غير مدعوم أوفلاين.',
-            'desc_en' => 'Square → Ledger via live Payments API (Web Payments). Square Offline is Square POS hardware only: stored on the device, upload within 24 hours (expires 72 from first payment). Pending is visible only in the Square POS app (Transactions). Max 50,000 USD. Keyed PAN is not available offline.',
+            'desc_ar' => 'Square عبر Payments API أونلاين (Web Payments). بعد الموافقة يبقى المبلغ على Square. أوفلاين Square فقط على جهاز Square POS: يُخزَّن على الجهاز، رفع خلال 24 ساعة وينتهي بعد 72 من أول عملية. المعلّق يُعرض في تطبيق Square فقط (Transactions). حد العملية 50,000 دولار. إدخال الرقم يدوياً غير مدعوم أوفلاين.',
+            'desc_en' => 'Square via live Payments API (Web Payments). After approval the funds stay on Square. Square Offline is Square POS hardware only: stored on the device, upload within 24 hours (expires 72 from first payment). Pending is visible only in the Square POS app (Transactions). Max 50,000 USD. Keyed PAN is not available offline.',
         ],
         'square_online' => [
             'name' => 'Square 2 · Online',
@@ -60,8 +60,8 @@ function pos_terminal_gateways(): array
             'rail' => 'fulfillment',
             'chargeable' => false,
             'company_no' => 10,
-            'desc_ar' => 'شركة 10 — DI PARMA BUSINESSMAN SERVICES. المتجر: الإمارات. العمل: حول العالم. الخدمات: سياحة، حجوزات، إيجارات، عقارات، فنادق. الخصم على Square 1 ثم Ledger.',
-            'desc_en' => 'Company 10 — DI PARMA BUSINESSMAN SERVICES. Store: UAE. Work: around the world. Services: tourism, bookings, rentals, real estate, hotels. Cards on Square 1, then Ledger.',
+            'desc_ar' => 'شركة 10 — DI PARMA BUSINESSMAN SERVICES. المتجر: الإمارات. العمل: حول العالم. الخدمات: سياحة، حجوزات، إيجارات، عقارات، فنادق. الخصم على Square 1 ويبقى المبلغ على Square.',
+            'desc_en' => 'Company 10 — DI PARMA BUSINESSMAN SERVICES. Store: UAE. Work: around the world. Services: tourism, bookings, rentals, real estate, hotels. Cards on Square 1; funds stay on Square.',
         ],
         'payram' => [
             'name' => 'PayRam',
@@ -69,8 +69,8 @@ function pos_terminal_gateways(): array
             'color' => '#10B981',
             'adapter' => 'payram',
             'rail' => 'redirect',
-            'desc_ar' => 'PayRam → Ledger. ' . $acceptNoteAr . ' البطاقة على صفحة PayRam ثم USDT → Ledger.',
-            'desc_en' => 'PayRam → Ledger. ' . $acceptNoteEn . ' Card on PayRam page, then USDT → Ledger.',
+            'desc_ar' => 'PayRam. ' . $acceptNoteAr . ' البطاقة على صفحة PayRam ويبقى المبلغ على PayRam.',
+            'desc_en' => 'PayRam. ' . $acceptNoteEn . ' Card on the PayRam page; funds stay on PayRam.',
         ],
         'wise' => [
             'name' => 'Wise',
@@ -78,8 +78,8 @@ function pos_terminal_gateways(): array
             'color' => '#9fe870',
             'adapter' => 'wise',
             'rail' => 'wallet',
-            'desc_ar' => 'Wise → Ledger. ' . $acceptNoteAr . ' بعد القبول: الصافي USDT → Ledger.',
-            'desc_en' => 'Wise → Ledger. ' . $acceptNoteEn . ' After accept: net USDT → Ledger.',
+            'desc_ar' => 'Wise. ' . $acceptNoteAr . ' بعد القبول يبقى المبلغ على Wise.',
+            'desc_en' => 'Wise. ' . $acceptNoteEn . ' After accept the funds stay on Wise.',
         ],
         'diparma' => [
             'name' => 'DI PARMA',
@@ -87,8 +87,8 @@ function pos_terminal_gateways(): array
             'color' => '#FFD700',
             'adapter' => 'nuvei',
             'rail' => 'card',
-            'desc_ar' => 'DI PARMA → Ledger. ' . $acceptNoteAr . ' بعد الموافقة: USDT → Ledger.',
-            'desc_en' => 'DI PARMA → Ledger. ' . $acceptNoteEn . ' After approval: USDT → Ledger.',
+            'desc_ar' => 'DI PARMA. ' . $acceptNoteAr . ' بعد الموافقة يبقى المبلغ على نفس البوابة.',
+            'desc_en' => 'DI PARMA. ' . $acceptNoteEn . ' After approval the funds stay on the same gateway.',
         ],
         'diparma_gateway' => [
             'name' => 'DIPARMA GATEWAY',
@@ -97,8 +97,8 @@ function pos_terminal_gateways(): array
             'adapter' => 'nuvei',
             'rail' => 'card',
             'chargeable' => false,
-            'desc_ar' => 'تسوية إلى Ledger بعد موافقة بوابة مفعّلة تختارها أنت.',
-            'desc_en' => 'Settle to Ledger after the enabled gateway you pick approves.',
+            'desc_ar' => 'بعد موافقة البوابة المفعّلة يبقى المبلغ عليها.',
+            'desc_en' => 'After the enabled gateway you pick approves, funds stay on that gateway.',
         ],
         'whop' => [
             'name' => 'Whop',
@@ -106,8 +106,8 @@ function pos_terminal_gateways(): array
             'color' => '#7C3AED',
             'adapter' => 'whop',
             'rail' => 'redirect',
-            'desc_ar' => 'Whop → Ledger. ' . $acceptNoteAr . ' بعد إتمام الدفع: USDT → Ledger.',
-            'desc_en' => 'Whop → Ledger. ' . $acceptNoteEn . ' After payment: USDT → Ledger.',
+            'desc_ar' => 'Whop. ' . $acceptNoteAr . ' بعد إتمام الدفع يبقى المبلغ على Whop.',
+            'desc_en' => 'Whop. ' . $acceptNoteEn . ' After payment the funds stay on Whop.',
         ],
         'gate_io' => [
             'name' => 'Gate.io',
@@ -115,8 +115,8 @@ function pos_terminal_gateways(): array
             'color' => '#E8112D',
             'adapter' => 'gate_io',
             'rail' => 'crypto',
-            'desc_ar' => 'Gate.io → Ledger. ' . $acceptNoteAr . ' بعد القبول: الصافي USDT → Ledger.',
-            'desc_en' => 'Gate.io → Ledger. ' . $acceptNoteEn . ' After accept: net USDT → Ledger.',
+            'desc_ar' => 'Gate.io. ' . $acceptNoteAr . ' بعد القبول يبقى المبلغ على Gate.io.',
+            'desc_en' => 'Gate.io. ' . $acceptNoteEn . ' After accept the funds stay on Gate.io.',
         ],
         'binance' => [
             'name' => 'Binance',
@@ -124,8 +124,8 @@ function pos_terminal_gateways(): array
             'color' => '#F3BA2F',
             'adapter' => 'binance',
             'rail' => 'crypto',
-            'desc_ar' => 'Binance → Ledger. ' . $acceptNoteAr . ' بعد القبول: الصافي USDT → Ledger.',
-            'desc_en' => 'Binance → Ledger. ' . $acceptNoteEn . ' After accept: net USDT → Ledger.',
+            'desc_ar' => 'Binance. ' . $acceptNoteAr . ' بعد القبول يبقى المبلغ على Binance.',
+            'desc_en' => 'Binance. ' . $acceptNoteEn . ' After accept the funds stay on Binance.',
         ],
     ];
     foreach ($list as &$meta) {
@@ -715,7 +715,7 @@ function pos_run_standalone_gateway(string $gateway, string $txnType, array $par
             'reference_id' => $created['reference_id'] ?? '',
             'transaction_id' => $created['reference_id'] ?? '',
             'rrn' => $created['reference_id'] ?? '',
-            'message' => 'Open PayRam, complete the purchase, then net USDT → Ledger.',
+            'message' => 'Open PayRam and complete the purchase. Funds stay on PayRam.',
             'raw' => $created,
         ]);
     }
