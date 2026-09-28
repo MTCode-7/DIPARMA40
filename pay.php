@@ -93,6 +93,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay_now'])) {
             $gw = function_exists('dp_gateway_normalize_code')
                 ? dp_gateway_normalize_code((string) ($linkData['gateway'] ?? 'paypal'))
                 : strtolower((string) ($linkData['gateway'] ?? 'paypal'));
+            if (!dp_gateway_is_visible_on_channels($gw)) {
+                $error = dp_t('❌ Gateway is not fully connected.', '❌ البوابة غير متصلة بالكامل.');
+                $showLanding = false;
+            } else {
             $route = activity_checkout_route($gw);
             if ($route === '') {
                 $route = 'checkout_router.php';
@@ -101,6 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay_now'])) {
                 'gateway'  => $gw,
                 'amount'   => $linkData['amount'] ?? 0,
                 'currency' => $linkData['currency'] ?? 'USD',
+                'activity_line' => $linkData['activity_line'] ?? '',
                 'link'     => $linkData['link_id'] ?? $postedLinkId,
                 'channel'  => 'link',
             ];
@@ -110,6 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay_now'])) {
             $qs = http_build_query($qsArr);
             header('Location: ' . $route . '?' . $qs);
             exit();
+            }
         }
         $showLanding = false;
     }
@@ -118,6 +124,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay_now'])) {
 $availableGateways = function_exists('getConfiguredGateways') ? getConfiguredGateways() : [];
 if (empty($availableGateways) && function_exists('getGatewaysConfig')) {
     $availableGateways = getGatewaysConfig();
+}
+if (is_array($availableGateways)) {
+    foreach (array_keys($availableGateways) as $code) {
+        if (!dp_gateway_is_visible_on_channels((string) $code)) {
+            unset($availableGateways[$code]);
+        }
+    }
 }
 ?>
 <!DOCTYPE html>

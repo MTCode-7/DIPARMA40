@@ -19,10 +19,13 @@ $db          = db();
 
 // ── جلب البوابات النشطة ──────────────────────────────────
 $activeGateways = $db->query(
-    "SELECT code, name FROM dp_payment_gateways
-     WHERE status = 'active' AND code NOT IN ('integrated','crypto_deposit')
+    "SELECT * FROM dp_payment_gateways
+     WHERE status != 'deleted' AND code NOT IN ('integrated','crypto_deposit')
      ORDER BY name ASC"
-);
+) ?: [];
+$activeGateways = array_values(array_filter($activeGateways, static function ($row) {
+    return isGatewayVisibleInCheckout($row);
+}));
 
 // ── جلب سعر حي مبدئي ────────────────────────────────────
 $initialRate = null;

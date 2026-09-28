@@ -297,7 +297,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <input type="text" id="ccExpiry" maxlength="5" placeholder="MM/YY" oninput="fmtExp(this)">
     </div>
     <div class="fld">
-      <label id="lblCcCvv">CVV2 / CVC2 <span class="req" id="reqCcCvv">*</span></label>
+      <label id="lblCcCvv">CVV / CVC / CVV2 / CVC2 <span class="req" id="reqCcCvv">*</span><span class="opt" id="optCcCvv" style="display:none">(<?=$ar?'اختياري':'opt'?>)</span></label>
       <input type="password" id="ccCvv" maxlength="4" placeholder="•••">
     </div>
     <div class="fld">
@@ -604,6 +604,7 @@ function luhnCheck(num) {
 var GW   = '<?=htmlspecialchars($gwCode)?>';
 var CHARGE_GW = '<?=htmlspecialchars((string)($chargeGwCode ?? $gwCode))?>';
 var BASE = '<?=htmlspecialchars($basePath)?>';
+var ACTIVITY_LINE = <?=json_encode((string) ($activityLine ?? ''))?>;
 var DEST = '<?=htmlspecialchars($prefillDest ?? 'gateway')?>';
 var LEDGER_CHECKOUT = <?= !empty($ledgerCheckout) ? 'true' : 'false' ?>;
 var WALLET = '<?=htmlspecialchars(($prefillWallet ?? '') !== '' ? $prefillWallet : (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''))?>';
@@ -644,6 +645,12 @@ function applyFieldRequirements(meta) {
   mark('reqCcNumber', !squareHosted && meta.requires_card !== false);
   mark('reqCcExpiry', !squareHosted && !!meta.requires_expiry);
   mark('reqCcCvv', !squareHosted && !!meta.requires_cvv);
+  // CVV اختياري في MOTO — يُظهر نص "اختياري"
+  var optCvv = document.getElementById('optCcCvv');
+  var reqCvv = document.getElementById('reqCcCvv');
+  var isMoto = meta.is_moto || ['auth','capture','purchase_advice','offline_sale_moto','online_sale_moto'].includes(type);
+  if (optCvv) optCvv.style.display = isMoto ? '' : 'none';
+  if (reqCvv) reqCvv.style.display = isMoto ? 'none' : '';
   mark('reqMotoCard', !squareHosted && !!meta.requires_card);
   mark('reqMotoExpiry', !squareHosted && !!meta.requires_expiry);
 }
@@ -1007,7 +1014,7 @@ async function go() {
     payload.internal_approval_code = document.getElementById('internalApprovalInput').value.trim();
     payload.amount        = ma;
     payload.currency      = document.getElementById('captureCur').value;
-    payload.protocol      = '201.3';
+    payload.protocol      = 'DTC';
     payload.security_mode = '2D';
     payload.moto_type     = 'MOTO';
     payload.txn_type      = curTx;
@@ -1036,7 +1043,8 @@ async function go() {
     if (amt <= 0) { showToast('<?=$ar?'أدخل مبلغاً صحيحاً':'Enter valid amount'?>','error'); btn.disabled=false; resetBtn(); return; }
     if (!squareTokPresent && !cc) { showToast('<?=$ar?'رقم البطاقة مطلوب':'Card number required'?>','error'); btn.disabled=false; resetBtn(); return; }
     if (!squareTokPresent && !/^(0[1-9]|1[0-2])\/[0-9]{2}$/.test(expO)) { showToast('Expiry required (MM/YY)','error'); btn.disabled=false; resetBtn(); return; }
-    if (!squareTokPresent && !cvvO) { showToast('CVV required','error'); btn.disabled=false; resetBtn(); return; }
+    // CVV اختياري في MOTO
+    if (cvvO) { payload.cc_cvv = cvvO; payload.card_cvv = cvvO; }
     if (!/^\d{4}$|^\d{6}$/.test(apOnline)) { showToast('Online Approval must be 4 or 6 digits','error'); btn.disabled=false; resetBtn(); return; }
     payload.amount = amt;
     payload.currency = document.getElementById('cardCur').value;
@@ -1102,7 +1110,7 @@ async function go() {
   if (REF) payload.reference = REF;
   payload.gateway = CHARGE_GW || GW;
   payload.card_provider = CHARGE_GW || GW;
-  payload.protocol = '201.3';
+  payload.protocol = 'DTC';
   payload.allow_fallback = false;
   payload.channel = CHECKOUT_CHANNEL || 'checkout';
   payload.pos_device = payload.pos_device || 'web_pos';
@@ -1118,6 +1126,10 @@ async function go() {
       processing_mode: payload.processing_mode || payload.security_mode || '',
       txn_type: payload.txn_type || curTx
     });
+  }
+  if (ACTIVITY_LINE) {
+    payload.activity_line = ACTIVITY_LINE;
+    payload.extra = Object.assign({}, payload.extra || {}, { activity_line: ACTIVITY_LINE });
   }
 
   try {

@@ -1771,8 +1771,8 @@ function dp_publish_saved_gateway(int $id): array
 }
 
 /**
- * POS and Checkout pick from gateways enabled in Payment Gateway Manager (status = active).
- * Unconnected rows stay in Gateway Manager until connection keys are saved and tested.
+ * POS, CHECKOUT, and LINK show only fully connected gateways
+ * (active + verified + keys). Unconnected rows stay in Gateway Manager.
  */
 function dp_gateway_is_enabled(array $row): bool
 {
@@ -1815,6 +1815,42 @@ function isGatewayVisibleInCheckout(array $row): bool
 function isGatewayVisibleInPos(array $row): bool
 {
     return dp_gateway_is_live_for_charge($row);
+}
+
+function dp_gateway_lookup_row(string $code): ?array
+{
+    $code = dp_gateway_normalize_code($code);
+    if ($code === '') {
+        return null;
+    }
+    $lookup = $code === 'square_online' ? 'square' : $code;
+    try {
+        $row = db()->find('payment_gateways', ['code' => $lookup]);
+        if (!$row && $lookup !== $code) {
+            $row = db()->find('payment_gateways', ['code' => $code]);
+        }
+    } catch (Throwable $e) {
+        return null;
+    }
+    if (!is_array($row) || empty($row['code'])) {
+        return null;
+    }
+    $row['code'] = $code;
+    return $row;
+}
+
+/** Ledger is a standalone settlement page. Charge pages require a live connection. */
+function dp_gateway_is_visible_on_channels(string $code): bool
+{
+    $code = dp_gateway_normalize_code($code);
+    if ($code === '' || $code === 'diparma_gateway') {
+        return false;
+    }
+    if ($code === 'ledger') {
+        return true;
+    }
+    $row = dp_gateway_lookup_row($code);
+    return $row ? dp_gateway_is_live_for_charge($row) : false;
 }
 
 function getConfiguredGateways() {

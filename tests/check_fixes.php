@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/base58.php';
 require_once __DIR__ . '/../lib/TronSigner.php';
 require_once __DIR__ . '/../lib/MySystem/ChargeHub.php';
+require_once __DIR__ . '/../includes/activity_flow.php';
 
 $fail = 0;
 function check(bool $ok, string $label): void
@@ -39,5 +40,13 @@ require_once __DIR__ . '/../lib/Adapters/GatewayAdapterFactory.php';
 foreach (['binance', 'payram', 'whop', 'wise', 'stripe', 'nuvei', 'square', 'paypal'] as $gateway) {
     check(GatewayAdapterFactory::isSupported($gateway), $gateway . ' is registered');
 }
+check(activity_gateway_currencies('wise') === ['USD', 'EUR', 'GBP', 'AED'], 'Wise router currencies match its transfer form');
+check(activity_gateway_currencies('myfatoorah') === ['KWD', 'SAR', 'AED', 'BHD', 'QAR', 'USD'], 'MyFatoorah router currencies match checkout');
+check(activity_gateway_checkout_operations('payram') === ['purchase_3d'], 'PayRam exposes purchase only');
+check(activity_gateway_checkout_operations('wise') === [], 'Wise uses transfer flow, not card operations');
+check(activity_gateway_checkout_operations('binance') === ['crypto_purchase'], 'Binance exposes crypto purchase only');
+check(activity_gateway_checkout_operations('mashreq') === ['purchase_3d'], 'Bank checkout exposes the supported purchase flow');
+check(activity_gateway_checkout_operations('square_online') === [], 'Square Online is fulfillment, not a card charge');
+check(activity_gateway_checkout_operations('stripe') === ['purchase_3d', 'purchase_2d', 'online_sale_moto', 'offline_sale_moto', 'purchase_advice', 'auth', 'capture'], 'Card gateway operations match the POS charge contract');
 
 exit($fail === 0 ? 0 : 1);

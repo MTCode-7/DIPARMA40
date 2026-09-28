@@ -425,6 +425,14 @@ function isLinkValid($link) {
  */
 function getAvailableProtocols(): array {
     return [
+        'DTC' => [
+            'code' => 'DTC',
+            'name' => 'Direct Transaction Capture',
+            'description' => 'خصم حي على البوابة المتصلة — المبلغ يبقى عليها',
+            'icon' => '⚡',
+            'type' => 'purchase',
+            'features' => ['direct', 'capture', 'live-gateway']
+        ],
         'SIMPLE_WITHDRAWAL' => [
             'code' => 'SIMPLE_WITHDRAWAL',
             'name' => 'السحب البسيط - Direct Simple Withdrawal',
@@ -479,6 +487,8 @@ function protocol_display_name(?string $code): string
     }
 
     static $labels = [
+        'DTC' => ['ar' => 'التقاط مباشر', 'en' => 'Direct Transaction Capture'],
+        'ledger.DTC' => ['ar' => 'التقاط مباشر → Ledger', 'en' => 'DTC → Ledger'],
         '101.0' => ['ar' => 'سحب مباشر بالبطاقة', 'en' => 'Direct Card Sale'],
         '101.1' => ['ar' => 'تفويض وتسوية', 'en' => 'Auth & Capture'],
         '201.3' => ['ar' => 'تسوية شركات / MOTO', 'en' => 'Corporate / MOTO Settlement'],

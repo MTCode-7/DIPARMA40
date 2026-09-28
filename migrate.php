@@ -100,6 +100,7 @@ $results[] = ensureColumnExists($db, 'transactions', 'amount_usdt', 'DECIMAL(12,
 $results[] = ensureColumnExists($db, 'transactions', 'card_type', 'VARCHAR(50) DEFAULT NULL');
 $results[] = ensureColumnExists($db, 'transactions', 'card_last4', 'VARCHAR(16) DEFAULT NULL');
 $results[] = ensureColumnExists($db, 'transactions', 'updated_at', 'DATETIME NULL DEFAULT NULL');
+$results[] = ensureColumnExists($db, 'payment_links', 'activity_line', 'VARCHAR(80) DEFAULT NULL');
 $results[] = ensureColumnExists($db, 'users', 'phone', 'VARCHAR(50) DEFAULT NULL');
 $results[] = ensureColumnExists($db, 'users', 'country', 'VARCHAR(100) DEFAULT NULL');
 $results[] = ensureColumnExists($db, 'users', 'address', 'TEXT DEFAULT NULL');
@@ -138,7 +139,7 @@ if ($cliMode) {
 <body>
     <div class="box">
         <h1>ترحيل قاعدة البيانات</h1>
-        <p>يتم تنفيذ التحقق من الجدول <strong>transactions</strong> وإضافة العمود <strong>amount_usdt</strong> إذا كان مفقوداً.</p>
+        <p>يتم التأكد من أعمدة قاعدة البيانات المطلوبة، بما فيها ربط نشاط الشركة بروابط الدفع.</p>
         <ul>
             <?php foreach ($results as $line):
                 $class = str_starts_with($line, 'ok:') ? 'ok' : 'error';

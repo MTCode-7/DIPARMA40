@@ -15,14 +15,34 @@ $ar   = ($lang==='ar'); $dir=$ar?'rtl':'ltr';
 $csrf = generateCsrfToken();
 $db   = db();
 
-$amount      = floatval($_GET['amount']      ?? 0);
-$currency    = strtoupper($_GET['currency']  ?? $BANK_CONFIG['default_currency'] ?? 'AED');
+$amountRaw   = trim((string) ($_GET['amount'] ?? ''));
+$amount      = is_numeric($amountRaw) && is_finite((float) $amountRaw) && (float) $amountRaw > 0 ? (float) $amountRaw : 0.0;
+$requestedCurrency = strtoupper(trim((string) ($_GET['currency'] ?? '')));
+$defaultCurrency = strtoupper((string) ($BANK_CONFIG['default_currency'] ?? 'AED'));
+$currency = in_array($requestedCurrency, $BANK_CONFIG['currencies'], true)
+  ? $requestedCurrency
+  : (in_array($defaultCurrency, $BANK_CONFIG['currencies'], true) ? $defaultCurrency : ($BANK_CONFIG['currencies'][0] ?? 'AED'));
+$activityLine = strtolower(trim((string) ($_GET['activity_line'] ?? $_GET['line'] ?? '')));
 $ledgerCheckout = isset($_GET['ledger_checkout']) && (string) $_GET['ledger_checkout'] === '1';
 $destination = $ledgerCheckout ? 'ledger_trx' : (string) ($_GET['destination'] ?? 'gateway');
 if (!$ledgerCheckout && in_array($destination, ['ledger', 'ledger_trx'], true)) {
     $destination = 'gateway';
 }
-$txnTypeInit = $_GET['txn_type']             ?? 'purchase';
+$requestedTxnType = strtolower(trim((string) ($_GET['txn_type'] ?? 'purchase')));
+$bankTxnAliases = [
+  'purchase_3d' => 'purchase',
+  'purchase_2d' => 'purchase',
+  'online_sale_moto' => 'purchase',
+  'offline_sale_moto' => 'purchase',
+  'auth_hold' => 'auth',
+  'auth_capture' => 'auth_complete',
+  'capture' => 'auth_complete',
+  'quasi_cash' => 'cash_advance',
+];
+$txnTypeInit = $bankTxnAliases[$requestedTxnType] ?? $requestedTxnType;
+if (!in_array($txnTypeInit, ['purchase', 'auth', 'auth_complete', 'purchase_advice', 'refund', 'reversal', 'balance', 'cash_advance', 'void', 'settlement'], true)) {
+  $txnTypeInit = 'purchase';
+}
 $ref         = $_GET['ref']                  ?? ($BANK_CONFIG['prefix'].'-'.strtoupper(substr(uniqid(),0,8)));
 
 // آخر 10 عمليات هذا البنك
@@ -345,7 +365,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 <div id="toast"></div>
 
 <script>
-const AR=<?=$ar?'true':'false'?>;const CSRF='<?=$csrf?>';const REF='<?=$ref?>';
+const AR=<?=$ar?'true':'false'?>;const CSRF='<?=$csrf?>';const REF='<?=$ref?>';const ACTIVITY_LINE=<?=json_encode($activityLine)?>;
 const BNK_CODE='<?=$BANK_CONFIG['gateway_code']?>';
 const STATE2={txnType:'<?=$txnTypeInit?>',dest:'<?=$destination?>',method:'manual',secMode:'3D'};
 
@@ -386,7 +406,7 @@ async function processBank(extra={}){
     const r=await fetch('../api/pos_transaction.php',{method:'POST',headers:{'Content-Type':'application/json'},
       credentials:'include',
       body:JSON.stringify({txn_type:STATE2.txnType,amount,currency,destination:STATE2.dest,reference:REF,
-        card_name:name,email:email||'',csrf_token:CSRF,
+        card_name:name,email:email||'',csrf_token:CSRF,activity_line:ACTIVITY_LINE,
         ledger_address:wallet,auto_transfer:STATE2.dest==='ledger_trx',
         ledger_checkout: STATE2.dest==='ledger_trx' ? 1 : 0,
         orig_ref:document.getElementById('bankOrigRef')?.value||'',

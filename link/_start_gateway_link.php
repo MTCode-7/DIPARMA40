@@ -20,6 +20,10 @@ if (empty($gwCode)) {
 
 $gwCode = strtolower(trim((string) $gwCode));
 $isLedgerPage = ($gwCode === 'ledger');
+if (!$isLedgerPage && !dp_gateway_is_visible_on_channels($gwCode)) {
+    header('Location: ../checkout_router.php?error=gateway_not_ready', true, 302);
+    exit;
+}
 $ledgerCheckout = $isLedgerPage || (isset($_GET['ledger_checkout']) && (string) $_GET['ledger_checkout'] === '1');
 
 $GATEWAY_NAMES = [
@@ -33,6 +37,25 @@ $GATEWAY_NAMES = [
     'authorizenet' => 'Authorize.Net', 'braintree' => 'Braintree',
 ];
 $gwName = $GATEWAY_NAMES[$gwCode] ?? strtoupper($gwCode);
+$linkCurrencies = activity_gateway_currencies($gwCode);
+$prefillAmount = trim((string) ($_GET['amount'] ?? ''));
+if (!preg_match('/^\d+(?:\.\d{1,2})?$/', $prefillAmount) || (float) $prefillAmount <= 0) {
+  $prefillAmount = '';
+}
+$defaultLinkCurrency = $linkCurrencies[0] ?? 'USD';
+$prefillCurrency = strtoupper(trim((string) ($_GET['currency'] ?? $defaultLinkCurrency)));
+if (!in_array($prefillCurrency, $linkCurrencies, true)) {
+  $prefillCurrency = $defaultLinkCurrency;
+}
+$activityLineCode = strtolower(trim((string) ($_POST['activity_line'] ?? $_GET['line'] ?? '')));
+$activityLines = pos_merchant_lines();
+$activityLineCode = isset($activityLines[$activityLineCode]) ? $activityLineCode : '';
+$activityLabel = '';
+$activityLocale = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
+if (isset($activityLines[$activityLineCode])) {
+  $activityLabel = $activityLines[$activityLineCode][$activityLocale] ?? '';
+}
+$prefillTitle = $gwName . ' LINK' . ($activityLabel !== '' ? ' - ' . $activityLabel : '');
 
 $lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar' ? 'ar' : 'en';
 $ar = ($lang === 'ar');
@@ -49,6 +72,10 @@ $messageType = '';
 $createdUrl = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
+  $activityLineCode = strtolower(trim((string) ($_POST['activity_line'] ?? '')));
+  $activityLineCode = isset($activityLines[$activityLineCode]) ? $activityLineCode : '';
+  $activityLabel = $activityLineCode !== '' ? ($activityLines[$activityLineCode][$ar ? 'ar' : 'en'] ?? '') : '';
+  $prefillTitle = $gwName . ' LINK' . ($activityLabel !== '' ? ' - ' . $activityLabel : '');
     if (!verifyCsrfToken((string) ($_POST['csrf_token'] ?? ''))) {
         $message = $ar ? 'رمز الأمان غير صالح' : 'Invalid security token';
         $messageType = 'error';
@@ -60,11 +87,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
         if ($title === '' || $amount <= 0 || $storeGw === '') {
             $message = $ar ? 'العنوان والمبلغ والبوابة مطلوبة' : 'Title, amount, and gateway are required';
             $messageType = 'error';
+        } elseif (!dp_gateway_is_visible_on_channels($storeGw)) {
+            $message = $ar ? 'البوابة غير متصلة بالكامل' : 'Gateway is not fully connected';
+            $messageType = 'error';
         } else {
             $linkId = strtoupper(substr($storeGw, 0, 3)) . date('Ymd') . bin2hex(random_bytes(4));
             $token = bin2hex(random_bytes(32));
             $slug = function_exists('generateSlug') ? generateSlug($title) : strtolower(preg_replace('/[^a-z0-9]+/i', '-', $title));
-            $protocol = $ledgerCheckout ? 'ledger.201.3' : trim((string) ($_POST['protocol'] ?? '201.3'));
+            $protocol = $ledgerCheckout ? 'ledger.DTC' : trim((string) ($_POST['protocol'] ?? 'DTC'));
             $id = $db->insert('payment_links', [
                 'link_id' => $linkId,
                 'token' => $token,
@@ -74,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
                 'amount' => $amount,
                 'currency' => $currency,
                 'gateway' => $storeGw,
+                'activity_line' => $activityLineCode !== '' ? $activityLineCode : null,
                 'protocol' => $protocol,
                 'payment_type' => 'one_time',
                 'expiry_date' => date('Y-m-d H:i:s', strtotime('+7 days')),
@@ -181,6 +212,7 @@ a{color:#FFD700}
   <div class="card">
     <form method="post">
       <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($csrf)?>">
+      <input type="hidden" name="activity_line" value="<?=htmlspecialchars($activityLineCode, ENT_QUOTES, 'UTF-8')?>">
       <?php if ($isLedgerPage): ?>
       <div style="margin-bottom:12px">
         <label><?=$ar?'بوابة الخصم':'Charge gateway'?></label>
@@ -194,18 +226,18 @@ a{color:#FFD700}
       <?php endif; ?>
       <div style="margin-bottom:12px">
         <label><?=$ar?'العنوان':'Title'?></label>
-        <input type="text" name="title" required value="<?=htmlspecialchars($gwName . ' LINK')?>">
+        <input type="text" name="title" required value="<?=htmlspecialchars($prefillTitle, ENT_QUOTES, 'UTF-8')?>">
       </div>
       <div class="row" style="margin-bottom:12px">
         <div>
           <label><?=$ar?'المبلغ':'Amount'?></label>
-          <input type="number" name="amount" min="0.01" step="0.01" required>
+          <input type="number" name="amount" min="0.01" step="0.01" required value="<?=htmlspecialchars($prefillAmount, ENT_QUOTES, 'UTF-8')?>">
         </div>
         <div>
           <label><?=$ar?'العملة':'Currency'?></label>
           <select name="currency">
-            <?php foreach (['USD','EUR','GBP','AED','SAR','USDT'] as $cur): ?>
-            <option value="<?=$cur?>"><?=$cur?></option>
+            <?php foreach ($linkCurrencies as $cur): ?>
+            <option value="<?=$cur?>"<?=$prefillCurrency === $cur ? ' selected' : ''?>><?=$cur?></option>
             <?php endforeach; ?>
           </select>
         </div>

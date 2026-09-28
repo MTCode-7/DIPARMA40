@@ -160,6 +160,7 @@ final class GatewayResponseFormatter
     ): array {
         $action = match (strtoupper($protocol)) {
             '101.1' => ($adapterResponse['status'] ?? '') === 'authorized' ? 'HOLD' : 'CAPTURE',
+            'DTC' => 'CHARGE',
             '201.3' => 'CHARGE',
             default => 'CHARGE',
         };

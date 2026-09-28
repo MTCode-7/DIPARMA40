@@ -157,7 +157,7 @@ $activityOps = activity_operations();
 $cardPresentModes = activity_card_present_modes();
 $arrivalOptions = activity_arrival_options();
 $payoutRails = activity_payout_rails();
-$startArrival = activity_normalize_arrival((string) ($_GET['arrival'] ?? 'wallet'));
+$startArrival = activity_normalize_arrival((string) ($_GET['arrival'] ?? 'gateway'));
 $startPayout = activity_normalize_payout_rail((string) ($_GET['payout'] ?? ''));
 $activitySuggest = [];
 foreach ($activityLines as $lk => $lr) {
@@ -721,7 +721,7 @@ endif;
       <label for="hubArrivalSelect"><?=$ar?'وصول المبلغ':'Where funds arrive'?></label>
       <select id="hubArrivalSelect" onchange="hubPickArrivalSel(this)">
         <?php foreach ($arrivalOptions as $arrKey => $arr): ?>
-        <option value="<?=htmlspecialchars($arrKey)?>" <?=$arrKey==='wallet'?'selected':''?>>
+        <option value="<?=htmlspecialchars($arrKey)?>" <?=$arrKey==='gateway'?'selected':''?>>
           <?=$ar ? htmlspecialchars($arr['ar']) : htmlspecialchars($arr['en'])?><?=!empty($arr['preferred'])?' ★':''?>
         </option>
         <?php endforeach; ?>
@@ -729,7 +729,7 @@ endif;
     </div>
 
     <div id="hubPayoutWrap" class="fld" style="display:none">
-      <label for="hubPayoutSelect"><?=$ar?'تحويل الصافي إلى Ledger':'Move net to Ledger'?></label>
+      <label for="hubPayoutSelect"><?=$ar?'Ledger — من صفحة Ledger CHECKOUT فقط':'Ledger — only from Ledger CHECKOUT'?></label>
       <select id="hubPayoutSelect" onchange="hubPickPayout(this)">
         <option value=""><?=$ar?'— اختر بوابة أو بنكاً —':'— Pick a gateway or bank —'?></option>
         <?php foreach ($payoutRails as $railKey => $rail): ?>
@@ -793,7 +793,7 @@ const HUB = {
   gw: <?=json_encode((string) $posGw)?>,
   op: '',
   mode: '',
-  arrival: 'wallet',
+  arrival: 'gateway',
   payout: '',
   amount: '',
   currency: <?=json_encode($startCurrency)?>
@@ -881,15 +881,13 @@ function hubPickCurrency(sel) {
 }
 window.hubPickCurrency = hubPickCurrency;
 function hubPickArrivalSel(sel) {
-  const value = (sel && sel.value) ? sel.value : 'wallet';
-  HUB.arrival = value;
+  const value = (sel && sel.value) ? sel.value : 'gateway';
+  HUB.arrival = value === 'wallet' ? 'wallet' : 'gateway';
   const wrap = document.getElementById('hubPayoutWrap');
-  if (wrap) wrap.style.display = value === 'payout' ? '' : 'none';
-  if (value !== 'payout') {
-    HUB.payout = '';
-    const p = document.getElementById('hubPayoutSelect');
-    if (p) p.value = '';
-  }
+  if (wrap) wrap.style.display = 'none';
+  HUB.payout = '';
+  const p = document.getElementById('hubPayoutSelect');
+  if (p) p.value = '';
   hubReady();
 }
 window.hubPickArrivalSel = hubPickArrivalSel;
@@ -921,7 +919,7 @@ function hubRenderGws() {
   if (wrap) wrap.style.display = codes.length ? '' : 'none';
 }
 function hubReady() {
-  const arrivalOk = HUB.arrival === 'wallet' || (HUB.arrival === 'payout' && !!HUB.payout);
+  const arrivalOk = HUB.arrival === 'gateway' || HUB.arrival === 'wallet';
   const gwOk = !!(HUB.gw && HUB_GWS[HUB.gw]);
   const ok = !!(HUB.line && HUB.gw && gwOk && HUB.op && HUB.mode && arrivalOk);
   document.getElementById('hubGo').disabled = !ok;
@@ -960,9 +958,9 @@ function hubTidChange(sel) {
   if (sel.form) sel.form.submit();
 }
 function hubGo() {
-  const arrivalOk = HUB.arrival === 'wallet' || (HUB.arrival === 'payout' && !!HUB.payout);
+  const arrivalOk = HUB.arrival === 'gateway' || HUB.arrival === 'wallet';
   if (!HUB.line || !HUB.gw || !HUB_GWS[HUB.gw] || !HUB.op || !HUB.mode || !arrivalOk) return;
-  if (!HUB_LEDGER) {
+  if (HUB.arrival === 'wallet' && !HUB_LEDGER) {
     alert(HUB_AR ? 'أضف LEDGER_TRC20_ADDRESS' : 'Set LEDGER_TRC20_ADDRESS');
     return;
   }
@@ -972,12 +970,8 @@ function hubGo() {
   q.set('line', HUB.line);
   q.set('op', HUB.op);
   q.set('mode', HUB.mode);
-  q.set('arrival', HUB.arrival || 'wallet');
-  if (HUB.arrival === 'payout' && HUB.payout) {
-    q.set('payout', HUB.payout);
-  } else {
-    q.delete('payout');
-  }
+  q.set('arrival', HUB.arrival || 'gateway');
+  q.delete('payout');
   if (HUB.gw) {
     q.set('gw', HUB.gw);
   } else {
@@ -1323,20 +1317,16 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
         </button>
         <?php endforeach; ?>
       </div>
-      <div id="arrivalWalletBox" style="<?=$startArrival==='payout'?'display:none':''?>">
-        <div style="font-size:.68rem;color:var(--muted2);margin-bottom:4px"><?=$ar?'عنوان المحفظة':'Wallet address'?></div>
-        <div style="font-family:monospace;font-size:.72rem;color:var(--green);word-break:break-all"><?=htmlspecialchars($ledgerAddr !== '' ? $ledgerAddr : 'LEDGER_TRC20_ADDRESS')?></div>
-      </div>
-      <div id="arrivalPayoutBox" style="<?=$startArrival==='payout'?'':'display:none'?>">
-        <div style="font-size:.68rem;color:var(--gold);font-weight:800;margin-bottom:8px"><?=$ar?'البوابة أو البنك الذي يحوّل إلى Ledger':'Gateway or bank that transfers to Ledger'?></div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px">
-          <?php foreach ($payoutRails as $railKey => $rail): ?>
-          <button type="button" class="txn-btn <?=($startPayout===$railKey)?'active':''?>" data-payout="<?=htmlspecialchars($railKey)?>" onclick="selectPayoutRail('<?=htmlspecialchars($railKey)?>',this)" style="margin:0;padding:8px;text-align:center;flex-direction:column;gap:4px">
-            <i class="fas <?=$rail['icon']?>" style="color:<?=$rail['color']?>"></i>
-            <span style="font-size:.62rem;font-weight:800"><?=$ar?$rail['ar']:$rail['en']?></span>
-          </button>
-          <?php endforeach; ?>
+      <div id="arrivalGatewayBox" style="<?=$startArrival==='wallet'?'display:none':''?>">
+        <div style="font-size:.72rem;color:var(--gold);font-weight:800;line-height:1.6" id="arrivalGatewayMsg">
+          <?=$ar
+            ? 'المال يبقى على نفس البوابة التي تخصم: PayPal على PayPal، Nuvei على Nuvei — وكل البوابات كذلك.'
+            : 'The money stays on the same gateway that charged: PayPal at PayPal, Nuvei at Nuvei — every gateway the same.'?>
         </div>
+      </div>
+      <div id="arrivalWalletBox" style="<?=$startArrival==='wallet'?'':'display:none'?>">
+        <div style="font-size:.68rem;color:var(--muted2);margin-bottom:4px"><?=$ar?'عنوان Ledger — من Ledger CHECKOUT فقط':'Ledger address — Ledger CHECKOUT only'?></div>
+        <div style="font-family:monospace;font-size:.72rem;color:var(--green);word-break:break-all"><?=htmlspecialchars($ledgerAddr !== '' ? $ledgerAddr : 'LEDGER_TRC20_ADDRESS')?></div>
       </div>
     </div>
 
@@ -1440,13 +1430,8 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="modal-ref" id="modalRef"></div>
     <div class="modal-details" id="modalDetails"></div>
     <div id="modalPayoutStuck" style="display:none;margin:12px 0;padding:12px;border-radius:12px;border:1px solid rgba(245,158,11,.4);background:rgba(245,158,11,.08);text-align:start">
-      <div style="font-weight:800;color:#fbbf24;font-size:.78rem;margin-bottom:6px"><?=$ar?'المبلغ ما زال عند بوابة الدفع':'Funds are still at the payment gateway'?></div>
-      <div style="font-size:.68rem;color:var(--muted2);line-height:1.5;margin-bottom:8px"><?=$ar?'اختر بوابة أو بنكاً لتحويل الصافي إلى عنوان Ledger.':'Pick a gateway or bank to move the net to the Ledger address.'?></div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">
-        <?php foreach ($payoutRails as $railKey => $rail): ?>
-        <button type="button" class="btn btn-dark" style="font-size:.68rem;padding:6px 10px" onclick="selectPayoutRail('<?=htmlspecialchars($railKey)?>');toast(AR?('سيتم التحويل عبر <?=htmlspecialchars($ar?$rail['ar']:$rail['en'])?> إلى Ledger'):('Transfer via <?=htmlspecialchars($rail['en'])?> to Ledger'),'info')"><?=$ar?$rail['ar']:$rail['en']?></button>
-        <?php endforeach; ?>
-      </div>
+      <div style="font-weight:800;color:#fbbf24;font-size:.78rem;margin-bottom:6px"><?=$ar?'المال توقف عند بوابة الخصم':'The money stopped at the charge gateway'?></div>
+      <div style="font-size:.68rem;color:var(--muted2);line-height:1.5" id="modalRetainMsg"><?=$ar?'PayPal على PayPal، Nuvei على Nuvei — كل بوابة نفس القاعدة.':'PayPal at PayPal, Nuvei at Nuvei — every gateway the same.'?></div>
     </div>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
       <button class="btn btn-dark" onclick="closeModal()"><i class="fas fa-times"></i> <?=$ar?'إغلاق':'Close'?></button>
@@ -1628,13 +1613,13 @@ const RRN_LEN = 12;
 let POS_ARRIVAL = <?=json_encode($startArrival)?>;
 let POS_PAYOUT = <?=json_encode($startPayout)?>;
 function selectArrival(code, el) {
-  POS_ARRIVAL = code === 'payout' ? 'payout' : 'wallet';
+  POS_ARRIVAL = code === 'wallet' ? 'wallet' : 'gateway';
   document.querySelectorAll('[data-arrival]').forEach(b => b.classList.toggle('active', b.dataset.arrival === POS_ARRIVAL));
   const w = document.getElementById('arrivalWalletBox');
-  const p = document.getElementById('arrivalPayoutBox');
+  const g = document.getElementById('arrivalGatewayBox');
   if (w) w.style.display = POS_ARRIVAL === 'wallet' ? '' : 'none';
-  if (p) p.style.display = POS_ARRIVAL === 'payout' ? '' : 'none';
-  if (POS_ARRIVAL !== 'payout') POS_PAYOUT = '';
+  if (g) g.style.display = POS_ARRIVAL === 'gateway' ? '' : 'none';
+  POS_PAYOUT = '';
 }
 function selectPayoutRail(code, el) {
   POS_PAYOUT = String(code || '');
@@ -2738,9 +2723,8 @@ window.processTransaction = async function() {
     toast(AR ? 'اختر بوابة من القائمة المتصلة' : 'Pick a gateway from the connected list', 'error');
     return;
   }
-  if (POS_ARRIVAL === 'payout' && !POS_PAYOUT) {
-    toast(AR ? 'اختر بوابة أو بنكاً لتحويل المبلغ إلى Ledger' : 'Pick a gateway or bank to transfer to Ledger', 'error');
-    return;
+  if (POS_ARRIVAL !== 'wallet') {
+    POS_ARRIVAL = 'gateway';
   }
   const type     = POS.txnType;
   const refundAmt  = parseFloat(document.getElementById('refundAmt')?.value) || 0;

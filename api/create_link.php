@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/activity_flow.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -39,6 +40,10 @@ $title = trim((string) ($payload['title'] ?? ''));
 $amount = (float) ($payload['amount'] ?? 0);
 $gateway = trim((string) ($payload['gateway'] ?? ''));
 $currency = strtoupper(trim((string) ($payload['currency'] ?? 'USD')));
+$activityLine = strtolower(trim((string) ($payload['activity_line'] ?? '')));
+if (!isset(pos_merchant_lines()[$activityLine])) {
+    $activityLine = '';
+}
 if ($title === '' || $amount <= 0 || $gateway === '') {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'title, amount, and gateway required']);
@@ -59,7 +64,8 @@ $insertData = [
     'amount' => $amount,
     'currency' => $currency !== '' ? $currency : 'USD',
     'gateway' => $gateway,
-    'protocol' => trim((string) ($payload['protocol'] ?? '101.0')),
+    'activity_line' => $activityLine !== '' ? $activityLine : null,
+    'protocol' => trim((string) ($payload['protocol'] ?? 'DTC')),
     'payment_type' => trim((string) ($payload['payment_type'] ?? 'one_time')),
     'customer_name' => trim((string) ($payload['customer_name'] ?? '')),
     'customer_email' => trim((string) ($payload['customer_email'] ?? '')),

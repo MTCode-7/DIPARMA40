@@ -156,15 +156,23 @@ $ledgerCheckout = !empty($data['ledger_checkout']);
 // Normal charges stay on the same gateway. Ledger move only from Ledger CHECKOUT.
 $destination = $ledgerCheckout ? 'ledger' : 'gateway';
 $extra = is_array($data['extra'] ?? null) ? $data['extra'] : [];
+if (!function_exists('pos_merchant_lines')) {
+    require_once POS_APP_ROOT . '/lib/merchant.php';
+}
+$activityLine = strtolower(trim((string) ($data['activity_line'] ?? $data['line'] ?? $data['merchant_line'] ?? $extra['activity_line'] ?? '')));
+if (!isset(pos_merchant_lines()[$activityLine])) {
+    $activityLine = '';
+}
+$extra['activity_line'] = $activityLine;
 $arrival = function_exists('activity_normalize_arrival')
-    ? activity_normalize_arrival((string) ($data['arrival'] ?? $extra['arrival'] ?? 'wallet'))
-    : 'wallet';
+    ? activity_normalize_arrival((string) ($data['arrival'] ?? $extra['arrival'] ?? 'gateway'))
+    : 'gateway';
 $payoutVia = function_exists('activity_normalize_payout_rail')
     ? activity_normalize_payout_rail((string) ($data['payout_via'] ?? $extra['payout_via'] ?? ''))
     : '';
 $extra['arrival'] = $arrival;
 $extra['payout_via'] = $payoutVia;
-$autoTransfer = $arrival !== 'payout';
+$autoTransfer = $ledgerCheckout && $arrival === 'wallet';
 $channels = pos_parse_channels($data, $txnType);
 $channelNfc = in_array('nfc', $channels, true);
 $channelPos = in_array('pos', $channels, true) || !$channelNfc;
@@ -995,11 +1003,29 @@ if ($success && $alreadyLedger) {
     $ledgerStatus = !empty($gatewayResponse['queued']) || !empty($rawSettle['queued'])
         ? 'queued'
         : ($ledgerTransfer ? 'completed' : ($success ? 'completed' : 'failed'));
-} elseif ($success && !$requires3ds && $arrival === 'payout' && in_array($txnType, $ledgerTransferTypes, true)
+} elseif ($success && !$requires3ds && !$ledgerCheckout && in_array($txnType, $ledgerTransferTypes, true)
     && ($txnType !== 'capture' || $captureAmount > 0)) {
-    $ledgerTransfer = false;
-    $ledgerStatus = 'queued';
-    $ledgerTxid = null;
+    try {
+        require_once POS_APP_ROOT . '/lib/LedgerSettlementService.php';
+        $retainResult = LedgerSettlementService::getInstance()->retainOnGateway([
+            'reference'      => $reference,
+            'amount'         => $amount,
+            'currency'       => $currency,
+            'gateway'        => $feeGateway,
+            'user_id'        => $userId,
+            'txn_type'       => $txnType,
+            'transaction_id' => !empty($transactionId) ? (int) $transactionId : null,
+        ]);
+        $ledgerTransfer = false;
+        $ledgerTxid = null;
+        $ledgerFee = $retainResult['fee'] ?? null;
+        $ledgerNet = $retainResult['net_fiat'] ?? null;
+        $ledgerUsdt = 0;
+        $ledgerStatus = !empty($retainResult['retained']) ? 'retained' : 'retained';
+    } catch (Throwable $e) {
+        $ledgerTransfer = false;
+        $ledgerStatus = 'retained';
+    }
 } elseif ($success && !$requires3ds && $autoTransfer && in_array($txnType, $ledgerTransferTypes, true)
     && ($txnType !== 'capture' || $captureAmount > 0)) {
     try {

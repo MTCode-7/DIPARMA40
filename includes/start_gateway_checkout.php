@@ -32,14 +32,8 @@ if ($gwCode === 'ledger') {
     exit;
 }
 
-// منع الوصول المباشر لصفحة بوابة غير مفعّلة أو غير متصلة أو بلا مفاتيح
-try {
-    $gwRow = db()->find('payment_gateways', ['code' => $gwCode]);
-    if (!$gwRow || !isGatewayVisibleInCheckout(array_merge($gwRow, ['code' => $gwCode]))) {
-        header('Location: ' . (isset($checkoutBase) ? $checkoutBase : '') . 'checkout_router.php?error=gateway_not_ready');
-        exit;
-    }
-} catch (Throwable $e) {
+// منع الوصول المباشر لصفحة بوابة غير مفعّلة أو غير متصلة بالكامل
+if (!dp_gateway_is_visible_on_channels($gwCode)) {
     header('Location: ' . (isset($checkoutBase) ? $checkoutBase : '') . 'checkout_router.php?error=gateway_not_ready');
     exit;
 }
@@ -81,7 +75,14 @@ $gwIcon     = $gwIcon     ?? $meta['icon'];
 $gwColor    = $gwColor    ?? $meta['color'];
 $currencies = $currencies ?? $meta['currencies'];
 $csrfToken  = $csrfToken  ?? generateCsrfToken();
-$checkoutOps = pos_operation_catalog();
+$allCheckoutOps = pos_operation_catalog();
+$checkoutOps = array_intersect_key(
+    $allCheckoutOps,
+    array_fill_keys(activity_gateway_checkout_operations($gwCode), true)
+);
+if ($checkoutOps === [] && isset($allCheckoutOps['purchase_3d'])) {
+    $checkoutOps = ['purchase_3d' => $allCheckoutOps['purchase_3d']];
+}
 $chargeGwCode = $chargeGwCode ?? $gwCode;
 
 // PayRam = Card-to-Crypto onramp فقط (صفحة PayRam المستضافة / Base)
@@ -126,8 +127,14 @@ if ($basePath === '' && strpos(str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ??
 }
 
 // استعلام اختياري من الراوتر
-$prefillAmount   = floatval($_GET['amount'] ?? 0);
-$prefillCurrency = strtoupper(trim((string)($_GET['currency'] ?? ($currencies[0] ?? 'USD'))));
+$prefillAmountRaw = trim((string) ($_GET['amount'] ?? ''));
+$prefillAmount = is_numeric($prefillAmountRaw) && is_finite((float) $prefillAmountRaw) && (float) $prefillAmountRaw > 0
+    ? (float) $prefillAmountRaw
+    : 0.0;
+$requestedCurrency = strtoupper(trim((string) ($_GET['currency'] ?? '')));
+$prefillCurrency = in_array($requestedCurrency, $currencies, true)
+    ? $requestedCurrency
+    : ($currencies[0] ?? 'USD');
 $ledgerCheckout  = isset($_GET['ledger_checkout']) && (string) $_GET['ledger_checkout'] === '1';
 $prefillDest     = $ledgerCheckout ? 'ledger' : 'gateway';
 $prefillWallet   = trim((string)($_GET['wallet'] ?? ''));
@@ -148,7 +155,7 @@ if ($secQ === '2D' && isset($checkoutOps['purchase_2d'])) {
 } elseif (($prefillOp === '' || $prefillOp === 'purchase') && isset($checkoutOps['purchase_3d'])) {
     $prefillOp = 'purchase_3d';
 }
-$activityLine = strtolower(trim((string)($_GET['line'] ?? '')));
+$activityLine = strtolower(trim((string) ($_GET['activity_line'] ?? $_GET['line'] ?? '')));
 $prefillRef      = trim((string)($_GET['ref'] ?? ''));
 $prefillLink     = trim((string)($_GET['link'] ?? ''));
 $reqChannel = strtolower(trim((string) ($_GET['channel'] ?? $_GET['ch'] ?? '')));

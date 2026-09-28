@@ -21,7 +21,6 @@ require_once __DIR__ . '/includes/activity_flow.php';
 $lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang']==='ar' ? 'ar' : 'en';
 $ar   = ($lang === 'ar');
 $dir  = $ar ? 'rtl' : 'ltr';
-$csrf = generateCsrfToken();
 $db   = db();
 
 // ── البوابات المتاحة في الواجهة ───────────────────────────────────────
@@ -33,7 +32,7 @@ $allGateways = [
     'square'     => ['name'=>'Square 1',     'icon'=>'fas fa-square',          'color'=>'#006AFF','type'=>'card',   'desc_ar'=>'خصم البطاقة Payments API — المبلغ يبقى على Square','desc_en'=>'Card charge via Payments API — funds stay on Square'],
     'square_online' => ['name'=>'Square 2 · Online', 'icon'=>'fas fa-store',   'color'=>'#006AFF','type'=>'fulfillment','desc_ar'=>'شركة 10 — سياحة، حجوزات، إيجارات، عقارات، فنادق. متجر الإمارات. الخصم على Square 1.','desc_en'=>'Company 10 — tourism, bookings, rentals, real estate, hotels. UAE store. Card charge stays on Square 1.'],
     'paypal'     => ['name'=>'PayPal',        'icon'=>'fab fa-paypal',         'color'=>'#003087','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين','desc_en'=>'All networks and issuers'],
-    'wise'       => ['name'=>'Wise',          'icon'=>'fas fa-exchange-alt',   'color'=>'#9fe870','type'=>'digital','desc_ar'=>'كل الشبكات والمُصدرين عبر Wise','desc_en'=>'All networks and issuers via Wise'],
+    'wise'       => ['name'=>'Wise Transfer', 'icon'=>'fas fa-exchange-alt',   'color'=>'#9fe870','type'=>'digital','desc_ar'=>'تحويل من رصيد Wise إلى مستفيد','desc_en'=>'Transfer from Wise balance to a recipient'],
     'myfatoorah' => ['name'=>'MyFatoorah',    'icon'=>'fas fa-money-bill-wave','color'=>'#00b09b','type'=>'card',   'desc_ar'=>'كل الشبكات والمُصدرين — الشرق الأوسط','desc_en'=>'All networks and issuers — Middle East'],
     'binance'    => ['name'=>'Binance',       'icon'=>'fas fa-coins',          'color'=>'#F3BA2F','type'=>'crypto', 'desc_ar'=>'كريبتو + كل الشبكات والمُصدرين','desc_en'=>'Crypto + all networks and issuers'],
     'gate_io'    => ['name'=>'Gate.io',       'icon'=>'fas fa-coins',          'color'=>'#E8112D','type'=>'crypto', 'desc_ar'=>'كريبتو + كل الشبكات والمُصدرين','desc_en'=>'Crypto + all networks and issuers'],
@@ -49,31 +48,6 @@ $allGateways = [
 ];
 
 $gateways = $allGateways;
-
-// ── وجهات المبلغ ─────────────────────────────────────────────
-$destinations = [
-    // ── نفس البوابة ──────────────────────────────────────────
-    'gateway'    => ['icon'=>'fas fa-exchange-alt',   'color'=>'#F97316', 'ar'=>'نفس بوابة الدفع',          'en'=>'Same Gateway'],
-    // ── بوابات الدفع ─────────────────────────────────────────
-    'stripe'     => ['icon'=>'fab fa-stripe-s',       'color'=>'#6772e5', 'ar'=>'Stripe Balance',            'en'=>'Stripe Balance'],
-    'paypal'     => ['icon'=>'fab fa-paypal',          'color'=>'#003087', 'ar'=>'PayPal Balance',            'en'=>'PayPal Balance'],
-    'nuvei'      => ['icon'=>'fas fa-credit-card',    'color'=>'#F97316', 'ar'=>'Nuvei (Mashreq)',            'en'=>'Nuvei (Mashreq)'],
-    'wise'       => ['icon'=>'fas fa-exchange-alt',   'color'=>'#9fe870', 'ar'=>'Wise Balance',               'en'=>'Wise Balance'],
-    'myfatoorah' => ['icon'=>'fas fa-money-bill-wave','color'=>'#00b09b', 'ar'=>'MyFatoorah',                 'en'=>'MyFatoorah'],
-    'binance_ex' => ['icon'=>'fas fa-coins',          'color'=>'#F3BA2F', 'ar'=>'Binance Spot',              'en'=>'Binance Spot'],
-    'gate_io'    => ['icon'=>'fas fa-coins',          'color'=>'#E8112D', 'ar'=>'Gate.io Balance',            'en'=>'Gate.io Balance'],
-    'whop'       => ['icon'=>'fas fa-bolt',           'color'=>'#7C3AED', 'ar'=>'Whop Balance',               'en'=>'Whop Balance'],
-    // ── بنوك ─────────────────────────────────────────────────
-    'mashreq'    => ['icon'=>'fas fa-university',     'color'=>'#FF6600', 'ar'=>'Mashreq Bank (TRANSCENDIO)','en'=>'Mashreq Bank'],
-    'hsbc'       => ['icon'=>'fas fa-university',     'color'=>'#DB0011', 'ar'=>'HSBC UAE',                  'en'=>'HSBC UAE'],
-    'nbe'        => ['icon'=>'fas fa-landmark',       'color'=>'#006633', 'ar'=>'NBE Egypt',                 'en'=>'NBE Egypt'],
-    'jpmorgan'   => ['icon'=>'fas fa-landmark',       'color'=>'#003087', 'ar'=>'JP Morgan IOLTA',           'en'=>'JP Morgan IOLTA'],
-    // ── محافظ رقمية ──────────────────────────────────────────
-    'ledger_trx' => ['icon'=>'fas fa-wallet',         'color'=>'#10B981', 'ar'=>'Ledger TRX (USDT)',         'en'=>'Ledger TRX (USDT)'],
-    'tron_w'     => ['icon'=>'fas fa-wallet',         'color'=>'#EF4444', 'ar'=>'محفظة TRC20 مخصصة',        'en'=>'Custom TRC20'],
-    'erc20_w'    => ['icon'=>'fas fa-wallet',         'color'=>'#3B82F6', 'ar'=>'محفظة ERC20 مخصصة',        'en'=>'Custom ERC20'],
-    'btc_w'      => ['icon'=>'fab fa-bitcoin',        'color'=>'#F7931A', 'ar'=>'محفظة Bitcoin',             'en'=>'Bitcoin Wallet'],
-];
 
   // كل بوابة تفتح صفحتها المستقلة وفيها جميع عمليات الشراء
   $gatewayRoutes = [];
@@ -126,16 +100,22 @@ $destinations = [
   $activityLines = pos_merchant_lines();
   $activityChannels = activity_channels();
   $activityOps = activity_operations();
-  $ledgerAddr = activity_ledger_address();
   $connectedPos = activity_connected_gateways('pos');
   $connectedCheckout = activity_connected_gateways('checkout');
   $connectedLink = activity_connected_gateways('link');
+  unset($connectedPos['wise'], $connectedLink['wise'], $connectedLink['square_online']);
   $posRoutes = [];
   $linkRoutes = [];
   foreach (array_keys($gateways) as $code) {
       $posRoutes[$code] = activity_pos_route($code);
       $linkRoutes[$code] = activity_link_route($code);
   }
+    $gatewayCurrencies = [];
+      $gatewayOperations = [];
+    foreach (array_keys($gateways) as $code) {
+      $gatewayCurrencies[$code] = activity_gateway_currencies($code);
+        $gatewayOperations[$code] = activity_gateway_checkout_operations($code);
+    }
 ?><!DOCTYPE html>
 <html lang="<?=$lang?>" dir="<?=$dir?>">
 <head>
@@ -175,20 +155,6 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 .gw-name{font-size:.88rem;font-weight:800;margin-bottom:3px}
 .gw-desc{font-size:.7rem;color:var(--muted2);line-height:1.5}
 .gw-type-badge{position:absolute;top:10px;right:10px;font-size:.6rem;font-weight:800;padding:2px 7px;border-radius:6px;text-transform:uppercase}
-/* Destination */
-.dest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:28px}
-.dest-card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:14px;cursor:pointer;transition:.25s;display:flex;align-items:flex-start;gap:10px}
-.dest-card:hover{border-color:rgba(255,215,0,.25)}
-.dest-card.selected{border-color:var(--gold);background:rgba(255,215,0,.04)}
-.dest-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
-.dest-name{font-size:.78rem;font-weight:800}
-.dest-detail{font-size:.65rem;color:var(--muted2);margin-top:3px;line-height:1.5}
-/* Custom wallet input */
-.wallet-input-wrap{background:var(--card2);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:20px;display:none}
-.wallet-input-wrap.show{display:block}
-.wallet-input-wrap label{font-size:.75rem;color:var(--muted2);display:block;margin-bottom:6px;font-weight:700}
-.wallet-input-wrap input{width:100%;background:rgba(255,255,255,.04);border:1.5px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-family:'Cairo',sans-serif;font-size:.85rem}
-.wallet-input-wrap input:focus{outline:none;border-color:var(--gold)}
 /* Amount */
 .amount-section{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px;margin-bottom:24px}
 .fld-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -199,13 +165,9 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 .continue-btn{width:100%;padding:15px;border-radius:14px;border:none;cursor:pointer;font-family:'Cairo',sans-serif;font-size:1rem;font-weight:900;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#000;box-shadow:0 8px 24px rgba(255,215,0,.2);transition:.3s;display:flex;align-items:center;justify-content:center;gap:10px}
 .continue-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 12px 32px rgba(255,215,0,.3)}
 .continue-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
-/* Summary */
-.summary-bar{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
-.sum-item{display:flex;align-items:center;gap:8px;font-size:.8rem}
-.sum-val{font-weight:800;color:var(--gold)}
 /* Toast */
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:12px 28px;font-size:.84rem;font-weight:700;z-index:9999;transition:.35s;color:var(--text)}
-@media(max-width:600px){.gw-grid,.dest-grid{grid-template-columns:1fr 1fr}.fld-row{grid-template-columns:1fr}}
+@media(max-width:600px){.gw-grid{grid-template-columns:1fr 1fr}.fld-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -230,7 +192,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="step-sep"></div>
     <div class="step-item" id="step2-item">
       <div class="step-num">2</div>
-      <div class="step-label"><?=$ar?'POS أو رابط':'POS or Link'?></div>
+      <div class="step-label"><?=$ar?'POS أو Checkout أو رابط':'POS, Checkout, or Link'?></div>
     </div>
     <div class="step-sep"></div>
     <div class="step-item" id="step3-item">
@@ -240,7 +202,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="step-sep"></div>
     <div class="step-item" id="step4-item">
       <div class="step-num">4</div>
-      <div class="step-label"><?=$ar?'العملية':'Operation'?></div>
+      <div class="step-label"><?=$ar?'المبلغ والتفاصيل':'Amount & Details'?></div>
     </div>
   </div>
 
@@ -264,7 +226,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       </div>
     </div>
     <button class="continue-btn" id="btn-step1" onclick="goStep(2)" disabled>
-      <?=$ar?'التالي — POS أو رابط':'Next — POS or Link'?> <i class="fas fa-arrow-left"></i>
+      <?=$ar?'التالي — القناة':'Next — Channel'?> <i class="fas fa-arrow-left"></i>
     </button>
   </div>
 
@@ -362,7 +324,8 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="amount-section">
 
       <!-- 13 أنواع العمليات -->
-      <div class="section-title" style="margin-bottom:12px"><i class="fas fa-list"></i> <?=$ar?'نوع العملية (13)':'Operation type (13)'?></div>
+      <div id="txnOpsWrap">
+      <div class="section-title" style="margin-bottom:12px"><i class="fas fa-list"></i> <?=$ar?'نوع العملية':'Operation type'?></div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px" id="txnTypeGrid">
         <?php
         $txnTypesRouter = [];
@@ -390,6 +353,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
         </div>
         <?php endforeach; ?>
       </div>
+      </div>
 
       <!-- 2D / 3D لـ Purchase -->
       <div id="secModeWrap" style="display:flex;gap:8px;margin-bottom:16px">
@@ -403,24 +367,10 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
         </div>
       </div>
 
-      <!-- حقول المرجع الأصلي وكود الموافقة (تظهر لبعض العمليات) -->
-      <div id="origRefWrap" style="display:none;margin-bottom:16px">
-        <div class="fld-row" style="margin-bottom:10px">
-          <div class="fld">
-            <label><i class="fas fa-hashtag"></i> <?=$ar?'رقم المرجع الأصلي (RRN)':'Original Reference (RRN)'?></label>
-            <input type="text" id="txnOrigRef" placeholder="<?=$ar?'رقم العملية السابقة':'Previous transaction reference'?>">
-          </div>
-          <div class="fld">
-            <label><i class="fas fa-check-circle"></i> <?=$ar?'كود الموافقة (Approval)':'Approval Code'?></label>
-            <input type="text" id="txnApprovalCode" placeholder="<?=$ar?'رمز الموافقة':'Approval code'?>">
-          </div>
-        </div>
-      </div>
-
-      <div class="fld-row">
+      <div class="fld-row" id="txnAmountWrap">
         <div class="fld">
           <label><?=$ar?'المبلغ':'Amount'?></label>
-          <input type="number" id="txnAmount" min="1" step="0.01" placeholder="0.00" oninput="updateSummary()">
+          <input type="number" id="txnAmount" min="0.01" step="0.01" placeholder="0.00" oninput="updateSummary()">
         </div>
         <div class="fld">
           <label><?=$ar?'العملة':'Currency'?></label>
@@ -431,14 +381,14 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
             <option value="EUR">EUR</option>
             <option value="GBP">GBP</option>
             <option value="KWD">KWD</option>
+            <option value="BHD">BHD</option>
             <option value="EGP">EGP</option>
             <option value="QAR">QAR</option>
+            <option value="CAD">CAD</option>
+            <option value="AUD">AUD</option>
+            <option value="USDT">USDT</option>
           </select>
         </div>
-      </div>
-      <div class="fld" style="margin-top:10px">
-        <label><?=$ar?'ملاحظات (اختياري)':'Notes (optional)'?></label>
-        <input type="text" id="txnNotes" placeholder="<?=$ar?'رقم الفاتورة، اسم العميل...':'Invoice number, client name...'?>">
       </div>
     </div>
 
@@ -452,49 +402,20 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
   </div>
 
-  <!-- review (unused — confirm is step 4 continue) -->
-  <div id="sec-review" style="display:none">
-    <div class="section-title"><i class="fas fa-check-double"></i> <?=$ar?'مراجعة وتأكيد':'Review & Confirm'?></div>
-
-    <!-- Summary -->
-    <div id="summaryBox" class="amount-section" style="margin-bottom:20px;font-size:.85rem">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div><span style="color:var(--muted2)"><?=$ar?'البوابة:':'Gateway:'?></span> <span id="sum-gw" style="font-weight:800;color:var(--gold)">—</span></div>
-        <div><span style="color:var(--muted2)"><?=$ar?'الوجهة:':'Destination:'?></span> <span id="sum-dest" style="font-weight:800;color:var(--green)">—</span></div>
-        <div><span style="color:var(--muted2)"><?=$ar?'المبلغ:':'Amount:'?></span> <span id="sum-amount" style="font-weight:800">—</span></div>
-        <div><span style="color:var(--muted2)"><?=$ar?'النوع:':'Type:'?></span> <span id="sum-type" style="font-weight:800">—</span></div>
-        <div id="sum-wallet-row" style="display:none;grid-column:span 2"><span style="color:var(--muted2)"><?=$ar?'المحفظة:':'Wallet:'?></span> <span id="sum-wallet" style="font-family:monospace;font-size:.75rem;word-break:break-all">—</span></div>
-      </div>
-    </div>
-
-    <div style="display:flex;gap:12px">
-      <button class="continue-btn" style="background:rgba(255,255,255,.06);color:var(--text);box-shadow:none;flex:0 0 120px" onclick="goStep(3)">
-        <i class="fas fa-arrow-right"></i> <?=$ar?'رجوع':'Back'?>
-      </button>
-      <button class="continue-btn" id="btn-proceed" onclick="proceedToCheckout()">
-        <i class="fas fa-lock"></i> <?=$ar?'تأكيد والمتابعة للدفع':'Confirm & Proceed to Payment'?>
-      </button>
-    </div>
-  </div>
 </div>
 
 <div id="toast"></div>
 
 <script>
 const AR   = <?=$ar?'true':'false'?>;
-const CSRF = '<?=$csrf?>';
-
 const STATE = {
   line: null,
   channel: null,
   gateway: null,
-  destination: 'gateway',
-  walletAddr: <?=json_encode($ledgerAddr)?>,
   amount: 0,
   currency: 'USD',
   txnType: 'purchase_3d',
 };
-const LEDGER_ADDR = <?=json_encode($ledgerAddr)?>;
 const POS_GWS = <?=json_encode(array_keys($connectedPos), JSON_UNESCAPED_UNICODE)?>;
 const CHECKOUT_GWS = <?=json_encode(array_keys($connectedCheckout), JSON_UNESCAPED_UNICODE)?>;
 const LINK_GWS = <?=json_encode(array_keys($connectedLink), JSON_UNESCAPED_UNICODE)?>;
@@ -502,6 +423,8 @@ const LINK_GWS = <?=json_encode(array_keys($connectedLink), JSON_UNESCAPED_UNICO
 const GW_ROUTES = <?=json_encode($gatewayRoutes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
 const POS_ROUTES = <?=json_encode($posRoutes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
 const LINK_ROUTES = <?=json_encode($linkRoutes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
+const GW_CURRENCIES = <?=json_encode($gatewayCurrencies, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
+const GW_OPERATIONS = <?=json_encode($gatewayOperations, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
 
 function selectActivity(code, el) {
   STATE.line = code || null;
@@ -527,6 +450,7 @@ function selectChannel(code, el) {
   STATE.gateway = null;
   const gwBtn = document.getElementById('btn-step3gw');
   if (gwBtn) gwBtn.disabled = true;
+  configureStep4();
 }
 window.selectChannel = selectChannel;
 
@@ -535,20 +459,60 @@ function selectGateway(code, el) {
   document.querySelectorAll('.gw-card[id^="gw-"]').forEach(card => card.classList.remove('selected'));
   if (el) el.classList.add('selected');
   const btn = document.getElementById('btn-step3gw');
-  if (btn) btn.disabled = false;
-  STATE.destination = 'gateway';
-  STATE.walletAddr = '';
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = STATE.channel === 'link'
+      ? (AR ? 'التالي — تفاصيل الرابط <i class="fas fa-arrow-left"></i>' : 'Next — Link details <i class="fas fa-arrow-left"></i>')
+      : (code === 'wise'
+        ? (AR ? 'التالي — بيانات المستفيد <i class="fas fa-arrow-left"></i>' : 'Next — Recipient details <i class="fas fa-arrow-left"></i>')
+        : (code === 'square_online'
+          ? (AR ? 'التالي — الخدمات <i class="fas fa-arrow-left"></i>' : 'Next — Services <i class="fas fa-arrow-left"></i>')
+          : (AR ? 'التالي — المبلغ والتفاصيل <i class="fas fa-arrow-left"></i>' : 'Next — Amount & details <i class="fas fa-arrow-left"></i>')));
+  }
+  const allowedOps = GW_OPERATIONS[code] || [];
+  document.querySelectorAll('#txnTypeGrid > div').forEach(card => {
+    const visible = allowedOps.includes((card.id || '').replace('rtt-', ''));
+    card.style.display = visible ? '' : 'none';
+  });
+  if (allowedOps.length && !allowedOps.includes(STATE_TXN.type)) {
+    const defaultOp = document.getElementById('rtt-' + allowedOps[0]);
+    if (defaultOp) window.selectTxnTypeRouter(allowedOps[0], defaultOp);
+  }
+  applyCurrencyChoices(code);
+  configureStep4();
 }
 window.selectGateway = selectGateway;
 
-function lockLedgerOnlyDestination(code) {
-  document.querySelectorAll('.dest-card').forEach(card => {
-    const id = (card.id || '').replace('dest-', '');
-    card.style.display = id === 'ledger_trx' ? '' : 'none';
-    if (id !== 'ledger_trx') card.classList.remove('selected');
+function applyCurrencyChoices(code) {
+  const select = document.getElementById('txnCurrency');
+  const allowed = GW_CURRENCIES[code] || ['USD'];
+  if (!select) return;
+  Array.from(select.options).forEach(option => {
+    const enabled = allowed.includes(option.value);
+    option.hidden = !enabled;
+    option.disabled = !enabled;
   });
-  const ledger = document.getElementById('dest-ledger_trx');
-  if (ledger) selectDestination('ledger_trx', ledger);
+  if (!allowed.includes(select.value)) select.value = allowed[0] || 'USD';
+}
+
+function configureStep4() {
+  const linkMode = STATE.channel === 'link';
+  const wiseTransfer = STATE.channel === 'checkout' && STATE.gateway === 'wise';
+  const fulfillment = STATE.channel === 'checkout' && STATE.gateway === 'square_online';
+  const bankTransfer = STATE.channel === 'checkout' && ['mashreq', 'hsbc_uae', 'nbe_egypt', 'jpmorgan'].includes(STATE.gateway);
+  const ops = document.getElementById('txnOpsWrap');
+  const sec = document.getElementById('secModeWrap');
+  const amount = document.getElementById('txnAmountWrap');
+  const next = document.getElementById('btn-step3');
+  if (ops) ops.style.display = linkMode || wiseTransfer || fulfillment ? 'none' : '';
+  if (sec) sec.style.display = linkMode || wiseTransfer || fulfillment || bankTransfer ? 'none' : '';
+  if (amount) amount.style.display = fulfillment ? 'none' : '';
+  if (next) {
+    next.innerHTML = fulfillment
+      ? (AR ? 'فتح خدمات Square Online <i class="fas fa-arrow-left"></i>' : 'Open Square Online services <i class="fas fa-arrow-left"></i>')
+      : (AR ? 'متابعة <i class="fas fa-arrow-left"></i>' : 'Continue <i class="fas fa-arrow-left"></i>');
+  }
+  updateSummary();
 }
 
 function goStep(n) {
@@ -557,7 +521,7 @@ function goStep(n) {
     return;
   }
   if (n === 3 && !STATE.channel) {
-    toast(AR ? 'اختر POS أو رابط' : 'Select POS or Link', 'error');
+    toast(AR ? 'اختر القناة' : 'Select a channel', 'error');
     return;
   }
   if (n === 4 && !STATE.gateway) {
@@ -574,9 +538,6 @@ function goStep(n) {
 }
 
 const STATE_TXN = { type: 'purchase_3d', secMode: '3D' };
-const NEED_ORIG = ['auth_complete', 'refund', 'reversal', 'void', 'offline_purchase', 'online_purchase'];
-const NO_AMOUNT = ['balance', 'settlement'];
-
 function selectTxnTypeRouter(type, el) {
   STATE_TXN.type = type;
   document.querySelectorAll('#txnTypeGrid > div').forEach(d => {
@@ -591,9 +552,7 @@ function selectTxnTypeRouter(type, el) {
   const name = el.querySelector('.rtt-name');
   if (name) name.style.color = 'var(--gold)';
 
-  const needsRrn = el.dataset.needsRrn === '1';
   const secWrap = document.getElementById('secModeWrap');
-  const origWrap = document.getElementById('origRefWrap');
   if (secWrap) secWrap.style.display = (type === 'purchase_3d' || type === 'purchase_2d' || type === 'purchase_moto') ? '' : 'none';
   if (type === 'purchase_2d' && typeof window.selectSecMode === 'function') {
     const sm2 = document.getElementById('smode-2D');
@@ -602,14 +561,6 @@ function selectTxnTypeRouter(type, el) {
   if (type === 'purchase_3d' && typeof window.selectSecMode === 'function') {
     const sm3 = document.getElementById('smode-3D');
     if (sm3) window.selectSecMode('3D', sm3);
-  }
-  if (origWrap) origWrap.style.display = needsRrn ? '' : 'none';
-
-  if (needsRrn) {
-    const orig = document.getElementById('txnOrigRef');
-    const approval = document.getElementById('txnApprovalCode');
-    if (orig) orig.placeholder = 'Previous transaction reference';
-    if (approval) approval.placeholder = 'Approval code';
   }
 }
 window.selectTxnTypeRouter = selectTxnTypeRouter;
@@ -655,93 +606,14 @@ window.addEventListener('DOMContentLoaded', function() {
   const defaultTxn = document.getElementById('rtt-purchase_3d');
   if (defaultTxn) window.selectTxnTypeRouter('purchase_3d', defaultTxn);
   if (document.getElementById('smode-3D')) window.selectSecMode('3D', document.getElementById('smode-3D'));
-  document.getElementById('txnAmount').value = '10';
   updateSummary();
 });
-
-function selectDestination(code, el) {
-  STATE.destination = code || 'gateway';
-  document.querySelectorAll('.dest-card').forEach(c => c.classList.remove('selected'));
-  if (el) el.classList.add('selected');
-  const btn = document.getElementById('btn-step2');
-  if (btn) btn.disabled = false;
-
-  const customCodes = ['tron_w', 'erc20_w', 'btc_w'];
-  const wrap = document.getElementById('customWalletWrap');
-  if (wrap) wrap.className = customCodes.includes(code) ? 'wallet-input-wrap show' : 'wallet-input-wrap';
-
-  const labels = {
-    tron_w: AR ? 'عنوان TRC20' : 'TRC20 Address',
-    erc20_w: AR ? 'عنوان ERC20' : 'ERC20 Address',
-    btc_w: AR ? 'عنوان Bitcoin' : 'Bitcoin Address',
-  };
-  const labelEl = document.getElementById('customWalletLabel');
-  if (labels[code] && labelEl) labelEl.innerHTML = '<i class="fas fa-wallet"></i> ' + labels[code];
-}
-window.selectDestination = selectDestination;
 
 function updateSummary() {
   const amt = parseFloat(document.getElementById('txnAmount').value) || 0;
   const step3 = document.getElementById('btn-step3');
-  if (step3) step3.disabled = amt <= 0;
-}
-
-function updateConfirmSummary() {
-  const gwNames = <?=json_encode(array_map(fn($g) => $g['name'], $gateways))?>;
-  const destNames = {
-    gateway: AR ? 'نفس البوابة' : 'Same Gateway',
-    stripe: 'Stripe',
-    paypal: 'PayPal',
-    nuvei: 'Nuvei (Mashreq)',
-    wise: 'Wise',
-    myfatoorah: 'MyFatoorah',
-    binance_ex: 'Binance',
-    gate_io: 'Gate.io',
-    whop: 'Whop',
-    mashreq: 'Mashreq Bank',
-    hsbc: 'HSBC UAE',
-    nbe: 'NBE Egypt',
-    jpmorgan: 'JP Morgan',
-    ledger_trx: 'Ledger TRX',
-    tron_w: 'Custom TRC20',
-    erc20_w: 'Custom ERC20',
-    btc_w: 'Bitcoin'
-  };
-  const typeNames = {
-    purchase_3d: 'Purchase 3D',
-    purchase_moto: 'Purchase MOTO',
-    auth: 'Authorization',
-    auth_complete: 'Auth Completion',
-    purchase_advice: 'Purchase Advice',
-    offline_purchase: 'Offline Purchase',
-    online_purchase: 'Online Purchase',
-    refund: 'Refund',
-    reversal: 'Reversal',
-    balance: 'Balance Inquiry',
-    cash_advance: 'Cash Advance',
-    void: 'Void',
-    settlement: 'Settlement',
-    quasi_cash: 'Quasi Cash',
-    transfer: 'Transfer',
-    payment: 'Bill Payment',
-  };
-
-  const gwEl = document.getElementById('sum-gw');
-  const destEl = document.getElementById('sum-dest');
-  const amountEl = document.getElementById('sum-amount');
-  const typeEl = document.getElementById('sum-type');
-
-  if (gwEl) gwEl.textContent = gwNames[STATE.gateway] || STATE.gateway;
-  if (destEl) destEl.textContent = destNames[STATE.destination] || STATE.destination;
-  if (amountEl) amountEl.textContent = STATE.amount.toFixed(2) + ' ' + STATE.currency;
-  if (typeEl) typeEl.textContent = typeNames[STATE.txnType] || STATE.txnType;
-
-  const walletRow = document.getElementById('sum-wallet-row');
-  const walletAddr = document.getElementById('customWalletAddr')?.value.trim() || (STATE.destination === 'ledger_trx' ? <?=json_encode(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '')?> : '');
-  STATE.walletAddr = walletAddr;
-  const sumWallet = document.getElementById('sum-wallet');
-  if (walletRow) walletRow.style.display = walletAddr ? '' : 'none';
-  if (sumWallet) sumWallet.textContent = walletAddr || '—';
+  const needsAmount = !(STATE.channel === 'checkout' && STATE.gateway === 'square_online');
+  if (step3) step3.disabled = needsAmount && amt <= 0;
 }
 
 window.proceedToCheckout = function() {
@@ -749,18 +621,29 @@ window.proceedToCheckout = function() {
     toast(AR ? 'أكمل النشاط والقناة والبوابة' : 'Complete activity, channel, and gateway', 'error');
     return;
   }
-  STATE.destination = 'gateway';
-  STATE.walletAddr = '';
   STATE.txnType = STATE_TXN.type;
   STATE.amount = parseFloat(document.getElementById('txnAmount')?.value) || 0;
   STATE.currency = document.getElementById('txnCurrency')?.value || 'USD';
+
+  if (STATE.channel === 'checkout' && STATE.gateway === 'square_online') {
+    const serviceRoute = GW_ROUTES[STATE.gateway];
+    if (serviceRoute) window.location.href = serviceRoute;
+    else toast(AR ? 'صفحة الخدمات غير متاحة' : 'Services page is unavailable', 'error');
+    return;
+  }
+  if (STATE.amount <= 0) {
+    toast(AR ? 'أدخل مبلغاً أكبر من صفر' : 'Enter an amount greater than zero', 'error');
+    return;
+  }
 
   if (STATE.channel === 'pos') {
     const q = new URLSearchParams({
       kiosk: '1',
       gw: STATE.gateway,
       line: STATE.line,
-      op: STATE.txnType
+      op: STATE.txnType,
+      amount: String(STATE.amount),
+      currency: STATE.currency
     });
     const routerDevice = <?= json_encode(strtolower(preg_replace('/[^a-z0-9_]/', '', (string) ($_GET['device'] ?? $_COOKIE['di_parma_pos_model'] ?? ''))), JSON_UNESCAPED_UNICODE) ?>;
     if (routerDevice) q.set('device', routerDevice);
@@ -796,11 +679,7 @@ window.proceedToCheckout = function() {
     txn_type: STATE.txnType,
     op: STATE.txnType,
     line: STATE.line,
-    sec_mode: STATE_TXN.secMode,
-    orig_ref: document.getElementById('txnOrigRef')?.value.trim() || '',
-    approval_code: document.getElementById('txnApprovalCode')?.value.trim() || '',
-    notes: document.getElementById('txnNotes')?.value.trim() || '',
-    csrf_token: CSRF
+    sec_mode: STATE_TXN.secMode
   });
   window.location.href = route + '?' + params.toString();
 };

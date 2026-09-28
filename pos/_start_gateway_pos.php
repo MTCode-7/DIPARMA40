@@ -9,6 +9,22 @@ if (empty($gwCode)) {
 }
 
 $gwCode = strtolower(trim((string) $gwCode));
+if (!function_exists('dp_gateway_is_visible_on_channels')) {
+    $root = dirname(__DIR__);
+    if (is_file($root . '/includes/config.php')) {
+        require_once $root . '/includes/config.php';
+    }
+    if (is_file($root . '/includes/database.php')) {
+        require_once $root . '/includes/database.php';
+    }
+    if (is_file($root . '/includes/gateways.php')) {
+        require_once $root . '/includes/gateways.php';
+    }
+}
+if ($gwCode !== 'ledger' && function_exists('dp_gateway_is_visible_on_channels') && !dp_gateway_is_visible_on_channels($gwCode)) {
+    header('Location: index.php?kiosk=1', true, 302);
+    exit;
+}
 $qs = [
     'kiosk' => '1',
     'gw' => $gwCode,

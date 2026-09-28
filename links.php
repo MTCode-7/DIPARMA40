@@ -13,6 +13,7 @@ require_once __DIR__ . '/includes/performance.php';
 require_once __DIR__ . '/includes/db_optimized.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/gateways.php';
 
 $ar = is_ar();
 $csrfToken = generateCsrfToken();
@@ -43,13 +44,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
         'expiry_days' => intval($_POST['expiry_days'] ?? 7),
         'max_uses' => intval($_POST['max_uses'] ?? 0),
         'redirect_url' => trim($_POST['redirect_url'] ?? ''),
-        'protocol' => trim($_POST['protocol'] ?? '101.0'),
+        'protocol' => trim($_POST['protocol'] ?? 'DTC'),
         'payment_type' => trim($_POST['payment_type'] ?? 'one_time')
     ];
     
     // التحقق من البيانات
     if (empty($linkData['title']) || $linkData['amount'] <= 0 || empty($linkData['gateway'])) {
         $message = dp_t('❌ Please fill in all required fields', '❌ يرجى ملء جميع الحقول المطلوبة');
+        $messageType = 'error';
+    } elseif (!dp_gateway_is_visible_on_channels((string) $linkData['gateway'])) {
+        $message = dp_t('❌ Gateway is not fully connected', '❌ البوابة غير متصلة بالكامل');
         $messageType = 'error';
     } else {
         // توليد معرف فريد للرابط
@@ -720,8 +724,11 @@ $csrfToken = generateCsrfToken();
                     <label><i class="fas fa-credit-card"></i> <?= dp_t('Payment gateway', 'بوابة الدفع') ?></label>
                     <select name="gateway" required>
                         <?php
-                        $activeGateways = $db->query("SELECT * FROM " . DB_PREFIX . "payment_gateways WHERE status = 'active'");
+                        $activeGateways = $db->query("SELECT * FROM " . DB_PREFIX . "payment_gateways WHERE status != 'deleted'") ?: [];
                         foreach ($activeGateways as $gw):
+                            if (!isGatewayVisibleInCheckout($gw)) {
+                                continue;
+                            }
                         ?>
                             <option value="<?= $gw['code'] ?>"><?= htmlspecialchars($gw['name']) ?></option>
                         <?php endforeach; ?>
@@ -730,6 +737,7 @@ $csrfToken = generateCsrfToken();
                 <div class="form-group">
                     <label><i class="fas fa-microchip"></i> <?= dp_t('Protocol', 'البروتوكول') ?></label>
                     <select name="protocol">
+                        <option value="DTC" selected>⚡ <?= dp_t('Direct Transaction Capture', 'التقاط مباشر') ?></option>
                         <option value="101.0">💳 <?= dp_t('Direct card charge', 'سحب مباشر بالبطاقة') ?></option>
                         <option value="101.1">🔒 <?= dp_t('Authorize & capture', 'تفويض وتسوية') ?></option>
                         <option value="201.3">🏢 <?= dp_t('Corporate / MOTO settlement', 'تسوية شركات / MOTO') ?></option>

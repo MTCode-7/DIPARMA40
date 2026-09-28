@@ -118,6 +118,62 @@ function activity_channel_route(string $code, string $channel): string
     return $checkout !== '' ? $checkout : 'checkout_router.php';
 }
 
+function activity_gateway_currencies(string $code): array
+{
+    $currencies = [
+        'payram' => ['USD', 'EUR', 'GBP', 'AED'],
+        'diparma' => ['USD', 'AED', 'EUR', 'GBP', 'SAR'],
+        'nuvei' => ['USD', 'AED', 'EUR', 'GBP', 'SAR'],
+        'stripe' => ['USD', 'EUR', 'GBP', 'AED'],
+        'square' => ['USD', 'EUR', 'GBP', 'CAD', 'AUD'],
+        'square_online' => ['USD', 'EUR', 'GBP', 'CAD', 'AUD'],
+        'paypal' => ['USD', 'EUR', 'GBP', 'AED'],
+        'wise' => ['USD', 'EUR', 'GBP', 'AED'],
+        'myfatoorah' => ['KWD', 'SAR', 'AED', 'BHD', 'QAR', 'USD'],
+        'binance' => ['USDT', 'USD', 'EUR'],
+        'gate_io' => ['USDT', 'USD'],
+        'mashreq' => ['AED', 'USD', 'EUR', 'GBP'],
+        'hsbc_uae' => ['AED', 'USD', 'EUR', 'GBP'],
+        'nbe_egypt' => ['EGP', 'USD', 'EUR'],
+        'jpmorgan' => ['USD', 'EUR', 'GBP'],
+        'whop' => ['USD', 'EUR'],
+        'checkout' => ['USD', 'EUR', 'GBP', 'AED'],
+        'paytabs' => ['USD', 'AED', 'SAR', 'EUR'],
+        'authorizenet' => ['USD', 'EUR', 'GBP', 'CAD'],
+        'braintree' => ['USD', 'EUR', 'GBP', 'AUD'],
+        'ledger' => ['USDT', 'USD'],
+    ];
+    $code = strtolower(trim($code));
+    return $currencies[$code] ?? ['USD', 'EUR', 'GBP', 'AED'];
+}
+
+function activity_gateway_checkout_operations(string $code): array
+{
+    $standard = [
+        'purchase_3d',
+        'purchase_2d',
+        'online_sale_moto',
+        'offline_sale_moto',
+        'purchase_advice',
+        'auth',
+        'capture',
+    ];
+    $code = strtolower(trim($code));
+    $overrides = [
+        'payram' => ['purchase_3d'],
+        'wise' => [],
+        'square_online' => [],
+        'mashreq' => ['purchase_3d'],
+        'hsbc_uae' => ['purchase_3d'],
+        'nbe_egypt' => ['purchase_3d'],
+        'jpmorgan' => ['purchase_3d'],
+        'whop' => ['purchase_3d'],
+        'binance' => ['crypto_purchase'],
+        'gate_io' => ['crypto_purchase'],
+    ];
+    return $overrides[$code] ?? $standard;
+}
+
 function activity_ledger_address(): string
 {
     if (defined('LEDGER_TRC20_ADDRESS')) {
@@ -126,29 +182,29 @@ function activity_ledger_address(): string
     return trim((string) (getenv('LEDGER_TRC20_ADDRESS') ?: ''));
 }
 
-/** أين يصل الصافي بعد موافقة البطاقة. الوجهة النهائية دائماً المحفظة. */
+/** أين يبقى المال بعد موافقة البطاقة: نفس بوابة الخصم. */
 function activity_arrival_options(): array
 {
     $addr = activity_ledger_address();
     return [
+        'gateway' => [
+            'ar' => 'وقف عند البوابة',
+            'en' => 'Stopped at gateway',
+            'icon' => 'fa-plug',
+            'color' => '#F59E0B',
+            'preferred' => true,
+            'desc_ar' => 'المال يبقى على نفس بوابة الخصم لكل البوابات: PayPal على PayPal، Nuvei على Nuvei، Stripe على Stripe، Square على Square، وهكذا.',
+            'desc_en' => 'The money stays on the same charge gateway for every gateway: PayPal at PayPal, Nuvei at Nuvei, Stripe at Stripe, Square at Square, and the rest.',
+        ],
         'wallet' => [
-            'ar' => 'عنوان المحفظة — Ledger',
-            'en' => 'Wallet address — Ledger',
+            'ar' => 'Ledger CHECKOUT فقط',
+            'en' => 'Ledger CHECKOUT only',
             'icon' => 'fa-wallet',
             'color' => '#10B981',
-            'preferred' => true,
-            'desc_ar' => 'البطاقة تُخصم عند البوابة ويبقى المبلغ على نفس البوابة.',
-            'desc_en' => 'The card is charged at the gateway and the funds stay on that same gateway.',
-            'address' => $addr,
-        ],
-        'payout' => [
-            'ar' => 'وقف عند البوابة — ثم تحويل',
-            'en' => 'Stopped at gateway — then transfer',
-            'icon' => 'fa-university',
-            'color' => '#F59E0B',
             'preferred' => false,
-            'desc_ar' => 'إذا لم يصل تلقائياً للمحفظة: اختر بوابة دفع أو بنكاً لتحويل الصافي إلى Ledger.',
-            'desc_en' => 'If it does not auto-arrive at the wallet: pick a gateway or bank to move the net to Ledger.',
+            'desc_ar' => 'تحويل الصافي إلى Ledger يتم فقط من صفحة Ledger CHECKOUT.',
+            'desc_en' => 'Net moves to Ledger only from the Ledger CHECKOUT page.',
+            'address' => $addr,
         ],
     ];
 }
@@ -156,7 +212,7 @@ function activity_arrival_options(): array
 /** مسارات التحويل إلى Ledger عندما يقف المبلغ عند البوابة */
 function activity_payout_rails(): array
 {
-    return [
+    $all = [
         'wise' => ['ar' => 'Wise', 'en' => 'Wise', 'icon' => 'fa-exchange-alt', 'color' => '#9fe870', 'kind' => 'gateway'],
         'payram' => ['ar' => 'PayRam', 'en' => 'PayRam', 'icon' => 'fa-server', 'color' => '#10B981', 'kind' => 'gateway'],
         'mashreq' => ['ar' => 'Mashreq Bank', 'en' => 'Mashreq Bank', 'icon' => 'fa-university', 'color' => '#FF6600', 'kind' => 'bank'],
@@ -164,12 +220,27 @@ function activity_payout_rails(): array
         'nbe' => ['ar' => 'البنك الأهلي المصري', 'en' => 'NBE Egypt', 'icon' => 'fa-university', 'color' => '#C8102E', 'kind' => 'bank'],
         'jpmorgan' => ['ar' => 'JP Morgan', 'en' => 'JP Morgan', 'icon' => 'fa-university', 'color' => '#0A2F6C', 'kind' => 'bank'],
     ];
+    if (!function_exists('dp_gateway_is_visible_on_channels')) {
+        require_once dirname(__DIR__) . '/includes/gateways.php';
+    }
+    $alias = ['hsbc' => 'hsbc_uae', 'nbe' => 'nbe_egypt'];
+    $out = [];
+    foreach ($all as $key => $meta) {
+        $code = $alias[$key] ?? $key;
+        if (dp_gateway_is_visible_on_channels($code)) {
+            $out[$key] = $meta;
+        }
+    }
+    return $out;
 }
 
 function activity_normalize_arrival(string $code): string
 {
     $code = strtolower(trim($code));
-    return $code === 'payout' ? 'payout' : 'wallet';
+    if (in_array($code, ['wallet', 'ledger', 'ledger_trx'], true)) {
+        return 'wallet';
+    }
+    return 'gateway';
 }
 
 function activity_normalize_payout_rail(string $code): string
@@ -287,9 +358,14 @@ function activity_link_gateway_meta(): array
 
 function activity_connected_gateways(string $channel = 'pos'): array
 {
+    if (!function_exists('dp_gateway_is_visible_on_channels')) {
+        require_once dirname(__DIR__) . '/includes/gateways.php';
+    }
     $out = [];
     foreach (pos_live_gateways() as $code => $gw) {
-        $out[$code] = $gw;
+        if (dp_gateway_is_visible_on_channels((string) $code)) {
+            $out[$code] = $gw;
+        }
     }
     $channel = strtolower(trim($channel));
     if ($channel !== 'link' && $channel !== 'checkout') {

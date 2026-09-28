@@ -27,6 +27,9 @@ function diparma_gateway_channel_bar(
 ): string {
     $code = strtolower(trim($code));
     $active = strtolower(trim($active));
+    if ($code === '' || (function_exists('dp_gateway_is_visible_on_channels') && !dp_gateway_is_visible_on_channels($code))) {
+        return '';
+    }
     if (!in_array($active, ['pos', 'checkout', 'link'], true)) {
         $active = 'checkout';
     }

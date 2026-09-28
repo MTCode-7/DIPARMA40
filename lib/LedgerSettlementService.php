@@ -75,9 +75,21 @@ class LedgerSettlementService
     {
         unset($gatewayCode);
         $destination = strtolower(trim($destination));
-        if ($ledgerCheckout && in_array($destination, ['ledger', 'ledger_trx'], true)) {
-            return false;
+
+        // المسار 2: Ledger — من checkout_ledger أو destination صريح
+        if (in_array($destination, ['ledger', 'ledger_trx'], true)) {
+            return false; // يذهب للـ Ledger
         }
+        if ($ledgerCheckout && in_array($destination, ['ledger', 'ledger_trx', 'wallet'], true)) {
+            return false; // يذهب للـ Ledger
+        }
+
+        // المسار 3: Forward — بنك أو بوابة أخرى
+        if (str_starts_with($destination, 'bank:') || str_starts_with($destination, 'gateway:')) {
+            return false; // يذهب للوجهة المحددة
+        }
+
+        // المسار 1: Gateway — يبقى على نفس البوابة (الافتراضي)
         return true;
     }
 
@@ -120,7 +132,7 @@ class LedgerSettlementService
             'settlement_target' => 'gateway',
             'ledger_address' => '',
             'txid' => null,
-            'message' => 'المبلغ بقي في بوابة ' . $gateway . ' — لا تحويل Ledger',
+            'message' => 'The money stopped at ' . $gateway . ' — no Ledger transfer',
         ];
         $this->persistGatewayRetention($reference, $txnId, $result);
         return $result;
@@ -155,10 +167,133 @@ class LedgerSettlementService
         }
     }
 
+    // ═══════════════════════════════════════════════════════
+    // المسار 3: Forward — إلى بنك أو بوابة أخرى
+    // destination: 'bank:mashreq' | 'bank:jpmorgan' | 'bank:hsbc' |
+    //              'bank:nbe' | 'gateway:wise' | 'gateway:paypal' |
+    //              'gateway:stripe' | 'gateway:binance' | ...
+    // ═══════════════════════════════════════════════════════
+
     /**
-     * رسوم البوابة ثم مضاعفتها (دبل افتراضياً)، والصافي = المبلغ − الرسوم المضاعفة.
-     * مثال: 100 − (3×2) = 94 → يُرسل 94 USDT إلى Ledger.
+     * الوجهات المدعومة للمسار الثالث
      */
+    public static function forwardDestinations(): array
+    {
+        return [
+            // بنوك
+            'bank:mashreq'  => ['name'=>'Mashreq Bank',        'type'=>'bank',    'currency'=>'AED', 'account'=>getenv('MASHREQ_ACCOUNT_NUMBER'),  'iban'=>getenv('MASHREQ_IBAN'),       'swift'=>getenv('MASHREQ_SWIFT')],
+            'bank:jpmorgan' => ['name'=>'JP Morgan Chase',      'type'=>'bank',    'currency'=>'USD', 'account'=>getenv('JPMORGAN_ACCOUNT_NUMBER'), 'routing'=>getenv('JPMORGAN_ROUTING'), 'swift'=>getenv('JPMORGAN_SWIFT')],
+            'bank:hsbc'     => ['name'=>'HSBC UAE',             'type'=>'bank',    'currency'=>'AED', 'account'=>'',                                'swift'=>'BBMEAEAD'],
+            'bank:nbe'      => ['name'=>'NBE Egypt',            'type'=>'bank',    'currency'=>'EGP', 'account'=>'',                                'swift'=>'NBEGEGCX601'],
+            // بوابات
+            'gateway:wise'     => ['name'=>'Wise',    'type'=>'gateway', 'currency'=>'*', 'note'=>'International bank transfer via Wise API'],
+            'gateway:paypal'   => ['name'=>'PayPal',  'type'=>'gateway', 'currency'=>'*', 'note'=>'PayPal payout to linked account'],
+            'gateway:stripe'   => ['name'=>'Stripe',  'type'=>'gateway', 'currency'=>'*', 'note'=>'Stripe payout to bank account'],
+            'gateway:binance'  => ['name'=>'Binance', 'type'=>'gateway', 'currency'=>'*', 'note'=>'Binance transfer/withdrawal'],
+            // Ledger (اختصار)
+            'ledger'           => ['name'=>'Ledger TRC20', 'type'=>'ledger', 'currency'=>'USDT', 'address'=>defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : getenv('LEDGER_TRC20_ADDRESS')],
+            'ledger_trx'       => ['name'=>'Ledger TRC20', 'type'=>'ledger', 'currency'=>'USDT', 'address'=>defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : getenv('LEDGER_TRC20_ADDRESS')],
+        ];
+    }
+
+    /**
+     * المسار 3: تسجيل طلب التحويل للوجهة المحددة
+     * (التنفيذ الفعلي يدوي أو عبر cron/API)
+     */
+    public function forwardToDestination(array $params): array
+    {
+        $reference   = trim((string)($params['reference']   ?? ''));
+        $amount      = (float)($params['amount']            ?? 0);
+        $currency    = strtoupper(trim((string)($params['currency'] ?? 'USD'))) ?: 'USD';
+        $gateway     = $this->normalizeGatewayCode((string)($params['gateway'] ?? ''));
+        $destination = strtolower(trim((string)($params['destination'] ?? '')));
+        $txnId       = isset($params['transaction_id']) ? (int)$params['transaction_id'] : null;
+        $txnType     = strtolower(trim((string)($params['txn_type'] ?? '')));
+
+        // تخطي AUTH / Refund / Void
+        $skipTypes = ['auth', 'auth_hold', 'auth_moto', 'hold', 'refund', 'avoid', 'void', 'reversal'];
+        if ($txnType !== '' && in_array($txnType, $skipTypes, true)) {
+            return ['success' => false, 'skipped' => true, 'message' => 'Forward skipped for txn type ' . $txnType];
+        }
+
+        if ($reference === '' || $amount <= 0 || $destination === '') {
+            return ['success' => false, 'message' => 'Invalid forward params'];
+        }
+
+        $destinations = self::forwardDestinations();
+        $destInfo     = $destinations[$destination] ?? null;
+
+        if ($destInfo === null) {
+            return ['success' => false, 'message' => 'Unknown destination: ' . $destination];
+        }
+
+        $fee    = $this->calculateGatewayFee($gateway, $amount);
+        $net    = $fee['net_amount'];
+
+        $result = [
+            'success'            => true,
+            'route'              => 'forward',
+            'reference'          => $reference,
+            'gateway'            => $gateway,
+            'destination'        => $destination,
+            'destination_info'   => $destInfo,
+            'fee'                => $fee,
+            'net_fiat'           => $net,
+            'settlement_target'  => $destination,
+            'settlement_path'    => $gateway . '_to_' . $destination,
+            'message'            => "مطلوب تحويل {$net} {$currency} من {$gateway} إلى {$destInfo['name']}",
+            'status'             => 'pending_transfer',
+        ];
+
+        // تسجيل في DB
+        try {
+            $db = db();
+            $txn = $txnId ? $db->find('transactions', ['id' => $txnId]) : $db->find('transactions', ['reference' => $reference]);
+            if ($txn) {
+                $blob = json_decode((string)($txn['gateway_response'] ?? ''), true) ?: [];
+                $blob['settlement_target']  = $destination;
+                $blob['settlement_path']    = $result['settlement_path'];
+                $blob['forward_request']    = $result;
+                $blob['ledger_status']      = 'pending_transfer';
+                $data = [
+                    'fees'             => $fee['fee_amount'],
+                    'net_amount'       => $net,
+                    'gateway_response' => json_encode($blob, JSON_UNESCAPED_UNICODE),
+                    'updated_at'       => date('Y-m-d H:i:s'),
+                ];
+                $txnId ? $db->update('transactions', $data, ['id' => $txnId])
+                       : $db->update('transactions', $data, ['reference' => $reference]);
+            }
+
+            // إضافة لطابور التحويل
+            $db->execute(
+                "CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "forward_transfer_queue` (
+                    `id`          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    `reference`   VARCHAR(100) NOT NULL,
+                    `from_gateway` VARCHAR(50) NOT NULL,
+                    `destination` VARCHAR(100) NOT NULL,
+                    `amount`      DECIMAL(18,4) NOT NULL,
+                    `currency`    VARCHAR(10) NOT NULL DEFAULT 'USD',
+                    `net_amount`  DECIMAL(18,4) NOT NULL,
+                    `status`      VARCHAR(30) NOT NULL DEFAULT 'pending',
+                    `notes`       TEXT NULL,
+                    `processed_at` DATETIME NULL,
+                    `created_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    KEY `idx_ref` (`reference`), KEY `idx_status` (`status`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+            );
+            $db->execute(
+                "INSERT INTO " . DB_PREFIX . "forward_transfer_queue
+                 (reference, from_gateway, destination, amount, currency, net_amount, status, notes, created_at)
+                 VALUES (?,?,?,?,?,?,'pending',?,NOW())",
+                [$reference, $gateway, $destination, $amount, $currency, $net, json_encode($destInfo)]
+            );
+        } catch (Throwable $e) {
+            error_log('[Ledger][forward] ' . $e->getMessage());
+        }
+
+        return $result;
+    }
     public function calculateGatewayFee(string $gatewayCode, float $amount): array
     {
         $pct = 2.5;

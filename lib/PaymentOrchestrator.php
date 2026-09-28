@@ -66,14 +66,16 @@ class PaymentOrchestrator
         $hasToken = strlen($hasTokenRaw) >= 8;
         $hasCard = preg_replace('/\D/', '', (string)($input['cc_number'] ?? $input['card_number'] ?? '')) !== '';
         $cardTxnTypes = ['purchase_2d','purchase_3d','purchase','auth','auth_hold','auth_moto','capture','purchase_advice','purchase_offline','purchase_online','moto_purchase'];
-        if ($protocol === '201.3'
-            || in_array($paymentType, ['MOTO', 'ONLINE_MOTO'], true)
+        $protocolNorm = strtoupper(trim($protocol));
+        if ($protocolNorm === 'DTC'
+            || $protocol === '201.3'
+            || in_array($paymentType, ['MOTO', 'ONLINE_MOTO', 'DTC'], true)
             || (($hasCard || $hasToken) && in_array($txnHint, $cardTxnTypes, true))
         ) {
             $input['card_provider'] = $cardProvider;
             $input['gateway'] = $cardProvider;
             if ($protocol === '') {
-                $input['protocol'] = '201.3';
+                $input['protocol'] = 'DTC';
             }
             return $this->initiateMOTO($input, $userId, $reference);
         }
