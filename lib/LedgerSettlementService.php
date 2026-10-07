@@ -223,6 +223,26 @@ class LedgerSettlementService
         $destinations = self::forwardDestinations();
         $destInfo     = $destinations[$destination] ?? null;
 
+        if ($destInfo === null && str_starts_with($destination, 'gateway:')) {
+            $targetCode = substr($destination, strlen('gateway:'));
+            if (function_exists('dp_gateway_normalize_code')) {
+                $targetCode = dp_gateway_normalize_code($targetCode);
+            }
+            $sourceCode = $this->normalizeGatewayCode($gateway);
+            if ($targetCode !== '' && $targetCode !== $sourceCode
+                && function_exists('dp_gateway_is_visible_on_channels')
+                && dp_gateway_is_visible_on_channels($targetCode)) {
+                $targetMeta = function_exists('pos_gateway_meta') ? pos_gateway_meta($targetCode) : null;
+                $destInfo = [
+                    'name' => (string) ($targetMeta['name'] ?? strtoupper($targetCode)),
+                    'type' => 'gateway',
+                    'currency' => '*',
+                    'gateway' => $targetCode,
+                    'note' => 'Manual payout request; no automatic cross-provider transfer is available.',
+                ];
+            }
+        }
+
         if ($destInfo === null) {
             return ['success' => false, 'message' => 'Unknown destination: ' . $destination];
         }
@@ -382,6 +402,9 @@ class LedgerSettlementService
             || strtolower((string) ($params['source'] ?? '')) === 'ledger_checkout';
         if ($this->keepsFundsOnGateway($gateway, $target, $ledgerCheckout)) {
             return $this->retainOnGateway($params);
+        }
+        if (str_starts_with($target, 'gateway:')) {
+            return $this->forwardToDestination(array_merge($params, ['destination' => $target]));
         }
         $configured = defined('LEDGER_TRC20_ADDRESS') ? trim((string) LEDGER_TRC20_ADDRESS) : '';
         $ledgerAddr = $configured !== '' ? $configured : trim((string) ($params['ledger_address'] ?? ''));

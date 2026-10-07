@@ -40,14 +40,34 @@ if (isset($_GET['logout'])) {
 
 $error = '';
 
+// ── Brute Force Protection ───────────────────────────────────
+$maxAttempts  = defined('MAX_LOGIN_ATTEMPTS') ? (int) MAX_LOGIN_ATTEMPTS : 5;
+$lockDuration = 15 * 60; // 15 دقيقة
+$attemptKey   = 'login_attempts_' . md5(($_SERVER['REMOTE_ADDR'] ?? '0') . ($currentLang ?? 'ar'));
+$lockKey      = 'login_locked_' . md5($_SERVER['REMOTE_ADDR'] ?? '0');
+
+if (!isset($_SESSION[$attemptKey])) $_SESSION[$attemptKey] = 0;
+if (!isset($_SESSION[$lockKey]))    $_SESSION[$lockKey]    = 0;
+
+$isLocked = (time() < (int)$_SESSION[$lockKey]);
+if ($isLocked) {
+    $remainSec = (int)$_SESSION[$lockKey] - time();
+    $error = dp_t(
+        'Too many failed attempts. Please try again in ' . ceil($remainSec / 60) . ' minutes.',
+        'محاولات كثيرة. يرجى المحاولة بعد ' . ceil($remainSec / 60) . ' دقيقة.'
+    );
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
-    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+    if ($isLocked) {
+        // لا نعالج الطلب إذا كان الحساب محجوباً
+    } elseif (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $error = dp_t('Invalid security token. Please try again.', 'رمز الأمان غير صالح. حاول مرة أخرى.');
     }
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
-    
-        if ($error === '') {
+
+    if (!$isLocked && $error === '') {
             if (empty($username) || empty($password)) {
         $error = dp_t('Please enter username and password.', 'يرجى إدخال اسم المستخدم وكلمة المرور');
             } else {
@@ -65,7 +85,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             } elseif ($user && ($user['status'] ?? 'active') === 'pending') {
                 $error = dp_t('Your account is pending admin approval. Please wait.', 'حسابك قيد المراجعة — في انتظار موافقة الإدارة');
             } elseif ($user && password_verify($password, $user['password_hash'])) {
+                // تسجيل دخول ناجح — إعادة ضبط العداد
+                $_SESSION[$attemptKey] = 0;
+                $_SESSION[$lockKey]    = 0;
                 session_regenerate_id(true);
+                // تجديد CSRF token بعد تسجيل الدخول
+                unset($_SESSION['csrf_token']);
+                generateCsrfToken();
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['role']    = $user['role'] ?? 'user';
                 $_SESSION['username']= $user['username'];
@@ -86,6 +112,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
                 exit();
             } else {
                 $error = dp_t('Incorrect username or password.', 'اسم المستخدم أو كلمة المرور غير صحيحة');
+                // زيادة عداد المحاولات الفاشلة
+                $_SESSION[$attemptKey]++;
+                if ($_SESSION[$attemptKey] >= $maxAttempts) {
+                    $_SESSION[$lockKey] = time() + $lockDuration;
+                    $_SESSION[$attemptKey] = 0;
+                    $error = dp_t(
+                        'Too many failed attempts. Account locked for 15 minutes.',
+                        'تجاوزت الحد المسموح. الحساب محجوب لمدة 15 دقيقة.'
+                    );
+                }
             }
         } catch (Exception $e) {
             $error = dp_t('A system error occurred.', 'حدث خطأ في النظام');

@@ -79,7 +79,7 @@ function pos_operation_catalog(): array
             'security' => '3D',
             'requires_otp' => true,
             'requires_card' => true,
-            'requires_cvv' => true,
+            'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
             'requires_approval' => false,
@@ -87,8 +87,8 @@ function pos_operation_catalog(): array
             'linked_to_auth' => false,
             'amount_flexible' => false,
             'method' => 'purchase3d',
-            'desc_ar' => 'بطاقة + انتهاء + CVV. البوابة تطلب OTP إن لزم. قبل 3DS لا موافقة. بعد النجاح يبقى المبلغ على نفس البوابة.',
-            'desc_en' => 'Card + expiry + CVV. Gateway OTP if required. No approval before 3DS. After success the funds stay on the same gateway.',
+            'desc_ar' => 'بطاقة + انتهاء. CVV/CVC اختياري. البوابة تطلب OTP إن لزم. قبل 3DS لا موافقة. بعد النجاح يبقى المبلغ على نفس البوابة.',
+            'desc_en' => 'Card + expiry. CVV/CVC is optional. Gateway OTP if required. No approval before 3DS. After success the funds stay on the same gateway.',
         ],
         'purchase_2d' => [
             'ar' => 'شراء 2D',
@@ -98,7 +98,7 @@ function pos_operation_catalog(): array
             'security' => '2D',
             'requires_otp' => false,
             'requires_card' => true,
-            'requires_cvv' => true,
+            'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
             'requires_approval' => false,
@@ -106,8 +106,8 @@ function pos_operation_catalog(): array
             'linked_to_auth' => false,
             'amount_flexible' => false,
             'method' => 'purchase2d',
-            'desc_ar' => 'بطاقة + انتهاء + CVV. بدون OTP. بيع فوري على البوابة. إذا APPROVED يبقى المبلغ على نفس البوابة.',
-            'desc_en' => 'Card + expiry + CVV. No OTP. Immediate gateway sale. If APPROVED the funds stay on the same gateway.',
+            'desc_ar' => 'بطاقة + انتهاء. CVV/CVC اختياري. بدون OTP. بيع فوري على البوابة. إذا APPROVED يبقى المبلغ على نفس البوابة.',
+            'desc_en' => 'Card + expiry. CVV/CVC is optional. No OTP. Immediate gateway sale. If APPROVED the funds stay on the same gateway.',
         ],
         'auth' => [
             'ar' => 'تفويض (حجز)',
@@ -210,7 +210,7 @@ function pos_operation_catalog(): array
             'requires_expiry' => true,
             'requires_rrn' => true,
             'requires_approval' => true,
-            'requires_payment_id' => true,
+            'requires_payment_id' => false,
             'approval_len' => 6,
             'linked_to_auth' => false,
             'amount_flexible' => false,
@@ -268,7 +268,7 @@ function pos_operation_catalog(): array
             'security' => '2D',
             'requires_otp' => false,
             'requires_card' => true,
-            'requires_cvv' => true,
+            'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
             'requires_approval' => false,
@@ -287,7 +287,7 @@ function pos_operation_catalog(): array
             'security' => '2D',
             'requires_otp' => false,
             'requires_card' => true,
-            'requires_cvv' => true,
+            'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
             'requires_approval' => false,
@@ -306,7 +306,7 @@ function pos_operation_catalog(): array
             'security' => '2D',
             'requires_otp' => false,
             'requires_card' => true,
-            'requires_cvv' => true,
+            'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
             'requires_approval' => false,
@@ -325,7 +325,7 @@ function pos_operation_catalog(): array
             'security' => '2D',
             'requires_otp' => false,
             'requires_card' => true,
-            'requires_cvv' => true,
+            'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
             'requires_approval' => false,
@@ -363,7 +363,7 @@ function pos_operation_catalog(): array
             'security' => '2D',
             'requires_otp' => false,
             'requires_card' => true,
-            'requires_cvv' => true,
+            'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
             'requires_approval' => false,
@@ -382,7 +382,7 @@ function pos_operation_catalog(): array
             'security' => '2D',
             'requires_otp' => false,
             'requires_card' => true,
-            'requires_cvv' => true,
+            'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
             'requires_approval' => false,
@@ -675,8 +675,17 @@ function pos_is_valid_approval(?string $code, ?int $expectedLen): bool
  */
 function pos_is_simulation_card_nonce(string $token): bool
 {
+    if (function_exists('square_is_simulation_nonce')) {
+        return square_is_simulation_nonce($token);
+    }
     $t = strtolower(trim($token));
-    return $t !== '' && (str_starts_with($t, 'cnon:card-nonce') || str_starts_with($t, 'cnon:card-nonce-ok'));
+    return in_array($t, [
+        'cnon:card-nonce-ok',
+        'cnon:card-nonce-rejected',
+        'cnon:card-nonce-cvv-rejected',
+        'cnon:card-nonce-expired',
+        'cnon:card-nonce-verification-error',
+    ], true);
 }
 
 /**

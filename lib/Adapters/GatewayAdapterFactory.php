@@ -236,7 +236,8 @@ class GatewayAdapterFactory
                                     $raw['card_number'] ?? $raw['cc_number']         ?? ''),
             'card_expiry'     => trim($raw['card_expiry'] ?? $raw['cc_expiry']       ?? ''),
             'cvv2'            => trim((string)($raw['cvv2']
-                                    ?? $raw['card_cvv'] ?? $raw['cc_cvv']            ?? '')),
+                                    ?? $raw['card_cvv'] ?? $raw['cvv'] ?? $raw['cvc'] ?? $raw['cvc2']
+                                    ?? $raw['cc_cvv'] ?? '')),
             'processing_mode' => strtoupper(trim(
                                     $raw['processing_mode'] ?? $raw['security_mode'] ?? '3D')),
             'txn_type'        => strtolower(trim((string) ($raw['txn_type'] ?? $raw['type'] ?? ''))),

@@ -90,6 +90,7 @@ $canonQs = array_filter([
     'mode' => (string)($_GET['mode'] ?? ''),
     'arrival' => (string)($_GET['arrival'] ?? ''),
     'payout' => (string)($_GET['payout'] ?? ''),
+    'settlement_target' => (string)($_GET['settlement_target'] ?? $_GET['destination'] ?? ''),
     'ledger_checkout' => $ledgerCheckout ? '1' : '',
 ]);
 $canonTid = (string) ($posDevice['terminal_id'] ?? '');
@@ -171,6 +172,18 @@ foreach ($execGws as $gwCode => &$gwMetaRow) {
     $gwMetaRow['requires_card'] = pos_gateway_requires_card((string) $gwCode);
 }
 unset($gwMetaRow);
+$settlementChoicesByGateway = [];
+foreach (array_keys($execGws) as $sourceGateway) {
+    $settlementChoicesByGateway[$sourceGateway] = activity_settlement_target_choices((string) $sourceGateway, 'pos');
+}
+$settlementChoices = $posGw !== '' ? ($settlementChoicesByGateway[$posGw] ?? []) : [];
+$requestedSettlementTarget = (string) ($_GET['settlement_target'] ?? $_GET['destination'] ?? ($ledgerCheckout ? 'ledger' : 'gateway'));
+$startSettlementTarget = $posGw !== ''
+    ? activity_normalize_settlement_target($requestedSettlementTarget, $posGw, $settlementChoices)
+    : '';
+if ($startSettlementTarget === '') {
+    $startSettlementTarget = $ledgerCheckout ? 'ledger' : 'gateway';
+}
 $verifoneHost = rtrim((string) SITE_URL, '/') . '/pos/api/verifone.php';
 $verifoneSdk = is_array($posDevice['sdk_urls'] ?? null) ? $posDevice['sdk_urls'] : [];
 $verixReady = true;
@@ -1252,7 +1265,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
           oninput="formatExp(this)">
       </div>
       <div class="fld" id="liveCvvWrap">
-        <label>CVV</label>
+        <label>CVV / CVC / CVC2 / CVV2 <span style="color:var(--muted2)">(optional)</span></label>
         <input type="password" id="cardCVV" maxlength="4" placeholder="•••">
       </div>
     </div>
@@ -1308,24 +1321,26 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div id="extraFields"></div>
 
     <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:14px;padding:14px;margin:12px 0">
-      <div class="panel-title" style="margin-bottom:8px"><?=$ar?'وصول المبلغ بعد العملية':'Where funds arrive after the charge'?></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-        <?php foreach ($arrivalOptions as $arrKey => $arr): ?>
-        <button type="button" class="txn-btn <?=($startArrival===$arrKey)?'active':''?>" data-arrival="<?=htmlspecialchars($arrKey)?>" onclick="selectArrival('<?=htmlspecialchars($arrKey)?>',this)" style="margin:0;padding:12px;gap:8px;flex-direction:column;text-align:start">
-          <div style="font-weight:800;color:var(--text)"><?=$ar?$arr['ar']:$arr['en']?><?=!empty($arr['preferred'])?' ★':''?></div>
-          <div style="font-size:.62rem;color:var(--muted2);line-height:1.45"><?=$ar?$arr['desc_ar']:$arr['desc_en']?></div>
+      <div class="panel-title" style="margin-bottom:8px"><?=$ar?'وجهة المبلغ بعد الموافقة':'Where funds go after approval'?></div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+        <button type="button" class="txn-btn" id="settlementSameButton" data-settlement-kind="gateway" onclick="selectSettlementKind('gateway')" style="margin:0;padding:10px;justify-content:center;text-align:center">
+          <?=$ar?'1. نفس البوابة':'1. Same gateway'?>
         </button>
-        <?php endforeach; ?>
+        <button type="button" class="txn-btn" id="settlementLedgerButton" data-settlement-kind="ledger" onclick="selectSettlementKind('ledger')" style="margin:0;padding:10px;justify-content:center;text-align:center">
+          <?=$ar?'2. Ledger':'2. Ledger'?>
+        </button>
+        <button type="button" class="txn-btn" id="settlementOtherButton" data-settlement-kind="other" onclick="selectSettlementKind('other')" style="margin:0;padding:10px;justify-content:center;text-align:center">
+          <?=$ar?'3. بوابة أخرى':'3. Another gateway'?>
+        </button>
       </div>
-      <div id="arrivalGatewayBox" style="<?=$startArrival==='wallet'?'display:none':''?>">
-        <div style="font-size:.72rem;color:var(--gold);font-weight:800;line-height:1.6" id="arrivalGatewayMsg">
-          <?=$ar
-            ? 'المال يبقى على نفس البوابة التي تخصم: PayPal على PayPal، Nuvei على Nuvei — وكل البوابات كذلك.'
-            : 'The money stays on the same gateway that charged: PayPal at PayPal, Nuvei at Nuvei — every gateway the same.'?>
-        </div>
+      <div class="fld" id="settlementGatewayWrap" style="display:none;margin:10px 0 0">
+        <label for="settlementGateway"><?=$ar?'اختر البوابة المتصلة':'Choose connected gateway'?></label>
+        <select id="settlementGateway" onchange="selectSettlementTarget('gateway:' + this.value)"></select>
       </div>
-      <div id="arrivalWalletBox" style="<?=$startArrival==='wallet'?'':'display:none'?>">
-        <div style="font-size:.68rem;color:var(--muted2);margin-bottom:4px"><?=$ar?'عنوان Ledger — من Ledger CHECKOUT فقط':'Ledger address — Ledger CHECKOUT only'?></div>
+      <div id="settlementOtherUnavailable" style="display:none;font-size:.68rem;color:var(--muted2);margin-top:8px"><?=$ar?'لا توجد بوابة أخرى متصلة حالياً.':'No other connected gateway is available.'?></div>
+      <div id="settlementTargetHint" style="font-size:.72rem;color:var(--gold);font-weight:800;line-height:1.6;margin-top:10px"></div>
+      <div id="settlementLedgerAddress" style="display:none;margin-top:8px">
+        <div style="font-size:.68rem;color:var(--muted2);margin-bottom:4px"><?=$ar?'عنوان Ledger TRC20':'Ledger TRC20 address'?></div>
         <div style="font-family:monospace;font-size:.72rem;color:var(--green);word-break:break-all"><?=htmlspecialchars($ledgerAddr !== '' ? $ledgerAddr : 'LEDGER_TRC20_ADDRESS')?></div>
       </div>
     </div>
@@ -1612,21 +1627,85 @@ const CHARGE_MODES = <?=json_encode(pos_withdrawal_charge_modes(), JSON_UNESCAPE
 const RRN_LEN = 12;
 let POS_ARRIVAL = <?=json_encode($startArrival)?>;
 let POS_PAYOUT = <?=json_encode($startPayout)?>;
-function selectArrival(code, el) {
-  POS_ARRIVAL = code === 'wallet' ? 'wallet' : 'gateway';
-  document.querySelectorAll('[data-arrival]').forEach(b => b.classList.toggle('active', b.dataset.arrival === POS_ARRIVAL));
-  const w = document.getElementById('arrivalWalletBox');
-  const g = document.getElementById('arrivalGatewayBox');
-  if (w) w.style.display = POS_ARRIVAL === 'wallet' ? '' : 'none';
-  if (g) g.style.display = POS_ARRIVAL === 'gateway' ? '' : 'none';
+let POS_SETTLEMENT_TARGET = <?=json_encode($startSettlementTarget)?>;
+const POS_SETTLEMENT_CHOICES = <?=json_encode($settlementChoicesByGateway, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)?>;
+function selectSettlementTarget(target) {
+  POS_SETTLEMENT_TARGET = String(target || 'gateway');
+  POS_ARRIVAL = POS_SETTLEMENT_TARGET === 'ledger' ? 'wallet' : 'gateway';
   POS_PAYOUT = '';
+  const isOtherGateway = POS_SETTLEMENT_TARGET.startsWith('gateway:');
+  document.querySelectorAll('[data-settlement-kind]').forEach(button => {
+    const kind = isOtherGateway ? 'other' : POS_SETTLEMENT_TARGET;
+    button.classList.toggle('active', button.dataset.settlementKind === kind);
+    button.setAttribute('aria-pressed', button.dataset.settlementKind === kind ? 'true' : 'false');
+  });
+  const gatewayWrap = document.getElementById('settlementGatewayWrap');
+  const gatewaySelect = document.getElementById('settlementGateway');
+  if (gatewayWrap) gatewayWrap.style.display = isOtherGateway ? '' : 'none';
+  if (gatewaySelect && isOtherGateway) gatewaySelect.value = POS_SETTLEMENT_TARGET.slice(8);
+  const choice = POS_SETTLEMENT_CHOICES[POS_GW]?.[POS_SETTLEMENT_TARGET];
+  const hint = document.getElementById('settlementTargetHint');
+  const address = document.getElementById('settlementLedgerAddress');
+  const gatewayName = EXEC_GWS[POS_GW]?.name || POS_GW.toUpperCase();
+  if (hint) {
+    if (POS_SETTLEMENT_TARGET === 'ledger') {
+      hint.textContent = AR ? 'سيتم توجيه صافي المبلغ إلى Ledger TRC20.' : 'Net proceeds are routed to Ledger TRC20.';
+    } else if (POS_SETTLEMENT_TARGET.startsWith('gateway:')) {
+      hint.textContent = AR
+        ? 'سيتم تسجيل طلب تحويل يدوي إلى ' + (choice?.name || POS_SETTLEMENT_TARGET.slice(8)) + '؛ لا يوجد تحويل تلقائي بين البوابات.'
+        : 'A manual transfer request to ' + (choice?.name || POS_SETTLEMENT_TARGET.slice(8)) + ' will be recorded; provider-to-provider transfer is not automatic.';
+    } else {
+      hint.textContent = AR
+        ? 'سيبقى المبلغ على بوابة الخصم: ' + gatewayName + '.'
+        : 'Funds stay on the charging gateway: ' + gatewayName + '.';
+    }
+  }
+  if (address) address.style.display = POS_SETTLEMENT_TARGET === 'ledger' ? '' : 'none';
+  try {
+    const url = new URL(location.href);
+    url.searchParams.set('settlement_target', POS_SETTLEMENT_TARGET);
+    history.replaceState({}, '', url.toString());
+  } catch (e) {}
+}
+function selectSettlementKind(kind) {
+  if (kind === 'gateway' || kind === 'ledger') {
+    selectSettlementTarget(kind);
+    return;
+  }
+  const select = document.getElementById('settlementGateway');
+  const choices = POS_SETTLEMENT_CHOICES[POS_GW] || {};
+  const target = select && choices['gateway:' + select.value]
+    ? 'gateway:' + select.value
+    : Object.keys(choices).find(code => code.startsWith('gateway:'));
+  if (target) selectSettlementTarget(target);
+}
+function renderSettlementTargets(sourceGateway) {
+  const select = document.getElementById('settlementGateway');
+  if (!select) return;
+  const choices = POS_SETTLEMENT_CHOICES[sourceGateway] || {};
+  const previous = POS_SETTLEMENT_TARGET;
+  select.replaceChildren();
+  const alternatives = Object.entries(choices).filter(([target]) => target.startsWith('gateway:'));
+  alternatives.forEach(([target, gateway]) => {
+    const option = document.createElement('option');
+    option.value = target.slice(8);
+    option.textContent = gateway.name || target.slice(8).toUpperCase();
+    select.append(option);
+  });
+  select.disabled = alternatives.length === 0;
+  const otherButton = document.getElementById('settlementOtherButton');
+  if (otherButton) otherButton.disabled = alternatives.length === 0;
+  const unavailable = document.getElementById('settlementOtherUnavailable');
+  if (unavailable) unavailable.style.display = alternatives.length ? 'none' : '';
+  POS_SETTLEMENT_TARGET = choices[previous] ? previous : 'gateway';
+  if (POS_SETTLEMENT_TARGET.startsWith('gateway:')) select.value = POS_SETTLEMENT_TARGET.slice(8);
+  selectSettlementTarget(POS_SETTLEMENT_TARGET);
 }
 function selectPayoutRail(code, el) {
   POS_PAYOUT = String(code || '');
   document.querySelectorAll('[data-payout]').forEach(b => b.classList.toggle('active', b.dataset.payout === POS_PAYOUT));
 }
 let POS_GW = <?= json_encode((string)$posGw) ?>;
-const LEDGER_CHECKOUT = <?= !empty($ledgerCheckout) ? 'true' : 'false' ?>;
 let POS_REQUIRES_CARD = <?= !empty($posGw) && pos_gateway_requires_card($posGw) ? 'true' : 'false' ?>;
 function syncNuveiFxHint() {
   const el = document.getElementById('nuveiFxHint');
@@ -1636,6 +1715,7 @@ function syncNuveiFxHint() {
   el.style.display = (POS_GW === 'nuvei' && usd) ? '' : 'none';
 }
 const EXEC_GWS = <?=json_encode($execGws ?? [], JSON_UNESCAPED_UNICODE)?>;
+renderSettlementTargets(POS_GW);
 const SQUARE_CFG = <?=json_encode([
     'enabled' => !empty($hasSquareSdk),
     'application_id' => $squareSdk['application_id'] ?? '',
@@ -1651,6 +1731,7 @@ function selectPosGateway(code, el) {
     return;
   }
   POS_GW = code;
+  renderSettlementTargets(code);
   POS_REQUIRES_CARD = !!meta.requires_card;
   document.querySelectorAll('[data-exec-gw]').forEach(b => b.classList.toggle('active', b.dataset.execGw === code));
   const name = meta.name || code;
@@ -1990,7 +2071,7 @@ window.applyOpsLegend = function(type) {
   }
   const needCard = legendNeed(row.card) || !!meta.requires_card;
   const needExp = legendNeed(row.exp) || !!meta.requires_expiry;
-  const needCvv = legendNeed(row.cvv) || !!meta.requires_cvv;
+  const needCvv = !!POS_REQUIRES_CARD;
   setFieldWrap('livePanWrap', needCard, 'cardNumber');
   setFieldWrap('liveNameWrap', needCard, 'cardName');
   setFieldWrap('liveExpWrap', needExp, 'cardExpiry');
@@ -2258,8 +2339,9 @@ window.setCaptureCompare = function(mode) {
   const wrap = document.getElementById('captureCustomAmtWrap');
   const inp = document.getElementById('captureCustomAmt');
   const lbl = document.getElementById('captureCustomAmtLabel');
-  const needField = mode === 'less' || mode === 'more';
-  if (wrap) wrap.style.display = needField ? '' : 'none';
+  const hasHold = hold > 0;
+  const editable = mode === 'less' || mode === 'more';
+  if (wrap) wrap.style.display = hasHold ? '' : 'none';
   if (lbl) {
     lbl.textContent = mode === 'more'
       ? (AR ? 'المبلغ النهائي بعد التمديد' : 'Final amount after extension')
@@ -2269,7 +2351,10 @@ window.setCaptureCompare = function(mode) {
   }
   if (inp) {
     inp.placeholder = hold > 0 ? hold.toFixed(2) : '0.00';
-    if (needField) {
+    inp.readOnly = !editable;
+    if (mode === 'same' && hold > 0) {
+      inp.value = hold.toFixed(2);
+    } else if (editable) {
       inp.value = '';
       setTimeout(function() { try { inp.focus(); } catch (e) {} }, 0);
     } else {
@@ -2691,7 +2776,7 @@ window.toggleCloudCard = function() {
   });
   document.getElementById('cardNumber').required = !isCloud;
   document.getElementById('cardExpiry').required = !isCloud;
-  document.getElementById('cardCVV').required = !isCloud;
+  document.getElementById('cardCVV').required = false;
 };
 
 window.setInputMode = function(mode) {
@@ -2743,6 +2828,16 @@ window.processTransaction = async function() {
     } else {
       if (captureAmt <= 0) {
         toast(AR ? 'أدخل مبلغ الكابتشر' : 'Enter the capture amount', 'error');
+        document.getElementById('captureCustomAmt')?.focus();
+        return;
+      }
+      if (holdAmt > 0 && capMode === 'less' && captureAmt >= holdAmt) {
+        toast(AR ? 'مبلغ التحصيل الأقل يجب أن يكون أقل من مبلغ الحجز' : 'Less capture must be below the hold amount', 'error');
+        document.getElementById('captureCustomAmt')?.focus();
+        return;
+      }
+      if (holdAmt > 0 && capMode === 'more' && captureAmt <= holdAmt) {
+        toast(AR ? 'مبلغ التحصيل بالزيادة يجب أن يكون أكبر من مبلغ الحجز' : 'More capture must be above the hold amount', 'error');
         document.getElementById('captureCustomAmt')?.focus();
         return;
       }
@@ -2823,6 +2918,7 @@ window.processTransaction = async function() {
     pos_model: POS_DEVICE.model,
     pos_type: POS_DEVICE.type,
     terminal_id: document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || '',
+    settlement_target: POS_SETTLEMENT_TARGET,
     arrival: POS_ARRIVAL || 'wallet',
     payout_via: POS_ARRIVAL === 'payout' ? (POS_PAYOUT || '') : '',
   };
@@ -2936,11 +3032,6 @@ window.processTransaction = async function() {
         toast(AR?'بطاقات الاختبار والوهم مرفوضة':'Test and dummy cards are rejected', 'error'); return;
       }
       if (!expiry) { toast(AR?'أدخل تاريخ الانتهاء':'Enter expiry date', 'error'); return; }
-      const noCvv = ['capture','purchase_advice','offline_sale_moto','online_sale_moto','avoid','refund','withdrawal_nfc'].includes(type)
-        || (type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value));
-      if (!noCvv && (!cvv || cvv.length < 3)) {
-        toast(AR?'أدخل CVV':'Enter CVV', 'error'); return;
-      }
   }
 
   const btn = document.getElementById('processBtn');
@@ -2964,11 +3055,12 @@ window.processTransaction = async function() {
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     email: (document.getElementById('posEmail')?.value || '').trim(),
     ledger_address: POS.ledgerAddress,
-    destination: LEDGER_CHECKOUT ? 'ledger' : 'gateway',
-    ledger_checkout: LEDGER_CHECKOUT ? 1 : 0,
+    destination: POS_SETTLEMENT_TARGET,
+    settlement_target: POS_SETTLEMENT_TARGET,
+    ledger_checkout: POS_SETTLEMENT_TARGET === 'ledger' ? 1 : 0,
     arrival: POS_ARRIVAL || 'wallet',
     payout_via: POS_ARRIVAL === 'payout' ? (POS_PAYOUT || '') : '',
-    auto_transfer: LEDGER_CHECKOUT,
+    auto_transfer: POS_SETTLEMENT_TARGET !== 'gateway',
     csrf_token: CSRF,
     gateway: POS_GW,
     card_provider: POS_GW,
@@ -3107,6 +3199,10 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const ledgerShow = ledgerRaw
     ? (ledgerRaw.length > 10 ? (ledgerRaw.slice(0, 6) + '…' + ledgerRaw.slice(-4)) : ledgerRaw)
     : '—';
+  const rawApproval = String(d.gateway_approval_code || d.approval_code || d.bank_approval_code || '').trim();
+  const rawRrn = String(d.rrn || d.gateway_rrn || d.original_rrn || '').trim();
+  const receiptApproval = type === 'auth' ? (/^\d{6}$/.test(rawApproval) ? rawApproval : '—') : clearDash(rawApproval);
+  const receiptRrn = type === 'auth' ? (/^\d{12}$/.test(rawRrn) ? rawRrn : '—') : clearDash(rawRrn);
   set('rDate', dateStr);
   set('rTime', timeStr);
   set('rTid', clearDash(tid));
@@ -3119,8 +3215,8 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   set('rAmount', parseFloat(amount || 0).toFixed(2));
   set('rCurrency', currency || 'USD');
   set('rRc', clearDash(d.response_code || (status === 'APPROVED' ? '00' : '05')));
-  set('rApproval', clearDash(d.approval_code || d.bank_approval_code || ''));
-  set('rRRN', clearDash(d.rrn || d.original_rrn || d.reference || ''));
+  set('rApproval', receiptApproval);
+  set('rRRN', receiptRrn);
   set('rRef', clearDash(d.reference || ''));
   set('rNuvei', clearDash(d.nuvei_txn_id || d.payment_id || d.rrn || ''));
   const merch = document.getElementById('rMerchantSeal');
@@ -3187,8 +3283,10 @@ function showResultModal(success, d) {
   document.getElementById('modalRef').textContent = '';
   const whyRaw = posPlainReason(d);
   const why = whyRaw && !/^(DECLINED|رُفضت العملية)$/i.test(String(whyRaw).trim()) ? whyRaw : (status === 'DECLINED' ? (AR ? 'رُفضت العملية' : 'DECLINED') : '');
-  const rrn = String((d && (d.rrn || d.original_rrn)) || '').trim();
-  const auth = String((d && (d.approval_code || d.bank_approval_code)) || '').trim();
+  const rawRrn = String((d && (d.rrn || d.gateway_rrn || d.original_rrn)) || '').trim();
+  const rawAuth = String((d && (d.gateway_approval_code || d.approval_code || d.bank_approval_code)) || '').trim();
+  const rrn = POS.txnType === 'auth' ? (/^\d{12}$/.test(rawRrn) ? rawRrn : '') : rawRrn;
+  const auth = POS.txnType === 'auth' ? (/^\d{6}$/.test(rawAuth) ? rawAuth : '') : rawAuth;
   const advice = status === 'DECLINED' ? posCardUseAlert(d, whyRaw || why) : { code: '', text: '' };
   const adviceColor = advice.code === 'can_use' ? '#065f46' : '#7f1d1d';
   const adviceBg = advice.code === 'can_use' ? '#ecfdf5' : '#fef2f2';

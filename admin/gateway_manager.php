@@ -675,10 +675,8 @@ foreach ($rowsByCode as $code => $row) {
 }
 
 usort($gateways, function ($a, $b) {
-    $aConnected = strtolower((string)($a['status'] ?? '')) === 'active'
-        && strtolower((string)($a['connection_status'] ?? '')) === 'verified';
-    $bConnected = strtolower((string)($b['status'] ?? '')) === 'active'
-        && strtolower((string)($b['connection_status'] ?? '')) === 'verified';
+    $aConnected = dp_gateway_is_live_for_charge($a);
+    $bConnected = dp_gateway_is_live_for_charge($b);
     if ($aConnected !== $bConnected) {
         return $aConnected ? -1 : 1;
     }
@@ -702,12 +700,10 @@ usort($gateways, function ($a, $b) {
 });
 
 $connectedGateways = array_values(array_filter($gateways, static function (array $gateway): bool {
-    return strtolower((string)($gateway['status'] ?? '')) === 'active'
-        && strtolower((string)($gateway['connection_status'] ?? '')) === 'verified';
+    return dp_gateway_is_live_for_charge($gateway);
 }));
 $disconnectedGateways = array_values(array_filter($gateways, static function (array $gateway): bool {
-    return !(strtolower((string)($gateway['status'] ?? '')) === 'active'
-        && strtolower((string)($gateway['connection_status'] ?? '')) === 'verified');
+    return !dp_gateway_is_live_for_charge($gateway);
 }));
 $connectedNames = array_map(static fn(array $gateway): string => $gateway['name'], $connectedGateways);
 

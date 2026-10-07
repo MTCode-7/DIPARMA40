@@ -66,12 +66,30 @@ $db = db();
 $chargeGateway = $isLedgerPage
     ? strtolower(trim((string) ($_POST['charge_gateway'] ?? $_GET['charge_gateway'] ?? '')))
     : $gwCode;
+$settlementSource = $isLedgerPage ? $chargeGateway : $gwCode;
+$settlementChoices = $settlementSource !== ''
+  ? activity_settlement_target_choices($settlementSource, 'link')
+  : ['gateway' => ['code' => 'gateway', 'ar' => 'نفس البوابة', 'en' => 'Same Gateway']];
+$requestedSettlementTarget = (string) ($_POST['settlement_target'] ?? $_GET['settlement_target'] ?? ($ledgerCheckout ? 'ledger' : 'gateway'));
+$settlementTarget = $settlementSource !== ''
+  ? activity_normalize_settlement_target($requestedSettlementTarget, $settlementSource, $settlementChoices)
+  : 'gateway';
+if ($settlementTarget === '') {
+  $settlementTarget = $ledgerCheckout ? 'ledger' : 'gateway';
+}
 
 $message = '';
 $messageType = '';
 $createdUrl = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
+  $settlementSource = $isLedgerPage ? strtolower(trim((string) ($_POST['charge_gateway'] ?? ''))) : $gwCode;
+  $settlementChoices = $settlementSource !== ''
+    ? activity_settlement_target_choices($settlementSource, 'link')
+    : [];
+  $settlementTarget = $settlementSource !== ''
+    ? activity_normalize_settlement_target((string) ($_POST['settlement_target'] ?? 'gateway'), $settlementSource, $settlementChoices)
+    : '';
   $activityLineCode = strtolower(trim((string) ($_POST['activity_line'] ?? '')));
   $activityLineCode = isset($activityLines[$activityLineCode]) ? $activityLineCode : '';
   $activityLabel = $activityLineCode !== '' ? ($activityLines[$activityLineCode][$ar ? 'ar' : 'en'] ?? '') : '';
@@ -84,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
         $amount = (float) ($_POST['amount'] ?? 0);
         $currency = strtoupper(trim((string) ($_POST['currency'] ?? 'USD'))) ?: 'USD';
         $storeGw = $isLedgerPage ? $chargeGateway : $gwCode;
-        if ($title === '' || $amount <= 0 || $storeGw === '') {
+        if ($title === '' || $amount <= 0 || $storeGw === '' || $settlementTarget === '') {
             $message = $ar ? 'العنوان والمبلغ والبوابة مطلوبة' : 'Title, amount, and gateway are required';
             $messageType = 'error';
         } elseif (!dp_gateway_is_visible_on_channels($storeGw)) {
@@ -94,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
             $linkId = strtoupper(substr($storeGw, 0, 3)) . date('Ymd') . bin2hex(random_bytes(4));
             $token = bin2hex(random_bytes(32));
             $slug = function_exists('generateSlug') ? generateSlug($title) : strtolower(preg_replace('/[^a-z0-9]+/i', '-', $title));
-            $protocol = $ledgerCheckout ? 'ledger.DTC' : trim((string) ($_POST['protocol'] ?? 'DTC'));
+            $protocol = $settlementTarget === 'ledger' ? 'ledger.DTC' : trim((string) ($_POST['protocol'] ?? 'DTC'));
             $id = $db->insert('payment_links', [
                 'link_id' => $linkId,
                 'token' => $token,
@@ -105,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_link'])) {
                 'currency' => $currency,
                 'gateway' => $storeGw,
                 'activity_line' => $activityLineCode !== '' ? $activityLineCode : null,
+                'settlement_target' => $settlementTarget,
                 'protocol' => $protocol,
                 'payment_type' => 'one_time',
                 'expiry_date' => date('Y-m-d H:i:s', strtotime('+7 days')),
@@ -224,6 +243,15 @@ a{color:#FFD700}
         </select>
       </div>
       <?php endif; ?>
+      <div style="margin-bottom:12px">
+        <label><?=$ar?'وجهة المبلغ بعد نجاح الدفع':'Where funds go after payment'?></label>
+        <select name="settlement_target" required>
+          <?php foreach ($settlementChoices as $targetCode => $target): ?>
+          <option value="<?=htmlspecialchars($targetCode, ENT_QUOTES, 'UTF-8')?>"<?=$settlementTarget===$targetCode?' selected':''?>><?=htmlspecialchars($ar ? $target['ar'] : $target['en'], ENT_QUOTES, 'UTF-8')?></option>
+          <?php endforeach; ?>
+        </select>
+        <div style="font-size:.68rem;color:#9ca3af;margin-top:5px"><?=$ar?'التحويل إلى بوابة أخرى يُسجّل كطلب معلّق ولا يُنفّذ تلقائياً.':'Forwarding to another gateway creates a pending transfer request; it is not automatic.'?></div>
+      </div>
       <div style="margin-bottom:12px">
         <label><?=$ar?'العنوان':'Title'?></label>
         <input type="text" name="title" required value="<?=htmlspecialchars($prefillTitle, ENT_QUOTES, 'UTF-8')?>">

@@ -318,6 +318,7 @@ function dp_enable_card_gateway_operation_modes(Database $db): void
 
 function dp_seed_named_gateways(Database $db): void
 {
+    dp_seed_square_online_gateway($db);
     try {
         $existing = $db->query(
             'SELECT id, type, gateway_type FROM ' . dp_table('payment_gateways') . ' WHERE code = ? LIMIT 1',
@@ -369,6 +370,49 @@ function dp_seed_named_gateways(Database $db): void
         error_log('[schema_compat] seed diparma_gateway: ' . $e->getMessage());
     }
     dp_seed_square_gateway($db);
+}
+
+function dp_seed_square_online_gateway(Database $db): void
+{
+    try {
+        $existing = $db->query(
+            'SELECT id FROM ' . dp_table('payment_gateways') . ' WHERE code = ? LIMIT 1',
+            ['square_online']
+        );
+        if (!empty($existing)) {
+            return;
+        }
+        $creds = [
+            'application_id' => getenv('SQUARE2_APPLICATION_ID') ?: '',
+            'access_token' => getenv('SQUARE2_ACCESS_TOKEN') ?: '',
+            'location_id' => getenv('SQUARE2_LOCATION_ID') ?: '',
+            'merchant_id' => getenv('SQUARE2_MERCHANT_ID') ?: '',
+            'site_id' => getenv('SQUARE2_ONLINE_SITE_ID') ?: (getenv('SQUARE_ONLINE_SITE_ID') ?: ''),
+            'environment' => getenv('SQUARE2_ENVIRONMENT') ?: 'production',
+        ];
+        $ready = $creds['access_token'] !== '' && $creds['location_id'] !== '' && $creds['site_id'] !== '';
+        $db->insertAvailable('payment_gateways', [
+            'code' => 'square_online',
+            'name' => 'Square 2 Online',
+            'type' => 'fulfillment',
+            'gateway_type' => 'fulfillment',
+            'status' => 'inactive',
+            'setup_complete' => $ready ? 1 : 0,
+            'connection_status' => $ready ? 'untested' : 'missing_credentials',
+            'config' => json_encode([
+                'region' => 'UAE',
+                'company_no' => 10,
+                'product' => 'square_2_online',
+                'setup_complete' => $ready,
+                'rail' => 'fulfillment',
+                'chargeable' => false,
+            ], JSON_UNESCAPED_UNICODE),
+            'credentials' => json_encode($creds, JSON_UNESCAPED_UNICODE),
+            'settings' => '{}',
+        ]);
+    } catch (Throwable $e) {
+        error_log('[schema_compat] seed square_online: ' . $e->getMessage());
+    }
 }
 
 function dp_seed_square_gateway(Database $db): void

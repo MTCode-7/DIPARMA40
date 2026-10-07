@@ -10,16 +10,21 @@ if (empty($_SESSION['user_id'])) {
 }
 
 $userId = (int) $_SESSION['user_id'];
+$requestedGateway = function_exists('pos_normalize_gateway')
+    ? pos_normalize_gateway((string) ($_GET['gateway'] ?? ''))
+    : strtolower(trim((string) ($_GET['gateway'] ?? '')));
 $holds = [];
 try {
     $pfx = defined('DB_PREFIX') ? DB_PREFIX : 'dp_';
-    $rows = db()->query(
-        "SELECT id, reference, amount, currency, rrn, auth_code, bank_approval_code, gateway, card_last4, status, gateway_response, created_at
+        $gatewaySql = $requestedGateway !== '' ? ' AND gateway = ?' : '';
+        $queryParams = $requestedGateway !== '' ? [$userId, $requestedGateway] : [$userId];
+        $rows = db()->query(
+                "SELECT id, reference, amount, currency, rrn, auth_code, bank_approval_code, gateway, card_last4, status, gateway_response, created_at
          FROM {$pfx}transactions
          WHERE user_id = ? AND transaction_type = 'auth'
-           AND LOWER(COALESCE(status,'')) IN ('completed','authorized','hold','held','pending','success')
-         ORDER BY id DESC LIMIT 40",
-        [$userId]
+                     AND LOWER(COALESCE(status,'')) IN ('completed','authorized','hold','held','pending','success'){$gatewaySql}
+                 ORDER BY id DESC LIMIT 40",
+                $queryParams
     ) ?: [];
     foreach ($rows as $row) {
         $raw = [];
@@ -39,6 +44,9 @@ try {
             ? pos_auth_followup_totals(db(), $paymentId, $rrn)
             : ['captured_total' => 0.0, 'capture_count' => 0];
         $authAmt = (float) $row['amount'];
+        $createdAt = (string) ($row['created_at'] ?? '');
+        $createdTs = $createdAt !== '' ? strtotime($createdAt) : false;
+        $ageDays = $createdTs !== false ? max(0, (int) floor((time() - $createdTs) / 86400)) : null;
         $holds[] = [
             'id' => (int) $row['id'],
             'reference' => (string) $row['reference'],
@@ -54,6 +62,11 @@ try {
             'gateway' => (string) ($row['gateway'] ?? ''),
             'card_last4' => (string) ($row['card_last4'] ?? ''),
             'created_at' => (string) ($row['created_at'] ?? ''),
+            'age_days' => $ageDays,
+            'honor_period' => $ageDays !== null && $ageDays <= 3,
+            'can_reauthorize' => (string) ($row['gateway'] ?? '') === 'paypal'
+                && $ageDays !== null && $ageDays >= 3 && $ageDays < 29,
+            'expired' => $ageDays !== null && $ageDays >= 29,
         ];
     }
 } catch (Throwable $e) {

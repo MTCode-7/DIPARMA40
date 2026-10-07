@@ -16,7 +16,13 @@ function square_is_application_id(string $id): bool
 function square_is_simulation_nonce(string $token): bool
 {
     $t = strtolower(trim($token));
-    return $t !== '' && str_starts_with($t, 'cnon:card-nonce');
+    return in_array($t, [
+        'cnon:card-nonce-ok',
+        'cnon:card-nonce-rejected',
+        'cnon:card-nonce-cvv-rejected',
+        'cnon:card-nonce-expired',
+        'cnon:card-nonce-verification-error',
+    ], true);
 }
 
 /** Real Square card nonce / source_id from Web Payments SDK (not PAN, not simulation). */
@@ -47,28 +53,26 @@ function square_token_live_flag(string $token): ?bool
 function square_env_is_live(string $appId, string $envHint): bool
 {
     $id = strtolower(trim($appId));
-    if (str_starts_with($id, 'sandbox-')) {
+    $environment = strtolower(trim($envHint));
+    if (!in_array($environment, ['production', 'live'], true)) {
         return false;
     }
-    if (preg_match('/^sq0id[bp]-/', $id)) {
+    if (str_starts_with($id, 'sandbox-') || preg_match('/^sq0idb-/', $id)) {
+        return false;
+    }
+    if (preg_match('/^sq0idp-/', $id)) {
         return true;
     }
-    // Default LIVE. $envHint is kept for callers; sandbox host is used only when
-    // Application ID is sandbox-sq0idb- (see square_credentials_are_live).
     return true;
 }
 
 function square_credentials_are_live(string $appId, string $token, string $envHint = 'production'): bool
 {
-    $appFlag = square_app_id_live_flag($appId);
-    if ($appFlag !== null) {
-        return $appFlag;
+    if (!square_env_is_live($appId, $envHint)) {
+        return false;
     }
-    $tokenFlag = square_token_live_flag($token);
-    if ($tokenFlag !== null) {
-        return $tokenFlag;
-    }
-    return square_env_is_live($appId, $envHint);
+    return square_app_id_live_flag($appId) !== false
+        && square_token_live_flag($token) !== false;
 }
 
 function square_fetch_locations(string $token, bool $live): array
@@ -119,10 +123,10 @@ function square_app_id_live_flag(string $id): ?bool
     if ($id === '' || !square_is_application_id($id)) {
         return null;
     }
-    if (str_starts_with($id, 'sandbox-')) {
+    if (str_starts_with($id, 'sandbox-') || preg_match('/^sq0idb-/', $id)) {
         return false;
     }
-    return true;
+    return preg_match('/^sq0idp-/', $id) ? true : null;
 }
 
 function square_sdk_config(): array

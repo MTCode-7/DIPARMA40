@@ -118,6 +118,7 @@ class GatewayConnectionTester
         return match(strtolower($code)) {
             'stripe'       => $this->testStripe($creds),
             'square'       => $this->testSquare($creds),
+            'square_online'=> $this->testSquareOnline($creds),
             'checkout'     => $this->testCheckout($creds),
             'paytabs'      => $this->testPayTabs($creds),
             'authorizenet',
@@ -307,6 +308,35 @@ class GatewayConnectionTester
             return ['success' => false, 'message' => '❌ لا يوجد Square Location بحالة ACTIVE'];
         }
         return ['success' => true, 'message' => '✅ Square متصل — ' . $name . ' (LIVE)'];
+    }
+
+    private function testSquareOnline(array $creds): array
+    {
+        $token = trim((string) ($creds['access_token'] ?? getenv('SQUARE2_ACCESS_TOKEN') ?: ''));
+        $locationId = trim((string) ($creds['location_id'] ?? getenv('SQUARE2_LOCATION_ID') ?: ''));
+        $siteId = trim((string) ($creds['site_id'] ?? getenv('SQUARE2_ONLINE_SITE_ID') ?: getenv('SQUARE_ONLINE_SITE_ID') ?: ''));
+        if ($token === '' || $locationId === '' || $siteId === '') {
+            return ['success' => false, 'message' => 'SQUARE2_ACCESS_TOKEN, SQUARE2_LOCATION_ID, and SQUARE2_ONLINE_SITE_ID are required'];
+        }
+
+        $environment = strtolower(trim((string) ($creds['environment'] ?? getenv('SQUARE2_ENVIRONMENT') ?: 'production')));
+        $baseUrl = in_array($environment, ['sandbox', 'test', 'testing'], true)
+            ? 'https://connect.squareupsandbox.com'
+            : 'https://connect.squareup.com';
+        $res = $this->curl('GET', $baseUrl . '/v2/locations/' . rawurlencode($locationId), [], [
+            'Authorization: Bearer ' . $token,
+            'Square-Version: 2024-01-18',
+            'Accept: application/json',
+        ]);
+        $code = (int) ($res['http_code'] ?? 0);
+        if (in_array($code, [401, 403], true)) {
+            return ['success' => false, 'message' => 'Square 2 access token is invalid or lacks location access'];
+        }
+        $location = $res['data']['location'] ?? null;
+        if ($code !== 200 || !is_array($location) || strtoupper((string) ($location['status'] ?? '')) !== 'ACTIVE') {
+            return ['success' => false, 'message' => 'Square 2 location check failed: HTTP ' . $code];
+        }
+        return ['success' => true, 'message' => 'Square 2 Online connected — location is active'];
     }
 
     // ── Checkout.com ─────────────────────────────────────────

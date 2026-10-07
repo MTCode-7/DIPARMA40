@@ -4,16 +4,30 @@
  * استلام وتوصيل Square Online. ليس Payments API (Square 1).
  */
 require_once __DIR__ . '/../includes/auth_check.php';
+require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/gateways.php';
+
+if (!dp_gateway_is_visible_on_channels('square_online')) {
+  header('Location: ../checkout_router.php?error=gateway_not_ready', true, 302);
+  exit;
+}
+
+$square2Config = getGatewayConfig('square_online') ?: [];
+$square2Row = dp_gateway_lookup_row('square_online') ?: [];
+$square2Credentials = dp_gateway_effective_credentials($square2Row);
+$square2Urls = is_array($square2Config['urls'] ?? null) ? $square2Config['urls'] : [];
 
 $ar = (isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang'] === 'ar');
 $dir = $ar ? 'rtl' : 'ltr';
-$dash = 'https://app.squareup.com/dashboard/fulfillment/preferences/pickup-delivery';
-$site = 'https://square.online/app/home/users/156309451/sites/295863802358935413/dashboard';
-$loc = 'https://app.squareup.com/dashboard/locations/LHP5AXR2H55RF/details';
-$merchantId = 'ML3PPV2CRN3SP';
-$locationId = 'LHP5AXR2H55RF';
-$siteId = '295863802358935413';
+$dash = (string) ($square2Urls['dashboard'] ?? 'https://app.squareup.com/dashboard/fulfillment/preferences/pickup-delivery');
+$site = (string) ($square2Urls['online'] ?? 'https://square.online/app');
+$loc = !empty($square2Credentials['location_id'])
+  ? 'https://app.squareup.com/dashboard/locations/' . rawurlencode((string) $square2Credentials['location_id']) . '/details'
+  : (string) ($square2Urls['location'] ?? 'https://app.squareup.com/dashboard/locations');
+$merchantId = (string) ($square2Credentials['merchant_id'] ?? '');
+$locationId = (string) ($square2Credentials['location_id'] ?? '');
+$siteId = (string) ($square2Credentials['site_id'] ?? '');
 ?>
 <!DOCTYPE html>
 <html lang="<?= $ar ? 'ar' : 'en' ?>" dir="<?= $dir ?>">
@@ -56,7 +70,9 @@ p{line-height:1.7;color:#8fa5b4}
     <p><?= $ar
       ? 'أوفلاين Square يكون على جهاز Square POS بعد تفعيله من Dashboard. المعلّق يُعرض في تطبيق Square فقط (Transactions). ليس بإدخال الرقم في DIPARMA.'
       : 'Square Offline is on Square POS hardware after you allow it in Dashboard. Pending is visible only in the Square POS app (Transactions) — not keyed PAN in DIPARMA.' ?></p>
+    <?php if ($merchantId !== '' || $locationId !== '' || $siteId !== ''): ?>
     <p style="font-family:monospace;font-size:.78rem;color:#6aa8ff">Merchant <?= htmlspecialchars($merchantId) ?><br>Location <?= htmlspecialchars($locationId) ?><br>Site <?= htmlspecialchars($siteId) ?></p>
+    <?php endif; ?>
     <a class="btn primary" href="<?= htmlspecialchars($dash) ?>" target="_blank" rel="noopener">Pickup &amp; delivery</a>
     <a class="btn primary" href="<?= htmlspecialchars($site) ?>" target="_blank" rel="noopener">Square Online site</a>
     <a class="btn primary" href="<?= htmlspecialchars($loc) ?>" target="_blank" rel="noopener">Location</a>

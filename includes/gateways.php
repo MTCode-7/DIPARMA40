@@ -87,7 +87,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'environment' => getenv('STRIPE_ENVIRONMENT') ?? '',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'KWD', 'BHD', 'OMR', 'QAR', 'EGP'],
         'fees' => ['percentage' => 2.9, 'fixed' => 0.30],
-        'limits' => ['min' => 0.5, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
+        'limits' => ['min' => 0.5, 'max_daily' => 5000000.00, 'max_monthly' => PHP_INT_MAX],
         'features' => ['subscriptions', 'webhooks', '3ds', 'connect'],
         'card_types' => ['Visa', 'Mastercard', 'Amex', 'Discover', 'JCB'],
         'setup_complete' => true
@@ -110,7 +110,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'environment' => getenv('PAYPAL_ENVIRONMENT') ?: 'live',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'KWD', 'BHD', 'OMR', 'QAR'],
         'fees' => ['percentage' => 3.4, 'fixed' => 0.30],
-        'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
+        'limits' => ['min' => 1, 'max_daily' => 1000000.00, 'max_monthly' => PHP_INT_MAX],
         'features' => ['instant_transfer', 'subscriptions', 'payouts', '3ds', 'moto', 'authorize', 'capture', 'void'],
         'card_types' => ['Visa', 'Mastercard', 'Amex', 'Discover'],
         'setup_complete' => !empty(getenv('PAYPAL_CLIENT_ID'))
@@ -137,7 +137,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'environment' => getenv('NUVEI_ENVIRONMENT') ?: 'live',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR'],
         'fees' => ['percentage' => 0, 'fixed' => 0],
-        'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
+        'limits' => ['min' => 1, 'max_daily' => 100000000.00, 'max_monthly' => PHP_INT_MAX],
         'features' => [
             'sale', 'purchase', 'auth', 'authorization', 'hold', 'settle', 'capture',
             'refund', 'void', '3ds', 'webhooks', 'moto', 'offline', 'online',
@@ -416,7 +416,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
     // 4. ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ ï؟½ï؟½ï؟½ï؟½ï؟½ï؟½ (USA)
     // ============================================================
     'square' => [
-        'name' => 'Square',
+        'name' => 'Square 1',
         'region' => 'USA',
         'icon' => 'fas fa-square',
         'credentials' => [
@@ -435,7 +435,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'environment' => getenv('SQUARE_ENVIRONMENT') ?: 'live',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'CAD', 'AUD', 'JPY'],
         'fees' => ['percentage' => 2.6, 'fixed' => 0.10],
-        'limits' => ['min' => 0.5, 'max_per_txn' => 50000, 'max_offline' => 50000, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
+        'limits' => ['min' => 0.5, 'max_daily' => 20000000.00, 'max_monthly' => PHP_INT_MAX],
         'features' => ['pos', 'online', 'invoicing', 'auth', 'capture', 'offline'],
         'offline_guide' => [
             'source' => 'Square Process offline payments + View offline payments',
@@ -471,6 +471,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'name' => 'Square 2 · Online',
         'region' => 'UAE',
         'business_name' => 'DI PARMA BUSINESSMAN SERVICES',
+        'independent_from' => 'square',
         'store_country' => 'UAE',
         'work_scope' => 'around the world',
         'services' => [
@@ -484,29 +485,27 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'company_no' => 10,
         'product' => 'square_2_online',
         'credentials' => [
-            'application_id' => getenv('SQUARE_APPLICATION_ID') ?: (getenv('SQUARE_API_KEY') ?: ''),
-            'access_token' => getenv('SQUARE_ACCESS_TOKEN') ?: (getenv('SQUARE_SECRET_KEY') ?: ''),
-            'location_id' => getenv('SQUARE_LOCATION_ID') ?: 'LHP5AXR2H55RF',
-            'merchant_id' => getenv('SQUARE_MERCHANT_ID') ?: 'ML3PPV2CRN3SP',
-            'site_id' => getenv('SQUARE_ONLINE_SITE_ID') ?: '295863802358935413',
+            'application_id' => getenv('SQUARE2_APPLICATION_ID') ?: '',
+            'access_token' => getenv('SQUARE2_ACCESS_TOKEN') ?: '',
+            'location_id' => getenv('SQUARE2_LOCATION_ID') ?: '',
+            'merchant_id' => getenv('SQUARE2_MERCHANT_ID') ?: '',
+            'site_id' => getenv('SQUARE2_ONLINE_SITE_ID') ?: (getenv('SQUARE_ONLINE_SITE_ID') ?: ''),
         ],
         'urls' => [
             'dashboard' => 'https://app.squareup.com/dashboard/fulfillment/preferences/pickup-delivery',
             'sites' => 'https://app.squareup.com/dashboard/sites',
-            'online' => 'https://square.online/app/home/users/156309451/sites/295863802358935413/dashboard',
-            'location' => 'https://app.squareup.com/dashboard/locations/LHP5AXR2H55RF/details',
-            'success' => getenv('SQUARE_SUCCESS_URL') ?: '/payment_success.php',
-            'cancel' => getenv('SQUARE_CANCEL_URL') ?: '/payment_cancelled.php',
-            'webhook' => getenv('SQUARE_WEBHOOK_URL') ?: '/api/webhook.php?gateway=square',
+            'online' => 'https://square.online/app',
+            'location' => 'https://app.squareup.com/dashboard/locations',
         ],
-        'environment' => getenv('SQUARE_ENVIRONMENT') ?: 'live',
+        'environment' => getenv('SQUARE2_ENVIRONMENT') ?: 'live',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'CAD', 'AUD', 'JPY'],
         'fees' => ['percentage' => 2.6, 'fixed' => 0.10],
         'limits' => ['min' => 0.5, 'max_per_txn' => 50000, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
         'features' => ['pickup', 'delivery', 'fulfillment', 'square_online'],
         'card_types' => getAllAcceptedCardTypes(),
-        'setup_complete' => !empty(getenv('SQUARE_ACCESS_TOKEN') ?: getenv('SQUARE_SECRET_KEY'))
-            && !empty(getenv('SQUARE_APPLICATION_ID') ?: getenv('SQUARE_API_KEY')),
+        'setup_complete' => !empty(getenv('SQUARE2_ACCESS_TOKEN'))
+            && !empty(getenv('SQUARE2_LOCATION_ID'))
+            && !empty(getenv('SQUARE2_ONLINE_SITE_ID') ?: getenv('SQUARE_ONLINE_SITE_ID')),
     ],
     
     'authorize_net' => [
@@ -1567,6 +1566,22 @@ function gateway_max_per_txn_usd(string $code): ?float
     return (float) $raw;
 }
 
+/** Provider-approved daily offline-sales cap in USD. */
+function gateway_offline_daily_limit_usd(string $code): ?float
+{
+    $limits = [
+        'nuvei' => 100000000.00,
+        'paypal' => 1000000.00,
+        'stripe' => 5000000.00,
+        'square' => 10000000.00,
+        'square_online' => 20000000.00,
+    ];
+    $code = function_exists('dp_gateway_normalize_code')
+        ? dp_gateway_normalize_code($code)
+        : strtolower(trim($code));
+    return array_key_exists($code, $limits) ? $limits[$code] : null;
+}
+
 function isPlaceholderGatewayValue($value): bool {
     if (!is_scalar($value)) {
         return false;
@@ -1692,7 +1707,7 @@ function dp_gateway_effective_credentials(array $row): array
         $settings = [];
     }
     $code = dp_gateway_normalize_code((string) ($row['code'] ?? ''));
-    $static = function_exists('getGatewayConfig') ? (getGatewayConfig($code) ?: []) : [];
+    $static = $GLOBALS['PAYMENT_GATEWAYS_CONFIG'][$code] ?? [];
     $fromEnv = is_array($static['credentials'] ?? null) ? $static['credentials'] : [];
     $merged = array_merge($fromEnv, $settings, $creds);
     foreach ($merged as $k => $v) {
@@ -1799,7 +1814,7 @@ function dp_gateway_is_live_for_charge(array $row): bool
     $code = function_exists('dp_gateway_normalize_code')
         ? dp_gateway_normalize_code((string) ($row['code'] ?? ''))
         : strtolower(trim((string) ($row['code'] ?? '')));
-    if ($code === '' || $code === 'diparma_gateway' || $code === 'ledger') {
+    if ($code === '' || in_array($code, ['diparma_gateway', 'ledger', 'square_online'], true)) {
         return false;
     }
     return dp_gateway_is_enabled($row)
@@ -1807,13 +1822,31 @@ function dp_gateway_is_live_for_charge(array $row): bool
         && dp_gateway_has_connection_keys($row);
 }
 
+function dp_gateway_is_live_for_fulfillment(array $row): bool
+{
+    $code = dp_gateway_normalize_code((string) ($row['code'] ?? ''));
+    if ($code !== 'square_online' || !dp_gateway_is_enabled($row) || !dp_gateway_is_connected($row)) {
+        return false;
+    }
+    $creds = dp_gateway_effective_credentials($row);
+    return !empty($creds['access_token'])
+        && !empty($creds['location_id'])
+        && !empty($creds['site_id']);
+}
+
 function isGatewayVisibleInCheckout(array $row): bool
 {
+    if (dp_gateway_normalize_code((string) ($row['code'] ?? '')) === 'square_online') {
+        return dp_gateway_is_live_for_fulfillment($row);
+    }
     return dp_gateway_is_live_for_charge($row);
 }
 
 function isGatewayVisibleInPos(array $row): bool
 {
+    if (dp_gateway_normalize_code((string) ($row['code'] ?? '')) === 'square_online') {
+        return false;
+    }
     return dp_gateway_is_live_for_charge($row);
 }
 
@@ -1823,12 +1856,9 @@ function dp_gateway_lookup_row(string $code): ?array
     if ($code === '') {
         return null;
     }
-    $lookup = $code === 'square_online' ? 'square' : $code;
+    $lookup = $code;
     try {
         $row = db()->find('payment_gateways', ['code' => $lookup]);
-        if (!$row && $lookup !== $code) {
-            $row = db()->find('payment_gateways', ['code' => $code]);
-        }
     } catch (Throwable $e) {
         return null;
     }
@@ -1850,7 +1880,12 @@ function dp_gateway_is_visible_on_channels(string $code): bool
         return true;
     }
     $row = dp_gateway_lookup_row($code);
-    return $row ? dp_gateway_is_live_for_charge($row) : false;
+    if (!$row) {
+        return false;
+    }
+    return $code === 'square_online'
+        ? dp_gateway_is_live_for_fulfillment($row)
+        : dp_gateway_is_live_for_charge($row);
 }
 
 function getConfiguredGateways() {

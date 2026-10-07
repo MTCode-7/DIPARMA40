@@ -1,23 +1,20 @@
 <?php
 /**
- * PayPal card adapter — Advanced Card Processing (MOTO/2D) with Braintree fallback.
+ * PayPal card adapter — Advanced Card Processing (MOTO/2D).
  */
 
 require_once __DIR__ . '/GatewayAdapterInterface.php';
 require_once __DIR__ . '/GatewayErrorMapper.php';
 require_once __DIR__ . '/GatewayLogger.php';
-require_once __DIR__ . '/BraintreeAdapter.php';
 require_once __DIR__ . '/../PayPalService.php';
 
 final class PayPalAdapter implements GatewayAdapterInterface
 {
     private PayPalService $svc;
-    private BraintreeAdapter $braintree;
 
     public function __construct()
     {
         $this->svc = PayPalService::getInstance();
-        $this->braintree = new BraintreeAdapter();
     }
 
     public function getName(): string
@@ -70,7 +67,7 @@ final class PayPalAdapter implements GatewayAdapterInterface
     {
         $start = microtime(true);
         $currency = 'USD';
-        $finalCapture = true;
+        $finalCapture = false;
         $auth = $this->svc->getAuthorization($transactionId);
         if (is_array($auth) && (isset($auth['id']) || isset($auth['amount']) || !empty($auth['success']))) {
             $rawCurrency = '';
@@ -83,10 +80,6 @@ final class PayPalAdapter implements GatewayAdapterInterface
             $authAmount = floatval(is_array($auth['amount'] ?? null)
                 ? ($auth['amount']['value'] ?? 0)
                 : ($auth['amount'] ?? 0));
-            if ($amount !== null && $amount > 0 && $authAmount > 0
-                && round((float) $amount, 2) < round($authAmount, 2)) {
-                $finalCapture = false;
-            }
         }
         $result = $this->svc->captureAuthorization(
             $transactionId,
@@ -98,10 +91,6 @@ final class PayPalAdapter implements GatewayAdapterInterface
         if (!empty($result['success'])) {
             return $result;
         }
-        $flag = strtolower(trim((string)(getenv('PAYPAL_BRAINTREE_FALLBACK') ?: '')));
-        if (in_array($flag, ['1', 'true', 'yes', 'on'], true) && $this->braintreeConfigured()) {
-            return $this->braintree->capture($transactionId, $amount);
-        }
         return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, $amount ?? 0, $currency, $this->describeFailure($result));
     }
 
@@ -112,10 +101,6 @@ final class PayPalAdapter implements GatewayAdapterInterface
         GatewayLogger::log('paypal', 'cancel', ['transaction_id' => $transactionId, 'reason' => $reason], $result, empty($result['success']) ? 'GATEWAY_ERROR' : '', microtime(true) - $start);
         if (!empty($result['success'])) {
             return $result;
-        }
-        $flag = strtolower(trim((string)(getenv('PAYPAL_BRAINTREE_FALLBACK') ?: '')));
-        if (in_array($flag, ['1', 'true', 'yes', 'on'], true) && $this->braintreeConfigured()) {
-            return $this->braintree->cancel($transactionId, $reason);
         }
         return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, 0, '', $this->describeFailure($result));
     }
@@ -142,13 +127,6 @@ final class PayPalAdapter implements GatewayAdapterInterface
         if (!empty($result['success'])) {
             GatewayLogger::log('paypal', $operation, $payload, $result, '', microtime(true) - $start);
             return $result;
-        }
-
-        if ($this->shouldFallbackToBraintree($result) && $this->braintreeConfigured()) {
-            GatewayLogger::quick('paypal', $operation, $reference, false, 'PayPal card API unavailable, falling back to Braintree');
-            return $intent === 'AUTHORIZE'
-                ? $this->braintree->hold($payload)
-                : $this->braintree->charge($payload);
         }
 
         $errCode = $this->normalizeError($result['raw'] ?? $result);
@@ -188,45 +166,6 @@ final class PayPalAdapter implements GatewayAdapterInterface
         if ($debugId !== '') {
             $message .= " (debug_id: $debugId)";
         }
-        if ($issue === 'PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING' && !$this->braintreeConfigured()) {
-            $message .= ' — لا يوجد احتياطي Braintree مضبوط.';
-        }
         return $message;
-    }
-
-    private function braintreeConfigured(): bool
-    {
-        return (bool)getenv('BRAINTREE_MERCHANT_ID')
-            && (bool)getenv('BRAINTREE_PUBLIC_KEY')
-            && (bool)getenv('BRAINTREE_PRIVATE_KEY');
-    }
-
-    private function shouldFallbackToBraintree(array $result): bool
-    {
-        // لا نربط PayPal بـ Braintree إلا بموافقة صريحة في الإعدادات
-        $flag = strtolower(trim((string)(getenv('PAYPAL_BRAINTREE_FALLBACK') ?: '')));
-        if (!in_array($flag, ['1', 'true', 'yes', 'on'], true)) {
-            return false;
-        }
-
-        $issue = strtoupper((string)($result['error_code'] ?? $result['raw']['details'][0]['issue'] ?? $result['raw']['name'] ?? ''));
-        $message = strtolower((string)($result['message'] ?? ''));
-        $fallbackIssues = [
-            'GATEWAY_ERROR',
-            'NOT_ENABLED',
-            'PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING',
-            'PERMISSION_DENIED',
-            'UNPROCESSABLE_ENTITY',
-            'PAYMENT_SOURCE_CANNOT_BE_USED',
-            'CARD_BRAND_NOT_SUPPORTED',
-            'INVALID_RESOURCE_ID',
-        ];
-        if (in_array($issue, $fallbackIssues, true)) {
-            return true;
-        }
-        return str_contains($message, 'credentials')
-            || str_contains($message, 'not enabled')
-            || str_contains($message, 'advanced card')
-            || str_contains($message, 'process card payments');
     }
 }

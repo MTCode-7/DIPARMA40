@@ -401,7 +401,7 @@ final class PayTabsAdapter implements GatewayAdapterInterface
         if (strlen($ccNumber) < 13 || strlen($ccNumber) > 19) {
             return ['valid' => false, 'message' => 'رقم البطاقة غير صالح'];
         }
-        if (!preg_match('/^\d{3,4}$/', $cvv2)) {
+        if ($cvv2 !== '' && !preg_match('/^\d{3,4}$/', $cvv2)) {
             return ['valid' => false, 'message' => 'CVV غير صالح'];
         }
 

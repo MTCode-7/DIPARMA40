@@ -250,6 +250,75 @@ function activity_normalize_payout_rail(string $code): string
     return isset($rails[$code]) ? $code : '';
 }
 
+function activity_settlement_target_choices(string $sourceGateway, string $channel = 'checkout'): array
+{
+    $source = function_exists('dp_gateway_normalize_code')
+        ? dp_gateway_normalize_code($sourceGateway)
+        : strtolower(trim($sourceGateway));
+    $choices = [
+        'gateway' => [
+            'code' => 'gateway',
+            'name' => 'Same Gateway',
+            'ar' => 'نفس البوابة',
+            'en' => 'Same Gateway',
+            'type' => 'same',
+        ],
+        'ledger' => [
+            'code' => 'ledger',
+            'name' => 'Ledger',
+            'ar' => 'Ledger TRC20',
+            'en' => 'Ledger TRC20',
+            'type' => 'ledger',
+        ],
+    ];
+    foreach (activity_connected_gateways($channel) as $code => $gateway) {
+        $code = function_exists('dp_gateway_normalize_code')
+            ? dp_gateway_normalize_code((string) $code)
+            : strtolower(trim((string) $code));
+        if ($code === '' || $code === $source || in_array($code, ['ledger', 'diparma_gateway', 'square_online'], true)) {
+            continue;
+        }
+        if (array_key_exists('chargeable', $gateway) && empty($gateway['chargeable'])) {
+            continue;
+        }
+        $target = 'gateway:' . $code;
+        $choices[$target] = [
+            'code' => $target,
+            'name' => (string) ($gateway['name'] ?? strtoupper($code)),
+            'ar' => (string) ($gateway['name'] ?? strtoupper($code)),
+            'en' => (string) ($gateway['name'] ?? strtoupper($code)),
+            'type' => 'forward',
+        ];
+    }
+    return $choices;
+}
+
+function activity_normalize_settlement_target(string $target, string $sourceGateway, array $choices): string
+{
+    $target = strtolower(trim($target));
+    $source = function_exists('dp_gateway_normalize_code')
+        ? dp_gateway_normalize_code($sourceGateway)
+        : strtolower(trim($sourceGateway));
+    if (in_array($target, ['', 'gateway', 'same', 'same_gateway'], true)) {
+        return 'gateway';
+    }
+    if (in_array($target, ['ledger', 'ledger_trx', 'wallet'], true)) {
+        return 'ledger';
+    }
+    if (!str_starts_with($target, 'gateway:')) {
+        return '';
+    }
+    $destinationCode = substr($target, strlen('gateway:'));
+    $destinationCode = function_exists('dp_gateway_normalize_code')
+        ? dp_gateway_normalize_code($destinationCode)
+        : $destinationCode;
+    $normalized = 'gateway:' . $destinationCode;
+    if ($destinationCode === '' || $destinationCode === $source || !isset($choices[$normalized])) {
+        return '';
+    }
+    return $normalized;
+}
+
 /** الأنواع الـ 13 المعتمدة لكل نشاط وبوابة */
 function activity_operations(): array
 {
@@ -387,13 +456,13 @@ function activity_connected_gateways(string $channel = 'pos'): array
             $out[$code] = $gw + ['adapter' => $code, 'rail' => 'card'];
         }
     }
-    // Square Online is a fulfillment/service channel; card charging stays on Square 1.
+    // Square Online is its own fulfillment connection; card charging stays on Square 1.
     try {
-        $squareRow = db()->find('payment_gateways', ['code' => 'square']);
+        $squareOnlineRow = db()->find('payment_gateways', ['code' => 'square_online']);
     } catch (Throwable $e) {
-        $squareRow = null;
+        $squareOnlineRow = null;
     }
-    if ($squareRow && isGatewayVisibleInCheckout(array_merge($squareRow, ['code' => 'square_online']))) {
+    if ($squareOnlineRow && isGatewayVisibleInCheckout($squareOnlineRow)) {
         $out['square_online'] = [
             'name' => 'Square 2 · Online',
             'icon' => 'fas fa-store',

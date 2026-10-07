@@ -280,6 +280,7 @@ CREATE TABLE IF NOT EXISTS `dp_payment_links` (
     `currency`     VARCHAR(10) NOT NULL DEFAULT 'AED',
     `gateway`      VARCHAR(50) NOT NULL DEFAULT 'integrated',
     `activity_line` VARCHAR(80) DEFAULT NULL,
+    `settlement_target` VARCHAR(100) NOT NULL DEFAULT 'gateway',
     `protocol`     VARCHAR(50) DEFAULT '101.1',
     `payment_type` VARCHAR(50) DEFAULT 'one_time',
     `customer_name`  VARCHAR(255) DEFAULT NULL,

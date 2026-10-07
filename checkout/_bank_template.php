@@ -7,8 +7,15 @@
 require_once __DIR__ . '/../includes/auth_check.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/gateways.php';
 require_once __DIR__ . '/../includes/activity_flow.php';
 require_once __DIR__ . '/../includes/gateway_channel_bar.php';
+
+$bankGatewayCode = (string) ($BANK_CONFIG['gateway_code'] ?? '');
+if ($bankGatewayCode === '' || !dp_gateway_is_visible_on_channels($bankGatewayCode)) {
+  header('Location: ../checkout_router.php?error=gateway_not_ready', true, 302);
+  exit;
+}
 
 $lang = isset($_COOKIE['di_parma_lang']) && $_COOKIE['di_parma_lang']==='ar' ? 'ar' : 'en';
 $ar   = ($lang==='ar'); $dir=$ar?'rtl':'ltr';

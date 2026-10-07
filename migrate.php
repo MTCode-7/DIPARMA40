@@ -101,6 +101,7 @@ $results[] = ensureColumnExists($db, 'transactions', 'card_type', 'VARCHAR(50) D
 $results[] = ensureColumnExists($db, 'transactions', 'card_last4', 'VARCHAR(16) DEFAULT NULL');
 $results[] = ensureColumnExists($db, 'transactions', 'updated_at', 'DATETIME NULL DEFAULT NULL');
 $results[] = ensureColumnExists($db, 'payment_links', 'activity_line', 'VARCHAR(80) DEFAULT NULL');
+$results[] = ensureColumnExists($db, 'payment_links', 'settlement_target', "VARCHAR(100) NOT NULL DEFAULT 'gateway'");
 $results[] = ensureColumnExists($db, 'users', 'phone', 'VARCHAR(50) DEFAULT NULL');
 $results[] = ensureColumnExists($db, 'users', 'country', 'VARCHAR(100) DEFAULT NULL');
 $results[] = ensureColumnExists($db, 'users', 'address', 'TEXT DEFAULT NULL');

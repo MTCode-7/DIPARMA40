@@ -106,6 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pay_now'])) {
                 'amount'   => $linkData['amount'] ?? 0,
                 'currency' => $linkData['currency'] ?? 'USD',
                 'activity_line' => $linkData['activity_line'] ?? '',
+                'settlement_target' => $linkData['settlement_target'] ?? 'gateway',
                 'link'     => $linkData['link_id'] ?? $postedLinkId,
                 'channel'  => 'link',
             ];

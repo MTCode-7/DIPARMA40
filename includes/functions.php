@@ -7,8 +7,8 @@
  * توليد CSRF Token
  */
 if (!function_exists('generateCsrfToken')) {
-    function generateCsrfToken() {
-        if (empty($_SESSION['csrf_token'])) {
+    function generateCsrfToken(bool $forceNew = false) {
+        if ($forceNew || empty($_SESSION['csrf_token'])) {
             $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         }
 
@@ -57,6 +57,16 @@ if (!function_exists('validateCsrfToken')) {
     function validateCsrfToken($token): bool
     {
         return verifyCsrfToken($token);
+    }
+}
+
+if (!function_exists('rotateCsrfToken')) {
+    /**
+     * يجدد الـ CSRF token بعد كل عملية POST ناجحة
+     * يُستدعى من API endpoints بعد التحقق الناجح
+     */
+    function rotateCsrfToken(): string {
+        return generateCsrfToken(true);
     }
 }
 

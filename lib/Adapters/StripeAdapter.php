@@ -23,7 +23,7 @@ class StripeAdapter implements GatewayAdapterInterface
     {
         $this->secretKey = getenv('STRIPE_SECRET_KEY') ?: '';
         $this->publicKey = getenv('STRIPE_PUBLIC_KEY')  ?: '';
-        if (str_starts_with($this->secretKey, 'sk_test_')) {
+        if (preg_match('/^(?:sk|rk)_test_/', $this->secretKey)) {
             $this->secretKey = '';
         }
     }
@@ -227,7 +227,7 @@ class StripeAdapter implements GatewayAdapterInterface
     public function hold(array $payload): array
     {
         if (empty($this->secretKey)) {
-            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '', 0, '', 'Stripe live secret required (sk_live_). Test keys are rejected.');
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '', 0, '', 'Stripe live secret required. sk_test_ and rk_test_ keys are rejected.');
         }
 
         $amount    = floatval($payload['amount']   ?? 0);
@@ -491,7 +491,7 @@ class StripeAdapter implements GatewayAdapterInterface
         if (strlen($ccNumber) < 13 || strlen($ccNumber) > 19) {
             return ['valid' => false, 'message' => 'رقم البطاقة غير صالح'];
         }
-        if (!preg_match('/^\d{3,4}$/', $cvv2)) {
+        if ($cvv2 !== '' && !preg_match('/^\d{3,4}$/', $cvv2)) {
             return ['valid' => false, 'message' => 'CVV غير صالح'];
         }
 

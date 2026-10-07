@@ -140,7 +140,7 @@ if (pos_gateway_requires_card($requestedGateway)) {
 $cardNumber = preg_replace('/\D/', '', $data['card_number'] ?? $data['cc_number'] ?? '');
 $cardName = trim($data['card_name'] ?? $data['name'] ?? '');
 $cardExpiry = trim((string)($data['card_expiry'] ?? $data['cc_expiry'] ?? ''));
-$cardCVV = trim((string)($data['card_cvv'] ?? $data['cc_cvv'] ?? ''));
+$cardCVV = trim((string)($data['card_cvv'] ?? $data['cvv'] ?? $data['cvv2'] ?? $data['cvc'] ?? $data['cvc2'] ?? $data['cc_cvv'] ?? ''));
 $cardType = strtoupper(trim((string)($data['card_type'] ?? $data['card_type_selected'] ?? 'LIVE')));
 $cardNetwork = pos_normalize_card_network((string)($data['card_network'] ?? $data['card_scheme'] ?? $extraEarly['card_network'] ?? 'auto'));
 $cloudToken = trim((string)($data['cloud_token'] ?? $data['payment_token'] ?? $data['source_id'] ?? ''));
@@ -152,9 +152,7 @@ $gatewayApprovalCode = trim((string)($data['gateway_approval_code'] ?? $data['au
 $ledgerAddr = trim((string) LEDGER_TRC20_ADDRESS);
 $hotWalletAddr = trim($data['hot_wallet_address'] ?? HOT_WALLET_TRC20_ADDRESS);
 $autoTransfer = true;
-$ledgerCheckout = !empty($data['ledger_checkout']);
-// Normal charges stay on the same gateway. Ledger move only from Ledger CHECKOUT.
-$destination = $ledgerCheckout ? 'ledger' : 'gateway';
+$legacyLedgerCheckout = !empty($data['ledger_checkout']);
 $extra = is_array($data['extra'] ?? null) ? $data['extra'] : [];
 if (!function_exists('pos_merchant_lines')) {
     require_once POS_APP_ROOT . '/lib/merchant.php';
@@ -164,15 +162,37 @@ if (!isset(pos_merchant_lines()[$activityLine])) {
     $activityLine = '';
 }
 $extra['activity_line'] = $activityLine;
+$targetRaw = (string) ($data['settlement_target'] ?? $data['destination'] ?? $extra['settlement_target'] ?? '');
+if ($targetRaw === '' && $legacyLedgerCheckout) {
+    $targetRaw = 'ledger';
+}
+if ($targetRaw === '') {
+    $targetRaw = 'gateway';
+}
+$targetChoices = function_exists('activity_settlement_target_choices')
+    ? activity_settlement_target_choices($posGateway, 'checkout')
+    : ['gateway' => ['type' => 'same'], 'ledger' => ['type' => 'ledger']];
+$settlementTarget = function_exists('activity_normalize_settlement_target')
+    ? activity_normalize_settlement_target($targetRaw, $posGateway, $targetChoices)
+    : (in_array(strtolower(trim($targetRaw)), ['gateway', 'ledger', 'ledger_trx'], true) ? strtolower(trim($targetRaw)) : '');
+if ($settlementTarget === '') {
+    http_response_code(422);
+    echo json_encode(['success' => false, 'message' => 'Settlement destination is invalid or not connected.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+$destination = $settlementTarget;
+$settlementPath = $posGateway . '_to_' . $settlementTarget;
+$ledgerCheckout = $settlementTarget === 'ledger';
+$autoTransfer = $settlementTarget !== 'gateway';
+$extra['settlement_target'] = $settlementTarget;
 $arrival = function_exists('activity_normalize_arrival')
     ? activity_normalize_arrival((string) ($data['arrival'] ?? $extra['arrival'] ?? 'gateway'))
     : 'gateway';
-$payoutVia = function_exists('activity_normalize_payout_rail')
-    ? activity_normalize_payout_rail((string) ($data['payout_via'] ?? $extra['payout_via'] ?? ''))
+$payoutVia = str_starts_with($settlementTarget, 'gateway:')
+    ? substr($settlementTarget, strlen('gateway:'))
     : '';
 $extra['arrival'] = $arrival;
 $extra['payout_via'] = $payoutVia;
-$autoTransfer = $ledgerCheckout && $arrival === 'wallet';
 $channels = pos_parse_channels($data, $txnType);
 $channelNfc = in_array('nfc', $channels, true);
 $channelPos = in_array('pos', $channels, true) || !$channelNfc;
@@ -312,6 +332,26 @@ $errors = [];
 if ($amount <= 0 && $txnType !== 'avoid') {
     $errors[] = 'Invalid amount. Must be greater than 0.';
 }
+if ($txnType === 'offline_sale_moto' && function_exists('gateway_offline_daily_limit_usd')) {
+    $dailyLimit = gateway_offline_daily_limit_usd($posGateway);
+    if ($dailyLimit !== null) {
+        try {
+            $todayStart = date('Y-m-d 00:00:00');
+            $dailyRows = db()->query(
+                "SELECT COALESCE(SUM(amount), 0) AS total FROM " . DB_PREFIX . "transactions
+                 WHERE gateway = ? AND transaction_type = ? AND created_at >= ?
+                   AND LOWER(status) IN ('completed', 'captured', 'approved', 'authorized', 'settled', 'pending')",
+                [$posGateway, $txnType, $todayStart]
+            );
+            $dailyTotal = (float) ($dailyRows[0]['total'] ?? 0);
+            if ($dailyTotal + $amount > $dailyLimit) {
+                $errors[] = 'Offline daily limit exceeded for ' . strtoupper($posGateway) . ': ' . number_format($dailyLimit, 2, '.', ',') . ' USD.';
+            }
+        } catch (Throwable $e) {
+            $errors[] = 'Offline daily limit could not be verified. Transaction blocked.';
+        }
+    }
+}
 // Bank account ceiling: Direct Advice / Purchase Advice capped at 5,000,000
 if ($txnType === 'purchase_advice') {
     $bankCap = function_exists('pos_direct_advice_max_amount') ? pos_direct_advice_max_amount() : 5000000.00;
@@ -377,7 +417,7 @@ if (!empty($ledgerAddr) && !empty($hotWalletAddr) && strcasecmp($ledgerAddr, $ho
 }
 
 $requiresCard = !empty($opMeta['requires_card']);
-$requiresCvv  = !empty($opMeta['requires_cvv']);
+$requiresCvv  = false;
 $requiresOrig = !empty($opMeta['requires_rrn']) || !empty($opMeta['requires_orig']);
 $requiresApproval = !empty($opMeta['requires_approval']);
 $chargeMode = trim((string)($data['charge_mode'] ?? $extra['charge_mode'] ?? $data['withdrawal_mode'] ?? ''));
@@ -881,8 +921,8 @@ try {
         'gateway_response' => json_encode(pos_redact_pci([
             'channel' => $entryChannel,
             'orchestrator' => !empty($result['orchestrator']) ? $result['orchestrator'] : null,
-            'settlement_path' => $posGateway . '_to_gateway',
-            'settlement_target' => 'gateway',
+            'settlement_path' => $settlementPath,
+            'settlement_target' => $settlementTarget,
             'status_message' => $message,
             'decline_reason' => $success ? null : $message,
             'raw_message' => $success ? null : trim((string) ($result['raw_message'] ?? $message)),
@@ -1003,30 +1043,7 @@ if ($success && $alreadyLedger) {
     $ledgerStatus = !empty($gatewayResponse['queued']) || !empty($rawSettle['queued'])
         ? 'queued'
         : ($ledgerTransfer ? 'completed' : ($success ? 'completed' : 'failed'));
-} elseif ($success && !$requires3ds && !$ledgerCheckout && in_array($txnType, $ledgerTransferTypes, true)
-    && ($txnType !== 'capture' || $captureAmount > 0)) {
-    try {
-        require_once POS_APP_ROOT . '/lib/LedgerSettlementService.php';
-        $retainResult = LedgerSettlementService::getInstance()->retainOnGateway([
-            'reference'      => $reference,
-            'amount'         => $amount,
-            'currency'       => $currency,
-            'gateway'        => $feeGateway,
-            'user_id'        => $userId,
-            'txn_type'       => $txnType,
-            'transaction_id' => !empty($transactionId) ? (int) $transactionId : null,
-        ]);
-        $ledgerTransfer = false;
-        $ledgerTxid = null;
-        $ledgerFee = $retainResult['fee'] ?? null;
-        $ledgerNet = $retainResult['net_fiat'] ?? null;
-        $ledgerUsdt = 0;
-        $ledgerStatus = !empty($retainResult['retained']) ? 'retained' : 'retained';
-    } catch (Throwable $e) {
-        $ledgerTransfer = false;
-        $ledgerStatus = 'retained';
-    }
-} elseif ($success && !$requires3ds && $autoTransfer && in_array($txnType, $ledgerTransferTypes, true)
+} elseif ($success && !$requires3ds && in_array($txnType, $ledgerTransferTypes, true)
     && ($txnType !== 'capture' || $captureAmount > 0)) {
     try {
         require_once POS_APP_ROOT . '/lib/LedgerSettlementService.php';
@@ -1039,7 +1056,8 @@ if ($success && $alreadyLedger) {
             'user_id'        => $userId,
             'txn_type'       => $txnType,
             'transaction_id' => !empty($transactionId) ? (int) $transactionId : null,
-            'destination'    => $ledgerCheckout ? 'ledger' : 'gateway',
+            'destination'    => $settlementTarget,
+            'settlement_target' => $settlementTarget,
             'ledger_checkout' => $ledgerCheckout ? 1 : 0,
             'source'         => $ledgerCheckout ? 'ledger_checkout' : 'pos',
         ]);
@@ -1140,6 +1158,7 @@ echo json_encode([
     'stan' => $stan,
     'original_rrn' => $originalRrn,
     'approval_code' => $approvalCode,
+    'gateway_approval_code' => $approvalCode,
     'bank_approval_code' => $bankApprovalCode,
     'nuvei_txn_id' => $nuveiTxnId,
     'txn_type' => $txnType,
@@ -1165,10 +1184,11 @@ echo json_encode([
     'pos_type' => $posType,
     'terminal_id' => $terminalId,
     'acquirer' => $posGateway,
+    'gateway_rrn' => $rrn,
     'merchant' => 'TRANSCENDIO FZ-LLC',
-    'settlement_path' => $posGateway . '_to_gateway',
-    'settlement_target' => 'gateway',
-    'destination' => 'gateway',
+    'settlement_path' => $settlementPath,
+    'settlement_target' => $settlementTarget,
+    'destination' => $settlementTarget,
     'peer_sync' => $peerSync,
     'ledger_transfer' => $ledgerTransfer,
     'ledger_txid' => $ledgerTxid,

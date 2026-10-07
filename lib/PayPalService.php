@@ -27,6 +27,21 @@ class PayPalService
         if (!is_dir(dirname($this->logFile))) @mkdir(dirname($this->logFile), 0755, true);
     }
 
+    private function liveEnvironmentError(): array
+    {
+        return [
+            'success' => false,
+            'error_code' => 'GATEWAY_ERROR',
+            'message' => 'PayPal live environment is required. Sandbox/test payments are disabled.',
+        ];
+    }
+
+    private function isLiveEnvironment(): bool
+    {
+        $environment = strtolower(trim((string) (getenv('PAYPAL_ENVIRONMENT') ?: 'live')));
+        return $environment === 'live';
+    }
+
     public static function getInstance(): self
     {
         if (!self::$instance) self::$instance = new self();
@@ -112,6 +127,9 @@ class PayPalService
 
     public function createOrder(float $amount, string $currency, string $reference, array $options = []): array
     {
+        if (!$this->isLiveEnvironment()) {
+            return $this->liveEnvironmentError();
+        }
         if (empty($this->clientId) || empty($this->secretKey)) {
             return ['success' => false, 'message' => 'PayPal credentials غير مضبوطة'];
         }
@@ -183,6 +201,9 @@ class PayPalService
 
     public function captureOrder(string $orderId): array
     {
+        if (!$this->isLiveEnvironment()) {
+            return $this->liveEnvironmentError();
+        }
         try {
             $token    = $this->getAccessToken();
             $response = $this->request('POST', "/v2/checkout/orders/$orderId/capture", $token, []);
@@ -212,6 +233,9 @@ class PayPalService
 
     public function authorizeOrder(string $orderId): array
     {
+        if (!$this->isLiveEnvironment()) {
+            return $this->liveEnvironmentError();
+        }
         try {
             $token    = $this->getAccessToken();
             $response = $this->request('POST', "/v2/checkout/orders/$orderId/authorize", $token, []);
@@ -245,6 +269,9 @@ class PayPalService
 
     public function captureAuthorization(string $authorizationId, ?float $amount = null, string $currency = 'USD', array $options = []): array
     {
+        if (!$this->isLiveEnvironment()) {
+            return $this->liveEnvironmentError();
+        }
         $body = [];
         if ($amount !== null && $amount > 0) {
             $body['amount'] = [
@@ -276,6 +303,9 @@ class PayPalService
 
     public function reauthorizeAuthorization(string $authorizationId, ?float $amount = null, string $currency = 'USD'): array
     {
+        if (!$this->isLiveEnvironment()) {
+            return $this->liveEnvironmentError();
+        }
         $body = [];
         if ($amount !== null && $amount > 0) {
             $body['amount'] = [
@@ -305,6 +335,9 @@ class PayPalService
 
     public function refundCapture(string $captureId, ?float $amount = null, string $currency = 'USD', string $note = ''): array
     {
+        if (!$this->isLiveEnvironment()) {
+            return $this->liveEnvironmentError();
+        }
         $body = [];
         if ($amount !== null && $amount > 0) {
             $body['amount'] = [
@@ -552,9 +585,8 @@ class PayPalService
         if (empty($this->clientId) || empty($this->secretKey)) {
             return ['success' => false, 'message' => 'PayPal credentials غير مضبوطة', 'error_code' => 'GATEWAY_ERROR'];
         }
-        $ppEnv = strtolower(trim((string)(getenv('PAYPAL_ENVIRONMENT') ?: 'live')));
-        if (in_array($ppEnv, ['sandbox', 'test'], true)) {
-            return ['success' => false, 'message' => 'PayPal sandbox مرفوض. استخدم بيئة live.', 'error_code' => 'GATEWAY_ERROR'];
+        if (!$this->isLiveEnvironment()) {
+            return $this->liveEnvironmentError();
         }
 
         $intent = strtoupper($intent) === 'AUTHORIZE' ? 'AUTHORIZE' : 'CAPTURE';
@@ -657,6 +689,9 @@ class PayPalService
 
     public function voidAuthorization(string $authorizationId): array
     {
+        if (!$this->isLiveEnvironment()) {
+            return $this->liveEnvironmentError();
+        }
         try {
             $token = $this->getAccessToken();
             $response = $this->request(

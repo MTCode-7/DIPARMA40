@@ -95,6 +95,9 @@ class SquareAdapter implements GatewayAdapterInterface
 
     public function capture(string $transactionId, ?float $amount = null): array
     {
+        if ($this->sandbox) {
+            return $this->sandboxError($transactionId, (float) ($amount ?? 0), 'USD');
+        }
         if ($this->accessToken === '') {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, 0, 'USD', 'SQUARE_ACCESS_TOKEN missing');
         }
@@ -135,6 +138,9 @@ class SquareAdapter implements GatewayAdapterInterface
 
     public function cancel(string $transactionId, string $reason = 'requested_by_customer'): array
     {
+        if ($this->sandbox) {
+            return $this->sandboxError($transactionId, 0, 'USD');
+        }
         if ($this->accessToken === '') {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, 0, 'USD', 'SQUARE_ACCESS_TOKEN missing');
         }
@@ -161,6 +167,9 @@ class SquareAdapter implements GatewayAdapterInterface
 
     public function refund(string $transactionId, ?float $amount = null, string $currency = 'USD'): array
     {
+        if ($this->sandbox) {
+            return $this->sandboxError($transactionId, (float) ($amount ?? 0), $currency);
+        }
         if ($this->accessToken === '') {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, $amount ?? 0, $currency, 'SQUARE_ACCESS_TOKEN missing');
         }
@@ -226,7 +235,7 @@ class SquareAdapter implements GatewayAdapterInterface
         $amount = (float) ($payload['amount'] ?? 0);
         $currency = strtoupper((string) ($payload['currency'] ?? 'USD'));
         if ($this->sandbox) {
-            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, $currency, 'Square sandbox is rejected. Use production keys.');
+            return $this->sandboxError($reference, $amount, $currency);
         }
         if ($this->accessToken === '') {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, $currency, 'SQUARE_ACCESS_TOKEN missing');
@@ -267,7 +276,7 @@ class SquareAdapter implements GatewayAdapterInterface
             ?? $payload['payment_method']
             ?? ''
         ));
-        if ($sourceId === '' || strncasecmp($sourceId, 'cnon:card-nonce', 15) === 0) {
+        if ($sourceId === '' || (function_exists('square_is_simulation_nonce') && square_is_simulation_nonce($sourceId))) {
             return GatewayErrorMapper::buildErrorResponse(
                 'INVALID_CARD',
                 $reference,
@@ -367,6 +376,17 @@ class SquareAdapter implements GatewayAdapterInterface
             GatewayLogger::log('square', $autocomplete ? 'charge' : 'hold', $payload, ['exception' => $e->getMessage()], 'NETWORK_ERROR', microtime(true) - $start);
             return GatewayErrorMapper::buildErrorResponse('NETWORK_ERROR', $reference, $amount, $currency, $e->getMessage());
         }
+    }
+
+    private function sandboxError(string $reference, float $amount, string $currency): array
+    {
+        return GatewayErrorMapper::buildErrorResponse(
+            'GATEWAY_ERROR',
+            $reference,
+            $amount,
+            $currency,
+            'Square sandbox is rejected. Use production keys.'
+        );
     }
 
     /**

@@ -44,9 +44,20 @@ $activityLine = strtolower(trim((string) ($payload['activity_line'] ?? '')));
 if (!isset(pos_merchant_lines()[$activityLine])) {
     $activityLine = '';
 }
+$settlementChoices = activity_settlement_target_choices($gateway, 'link');
+$settlementTarget = activity_normalize_settlement_target(
+    (string) ($payload['settlement_target'] ?? 'gateway'),
+    $gateway,
+    $settlementChoices
+);
 if ($title === '' || $amount <= 0 || $gateway === '') {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'title, amount, and gateway required']);
+    exit;
+}
+if ($settlementTarget === '') {
+    http_response_code(422);
+    echo json_encode(['success' => false, 'message' => 'Settlement destination is invalid or not connected']);
     exit;
 }
 
@@ -65,6 +76,7 @@ $insertData = [
     'currency' => $currency !== '' ? $currency : 'USD',
     'gateway' => $gateway,
     'activity_line' => $activityLine !== '' ? $activityLine : null,
+    'settlement_target' => $settlementTarget,
     'protocol' => trim((string) ($payload['protocol'] ?? 'DTC')),
     'payment_type' => trim((string) ($payload['payment_type'] ?? 'one_time')),
     'customer_name' => trim((string) ($payload['customer_name'] ?? '')),

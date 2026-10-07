@@ -44,7 +44,7 @@ function pos_terminal_gateways(): array
             'desc_en' => 'Stripe. ' . $acceptNoteEn . ' After approval the funds stay on Stripe.',
         ],
         'square' => [
-            'name' => 'Square',
+            'name' => 'Square 1',
             'icon' => 'fas fa-square',
             'color' => '#006AFF',
             'adapter' => 'square',
@@ -60,8 +60,8 @@ function pos_terminal_gateways(): array
             'rail' => 'fulfillment',
             'chargeable' => false,
             'company_no' => 10,
-            'desc_ar' => 'شركة 10 — DI PARMA BUSINESSMAN SERVICES. المتجر: الإمارات. العمل: حول العالم. الخدمات: سياحة، حجوزات، إيجارات، عقارات، فنادق. الخصم على Square 1 ويبقى المبلغ على Square.',
-            'desc_en' => 'Company 10 — DI PARMA BUSINESSMAN SERVICES. Store: UAE. Work: around the world. Services: tourism, bookings, rentals, real estate, hotels. Cards on Square 1; funds stay on Square.',
+            'desc_ar' => 'شركة مستقلة عن Square 1 — DI PARMA BUSINESSMAN SERVICES. النشاط: سياحة، حجوزات، إيجارات، عقارات، فنادق. تستخدم مفاتيح Square 2 فقط ولا ترتبط بحساب Square 1.',
+            'desc_en' => 'Independent company from Square 1 — DI PARMA BUSINESSMAN SERVICES. Tourism, bookings, rentals, real estate, and hotels. Uses Square 2 credentials only and never links to Square 1.',
         ],
         'payram' => [
             'name' => 'PayRam',
@@ -608,6 +608,9 @@ function pos_run_isolated_card_gateway(string $gateway, string $adapter, string 
 
     if ($effective === 'purchase_3d' && method_exists($obj, 'purchase3D')) {
         return pos_format_gateway_result($obj->purchase3D($params), 'DECLINED', $gateway);
+    }
+    if ($adapter === 'nuvei' && $effective === 'offline_sale_moto' && method_exists($obj, 'purchaseAdvice')) {
+        return pos_format_gateway_result($obj->purchaseAdvice($params), 'DECLINED', $gateway);
     }
     if (in_array($effective, ['purchase_2d', 'online_sale_moto', 'offline_sale_moto', 'purchase_advice'], true)
         && method_exists($obj, 'purchase2D')) {

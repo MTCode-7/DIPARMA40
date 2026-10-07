@@ -22,13 +22,15 @@ final class AuthorizeNetAdapter implements GatewayAdapterInterface
     private string $apiLoginId;
     private string $transactionKey;
     private string $baseUrl;
+    private bool $liveEnvironment;
 
     public function __construct()
     {
         $this->apiLoginId     = getenv('AUTHNET_API_LOGIN_ID')    ?: '';
         $this->transactionKey = getenv('AUTHNET_TRANSACTION_KEY') ?: '';
-        $env                  = getenv('AUTHNET_ENVIRONMENT')      ?: '';
-        $this->baseUrl        = $env === 'live'
+        $env                  = strtolower(trim((string) (getenv('AUTHNET_ENVIRONMENT') ?: '')));
+        $this->liveEnvironment = $env === 'live';
+        $this->baseUrl        = $this->liveEnvironment
             ? 'https://api.authorize.net/xml/v1/request.api'
             : 'https://apitest.authorize.net/xml/v1/request.api';
     }
@@ -55,6 +57,9 @@ final class AuthorizeNetAdapter implements GatewayAdapterInterface
     // ══════════════════════════════════════════════════════════
     public function charge(array $payload): array
     {
+        if (!$this->liveEnvironment) {
+            return $this->liveEnvironmentError((string) ($payload['reference'] ?? ''), (float) ($payload['amount'] ?? 0), (string) ($payload['currency'] ?? ''));
+        }
         if (empty($this->apiLoginId) || empty($this->transactionKey)) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '',
                 0, '', 'AUTHNET_API_LOGIN_ID أو AUTHNET_TRANSACTION_KEY غير مضبوط');
@@ -138,6 +143,9 @@ final class AuthorizeNetAdapter implements GatewayAdapterInterface
     // ══════════════════════════════════════════════════════════
     public function hold(array $payload): array
     {
+        if (!$this->liveEnvironment) {
+            return $this->liveEnvironmentError((string) ($payload['reference'] ?? ''), (float) ($payload['amount'] ?? 0), (string) ($payload['currency'] ?? ''));
+        }
         if (empty($this->apiLoginId) || empty($this->transactionKey)) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '');
         }
@@ -190,6 +198,9 @@ final class AuthorizeNetAdapter implements GatewayAdapterInterface
     // ══════════════════════════════════════════════════════════
     public function capture(string $transactionId, ?float $amount = null): array
     {
+        if (!$this->liveEnvironment) {
+            return $this->liveEnvironmentError($transactionId, (float) ($amount ?? 0), '');
+        }
         $body = [
             'createTransactionRequest' => [
                 'merchantAuthentication' => [
@@ -246,6 +257,9 @@ final class AuthorizeNetAdapter implements GatewayAdapterInterface
     // ══════════════════════════════════════════════════════════
     public function cancel(string $transactionId, string $reason = 'requested_by_customer'): array
     {
+        if (!$this->liveEnvironment) {
+            return $this->liveEnvironmentError($transactionId, 0, '');
+        }
         $body = [
             'createTransactionRequest' => [
                 'merchantAuthentication' => [
@@ -296,6 +310,17 @@ final class AuthorizeNetAdapter implements GatewayAdapterInterface
     // ══════════════════════════════════════════════════════════
     // مساعد تحليل Response
     // ══════════════════════════════════════════════════════════
+    private function liveEnvironmentError(string $reference, float $amount, string $currency): array
+    {
+        return GatewayErrorMapper::buildErrorResponse(
+            'GATEWAY_ERROR',
+            $reference,
+            $amount,
+            $currency,
+            'Authorize.Net live environment is required. Test API is disabled.'
+        );
+    }
+
     private function parseChargeResponse(
         array  $res,
         string $mode,
@@ -362,7 +387,7 @@ final class AuthorizeNetAdapter implements GatewayAdapterInterface
         if (strlen($ccNumber) < 13 || strlen($ccNumber) > 19) {
             return ['valid' => false, 'message' => 'رقم البطاقة غير صالح'];
         }
-        if (!preg_match('/^\d{3,4}$/', $cvv2)) {
+        if ($cvv2 !== '' && !preg_match('/^\d{3,4}$/', $cvv2)) {
             return ['valid' => false, 'message' => 'CVV غير صالح'];
         }
 
@@ -406,6 +431,7 @@ final class AuthorizeNetAdapter implements GatewayAdapterInterface
             return ['transactionResponse' => ['responseCode' => '3',
                 'errors' => [['errorText' => $err]]]];
         }
+
 
         // Authorize.Net يُرجع BOM أحياناً — نزيله
         $res = ltrim($res, "\xEF\xBB\xBF");

@@ -14,12 +14,14 @@ class MyFatoorahAdapter implements GatewayAdapterInterface
 {
     private string $apiKey;
     private string $baseUrl;
+    private bool $liveEnvironment;
 
     public function __construct()
     {
         $this->apiKey  = getenv('MYFAOORAH_API_KEY') ?: '';
-        $env           = getenv('MYFAOORAH_ENVIRONMENT') ?: '';
-        $this->baseUrl = $env === 'live'
+        $env           = strtolower(trim((string) (getenv('MYFAOORAH_ENVIRONMENT') ?: '')));
+        $this->liveEnvironment = $env === 'live';
+        $this->baseUrl = $this->liveEnvironment
             ? 'https://api.myfatoorah.com'
             : 'https://apitest.myfatoorah.com';
     }
@@ -47,6 +49,15 @@ class MyFatoorahAdapter implements GatewayAdapterInterface
     // ══════════════════════════════════════════════════════════
     public function charge(array $payload): array
     {
+        if (!$this->liveEnvironment) {
+            return GatewayErrorMapper::buildErrorResponse(
+                'GATEWAY_ERROR',
+                (string) ($payload['reference'] ?? ''),
+                (float) ($payload['amount'] ?? 0),
+                (string) ($payload['currency'] ?? ''),
+                'MyFatoorah live environment is required. Test API is disabled.'
+            );
+        }
         if (empty($this->apiKey)) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '');
         }
@@ -219,6 +230,15 @@ class MyFatoorahAdapter implements GatewayAdapterInterface
     // ══════════════════════════════════════════════════════════
     public function cancel(string $transactionId, string $reason = 'requested_by_customer'): array
     {
+        if (!$this->liveEnvironment) {
+            return GatewayErrorMapper::buildErrorResponse(
+                'GATEWAY_ERROR',
+                $transactionId,
+                0,
+                '',
+                'MyFatoorah live environment is required. Test API is disabled.'
+            );
+        }
         $start = microtime(true);
         try {
             $res      = $this->request('POST', '/v2/CancelPayment', [
@@ -268,7 +288,7 @@ class MyFatoorahAdapter implements GatewayAdapterInterface
         if (strlen($ccNumber) < 13 || strlen($ccNumber) > 19) {
             return ['valid' => false, 'message' => 'رقم البطاقة غير صالح'];
         }
-        if (!preg_match('/^\d{3,4}$/', $cvv2)) {
+        if ($cvv2 !== '' && !preg_match('/^\d{3,4}$/', $cvv2)) {
             return ['valid' => false, 'message' => 'CVV غير صالح'];
         }
 

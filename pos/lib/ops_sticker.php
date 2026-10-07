@@ -234,7 +234,7 @@ function pos_error_playbook(): array
             'fix_en' => 'Check hot-wallet TRX/USDT and key, then retry transfer from the receipt.',
             'method_ar' => 'HotWalletService → dp_ledger_transfer_queue',
             'method_en' => 'HotWalletService → dp_ledger_transfer_queue'],
-        ['id' => 'cvv', 'match' => 'Enter CVV|أدخل CVV', 'title_ar' => 'CVV مطلوب', 'title_en' => 'CVV required',
+        ['id' => 'cvv', 'match' => 'Enter CVV|أدخل CVV', 'title_ar' => 'CVV اختياري', 'title_en' => 'CVV optional',
             'reason_ar' => 'هذا النوع في الملصق: CVV = نعم (شراء 2D/3D).',
             'reason_en' => 'This type on the sticker: CVV = Yes (2D/3D purchase).',
             'fix_ar' => 'أدخل 3 أو 4 أرقام. Capture وAdvice بدون CVV.',

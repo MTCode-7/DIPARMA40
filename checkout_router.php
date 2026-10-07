@@ -83,9 +83,6 @@ $gateways = $allGateways;
       continue;
     }
     $row = $gatewayState[$code] ?? null;
-    if ($row === null && $code === 'square_online') {
-      $row = $gatewayState['square'] ?? null;
-    }
     if ($row === null) {
       continue;
     }
@@ -112,9 +109,13 @@ $gateways = $allGateways;
   }
     $gatewayCurrencies = [];
       $gatewayOperations = [];
+      $settlementTargets = ['pos' => [], 'checkout' => [], 'link' => []];
     foreach (array_keys($gateways) as $code) {
       $gatewayCurrencies[$code] = activity_gateway_currencies($code);
         $gatewayOperations[$code] = activity_gateway_checkout_operations($code);
+        foreach (['pos', 'checkout', 'link'] as $targetChannel) {
+          $settlementTargets[$targetChannel][$code] = activity_settlement_target_choices($code, $targetChannel);
+        }
     }
 ?><!DOCTYPE html>
 <html lang="<?=$lang?>" dir="<?=$dir?>">
@@ -355,6 +356,12 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       </div>
       </div>
 
+      <div class="fld" id="settlementTargetWrap" style="margin:0 0 16px">
+        <label for="settlementTarget"><?=$ar?'وجهة المبلغ بعد نجاح الخصم':'Where funds go after the charge'?></label>
+        <select id="settlementTarget" onchange="updateSettlementTargetHint()"></select>
+        <div id="settlementTargetHint" style="font-size:.68rem;color:var(--muted2);margin-top:6px;line-height:1.55"></div>
+      </div>
+
       <!-- 2D / 3D لـ Purchase -->
       <div id="secModeWrap" style="display:flex;gap:8px;margin-bottom:16px">
         <div onclick="selectSecMode('3D',this)" id="smode-3D"
@@ -425,6 +432,7 @@ const POS_ROUTES = <?=json_encode($posRoutes, JSON_UNESCAPED_SLASHES | JSON_UNES
 const LINK_ROUTES = <?=json_encode($linkRoutes, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
 const GW_CURRENCIES = <?=json_encode($gatewayCurrencies, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
 const GW_OPERATIONS = <?=json_encode($gatewayOperations, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
+const SETTLEMENT_TARGETS = <?=json_encode($settlementTargets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)?>;
 
 function selectActivity(code, el) {
   STATE.line = code || null;
@@ -503,16 +511,47 @@ function configureStep4() {
   const ops = document.getElementById('txnOpsWrap');
   const sec = document.getElementById('secModeWrap');
   const amount = document.getElementById('txnAmountWrap');
+  const targetWrap = document.getElementById('settlementTargetWrap');
+  const targetSelect = document.getElementById('settlementTarget');
   const next = document.getElementById('btn-step3');
   if (ops) ops.style.display = linkMode || wiseTransfer || fulfillment ? 'none' : '';
   if (sec) sec.style.display = linkMode || wiseTransfer || fulfillment || bankTransfer ? 'none' : '';
   if (amount) amount.style.display = fulfillment ? 'none' : '';
+  if (targetWrap) targetWrap.style.display = wiseTransfer || fulfillment ? 'none' : '';
+  if (targetSelect && targetWrap && targetWrap.style.display !== 'none') {
+    const options = SETTLEMENT_TARGETS[STATE.channel]?.[STATE.gateway] || [];
+    const sameSelection = targetSelect.dataset.source === (STATE.gateway || '')
+      && targetSelect.dataset.channel === (STATE.channel || '');
+    const current = sameSelection ? targetSelect.value : 'gateway';
+    targetSelect.replaceChildren();
+    options.forEach(target => {
+      const option = document.createElement('option');
+      option.value = target.code;
+      option.textContent = AR ? target.ar : target.en;
+      targetSelect.appendChild(option);
+    });
+    targetSelect.value = options.some(target => target.code === current) ? current : 'gateway';
+    targetSelect.dataset.source = STATE.gateway || '';
+    targetSelect.dataset.channel = STATE.channel || '';
+  }
+  updateSettlementTargetHint();
   if (next) {
     next.innerHTML = fulfillment
       ? (AR ? 'فتح خدمات Square Online <i class="fas fa-arrow-left"></i>' : 'Open Square Online services <i class="fas fa-arrow-left"></i>')
       : (AR ? 'متابعة <i class="fas fa-arrow-left"></i>' : 'Continue <i class="fas fa-arrow-left"></i>');
   }
   updateSummary();
+}
+
+function updateSettlementTargetHint() {
+  const target = document.getElementById('settlementTarget')?.value || 'gateway';
+  const hint = document.getElementById('settlementTargetHint');
+  if (!hint) return;
+  hint.textContent = target.startsWith('gateway:')
+    ? (AR ? 'سيُسجل طلب تحويل من بوابة الخصم إلى البوابة المختارة؛ الإرسال الفعلي يحتاج تنفيذ التحويل لدى المزود.' : 'A transfer request will be queued from the charging gateway to the selected gateway; the provider payout must be completed separately.')
+    : (target === 'ledger'
+      ? (AR ? 'يُحوّل الصافي إلى Ledger عبر تسوية USDT بعد نجاح الخصم.' : 'Net proceeds are settled to Ledger in USDT after the charge succeeds.')
+      : (AR ? 'يبقى المبلغ في حساب بوابة الخصم نفسها.' : 'Funds remain in the charging gateway account.'));
 }
 
 function goStep(n) {
@@ -624,6 +663,7 @@ window.proceedToCheckout = function() {
   STATE.txnType = STATE_TXN.type;
   STATE.amount = parseFloat(document.getElementById('txnAmount')?.value) || 0;
   STATE.currency = document.getElementById('txnCurrency')?.value || 'USD';
+  const settlementTarget = document.getElementById('settlementTarget')?.value || 'gateway';
 
   if (STATE.channel === 'checkout' && STATE.gateway === 'square_online') {
     const serviceRoute = GW_ROUTES[STATE.gateway];
@@ -643,7 +683,8 @@ window.proceedToCheckout = function() {
       line: STATE.line,
       op: STATE.txnType,
       amount: String(STATE.amount),
-      currency: STATE.currency
+      currency: STATE.currency,
+      settlement_target: settlementTarget
     });
     const routerDevice = <?= json_encode(strtolower(preg_replace('/[^a-z0-9_]/', '', (string) ($_GET['device'] ?? $_COOKIE['di_parma_pos_model'] ?? ''))), JSON_UNESCAPED_UNICODE) ?>;
     if (routerDevice) q.set('device', routerDevice);
@@ -659,7 +700,8 @@ window.proceedToCheckout = function() {
       gateway: STATE.gateway,
       amount: String(STATE.amount || 0),
       currency: STATE.currency,
-      line: STATE.line
+      line: STATE.line,
+      settlement_target: settlementTarget
     });
     window.location.href = (LINK_ROUTES[STATE.gateway] || 'links.php') + '?' + q.toString();
     return;
@@ -672,7 +714,8 @@ window.proceedToCheckout = function() {
   }
   const params = new URLSearchParams({
     gateway: STATE.gateway,
-    destination: 'gateway',
+    destination: settlementTarget,
+    settlement_target: settlementTarget,
     channel: 'checkout',
     amount: String(STATE.amount || 0),
     currency: STATE.currency,

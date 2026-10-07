@@ -234,6 +234,9 @@ final class BraintreeAdapter implements GatewayAdapterInterface
     // ══════════════════════════════════════════════════════════
     public function capture(string $transactionId, ?float $amount = null): array
     {
+        if (!in_array($this->environment, ['production', 'live'], true)) {
+            return $this->nonProductionError($transactionId, (float) ($amount ?? 0));
+        }
         $start = microtime(true);
         try {
             $body = $amount !== null
@@ -281,6 +284,9 @@ final class BraintreeAdapter implements GatewayAdapterInterface
     // ══════════════════════════════════════════════════════════
     public function cancel(string $transactionId, string $reason = 'requested_by_customer'): array
     {
+        if (!in_array($this->environment, ['production', 'live'], true)) {
+            return $this->nonProductionError($transactionId, 0);
+        }
         $start = microtime(true);
         try {
             $res      = $this->request('PUT',
@@ -320,6 +326,17 @@ final class BraintreeAdapter implements GatewayAdapterInterface
 
     // ── مساعدات ──────────────────────────────────────────────
 
+    private function nonProductionError(string $reference, float $amount): array
+    {
+        return GatewayErrorMapper::buildErrorResponse(
+            'GATEWAY_ERROR',
+            $reference,
+            $amount,
+            '',
+            'Braintree production environment is required. Sandbox/test is disabled.'
+        );
+    }
+
     private function buildSaleXml(array $p): string
     {
         $settle = ($p['submit_for_settlement'] ?? true) ? 'true' : 'false';
@@ -353,7 +370,7 @@ final class BraintreeAdapter implements GatewayAdapterInterface
         if (strlen($ccNumber) < 13 || strlen($ccNumber) > 19) {
             return ['valid' => false, 'message' => 'رقم البطاقة غير صالح'];
         }
-        if (!preg_match('/^\d{3,4}$/', $cvv2)) {
+        if ($cvv2 !== '' && !preg_match('/^\d{3,4}$/', $cvv2)) {
             return ['valid' => false, 'message' => 'CVV غير صالح'];
         }
 

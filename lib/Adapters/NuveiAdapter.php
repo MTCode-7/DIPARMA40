@@ -149,7 +149,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $ccExp    = $payload['card_expiry'] ?? $payload['cc_expiry'] ?? '';
         $ccCvv    = $payload['cvv2'] ?? $payload['card_cvv'] ?? $payload['cc_cvv'] ?? '';
 
-        if ($ccNumber === '' || $ccExp === '' || $ccCvv === '') {
+        if ($ccNumber === '' || $ccExp === '') {
             return GatewayErrorMapper::buildErrorResponse('INVALID_CARD', $reference, $amount, $currency, 'بيانات البطاقة غير مكتملة');
         }
 
@@ -405,6 +405,9 @@ class NuveiAdapter implements GatewayAdapterInterface {
         }
         if ($amountRaw <= 0) {
             return ['success' => false, 'message' => 'Capture amount must be greater than 0'];
+        }
+        if ($authorizedAmount !== null && $authorizedAmount > 0 && $amountRaw > $authorizedAmount) {
+            return ['success' => false, 'message' => 'Nuvei capture cannot exceed the original authorized amount'];
         }
         if ($authCode === '') {
             return ['success' => false, 'message' => 'Nuvei Auth Code is required for capture'];
@@ -672,7 +675,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $this->log("Webhook: status=$status ref=$ref txId=$txId");
 
         return [
-            'success'        => in_array(strtoupper($status), ['APPROVED','SUCCESS']),
+            'success'        => strtoupper($status) === 'APPROVED',
             'reference'      => $ref,
             'transaction_id' => $txId,
             'status'         => $status,
@@ -1396,7 +1399,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
     private function nuveiTxnApproved(array $res): bool
     {
         $txn = strtoupper((string)($res['transactionStatus'] ?? ''));
-        return in_array($txn, ['APPROVED', 'SUCCESS'], true);
+        return $txn === 'APPROVED';
     }
 
     private function nuveiRedirectUrl(array $res): string
@@ -1413,7 +1416,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
     {
         $status      = strtoupper((string)($raw['status'] ?? ''));
         $txnStatus   = strtoupper((string)($raw['transactionStatus'] ?? ''));
-        $success     = in_array($txnStatus, ['APPROVED', 'SUCCESS'], true);
+        $success     = $txnStatus === 'APPROVED';
         $reason      = $success ? 'APPROVED' : $this->formatDeclineReason($raw, $txnStatus, $status);
         $redirectUrl = $this->nuveiRedirectUrl($raw);
         $needs3ds    = !$success && ($txnStatus === 'REDIRECT' || $redirectUrl !== '');
