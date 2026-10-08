@@ -23,8 +23,8 @@ if ($method === 'GET' && ($action === 'health' || $action === '')) {
     if ($peerRequest !== false) {
         curl_setopt_array($peerRequest, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CONNECTTIMEOUT => 1,
-            CURLOPT_TIMEOUT => 2,
+            CURLOPT_CONNECTTIMEOUT => 2,
+            CURLOPT_TIMEOUT => 6,
         ]);
         $peerBody = curl_exec($peerRequest);
         $peerStatus = (int) curl_getinfo($peerRequest, CURLINFO_HTTP_CODE);
