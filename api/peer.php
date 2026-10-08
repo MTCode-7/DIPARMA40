@@ -18,22 +18,24 @@ $action = strtolower(trim((string) ($_GET['action'] ?? '')));
 
 if ($method === 'GET' && ($action === 'health' || $action === '')) {
     $peerAvailable = false;
-    $peerUrl = rtrim(peer_other_url(), '/') . '/api/peer.php?action=health';
-    $peerRequest = curl_init($peerUrl);
-    if ($peerRequest !== false) {
-        curl_setopt_array($peerRequest, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CONNECTTIMEOUT => 2,
-            CURLOPT_TIMEOUT => 6,
-        ]);
-        $peerBody = curl_exec($peerRequest);
-        $peerStatus = (int) curl_getinfo($peerRequest, CURLINFO_HTTP_CODE);
-        curl_close($peerRequest);
-        $peerHealth = json_decode((string) $peerBody, true);
-        $peerAvailable = $peerStatus >= 200
-            && $peerStatus < 300
-            && is_array($peerHealth)
-            && !empty($peerHealth['success']);
+    if (filter_var($_GET['probe_peer'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
+        $peerUrl = rtrim(peer_other_url(), '/') . '/api/peer.php?action=health&probe_peer=0';
+        $peerRequest = curl_init($peerUrl);
+        if ($peerRequest !== false) {
+            curl_setopt_array($peerRequest, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => 2,
+                CURLOPT_TIMEOUT => 6,
+            ]);
+            $peerBody = curl_exec($peerRequest);
+            $peerStatus = (int) curl_getinfo($peerRequest, CURLINFO_HTTP_CODE);
+            curl_close($peerRequest);
+            $peerHealth = json_decode((string) $peerBody, true);
+            $peerAvailable = $peerStatus >= 200
+                && $peerStatus < 300
+                && is_array($peerHealth)
+                && !empty($peerHealth['success']);
+        }
     }
 
     echo json_encode([
