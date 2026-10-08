@@ -2071,11 +2071,13 @@ window.applyOpsLegend = function(type) {
   }
   const needCard = legendNeed(row.card) || !!meta.requires_card;
   const needExp = legendNeed(row.exp) || !!meta.requires_expiry;
-  const needCvv = !!POS_REQUIRES_CARD;
+  const needCvv = !!POS_REQUIRES_CARD && document.getElementById('cardType')?.value !== 'CLOUD';
   setFieldWrap('livePanWrap', needCard, 'cardNumber');
   setFieldWrap('liveNameWrap', needCard, 'cardName');
   setFieldWrap('liveExpWrap', needExp, 'cardExpiry');
   setFieldWrap('liveCvvWrap', needCvv, 'cardCVV');
+  const cvvInput = document.getElementById('cardCVV');
+  if (cvvInput) cvvInput.required = false;
   const cardSec = document.getElementById('cardSection');
   if (cardSec) cardSec.style.opacity = needCard ? '1' : '.55';
   const label = (typeof TXN_LABELS !== 'undefined' && TXN_LABELS[type]) || { ar: type, en: type };
@@ -2786,6 +2788,11 @@ window.setInputMode = function(mode) {
   document.getElementById('modePhysical').classList.toggle('active', mode === 'physical');
   document.getElementById('manualBox').classList.toggle('hidden', mode === 'physical');
   document.getElementById('physicalBox').classList.toggle('hidden', mode === 'manual');
+  if (mode === 'manual') {
+    const cardType = document.getElementById('cardType');
+    if (cardType) cardType.value = 'LIVE';
+    toggleCloudCard();
+  }
   setPosStatus(mode === 'physical'
     ? (AR ? 'بانتظار تمرير البطاقة على القارئ' : 'WAITING CARD ON READER')
     : (AR ? 'مانول — بدون تمرير البطاقة' : 'MANUAL — NO CARD TAP REQUIRED'));
