@@ -17,12 +17,31 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $action = strtolower(trim((string) ($_GET['action'] ?? '')));
 
 if ($method === 'GET' && ($action === 'health' || $action === '')) {
+    $peerAvailable = false;
+    $peerUrl = rtrim(peer_other_url(), '/') . '/api/peer.php?action=health';
+    $peerRequest = curl_init($peerUrl);
+    if ($peerRequest !== false) {
+        curl_setopt_array($peerRequest, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 1,
+            CURLOPT_TIMEOUT => 2,
+        ]);
+        $peerBody = curl_exec($peerRequest);
+        $peerStatus = (int) curl_getinfo($peerRequest, CURLINFO_HTTP_CODE);
+        curl_close($peerRequest);
+        $peerHealth = json_decode((string) $peerBody, true);
+        $peerAvailable = $peerStatus >= 200
+            && $peerStatus < 300
+            && is_array($peerHealth)
+            && !empty($peerHealth['success']);
+    }
+
     echo json_encode([
         'success' => true,
         'ok'      => true,
         'role'    => peer_this_role(),
         'enabled' => PEER_SYNC_ENABLED,
-        'peer_url' => peer_other_url(),
+        'peer_available' => $peerAvailable,
     ]);
     exit;
 }

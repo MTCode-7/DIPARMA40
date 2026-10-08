@@ -3584,16 +3584,9 @@ try { loadLedgerBalance(POS.ledgerAddress); } catch (e) {}
   try {
     const r = await fetch(PEER_HEALTH, { credentials: 'same-origin' });
     const d = await r.json();
-    mark('peerLocalDot', !!d.success, AR ? 'محلي' : 'Local');
-    if (d.peer_url) {
-      try {
-        const pr = await fetch(d.peer_url.replace(/\/$/, '') + '/api/peer.php?action=health', { mode: 'cors' });
-        const pd = await pr.json();
-        mark('peerRemoteDot', !!pd.success, AR ? 'بعيد' : 'Remote');
-      } catch (e) {
-        mark('peerRemoteDot', false, AR ? 'بعيد' : 'Remote');
-      }
-    }
+    const isLocal = d.role === 'local';
+    mark('peerLocalDot', isLocal ? !!d.success : !!d.peer_available, AR ? 'محلي' : 'Local');
+    mark('peerRemoteDot', isLocal ? !!d.peer_available : !!d.success, AR ? 'بعيد' : 'Remote');
   } catch (e) {
     mark('peerLocalDot', false, AR ? 'محلي' : 'Local');
   }
