@@ -68,95 +68,15 @@ try {
             echo json_encode($orch->initiatePurchase($payload), JSON_UNESCAPED_UNICODE);
             break;
 
-        // ── تأكيد دفع (يُستدعى بعد Webhook أو يدوياً) ────────
+        // ── Legacy client confirmation is disabled; verified webhooks own this transition. ──
         case 'confirm':
-            if (!verifyCsrfToken($payload['csrf_token'] ?? '')) {
-                echo json_encode(['success'=>false,'message'=>'CSRF غير صالح']);
-                break;
-            }
-            $reference = trim($payload['reference'] ?? $_GET['ref'] ?? '');
-            if (empty($reference)) {
-                echo json_encode(['success'=>false,'message'=>'reference مطلوب']);
-                break;
-            }
-            echo json_encode($orch->onPaymentConfirmed($reference, $payload), JSON_UNESCAPED_UNICODE);
-            break;
-
-        // ── Approval Code from the card network ──
-        // يُستدعى من checkout JS بعد أن تُرجع البوابة requires_approval
+        // ── Client-supplied approval is not proof of a provider payment. ──
         case 'approve':
-            if (!verifyCsrfToken($payload['csrf_token'] ?? '')) {
-                echo json_encode(['success'=>false,'message'=>'CSRF غير صالح']);
-                break;
-            }
-            $reference    = trim($payload['reference']    ?? '');
-            $approvalCode = trim($payload['approval_code'] ?? '');
-
-            if (empty($reference)) {
-                echo json_encode(['success'=>false,'message'=>'reference مطلوب']);
-                break;
-            }
-            if (empty($approvalCode)) {
-                echo json_encode(['success'=>false,'message'=>'approval_code مطلوب']);
-                break;
-            }
-
-            $db  = db();
-
-            // تأكد أن حقل approval_code موجود في الجدول
-            try {
-                $colCheck = $db->query(
-                    "SELECT COUNT(*) as cnt FROM information_schema.COLUMNS
-                     WHERE TABLE_SCHEMA = DATABASE()
-                       AND TABLE_NAME   = '" . DB_PREFIX . "transactions'
-                       AND COLUMN_NAME  = 'approval_code'"
-                );
-                if (empty($colCheck[0]['cnt'])) {
-                    $db->execute(
-                        "ALTER TABLE `" . DB_PREFIX . "transactions`
-                         ADD COLUMN `approval_code` VARCHAR(6) DEFAULT NULL AFTER `security_mode`"
-                    );
-                }
-            } catch (Exception $ignored) {}
-
-            $txn = $db->find('transactions', ['reference' => $reference]);
-
-            if (!$txn || intval($txn['user_id']) !== intval($_SESSION['user_id'])) {
-                echo json_encode(['success'=>false,'message'=>'العملية غير موجودة أو غير مصرح']);
-                break;
-            }
-
-            // حفظ الـ Approval Code الحقيقي في DB
-            $db->update('transactions', [
-                'approval_code' => $approvalCode,
-                'status'        => 'approved',
-                'updated_at'    => date('Y-m-d H:i:s'),
-            ], ['reference' => $reference]);
-
-            // تسجيل في approval_requests إذا كانت الجدول موجودة
-            try {
-                $db->execute(
-                    "INSERT INTO dp_approval_requests
-                        (user_id, type, reference, amount, currency, status, reason, created_at)
-                     VALUES (?, 'approval_code', ?, ?, ?, 'approved', ?, ?)
-                     ON DUPLICATE KEY UPDATE status='approved', reason=VALUES(reason)",
-                    [
-                        intval($_SESSION['user_id']),
-                        $reference,
-                        floatval($txn['amount']),
-                        $txn['currency'],
-                        'approval_code:' . $approvalCode,
-                        date('Y-m-d H:i:s'),
-                    ]
-                );
-            } catch (Exception $ignored) {}
-
+            http_response_code(410);
             echo json_encode([
-                'success'       => true,
-                'message'       => 'تم تأكيد Approval Code بنجاح',
-                'reference'     => $reference,
-                'approval_code' => $approvalCode,
-                'status'        => 'approved',
+                'success' => false,
+                'message' => 'إيقاف التأكيد اليدوي. تأكيد الدفع يتم فقط عبر webhook موثّق من البوابة.',
+                'code' => 'VERIFIED_PROVIDER_EVENT_REQUIRED',
             ], JSON_UNESCAPED_UNICODE);
             break;
 
