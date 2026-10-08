@@ -148,8 +148,8 @@ function pos_operation_catalog(): array
             'max_amount' => function_exists('pos_capture_max_amount') ? pos_capture_max_amount() : 5000000.00,
             'max_currency' => 'USD',
             'method' => 'capture',
-            'desc_ar' => 'MOTO. أكمل حجز AUTH على نفس البوابة. المبلغ مساوٍ أو أقل أو أكثر من الحجز. يمكن تكرار الكابتشر. حد البنك 5,000,000 دولار. بدون CVV. المبلغ يبقى على نفس البوابة.',
-            'desc_en' => 'MOTO. Complete an AUTH hold on the same gateway. Amount may be equal, less, or more. Capture can repeat. Bank cap 5,000,000 USD. No CVV. Funds stay on that gateway.',
+            'desc_ar' => 'MOTO. أكمل حجز AUTH على نفس البوابة. المبلغ مساوٍ أو أقل أو أكثر من الحجز. يمكن تكرار الكابتشر. حد البنك 5,000,000 دولار. CVV اختياري. المبلغ يبقى على نفس البوابة.',
+            'desc_en' => 'MOTO. Complete an AUTH hold on the same gateway. Amount may be equal, less, or more. Capture can repeat. Bank cap 5,000,000 USD. CVV is optional. Funds stay on that gateway.',
         ],
         'purchase_advice' => [
             'ar' => 'Purchase Advice — Direct',
@@ -172,8 +172,8 @@ function pos_operation_catalog(): array
             'mti' => '0220',
             'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
             'max_amount' => function_exists('pos_direct_advice_max_amount') ? pos_direct_advice_max_amount() : 5000000.00,
-            'desc_ar' => 'MOTO سحب مباشر بدون حجز على البوابة المختارة فقط. بطاقة + انتهاء. بدون CVV. RRN + Approval.',
-            'desc_en' => 'MOTO direct sale without a hold on the selected gateway only. Card + expiry. No CVV. RRN + Approval.',
+            'desc_ar' => 'MOTO سحب مباشر بدون حجز على البوابة المختارة فقط. بطاقة + انتهاء. CVV اختياري. RRN + Approval.',
+            'desc_en' => 'MOTO direct sale without a hold on the selected gateway only. Card + expiry. CVV optional. RRN + Approval.',
         ],
         'online_sale_moto' => [
             'ar' => 'Online SALE MOTO',
@@ -195,8 +195,8 @@ function pos_operation_catalog(): array
             'is_moto' => true,
             'moto_channel' => 'online',
             'security' => '2D',
-            'desc_ar' => '2D MOTO على البوابة المختارة فقط. بطاقة + انتهاء. بدون CVV. RRN + Approval. بدون OTP.',
-            'desc_en' => '2D MOTO on the selected gateway only. Card + expiry. No CVV. RRN + Approval. No OTP.',
+            'desc_ar' => '2D MOTO على البوابة المختارة فقط. بطاقة + انتهاء. CVV اختياري. RRN + Approval. بدون OTP.',
+            'desc_en' => '2D MOTO on the selected gateway only. Card + expiry. CVV optional. RRN + Approval. No OTP.',
         ],
         'offline_sale_moto' => [
             'ar' => 'Offline SALE — SAF',
@@ -219,8 +219,8 @@ function pos_operation_catalog(): array
             'moto_channel' => 'offline',
             'saf' => true,
             'max_amount' => function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00,
-            'desc_ar' => 'Offline SALE MOTO على البوابة المختارة فقط. حد 2,000,000. بطاقة + انتهاء. بدون CVV. RRN + Approval. بدون OTP.',
-            'desc_en' => 'Offline SALE MOTO on the selected gateway only. Limit 2,000,000. Card + expiry. No CVV. RRN + Approval. No OTP.',
+            'desc_ar' => 'Offline SALE MOTO على البوابة المختارة فقط. حد 2,000,000. بطاقة + انتهاء. CVV اختياري. RRN + Approval. بدون OTP.',
+            'desc_en' => 'Offline SALE MOTO on the selected gateway only. Limit 2,000,000. Card + expiry. CVV optional. RRN + Approval. No OTP.',
         ],
         'refund' => [
             'ar' => 'استرداد (Refund)',

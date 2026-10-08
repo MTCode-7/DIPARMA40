@@ -445,6 +445,7 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
 .ops-chip{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:.68rem;font-weight:800}
 .ops-chip.yes{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.4)}
 .ops-chip.no{background:rgba(239,68,68,.12);color:#fca5a5;border:1px solid rgba(239,68,68,.35)}
+.ops-chip.optional{background:rgba(59,130,246,.12);color:#93c5fd;border:1px solid rgba(59,130,246,.35)}
 .ops-chip.mode{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.35)}
 .cap-cmp{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:6px 12px;font-size:.72rem;font-weight:800;border:1.5px solid var(--border);background:rgba(255,255,255,.03);color:var(--muted2);cursor:pointer;font-family:inherit}
 .cap-cmp.is-on[data-cap-cmp="less"]{border-color:rgba(251,191,36,.55);color:#fbbf24;background:rgba(251,191,36,.12)}
@@ -462,6 +463,7 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
 .ops-sticker tr.is-current{background:rgba(255,215,0,.08)}
 .ops-sticker td.is-yes{color:var(--green);font-weight:800}
 .ops-sticker td.is-no{color:#fca5a5;font-weight:700}
+.ops-sticker td.is-optional{color:#93c5fd;font-weight:800}
 .ops-sticker td.is-mode{color:#fbbf24;font-weight:700}
 </style>
 
@@ -827,6 +829,7 @@ function stickerRule(type) {
 }
 function legendChipHtml(flag, yesLbl, noLbl) {
   if (flag === 'mode') return `<span class="ops-chip mode">${AR ? 'حسب الوضع' : 'By mode'} · ${yesLbl}</span>`;
+  if (flag === 'optional') return `<span class="ops-chip optional">${yesLbl}: ${AR ? 'اختياري' : 'Optional'}</span>`;
   if (flag === true) return `<span class="ops-chip yes">${yesLbl}: ${AR ? 'نعم' : 'Yes'}</span>`;
   return `<span class="ops-chip no">${noLbl}: ${AR ? 'لا' : 'No'}</span>`;
 }
@@ -2031,6 +2034,9 @@ function legendChipHtml(flag, yesLbl, noLbl) {
   if (flag === 'mode') {
     return `<span class="ops-chip mode">${AR ? 'حسب الوضع' : 'By mode'} · ${yesLbl}</span>`;
   }
+  if (flag === 'optional') {
+    return `<span class="ops-chip optional">${yesLbl}: ${AR ? 'اختياري' : 'Optional'}</span>`;
+  }
   if (flag === true) {
     return `<span class="ops-chip yes">${yesLbl}: ${AR ? 'نعم' : 'Yes'}</span>`;
   }
@@ -2063,12 +2069,13 @@ window.applyOpsLegend = function(type) {
     const ch = document.getElementById('authChannel')?.value || (POS_GW === 'nuvei' ? 'ecom' : 'online');
     const ecom = ch === 'ecom';
     const offline = ch === 'offline';
-    row.cvv = ecom;
+    row.cvv = 'optional';
     row.otp = ecom;
     row.rrn = offline;
     row.appr = offline;
     row.pid = false;
   }
+  if (row.card === true) row.cvv = 'optional';
   const needCard = legendNeed(row.card) || !!meta.requires_card;
   const needExp = legendNeed(row.exp) || !!meta.requires_expiry;
   const needCvv = !!POS_REQUIRES_CARD && document.getElementById('cardType')?.value !== 'CLOUD';
