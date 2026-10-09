@@ -797,6 +797,9 @@ if ($useCardGateway) {
         $nuveiTxnId = $result['nuvei_txn_id'] ?? null;
         $requires3ds = !empty($result['requires_3ds']);
         $redirectUrl = $result['redirect_url'] ?? null;
+        $stripeClientSecret = $posGateway === 'stripe' && $requires3ds
+            ? trim((string) ($result['client_secret'] ?? ''))
+            : '';
         $gatewayResponse = pos_redact_pci(is_array($result) ? $result : []);
         $cardCVV = '';
         if (isset($params['card_cvv'])) {
@@ -1219,6 +1222,7 @@ echo json_encode([
     'net_amount' => $ledgerNet,
     'ledger_usdt' => $ledgerUsdt,
     'requires_3ds' => $requires3ds,
+    'payment' => $stripeClientSecret !== '' ? ['client_secret' => $stripeClientSecret] : null,
     'redirect_url' => $redirectUrl,
     'saved' => $saved,
     'orchestrator' => $result['orchestrator'] ?? null,

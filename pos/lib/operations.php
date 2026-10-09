@@ -589,6 +589,25 @@ function pos_is_withdrawal(string $type): bool
     return in_array(pos_normalize_operation($type), ['withdrawal_pos', 'withdrawal_nfc'], true);
 }
 
+function pos_receipt_status(array $txn): string
+{
+    $status = strtolower(trim((string) ($txn['status'] ?? '')));
+    if (in_array($status, ['pending', 'processing', 'pending_ledger'], true)) {
+        return 'PENDING';
+    }
+    if ($status === 'authorized') {
+        return 'AUTHORIZED';
+    }
+    if (in_array($status, ['completed', 'captured', 'settled', 'approved', 'success'], true)) {
+        $type = (string) ($txn['transaction_type'] ?? $txn['transaction_label'] ?? '');
+        if (pos_normalize_operation($type) === 'auth' || preg_match('/^auth(?:\s*\(hold\))?$/i', trim($type))) {
+            return 'AUTHORIZED';
+        }
+        return pos_is_withdrawal($type) ? 'SUCCESS' : 'APPROVED';
+    }
+    return 'DECLINED';
+}
+
 /** POS and NFC can both be on. Default both for every withdrawal. */
 function pos_parse_channels(array $data, string $txnType = ''): array
 {
@@ -887,7 +906,7 @@ function pos_redact_pci($value)
             $compactKey = preg_replace('/[^a-z0-9]/', '', $lk);
             if (preg_match('/(^|_)(cvv|cvc|csc|pin|pan|track1|track2|card_number|cc_number|card_cvv|cc_cvv|card_cvc)(_|$)/', $lk)
                 || in_array($compactKey, ['cvv', 'cvc', 'csc', 'pin', 'pan', 'track1', 'track2', 'cardnumber', 'ccnumber', 'cardcvv', 'cccvv', 'cardcvc'], true)
-                || in_array($lk, ['password', 'secret', 'private_key', 'card_name', 'cc_name'], true)) {
+                || in_array($lk, ['password', 'secret', 'client_secret', 'private_key', 'card_name', 'cc_name'], true)) {
                 $out[$k] = '[redacted]';
                 continue;
             }

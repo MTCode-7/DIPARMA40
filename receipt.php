@@ -360,22 +360,23 @@ $hangReason = function_exists('diparma_transaction_hang_reason')
     : ['ar' => '', 'en' => '', 'still_pending' => false, 'live_status' => ''];
 
 // 6.10 تحديد الحالة النهائية
-$isApproved = in_array(strtolower($txn['status'] ?? ''), ['completed', 'captured', 'authorized', 'settled', 'approved', 'success']);
-$isPending = in_array(strtolower((string) ($txn['status'] ?? '')), ['pending', 'processing', 'pending_ledger'], true);
-$isWithdraw = function_exists('pos_is_withdrawal')
-    && pos_is_withdrawal((string) ($txn['transaction_type'] ?? $gwResp['type'] ?? ''));
+$receiptTxn = $txn;
+$receiptTxn['transaction_type'] = $txn['transaction_type'] ?? $txn['transaction_label'] ?? $gwResp['type'] ?? '';
+$statusText = pos_receipt_status($receiptTxn);
+$isApproved = in_array($statusText, ['APPROVED', 'SUCCESS'], true);
+$isAuthorized = $statusText === 'AUTHORIZED';
+$isPending = $statusText === 'PENDING';
+$isWithdraw = $statusText === 'SUCCESS';
 $declineReason = '';
 $successNote = '';
 $cardUseAlert = ['card_use' => '', 'card_use_ar' => '', 'card_use_en' => ''];
-if ($isApproved) {
-    $statusText = $isWithdraw ? 'SUCCESS' : 'APPROVED';
+if ($isApproved || $isAuthorized) {
     $successNote = $isWithdraw
         ? ($ar ? 'تم السحب بنجاح' : 'Withdrawal completed')
-        : ($ar ? 'تمت العملية بنجاح' : 'Transaction approved');
-} elseif ($isPending) {
-    $statusText = 'PENDING';
+        : ($isAuthorized
+            ? ($ar ? 'تم حجز المبلغ ولم يتم تحصيله بعد' : 'Authorized hold — not captured yet')
+            : ($ar ? 'تمت العملية بنجاح' : 'Transaction approved'));
 } else {
-    $statusText = 'DECLINED';
     $declineReason = function_exists('pos_receipt_decline_reason')
         ? pos_receipt_decline_reason($txn, $gwResp)
         : trim((string) ($gwResp['status_message'] ?? $gwResp['decline_reason'] ?? $txn['status'] ?? 'DECLINED'));
@@ -389,9 +390,9 @@ if ($isApproved) {
         $cardUseAlert = pos_card_use_alert($declineReason, (string) $cardLast4);
     }
 }
-$statusColor = $isApproved ? '#16a34a' : ($isPending ? '#d97706' : '#dc2626');
-$statusBg = $isApproved ? '#ecfdf5' : ($isPending ? '#fffbeb' : '#fef2f2');
-$statusIcon = $isApproved ? '✅' : ($isPending ? '⏳' : '❌');
+$statusColor = $isApproved ? '#16a34a' : (($isPending || $isAuthorized) ? '#d97706' : '#dc2626');
+$statusBg = $isApproved ? '#ecfdf5' : (($isPending || $isAuthorized) ? '#fffbeb' : '#fef2f2');
+$statusIcon = $isApproved ? '✅' : ($isAuthorized ? '🔒' : ($isPending ? '⏳' : '❌'));
 
 // 6.11 نوع المعاملة — بدون عرض رموز 101 / 201
 $rawTxnType = (string)($txn['transaction_type'] ?? $txn['transaction_label'] ?? '');
@@ -894,8 +895,8 @@ if (function_exists('redact_protocol_numbers')) {
             <div class="status-type">
                 <?=htmlspecialchars($txnType)?>
             </div>
-            <?php if ($isApproved && $successNote !== ''): ?>
-            <div style="margin-top:10px;font-size:12px;font-weight:800;color:#065f46;line-height:1.45"><?=htmlspecialchars($successNote)?></div>
+            <?php if (($isApproved || $isAuthorized) && $successNote !== ''): ?>
+            <div style="margin-top:10px;font-size:12px;font-weight:800;color:<?=$isAuthorized?'#92400e':'#065f46'?>;line-height:1.45"><?=htmlspecialchars($successNote)?></div>
             <?php endif; ?>
             <?php if ($isPending && (($ar ? ($hangReason['ar'] ?? '') : ($hangReason['en'] ?? '')) !== '')): ?>
             <div style="margin-top:10px;font-size:11px;font-weight:800;color:#92400e;line-height:1.45">

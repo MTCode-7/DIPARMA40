@@ -16,7 +16,7 @@ class GatewayLogger
     private static array $maskFull = [
         'card_number', 'cc_number', 'number',
         'cvv2', 'card_cvv', 'cc_cvv', 'cvv', 'cvc',
-        'secret', 'password', 'token', 'api_key',
+        'secret', 'client_secret', 'password', 'token', 'api_key',
         'secret_key', 'access_token', 'authorization',
     ];
 

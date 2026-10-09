@@ -809,6 +809,19 @@ function diparma_transaction_hang_reason(array $txn): array
     return $base;
 }
 
+function diparma_map_stripe_payment_intent_status(string $stripeStatus): string
+{
+    return [
+        'succeeded' => 'completed',
+        'processing' => 'processing',
+        'requires_action' => 'processing',
+        'requires_confirmation' => 'pending',
+        'requires_payment_method' => 'failed',
+        'requires_capture' => 'authorized',
+        'canceled' => 'cancelled',
+    ][strtolower(trim($stripeStatus))] ?? 'pending';
+}
+
 function diparma_reconcile_pending_transaction($db, array $txn): array
 {
     $status = strtolower(trim((string) ($txn['status'] ?? '')));
@@ -877,6 +890,56 @@ function diparma_reconcile_pending_transaction($db, array $txn): array
             }
         } catch (Throwable $e) {
             $out['source'] = 'payram_error';
+        }
+    }
+    if ($gateway === 'stripe') {
+        $paymentIntentId = function_exists('diparma_host_payment_id_from_txn')
+            ? diparma_host_payment_id_from_txn($txn)
+            : trim((string) ($txn['rrn'] ?? ''));
+        if (!preg_match('/^pi_[A-Za-z0-9]+$/', $paymentIntentId)) {
+            return $out;
+        }
+        $autoload = dirname(__DIR__) . '/vendor/autoload.php';
+        if (!is_file($autoload)) {
+            return $out;
+        }
+        try {
+            require_once $autoload;
+            if (!class_exists('Stripe\\Stripe')) {
+                return $out;
+            }
+            $gatewayRow = $db->find('payment_gateways', ['code' => 'stripe']);
+            $credentials = json_decode((string) ($gatewayRow['credentials'] ?? '{}'), true) ?: [];
+            $secret = getenv('STRIPE_SECRET_KEY') ?: (string) ($credentials['secret_key'] ?? '');
+            if ($secret === '') {
+                return $out;
+            }
+            \Stripe\Stripe::setApiKey($secret);
+            $paymentIntent = \Stripe\PaymentIntent::retrieve($paymentIntentId);
+            $liveStatus = strtolower((string) ($paymentIntent->status ?? ''));
+            $mapped = diparma_map_stripe_payment_intent_status($liveStatus);
+            $out['source'] = 'stripe_api';
+            $out['live'] = ['status' => $liveStatus, 'id' => $paymentIntentId];
+            $blob = json_decode((string) ($txn['gateway_response'] ?? ''), true);
+            if (!is_array($blob)) {
+                $blob = [];
+            }
+            $blob['stripe_live_status'] = $liveStatus;
+            $blob['live_checked_at'] = date('c');
+            $update = [
+                'gateway_response' => json_encode($blob, JSON_UNESCAPED_UNICODE),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+            if ($mapped !== $status) {
+                $update['status'] = $mapped;
+                $out['updated'] = true;
+                $out['status'] = $mapped;
+                $txn['status'] = $mapped;
+            }
+            $db->update('transactions', $update, ['id' => (int) $txn['id']]);
+            $txn['gateway_response'] = $update['gateway_response'];
+        } catch (Throwable $e) {
+            $out['source'] = 'stripe_error';
         }
     }
 

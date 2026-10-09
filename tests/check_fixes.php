@@ -4,6 +4,7 @@ require_once __DIR__ . '/../lib/TronSigner.php';
 require_once __DIR__ . '/../lib/MySystem/ChargeHub.php';
 require_once __DIR__ . '/../includes/gateways.php';
 require_once __DIR__ . '/../includes/activity_flow.php';
+require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/gateway_channel_bar.php';
 require_once __DIR__ . '/../includes/square_sdk.php';
 require_once __DIR__ . '/../pos/lib/ops_sticker.php';
@@ -52,6 +53,17 @@ foreach (['square', 'paypal', 'stripe', 'nuvei'] as $gateway) {
 }
 check(!pos_gateway_allows_overcapture('braintree'), 'Other gateways do not allow over-capture');
 check(!HoldCaptureService::allowsOvercapture('braintree'), 'Other hold gateways do not allow over-capture');
+check(pos_receipt_status(['status' => 'authorized', 'transaction_type' => 'auth']) === 'AUTHORIZED', 'AUTH hold receipt is not shown as captured');
+check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'auth']) === 'AUTHORIZED', 'Completed AUTH operation remains a hold on its receipt');
+check(pos_receipt_status(['status' => 'completed', 'transaction_label' => 'AUTH (Hold)']) === 'AUTHORIZED', 'AUTH display label remains a hold on its receipt');
+check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'capture']) === 'APPROVED', 'Captured AUTH receipt is approved');
+check(pos_receipt_status(['status' => 'failed', 'transaction_type' => 'purchase_3d']) === 'DECLINED', 'Failed purchase receipt is declined');
+check(pos_receipt_status(['status' => 'pending', 'transaction_type' => 'purchase_3d']) === 'PENDING', 'Pending purchase receipt is pending');
+check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'withdrawal_pos']) === 'SUCCESS', 'Completed withdrawal receipt reports success');
+check(pos_redact_pci(['client_secret' => 'pi_secret_value'])['client_secret'] === '[redacted]', 'Stripe client secret is removed from stored gateway data');
+check(diparma_map_stripe_payment_intent_status('succeeded') === 'completed', 'Stripe 3DS success reconciles to completed');
+check(diparma_map_stripe_payment_intent_status('requires_payment_method') === 'failed', 'Stripe failed authentication reconciles to failed');
+check(diparma_map_stripe_payment_intent_status('requires_capture') === 'authorized', 'Stripe manual capture status remains an authorization');
 $nuveiReflection = new ReflectionClass(NuveiAdapter::class);
 $nuveiApprovalMethod = $nuveiReflection->getMethod('nuveiTxnApproved');
 $nuveiApprovalMethod->setAccessible(true);

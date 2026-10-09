@@ -1182,14 +1182,34 @@ async function go() {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
       });
       var d1 = await readJson(r1);
+      var clientSecret = d1.payment?.client_secret || '';
+      if (d1.requires_3ds && clientSecret) {
+        var res3d = await stripe.confirmCardPayment(clientSecret, {payment_method:{card:stripeEl}});
+        if (res3d.error) {
+          document.getElementById('stripe-error').textContent=res3d.error.message;
+          showToast(res3d.error.message,'error');
+          if (d1.reference) setTimeout(function(){ window.location.href=BASE+'receipt.php?ref='+encodeURIComponent(d1.reference); }, 1200);
+          btn.disabled=false; resetBtn(); return;
+        }
+        var finalStatus = res3d.paymentIntent?.status || '';
+        if (finalStatus !== 'succeeded') {
+          showToast(finalStatus === 'processing' ? 'Payment is processing; check the receipt for the final status.' : 'Card authentication did not complete the payment. Check the receipt for the final status.', finalStatus === 'processing' ? 'info' : 'error');
+          if (d1.reference) setTimeout(function(){ window.location.href=BASE+'receipt.php?ref='+encodeURIComponent(d1.reference); }, 1200);
+          btn.disabled=false; resetBtn(); return;
+        }
+        showToast('Done ✓','success');
+        setTimeout(function(){ window.location.href=BASE+'receipt.php?ref='+encodeURIComponent(d1.reference); }, 1200);
+        return;
+      }
+      if (d1.requires_3ds) {
+        showToast('Card authentication is pending, but no confirmation token was returned. Check the receipt for the final status.','error');
+        if (d1.reference) setTimeout(function(){ window.location.href=BASE+'receipt.php?ref='+encodeURIComponent(d1.reference); }, 1200);
+        btn.disabled=false; resetBtn(); return;
+      }
       if (!d1.success) {
         showToast(failMessage(d1),'error');
         if (d1.reference) setTimeout(function(){ window.location.href=BASE+'receipt.php?ref='+encodeURIComponent(d1.reference); }, 1200);
         btn.disabled=false; resetBtn(); return;
-      }
-      if (d1.payment?.client_secret) {
-        var res3d = await stripe.confirmCardPayment(d1.payment.client_secret, {payment_method:{card:stripeEl}});
-        if (res3d.error) { document.getElementById('stripe-error').textContent=res3d.error.message; btn.disabled=false; resetBtn(); return; }
       }
       showToast('Done ✓','success');
       setTimeout(function(){ window.location.href=BASE+'receipt.php?ref='+encodeURIComponent(d1.reference); }, 1200);

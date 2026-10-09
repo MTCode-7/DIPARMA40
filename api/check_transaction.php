@@ -134,6 +134,9 @@ if (!empty($gatewayFilter)) {
 }
 
 $reference = trim($transaction['gateway_transaction_id'] ?? $transaction['reference'] ?? '');
+if ($gateway === 'stripe' && function_exists('diparma_host_payment_id_from_txn')) {
+    $reference = diparma_host_payment_id_from_txn($transaction) ?: $reference;
+}
 $gatewayTransferId = trim($transaction['gateway_transfer_id'] ?? '');
 $gatewayResponse = $transaction['gateway_response'] ?? '';
 
@@ -237,6 +240,7 @@ if (!$updated && in_array($currentStatus, ['pending', 'processing'], true)) {
                             $stripeStatus = $paymentIntent->status;
                             $mapped = mapStripeStatus($stripeStatus);
                             $liveData = $paymentIntent->toArray();
+                            unset($liveData['client_secret']);
                             $source = 'stripe_api';
                             
                             if ($mapped !== $currentStatus) {
@@ -836,15 +840,9 @@ function mapDIPARMAStatus($diparmaStatus) {
  * طھط­ظˆظٹظ„ ط­ط§ظ„ط© Stripe
  */
 function mapStripeStatus($stripeStatus) {
-    $map = [
-        'succeeded' => 'completed',
-        'processing' => 'processing',
-        'requires_action' => 'processing',
-        'requires_confirmation' => 'pending',
-        'requires_payment_method' => 'pending',
-        'canceled' => 'cancelled',
-    ];
-    return $map[$stripeStatus] ?? 'pending';
+    return function_exists('diparma_map_stripe_payment_intent_status')
+        ? diparma_map_stripe_payment_intent_status((string) $stripeStatus)
+        : 'pending';
 }
 
 /**

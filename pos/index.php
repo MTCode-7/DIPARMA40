@@ -1844,6 +1844,7 @@ function posSlipStatus(d) {
   if (d && (d.requires_3ds || d.redirect_url)) return 'PENDING';
   if (d && d.success) {
     const t = String((d.txn_type || d.operation_name || '')).toLowerCase();
+    if (String(d.txn_type || '').toLowerCase() === 'auth' || /^auth(?:\s*\(hold\))?$/.test(t)) return 'AUTHORIZED';
     if (/withdraw|cash advance/.test(t)) return 'SUCCESS';
     return 'APPROVED';
   }
@@ -3228,6 +3229,7 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const pan = last4 ? ('************' + last4) : '************';
   const entry = (document.getElementById('posInputMode')?.value || POS.inputMode || 'manual').toString().toUpperCase();
   const status = posSlipStatus(d);
+  const isAuthHold = String(type || '').toLowerCase() === 'auth' || status === 'AUTHORIZED';
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   const clearDash = (v) => {
     const s = String(v == null ? '' : v).trim();
@@ -3239,8 +3241,8 @@ function updateReceipt(d, type, amount, currency, cardNum) {
     : '—';
   const rawApproval = String(d.gateway_approval_code || d.approval_code || d.bank_approval_code || '').trim();
   const rawRrn = String(d.rrn || d.gateway_rrn || d.original_rrn || '').trim();
-  const receiptApproval = type === 'auth' ? (/^\d{6}$/.test(rawApproval) ? rawApproval : '—') : clearDash(rawApproval);
-  const receiptRrn = type === 'auth' ? (/^\d{12}$/.test(rawRrn) ? rawRrn : '—') : clearDash(rawRrn);
+  const receiptApproval = isAuthHold ? (/^\d{6}$/.test(rawApproval) ? rawApproval : '—') : clearDash(rawApproval);
+  const receiptRrn = isAuthHold ? (/^\d{12}$/.test(rawRrn) ? rawRrn : '—') : clearDash(rawRrn);
   set('rDate', dateStr);
   set('rTime', timeStr);
   set('rTid', clearDash(tid));
@@ -3252,7 +3254,7 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   set('rCard', pan);
   set('rAmount', parseFloat(amount || 0).toFixed(2));
   set('rCurrency', currency || 'USD');
-  set('rRc', clearDash(d.response_code || (status === 'APPROVED' ? '00' : '05')));
+  set('rRc', clearDash(d.response_code || (status === 'APPROVED' || status === 'AUTHORIZED' ? '00' : '05')));
   set('rApproval', receiptApproval);
   set('rRRN', receiptRrn);
   set('rRef', clearDash(d.reference || ''));
@@ -3266,6 +3268,10 @@ function updateReceipt(d, type, amount, currency, cardNum) {
     if (status === 'DECLINED') {
       reasonEl.textContent = why;
       reasonEl.style.color = '#7f1d1d';
+      reasonEl.style.display = '';
+    } else if (status === 'AUTHORIZED') {
+      reasonEl.textContent = AR ? 'تم حجز المبلغ ولم يتم تحصيله بعد' : 'Authorized hold — not captured yet';
+      reasonEl.style.color = '#92400e';
       reasonEl.style.display = '';
     } else if (status === 'SUCCESS' || status === 'APPROVED') {
       reasonEl.textContent = status === 'SUCCESS'
@@ -3315,7 +3321,7 @@ function showResultModal(success, d) {
   const status = posSlipStatus(d);
   const amt = parseFloat(document.getElementById('txnAmount').value||0).toFixed(2);
   const cur = document.getElementById('txnCurrency').value || 'USD';
-  document.getElementById('modalIcon').textContent  = (status === 'APPROVED' || status === 'SUCCESS') ? '✅' : (status === 'PENDING' ? '⏳' : '❌');
+  document.getElementById('modalIcon').textContent  = (status === 'APPROVED' || status === 'SUCCESS') ? '✅' : (status === 'AUTHORIZED' ? '🔒' : (status === 'PENDING' ? '⏳' : '❌'));
   document.getElementById('modalTitle').textContent = status;
   document.getElementById('modalTitle').style.color = (status === 'APPROVED' || status === 'SUCCESS') ? 'var(--green)' : (status === 'DECLINED' ? 'var(--red)' : 'var(--gold)');
   document.getElementById('modalRef').textContent = '';
@@ -3337,16 +3343,18 @@ function showResultModal(success, d) {
       ${auth ? `<div style="font-size:.72rem">APPROVAL CODE ${escapeHtml(auth)}</div>` : ''}
       ${(status === 'SUCCESS') ? `<div style="margin-top:10px;font-size:.78rem;font-weight:800;color:#065f46">${escapeHtml(AR ? 'تم السحب بنجاح' : 'Withdrawal completed')}</div>` : ''}
       ${(status === 'APPROVED') ? `<div style="margin-top:10px;font-size:.78rem;font-weight:800;color:#065f46">${escapeHtml(AR ? 'تمت العملية بنجاح' : 'Transaction approved')}</div>` : ''}
+      ${(status === 'AUTHORIZED') ? `<div style="margin-top:10px;font-size:.78rem;font-weight:800;color:#92400e">${escapeHtml(AR ? 'تم حجز المبلغ ولم يتم تحصيله بعد' : 'Authorized hold — not captured yet')}</div>` : ''}
       ${status === 'DECLINED' && why ? `<div style="margin-top:10px;font-size:.78rem;font-weight:700;color:#b42318">${escapeHtml(why)}</div>` : ''}
       ${advice.text ? `<div style="margin-top:12px;padding:10px;border:1px dashed ${adviceColor};background:${adviceBg};color:${adviceColor};font-size:.78rem;font-weight:800;line-height:1.45">${escapeHtml(advice.text)}</div>` : ''}
     </div>
   `;
 
   const ltBtn = document.getElementById('ledgerTransferBtn');
-  if (ltBtn) ltBtn.style.display = (success && !d.ledger_transfer) ? '' : 'none';
+  const financiallyCompleted = status === 'APPROVED' || status === 'SUCCESS';
+  if (ltBtn) ltBtn.style.display = (financiallyCompleted && !d.ledger_transfer) ? '' : 'none';
   const payoutStuck = document.getElementById('modalPayoutStuck');
   if (payoutStuck) {
-    const stuck = success && !d.ledger_transfer && String(d.ledger_status || '') !== 'skipped';
+    const stuck = financiallyCompleted && !d.ledger_transfer && String(d.ledger_status || '') !== 'skipped';
     payoutStuck.style.display = stuck ? '' : 'none';
   }
   const retry3d = document.getElementById('retry3dBtn');
