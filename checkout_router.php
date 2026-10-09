@@ -519,7 +519,8 @@ function configureStep4() {
   if (amount) amount.style.display = fulfillment ? 'none' : '';
   if (targetWrap) targetWrap.style.display = wiseTransfer || fulfillment ? 'none' : '';
   if (targetSelect && targetWrap && targetWrap.style.display !== 'none') {
-    const options = SETTLEMENT_TARGETS[STATE.channel]?.[STATE.gateway] || [];
+    const targetChoices = SETTLEMENT_TARGETS[STATE.channel]?.[STATE.gateway] || {};
+    const options = Array.isArray(targetChoices) ? targetChoices : Object.values(targetChoices);
     const sameSelection = targetSelect.dataset.source === (STATE.gateway || '')
       && targetSelect.dataset.channel === (STATE.channel || '');
     const current = sameSelection ? targetSelect.value : 'gateway';

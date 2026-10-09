@@ -276,16 +276,6 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
                oninput="this.value=this.value.replace(/[^0-9A-Za-z]/g,'')">
       </div>
     </div>
-    <div class="fld-row">
-      <div class="fld">
-        <label><?=$ar?'Payment ID أو Transaction ID':'Payment ID or Transaction ID'?> <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
-        <input type="text" id="cardPaymentId" placeholder="PAY... / TXN...">
-      </div>
-      <div class="fld">
-        <label><?=$ar?'Approval Code الداخلي':'Internal Approval Code'?> <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
-        <input type="text" id="cardInternalApproval" placeholder="Internal approval code" maxlength="64">
-      </div>
-    </div>
   </div>
   <div class="fld">
     <label id="lblCcNumber"><?=$ar?'رقم البطاقة — كل الشبكات والمُصدرين':'Card Number — all networks and issuers'?> <span class="req" id="reqCcNumber">*</span></label>
@@ -648,7 +638,7 @@ function applyFieldRequirements(meta) {
   // CVV اختياري في MOTO — يُظهر نص "اختياري"
   var optCvv = document.getElementById('optCcCvv');
   var reqCvv = document.getElementById('reqCcCvv');
-  var isMoto = meta.is_moto || ['auth','capture','purchase_advice','offline_sale_moto','online_sale_moto'].includes(type);
+  var isMoto = meta.is_moto || ['auth','capture','purchase_advice','offline_sale_moto','online_sale_moto'].includes(curTx);
   if (optCvv) optCvv.style.display = isMoto ? '' : 'none';
   if (reqCvv) reqCvv.style.display = isMoto ? 'none' : '';
   mark('reqMotoCard', !squareHosted && !!meta.requires_card);
@@ -962,15 +952,8 @@ async function go() {
     }
     var bankRrn = document.getElementById('cardBankRrn').value.trim();
     var bankApproval = document.getElementById('cardBankApproval').value.trim();
-    var paymentId = document.getElementById('cardPaymentId').value.trim();
-    var internalApproval = document.getElementById('cardInternalApproval').value.trim();
     if (bankRrn) payload.bank_rrn = bankRrn;
     if (bankApproval) payload.bank_approval_code = bankApproval;
-    if (paymentId) {
-      payload.payment_id = paymentId;
-      payload.transaction_id = paymentId;
-    }
-    if (internalApproval) payload.internal_approval_code = internalApproval;
     var name = document.getElementById('cardName').value.trim();
     var ph   = document.getElementById('cardPhone').value.trim();
     if (!squareTokPresent && exp)  { payload.cc_expiry = exp; payload.card_expiry = exp; }
