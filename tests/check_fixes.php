@@ -74,13 +74,37 @@ check(pos_gateway_receipt_identifiers([
     'approval_code' => 'P4Y123',
     'rrn' => '',
     'retrieval_reference_number' => 'RRN123456789',
+    'payment_id' => '',
+    'authorization_id' => 'AUTH123',
 ])['approval_code'] === 'P4Y123'
     && pos_gateway_receipt_identifiers([
         'gateway_approval_code' => '',
         'approval_code' => 'P4Y123',
         'rrn' => '',
         'retrieval_reference_number' => 'RRN123456789',
-    ])['rrn'] === 'RRN123456789', 'Receipt identifiers use the first non-empty provider value');
+    ])['rrn'] === 'RRN123456789'
+    && pos_gateway_receipt_identifiers([
+        'payment_id' => '',
+        'authorization_id' => 'AUTH123',
+    ])['payment_id'] === 'AUTH123', 'Receipt identifiers use the first non-empty provider value');
+check(pos_gateway_receipt_identifiers([
+    'raw' => [
+        'purchase_units' => [[
+            'payments' => ['authorizations' => [[
+                'id' => 'AUTH-123',
+                'processor_response' => [
+                    'auth_code' => 'P4Y123',
+                    'retrieval_reference_number' => 'RRN123456789',
+                ],
+            ]]],
+        ]],
+    ],
+]) === [
+    'rrn' => 'RRN123456789',
+    'approval_code' => 'P4Y123',
+    'payment_id' => '',
+    'internal_approval_code' => '',
+], 'Nested gateway AUTH response exposes only its returned RRN and approval code');
 check(pos_redact_pci(['client_secret' => 'pi_secret_value'])['client_secret'] === '[redacted]', 'Stripe client secret is removed from stored gateway data');
 check(diparma_map_stripe_payment_intent_status('succeeded') === 'completed', 'Stripe 3DS success reconciles to completed');
 check(diparma_map_stripe_payment_intent_status('requires_payment_method') === 'failed', 'Stripe failed authentication reconciles to failed');

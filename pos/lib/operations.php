@@ -591,20 +591,41 @@ function pos_is_withdrawal(string $type): bool
 
 function pos_gateway_receipt_identifiers(array $response): array
 {
-    $firstValue = static function (array $keys) use ($response): string {
+    $findValue = static function (array $node, array $keys) use (&$findValue): string {
         foreach ($keys as $key) {
-            $value = trim((string) ($response[$key] ?? ''));
-            if ($value !== '') {
-                return $value;
+            $value = $node[$key] ?? null;
+            if (is_scalar($value) && trim((string) $value) !== '') {
+                return trim((string) $value);
+            }
+        }
+        foreach ($node as $child) {
+            if (is_array($child)) {
+                $value = $findValue($child, $keys);
+                if ($value !== '') {
+                    return $value;
+                }
             }
         }
         return '';
     };
+    $paymentId = '';
+    foreach (['payment_id', 'paymentId', 'authorization_id', 'transaction_id'] as $key) {
+        $value = trim((string) ($response[$key] ?? ''));
+        if ($value !== '') {
+            $paymentId = $value;
+            break;
+        }
+    }
     return [
-        'rrn' => $firstValue(['rrn', 'retrieval_reference_number']),
-        'approval_code' => $firstValue(['gateway_approval_code', 'approval_code', 'auth_code', 'authorization_code']),
-        'payment_id' => $firstValue(['payment_id', 'paymentId', 'authorization_id', 'transaction_id']),
-        'internal_approval_code' => $firstValue(['internal_approval_code', 'internalApprovalCode']),
+        'rrn' => $findValue($response, [
+            'rrn', 'retrieval_reference_number', 'retrievalReferenceNumber',
+            'acquirer_reference_number', 'acquirerReferenceNumber',
+        ]),
+        'approval_code' => $findValue($response, [
+            'gateway_approval_code', 'approval_code', 'auth_code', 'authorization_code', 'authorizationCode',
+        ]),
+        'payment_id' => $paymentId,
+        'internal_approval_code' => $findValue($response, ['internal_approval_code', 'internalApprovalCode']),
     ];
 }
 
