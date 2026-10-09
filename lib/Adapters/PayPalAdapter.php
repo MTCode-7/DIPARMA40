@@ -67,7 +67,7 @@ final class PayPalAdapter implements GatewayAdapterInterface
     {
         $start = microtime(true);
         $currency = 'USD';
-        $finalCapture = false;
+        $authAmount = 0.0;
         $auth = $this->svc->getAuthorization($transactionId);
         if (is_array($auth) && (isset($auth['id']) || isset($auth['amount']) || !empty($auth['success']))) {
             $rawCurrency = '';
@@ -81,6 +81,7 @@ final class PayPalAdapter implements GatewayAdapterInterface
                 ? ($auth['amount']['value'] ?? 0)
                 : ($auth['amount'] ?? 0));
         }
+        $finalCapture = $amount !== null && $authAmount > 0 && $amount >= $authAmount;
         $result = $this->svc->captureAuthorization(
             $transactionId,
             $amount,

@@ -390,8 +390,14 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
     <div class="fld-row">
       <div class="fld">
-        <label><?=$ar?'المبلغ':'Amount'?> <span class="req">*</span></label>
-        <input type="number" id="captureAmt" min="0.01" step="0.01" placeholder="0.00" oninput="calcP()">
+        <label><?=$ar?'مبلغ التحصيل النهائي':'Final capture amount'?> <span class="req">*</span></label>
+        <input type="number" id="captureAmt" min="0.01" step="0.01" placeholder="0.00" oninput="calcP()"
+               value="<?=!empty($prefillAmount)?htmlspecialchars((string)$prefillAmount):''?>">
+        <div class="opt" style="display:block;margin-top:5px">
+          <?=$ar
+            ? 'أدخل المبلغ نفسه أو أقل أو أكثر من مبلغ الحجز. قبول الزيادة يعتمد على بوابة الدفع والبنك.'
+            : 'Enter the same, a lower, or a higher amount than the hold. Higher captures depend on gateway and issuer support.'?>
+        </div>
       </div>
       <div class="fld">
         <label><?=$ar?'العملة':'Currency'?></label>

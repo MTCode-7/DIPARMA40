@@ -258,8 +258,8 @@ var HOLD_I18N = <?= json_encode([
     'confirmCapture' => dp_t('Confirm capture of the authorized amount?', 'تأكيد تحصيل المبلغ المحجوز؟'),
     'captureOk' => dp_t('Captured successfully ✓', 'تم التحصيل بنجاح ✓'),
     'captureFail' => dp_t('Capture failed', 'فشل التحصيل'),
-    'paypalPrompt' => dp_t('Enter capture amount, max ', 'أدخل مبلغ التحصيل، بحد أقصى '),
-    'amountInvalid' => dp_t('Amount must be greater than zero and not exceed the authorized amount', 'المبلغ يجب أن يكون أكبر من صفر ولا يتجاوز مبلغ التفويض'),
+    'paypalPrompt' => dp_t('Enter final capture amount. Higher amounts depend on your PayPal authorization.', 'أدخل مبلغ التحصيل النهائي. المبلغ الأعلى يعتمد على موافقة PayPal.'),
+    'amountInvalid' => dp_t('Amount must be greater than zero', 'يجب أن يكون مبلغ التحصيل أكبر من صفر'),
     'paypalConfirm' => dp_t('Confirm capture of ', 'تأكيد تحصيل '),
     'paypalFromHold' => dp_t(' from PayPal hold?', ' من حجز PayPal؟'),
     'paypalOk' => dp_t('PayPal captured successfully ✓', 'تم تحصيل PayPal بنجاح ✓'),
@@ -292,7 +292,7 @@ async function capturePayPalHold(authorizationId, reference, authorizedAmount) {
     var requested = window.prompt(HOLD_I18N.paypalPrompt + Number(authorizedAmount).toFixed(2), Number(authorizedAmount).toFixed(2));
     if (requested === null) return;
     var amount = Number(requested);
-    if (!Number.isFinite(amount) || amount <= 0 || amount > Number(authorizedAmount)) {
+    if (!Number.isFinite(amount) || amount <= 0) {
         showToast(HOLD_I18N.amountInvalid, 'error');
         return;
     }

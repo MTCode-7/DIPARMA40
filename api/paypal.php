@@ -201,10 +201,10 @@ try {
 
             $authorizedAmount = (float)($txn['amount'] ?? 0);
             $captureAmount = !empty($payload['amount']) ? (float)$payload['amount'] : $authorizedAmount;
-            if ($authorizedAmount <= 0 || $captureAmount <= 0 || $captureAmount > $authorizedAmount) {
+            if ($authorizedAmount <= 0 || $captureAmount <= 0) {
                 echo json_encode([
                     'success' => false,
-                    'message' => 'مبلغ التحصيل يجب أن يكون أكبر من صفر ولا يتجاوز مبلغ التفويض (' . number_format($authorizedAmount, 2, '.', '') . ')',
+                    'message' => 'مبلغ التحصيل يجب أن يكون أكبر من صفر',
                 ], JSON_UNESCAPED_UNICODE); break;
             }
 

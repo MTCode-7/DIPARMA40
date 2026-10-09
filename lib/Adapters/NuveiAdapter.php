@@ -396,18 +396,12 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $clientUniqueId = (string)($params['client_unique_id'] ?? $clientReqId);
         $authCode    = trim((string)($params['auth_code'] ?? ''));
         $relatedId   = trim((string)($params['related_transaction_id'] ?? $params['payment_id'] ?? $params['nuvei_txn_id'] ?? ''));
-        $authorizedAmount = isset($params['authorized_amount'])
-            ? (float)$params['authorized_amount']
-            : null;
 
         if ($relatedId === '') {
             return ['success' => false, 'message' => 'Nuvei Transaction ID (Payment ID) is required for capture'];
         }
         if ($amountRaw <= 0) {
             return ['success' => false, 'message' => 'Capture amount must be greater than 0'];
-        }
-        if ($authorizedAmount !== null && $authorizedAmount > 0 && $amountRaw > $authorizedAmount) {
-            return ['success' => false, 'message' => 'Nuvei capture cannot exceed the original authorized amount'];
         }
         if ($authCode === '') {
             return ['success' => false, 'message' => 'Nuvei Auth Code is required for capture'];
