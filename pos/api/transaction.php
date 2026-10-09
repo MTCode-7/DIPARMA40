@@ -589,6 +589,13 @@ $success = false;
 $message = 'PENDING';
 $responseCode = '';
 $rrn = '';
+$providerPaymentId = '';
+$receiptIds = [
+    'rrn' => '',
+    'approval_code' => '',
+    'payment_id' => '',
+    'internal_approval_code' => '',
+];
 $originalRrn = $origRef;
 $stan = '';
 $approvalCode = '';
@@ -781,8 +788,13 @@ if ($useCardGateway) {
         if ($responseCode === '' && preg_match('/\b(\d{4})\b/', $message, $mRc)) {
             $responseCode = $mRc[1];
         }
-        $approvalCode = trim((string) ($result['approval_code'] ?? $result['auth_code'] ?? ''));
-        $rrn = trim((string) ($result['rrn'] ?? $result['transaction_id'] ?? $result['payment_id'] ?? ''));
+        $receiptIds = pos_gateway_receipt_identifiers($result);
+        $approvalCode = $receiptIds['approval_code'];
+        $providerPaymentId = $receiptIds['payment_id'];
+        $rrn = $receiptIds['rrn'];
+        if ($txnType !== 'auth' && $rrn === '') {
+            $rrn = trim((string) ($result['transaction_id'] ?? $result['payment_id'] ?? ''));
+        }
         $cardLast4 = preg_replace('/\D+/', '', (string) ($result['card_last4'] ?? '')) ?? '';
         if ($cardLast4 === '' && $cardNumber !== '') {
             $cardLast4 = substr($cardNumber, -4);
@@ -874,13 +886,20 @@ if ($txnType === 'auth') {
 } elseif (pos_is_withdrawal($txnType)) {
     $displayOperation = 'CASH ADVANCE';
 }
+$receiptPaymentId = $providerPaymentId !== ''
+    ? $providerPaymentId
+    : ($txnType === 'auth' ? '' : $paymentId);
 
 $gatewayDetails = [
     'operation_name' => $displayOperation,
     'transaction_type' => $txnType,
     'card_type' => $cardType,
-    'transaction_id' => $nuveiTxnId,
+    'transaction_id' => $result['transaction_id'] ?? $nuveiTxnId,
+    'payment_id' => $receiptPaymentId,
+    'authorization_id' => $result['authorization_id'] ?? ($txnType === 'auth' ? $providerPaymentId : ''),
     'auth_code' => $approvalCode,
+    'approval_code' => $approvalCode,
+    'internal_approval_code' => $receiptIds['internal_approval_code'],
     'rrn' => $rrn,
     'stan' => $stan,
     'original_rrn' => $originalRrn,
@@ -962,6 +981,9 @@ try {
             'original_rrn' => $originalRrn,
             'bank_approval_code' => $bankApprovalCode,
             'approval_code' => $approvalCode,
+            'payment_id' => $receiptPaymentId,
+            'authorization_id' => $result['authorization_id'] ?? ($txnType === 'auth' ? $providerPaymentId : ''),
+            'internal_approval_code' => $receiptIds['internal_approval_code'],
             'nuvei_txn_id' => $nuveiTxnId,
             'payram_ref' => $posGateway === 'payram' ? ($rrn ?: ($gatewayResponse['reference_id'] ?? null)) : null,
             'whop_payment_id' => $posGateway === 'whop' ? ($rrn ?: ($gatewayResponse['payment_id'] ?? null)) : null,
@@ -1183,6 +1205,9 @@ echo json_encode([
     'original_rrn' => $originalRrn,
     'approval_code' => $approvalCode,
     'gateway_approval_code' => $approvalCode,
+    'payment_id' => $receiptPaymentId,
+    'authorization_id' => $result['authorization_id'] ?? ($txnType === 'auth' ? $providerPaymentId : ''),
+    'internal_approval_code' => $receiptIds['internal_approval_code'],
     'bank_approval_code' => $bankApprovalCode,
     'nuvei_txn_id' => $nuveiTxnId,
     'txn_type' => $txnType,

@@ -1420,6 +1420,8 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="receipt-advice" id="rAdvice" style="display:none"></div>
     <div class="receipt-row"><span>APPROVAL CODE</span><span id="rApproval">—</span></div>
     <div class="receipt-row"><span>RRN</span><span id="rRRN">—</span></div>
+    <div class="receipt-row"><span>PAYMENT / TXN ID</span><span id="rPaymentId">—</span></div>
+    <div class="receipt-row"><span>INTERNAL APPROVAL</span><span id="rInternalApproval">—</span></div>
     <div class="receipt-row"><span>RC</span><span id="rRc">—</span></div>
     <div class="receipt-row"><span>TRACE</span><span id="rRef">—</span></div>
     <div class="receipt-row" id="rHostRow"><span>HOST</span><span id="rNuvei">—</span></div>
@@ -3229,7 +3231,6 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const pan = last4 ? ('************' + last4) : '************';
   const entry = (document.getElementById('posInputMode')?.value || POS.inputMode || 'manual').toString().toUpperCase();
   const status = posSlipStatus(d);
-  const isAuthHold = String(type || '').toLowerCase() === 'auth' || status === 'AUTHORIZED';
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   const clearDash = (v) => {
     const s = String(v == null ? '' : v).trim();
@@ -3241,8 +3242,8 @@ function updateReceipt(d, type, amount, currency, cardNum) {
     : '—';
   const rawApproval = String(d.gateway_approval_code || d.approval_code || d.bank_approval_code || '').trim();
   const rawRrn = String(d.rrn || d.gateway_rrn || d.original_rrn || '').trim();
-  const receiptApproval = isAuthHold ? (/^\d{6}$/.test(rawApproval) ? rawApproval : '—') : clearDash(rawApproval);
-  const receiptRrn = isAuthHold ? (/^\d{12}$/.test(rawRrn) ? rawRrn : '—') : clearDash(rawRrn);
+  const receiptApproval = clearDash(rawApproval);
+  const receiptRrn = clearDash(rawRrn);
   set('rDate', dateStr);
   set('rTime', timeStr);
   set('rTid', clearDash(tid));
@@ -3257,6 +3258,8 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   set('rRc', clearDash(d.response_code || (status === 'APPROVED' || status === 'AUTHORIZED' ? '00' : '05')));
   set('rApproval', receiptApproval);
   set('rRRN', receiptRrn);
+  set('rPaymentId', clearDash(d.payment_id || d.authorization_id || d.transaction_id || ''));
+  set('rInternalApproval', clearDash(d.internal_approval_code || ''));
   set('rRef', clearDash(d.reference || ''));
   set('rNuvei', clearDash(d.nuvei_txn_id || d.payment_id || d.rrn || ''));
   const merch = document.getElementById('rMerchantSeal');
@@ -3329,8 +3332,10 @@ function showResultModal(success, d) {
   const why = whyRaw && !/^(DECLINED|رُفضت العملية)$/i.test(String(whyRaw).trim()) ? whyRaw : (status === 'DECLINED' ? (AR ? 'رُفضت العملية' : 'DECLINED') : '');
   const rawRrn = String((d && (d.rrn || d.gateway_rrn || d.original_rrn)) || '').trim();
   const rawAuth = String((d && (d.gateway_approval_code || d.approval_code || d.bank_approval_code)) || '').trim();
-  const rrn = POS.txnType === 'auth' ? (/^\d{12}$/.test(rawRrn) ? rawRrn : '') : rawRrn;
-  const auth = POS.txnType === 'auth' ? (/^\d{6}$/.test(rawAuth) ? rawAuth : '') : rawAuth;
+  const paymentId = String((d && (d.payment_id || d.authorization_id || d.transaction_id)) || '').trim();
+  const internalApproval = String((d && d.internal_approval_code) || '').trim();
+  const rrn = rawRrn;
+  const auth = rawAuth;
   const advice = status === 'DECLINED' ? posCardUseAlert(d, whyRaw || why) : { code: '', text: '' };
   const adviceColor = advice.code === 'can_use' ? '#065f46' : '#7f1d1d';
   const adviceBg = advice.code === 'can_use' ? '#ecfdf5' : '#fef2f2';
@@ -3341,6 +3346,8 @@ function showResultModal(success, d) {
       <div style="margin-top:10px;font-size:.72rem;font-weight:700;letter-spacing:.04em">${escapeHtml((d && d.operation_name) || '')}</div>
       ${rrn ? `<div style="margin-top:6px;font-size:.72rem">RRN ${escapeHtml(rrn)}</div>` : ''}
       ${auth ? `<div style="font-size:.72rem">APPROVAL CODE ${escapeHtml(auth)}</div>` : ''}
+      ${paymentId ? `<div style="font-size:.72rem">PAYMENT / TXN ID ${escapeHtml(paymentId)}</div>` : ''}
+      ${internalApproval ? `<div style="font-size:.72rem">INTERNAL APPROVAL ${escapeHtml(internalApproval)}</div>` : ''}
       ${(status === 'SUCCESS') ? `<div style="margin-top:10px;font-size:.78rem;font-weight:800;color:#065f46">${escapeHtml(AR ? 'تم السحب بنجاح' : 'Withdrawal completed')}</div>` : ''}
       ${(status === 'APPROVED') ? `<div style="margin-top:10px;font-size:.78rem;font-weight:800;color:#065f46">${escapeHtml(AR ? 'تمت العملية بنجاح' : 'Transaction approved')}</div>` : ''}
       ${(status === 'AUTHORIZED') ? `<div style="margin-top:10px;font-size:.78rem;font-weight:800;color:#92400e">${escapeHtml(AR ? 'تم حجز المبلغ ولم يتم تحصيله بعد' : 'Authorized hold — not captured yet')}</div>` : ''}

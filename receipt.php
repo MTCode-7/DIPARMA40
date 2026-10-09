@@ -195,24 +195,37 @@ $timeStr = $dateObj->format('H:i:s');
 
 // 6.2 استخراج رد البوابة (JSON)
 $gwResp = json_decode($txn['gateway_response'] ?? '{}', true) ?? [];
+$gatewayResult = $gwResp['gateway_details']['response'] ?? $gwResp['raw'] ?? [];
+if (!is_array($gatewayResult)) {
+    $gatewayResult = [];
+}
 
 // 6.3 تفاصيل البطاقة (من البوابة)
-$cardLast4 = $txn['card_last4'] ?? ($gwResp['card_last4'] ?? ($gwResp['payment_method_details']['card']['last4'] ?? '****'));
-$cardBrand = $txn['card_brand'] ?? ($gwResp['card_brand'] ?? ($gwResp['payment_method_details']['card']['brand'] ?? 'Visa'));
-$cardType = $txn['card_type'] ?? ($gwResp['card_type'] ?? ($gwResp['payment_method_details']['card']['funding'] ?? 'Credit'));
-$cardholderName = $txn['cardholder_name'] ?? ($gwResp['cardholder_name'] ?? ($gwResp['payment_method_details']['card']['holder_name'] ?? '—'));
-$cardExpiry = $txn['card_expiry'] ?? ($gwResp['card_expiry'] ?? ($gwResp['payment_method_details']['card']['exp'] ?? '—'));
+$cardLast4 = $txn['card_last4'] ?? ($gwResp['card_last4'] ?? ($gatewayResult['card_last4'] ?? ($gwResp['payment_method_details']['card']['last4'] ?? '****')));
+$cardBrand = $txn['card_brand'] ?? ($gwResp['card_brand'] ?? ($gatewayResult['card_brand'] ?? ($gwResp['payment_method_details']['card']['brand'] ?? 'Visa')));
+$cardType = $txn['card_type'] ?? ($gwResp['card_type'] ?? ($gatewayResult['card_type'] ?? ($gwResp['payment_method_details']['card']['funding'] ?? 'Credit')));
+$cardholderName = $txn['cardholder_name'] ?? ($gwResp['cardholder_name'] ?? ($gatewayResult['cardholder_name'] ?? ($gwResp['payment_method_details']['card']['holder_name'] ?? '—')));
+$cardExpiry = $txn['card_expiry'] ?? ($gwResp['card_expiry'] ?? ($gatewayResult['card_expiry'] ?? ($gwResp['payment_method_details']['card']['exp'] ?? '—')));
 $customerEmail = $txn['customer_email'] ?? ($gwResp['email'] ?? '—');
 $customerPhone = $txn['customer_phone'] ?? ($gwResp['phone'] ?? '—');
 
 // 6.4 رموز الموافقة والتحقق
-$authCode = $gwResp['gateway_approval_code'] ?? $gwResp['approval_code'] ?? $gwResp['auth_code'] ?? $gwResp['authorization_code'] ?? $gwResp['stage_1_card']['auth_code'] ?? '—';
-$bankApprovalCode = $gwResp['bank_approval_code'] ?? $gwResp['original_approval_code'] ?? '—';
-$rrn = $gwResp['rrn'] ?? $gwResp['retrieval_reference_number'] ?? $gwResp['stage_1_card']['rrn'] ?? '—';
+$receiptIds = pos_gateway_receipt_identifiers($gwResp);
+$nestedReceiptIds = pos_gateway_receipt_identifiers($gatewayResult);
+$authCode = $receiptIds['approval_code'] !== '' ? $receiptIds['approval_code']
+    : ($nestedReceiptIds['approval_code'] !== '' ? $nestedReceiptIds['approval_code'] : ($gwResp['stage_1_card']['auth_code'] ?? '—'));
+$bankApprovalCode = $gwResp['bank_approval_code'] ?? $gwResp['original_approval_code']
+    ?? $gatewayResult['bank_approval_code'] ?? $gatewayResult['original_approval_code'] ?? '—';
+$rrn = $receiptIds['rrn'] !== '' ? $receiptIds['rrn']
+    : ($nestedReceiptIds['rrn'] !== '' ? $nestedReceiptIds['rrn'] : ($gwResp['stage_1_card']['rrn'] ?? '—'));
 $stan = $gwResp['stan'] ?? $gwResp['system_trace_audit_number'] ?? $gwResp['stage_1_card']['stan'] ?? '—';
-$transactionId = $gwResp['transaction_id'] ?? $gwResp['nuvei_txn_id'] ?? $gwResp['stage_1_card']['nuvei_txn'] ?? $gwResp['id'] ?? '—';
-$paymentId = $gwResp['payment_id'] ?? $gwResp['paymentId'] ?? $transactionId;
-$internalApprovalCode = $gwResp['internal_approval_code'] ?? $gwResp['internalApprovalCode'] ?? '—';
+$transactionId = $gwResp['transaction_id'] ?? $gwResp['authorization_id'] ?? $gwResp['nuvei_txn_id']
+    ?? $gatewayResult['transaction_id'] ?? $gatewayResult['authorization_id'] ?? $gatewayResult['id']
+    ?? $gwResp['stage_1_card']['nuvei_txn'] ?? $gwResp['id'] ?? '—';
+$paymentId = $receiptIds['payment_id'] !== '' ? $receiptIds['payment_id']
+    : ($nestedReceiptIds['payment_id'] !== '' ? $nestedReceiptIds['payment_id'] : $transactionId);
+$internalApprovalCode = $receiptIds['internal_approval_code'] !== '' ? $receiptIds['internal_approval_code']
+    : ($nestedReceiptIds['internal_approval_code'] !== '' ? $nestedReceiptIds['internal_approval_code'] : '—');
 
 // 6.5 تفاصيل الأمان
 $secMode = $txn['security_mode'] ?? $gwResp['security_mode'] ?? $gwResp['stage_1_card']['sec_mode'] ?? '3D SECURE';
@@ -335,8 +348,8 @@ $clearAuthCode = $clearOrDash($authCode);
 $clearBankApprovalCode = $clearOrDash($bankApprovalCode);
 $clearRrn = $clearOrDash($rrn);
 $maskedStan = $seal($stan);
-$maskedPaymentId = $seal($paymentId);
-$maskedInternalApproval = $seal($internalApprovalCode);
+$clearPaymentId = $clearOrDash($paymentId);
+$clearInternalApproval = $clearOrDash($internalApprovalCode);
 $maskedLedgerAddr = $ledgerAddr !== '—' ? $seal($ledgerAddr) : '—';
 $sealedDate = $seal($dateStr);
 $sealedTime = $seal($timeStr);
@@ -993,16 +1006,14 @@ if (function_exists('redact_protocol_numbers')) {
                 <?php endif; ?>
                 <?php if ($paymentId && $paymentId !== '—'): ?>
                 <div class="row">
-                    <span class="label">PAYMENT / TXN ID</span>
-                    <span class="value small"><?=htmlspecialchars($maskedPaymentId)?></span>
+                    <span class="label">PAYMENT / AUTHORIZATION ID</span>
+                    <span class="value small"><?=htmlspecialchars($clearPaymentId)?></span>
                 </div>
                 <?php endif; ?>
-                <?php if ($internalApprovalCode !== '—'): ?>
                 <div class="row">
-                    <span class="label">INTERNAL APPROVAL</span>
-                    <span class="value small"><?=htmlspecialchars($maskedInternalApproval)?></span>
+                    <span class="label">INTERNAL APPROVAL CODE</span>
+                    <span class="value small"><?=htmlspecialchars($clearInternalApproval)?></span>
                 </div>
-                <?php endif; ?>
                 <div class="row">
                     <span class="label">AUTH TYPE</span>
                     <span class="value"><?=htmlspecialchars($sealedAuthType)?></span>

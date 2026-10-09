@@ -60,6 +60,27 @@ check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'captur
 check(pos_receipt_status(['status' => 'failed', 'transaction_type' => 'purchase_3d']) === 'DECLINED', 'Failed purchase receipt is declined');
 check(pos_receipt_status(['status' => 'pending', 'transaction_type' => 'purchase_3d']) === 'PENDING', 'Pending purchase receipt is pending');
 check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'withdrawal_pos']) === 'SUCCESS', 'Completed withdrawal receipt reports success');
+check(pos_gateway_receipt_identifiers([
+    'authorization_id' => 'PAYPAL-AUTH-123',
+    'approval_code' => 'AB12CD',
+]) === [
+    'rrn' => '',
+    'approval_code' => 'AB12CD',
+    'payment_id' => 'PAYPAL-AUTH-123',
+    'internal_approval_code' => '',
+], 'PayPal AUTH receipt keeps provider ID and approval separate from RRN');
+check(pos_gateway_receipt_identifiers([
+    'gateway_approval_code' => '',
+    'approval_code' => 'P4Y123',
+    'rrn' => '',
+    'retrieval_reference_number' => 'RRN123456789',
+])['approval_code'] === 'P4Y123'
+    && pos_gateway_receipt_identifiers([
+        'gateway_approval_code' => '',
+        'approval_code' => 'P4Y123',
+        'rrn' => '',
+        'retrieval_reference_number' => 'RRN123456789',
+    ])['rrn'] === 'RRN123456789', 'Receipt identifiers use the first non-empty provider value');
 check(pos_redact_pci(['client_secret' => 'pi_secret_value'])['client_secret'] === '[redacted]', 'Stripe client secret is removed from stored gateway data');
 check(diparma_map_stripe_payment_intent_status('succeeded') === 'completed', 'Stripe 3DS success reconciles to completed');
 check(diparma_map_stripe_payment_intent_status('requires_payment_method') === 'failed', 'Stripe failed authentication reconciles to failed');

@@ -589,6 +589,25 @@ function pos_is_withdrawal(string $type): bool
     return in_array(pos_normalize_operation($type), ['withdrawal_pos', 'withdrawal_nfc'], true);
 }
 
+function pos_gateway_receipt_identifiers(array $response): array
+{
+    $firstValue = static function (array $keys) use ($response): string {
+        foreach ($keys as $key) {
+            $value = trim((string) ($response[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+        return '';
+    };
+    return [
+        'rrn' => $firstValue(['rrn', 'retrieval_reference_number']),
+        'approval_code' => $firstValue(['gateway_approval_code', 'approval_code', 'auth_code', 'authorization_code']),
+        'payment_id' => $firstValue(['payment_id', 'paymentId', 'authorization_id', 'transaction_id']),
+        'internal_approval_code' => $firstValue(['internal_approval_code', 'internalApprovalCode']),
+    ];
+}
+
 function pos_receipt_status(array $txn): string
 {
     $status = strtolower(trim((string) ($txn['status'] ?? '')));

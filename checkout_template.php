@@ -277,7 +277,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
   </div>
   <div id="localCardFields" class="<?=$isPayram?'hidden':''?>">
-  <div class="req-box" style="margin-top:4px">
+  <div class="req-box" id="bankReferenceFields" style="margin-top:4px">
     <div class="req-box-title">
       <i class="fas fa-university"></i>
       <?=$ar?'الأصل والأساس والبيانات الداخلية':'Original Bank and Internal References'?>
@@ -690,6 +690,8 @@ function setTx(type, el) {
   var meta       = OPS[type] || {};
 
   [cardSec, captureSec, refSec, wdSec].forEach(function(s){ if(s) s.classList.add('hidden'); });
+  var bankReferenceFields = document.getElementById('bankReferenceFields');
+  if (bankReferenceFields) bankReferenceFields.style.display = type === 'auth' ? 'none' : '';
 
   if (type === 'withdrawal_pos' || type === 'withdrawal_nfc') {
     wdSec.classList.remove('hidden');
@@ -974,10 +976,12 @@ async function go() {
       payload.cc_number = cc;
       payload.card_number = cc;
     }
-    var bankRrn = document.getElementById('cardBankRrn').value.trim();
-    var bankApproval = document.getElementById('cardBankApproval').value.trim();
-    if (bankRrn) payload.bank_rrn = bankRrn;
-    if (bankApproval) payload.bank_approval_code = bankApproval;
+    if (curTx !== 'auth') {
+      var bankRrn = document.getElementById('cardBankRrn').value.trim();
+      var bankApproval = document.getElementById('cardBankApproval').value.trim();
+      if (bankRrn) payload.bank_rrn = bankRrn;
+      if (bankApproval) payload.bank_approval_code = bankApproval;
+    }
     var name = document.getElementById('cardName').value.trim();
     var ph   = document.getElementById('cardPhone').value.trim();
     if (!squareTokPresent && exp)  { payload.cc_expiry = exp; payload.card_expiry = exp; }
