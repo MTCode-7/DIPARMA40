@@ -78,6 +78,7 @@ $settlementChoices = [
 ];
 check(activity_normalize_settlement_target('gateway', 'stripe', $settlementChoices) === 'gateway', 'Settlement can stay on the charging gateway');
 check(activity_normalize_settlement_target('ledger', 'stripe', $settlementChoices) === 'ledger', 'Settlement can target Ledger');
+check(activity_normalize_settlement_target('ledger', 'paypal', activity_settlement_target_choices('paypal', 'checkout')) === 'ledger', 'Ledger target is preserved for gateway checkout');
 check(activity_normalize_settlement_target('gateway:paypal', 'stripe', $settlementChoices) === 'gateway:paypal', 'Settlement can request another connected gateway');
 check(activity_normalize_settlement_target('gateway:square_online', 'paypal', $settlementChoices) === '', 'Square 2 is not a funds-transfer destination');
 check(activity_normalize_settlement_target('gateway:stripe', 'stripe', $settlementChoices) === '', 'Settlement cannot forward back to the source gateway');

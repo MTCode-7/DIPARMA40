@@ -31,6 +31,7 @@ if (!empty($prefillOp) && isset($checkoutOps[$prefillOp])) {
 $isPayram = (($gwCode ?? '') === 'payram');
 $isDiparmaGw = (($gwCode ?? '') === 'diparma_gateway');
 $isLedgerGw = !empty($ledgerCheckout);
+$settlementToLedger = !empty($settlementToLedger) || $isLedgerGw;
 $chargeEndpoint = ($basePath ?? '') . 'api/checkout_charge.php';
 $chargeGwCode = $chargeGwCode ?? $gwCode;
 $isNuveiFamily = in_array(($chargeGwCode ?? $gwCode ?? ''), ['nuvei', 'diparma'], true);
@@ -151,14 +152,27 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       (string) (($checkoutChannel ?? 'checkout') === 'link' ? 'link' : 'checkout'),
       (string) ($basePath ?? ''),
       $ar,
-      !empty($ledgerCheckout) ? ['ledger_checkout' => '1'] : []
+      !empty($ledgerCheckout)
+        ? ['ledger_checkout' => '1']
+        : (($prefillDest ?? 'gateway') !== 'gateway' ? ['settlement_target' => $prefillDest] : [])
   ) ?>
+  <?php if (!empty($settlementTargetError)): ?>
+  <div class="info-note" style="border-color:var(--red);color:var(--red)">
+    <?=$ar
+      ? 'وجهة التسوية المحددة غير صالحة أو غير متاحة. لم يتم إرسال الدفع؛ ارجع إلى صفحة Checkout واختر وجهة متصلة.'
+      : 'The selected settlement destination is invalid or unavailable. Payment was not submitted; return to Checkout and choose an available destination.'?>
+  </div>
+  <?php endif; ?>
   <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px">
     <?=$ar?'صفحة مستقلة لبوابة':'Dedicated gateway page:'?>
     <strong style="color:var(--gw)"><?=htmlspecialchars($gwName)?></strong>
-    — <?=$isLedgerGw
-      ? ($ar ? 'خصم من صفحة Ledger CHECKOUT — الصافي يصل إلى Ledger' : 'charged from Ledger CHECKOUT — net arrives at Ledger')
-      : ($ar ? 'كل عمليات الشراء متاحة هنا — المبلغ يبقى على هذه البوابة' : 'all purchase operations available here — funds stay on this gateway')?>
+    — <?=$settlementToLedger
+      ? ($ar ? 'وجهة التسوية Ledger — بعد نجاح الخصم يصل الصافي إلى Ledger' : 'Settlement destination: Ledger — net proceeds go to Ledger after the charge succeeds')
+      : (!empty($settlementToOtherGateway)
+        ? ($ar
+          ? 'سيُوجّه صافي المبلغ إلى ' . htmlspecialchars($settlementTargetLabel ?: 'البوابة المحددة', ENT_QUOTES, 'UTF-8') . ' بعد نجاح الخصم.'
+          : 'Net proceeds will be routed to ' . htmlspecialchars($settlementTargetLabel ?: 'the selected gateway', ENT_QUOTES, 'UTF-8') . ' after the charge succeeds.')
+        : ($ar ? 'كل عمليات الشراء متاحة هنا — المبلغ يبقى على هذه البوابة' : 'all purchase operations available here — funds stay on this gateway'))?>
     · <span style="color:var(--gold);font-weight:800">ENDPOINT</span>
     <code style="color:var(--text);font-size:.72rem">POST <?=htmlspecialchars($chargeEndpoint)?></code>
     <?php if (($gwCode ?? '') === 'paypal'): ?>
@@ -212,7 +226,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 <div class="co-card hidden" id="cardSection">
   <div class="co-title">
     <i class="fas fa-credit-card" style="color:var(--gw)"></i>
-    <?=$isLedgerGw
+    <?=$settlementToLedger
       ? ($ar ? 'بطاقة → Ledger USDT' : 'Card → Ledger USDT')
       : ($isDiparmaGw
         ? ($ar ? 'بطاقة — المبلغ على البوابة' : 'Card — funds on gateway')
@@ -230,12 +244,16 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
   <div class="info-note" style="margin-bottom:12px">
     <i class="fas fa-credit-card" style="color:var(--gw)"></i>
     <?=$ar
-      ? ($isLedgerGw
-        ? 'من Ledger CHECKOUT: الخصم على هذه البوابة ثم الصافي → عنوان Ledger. لا بنك ولا IBAN.'
-        : 'DIPARMA GATEWAY: الخصم على هذه البوابة والمبلغ يبقى عليها. للوصول إلى Ledger افتح صفحة Ledger CHECKOUT.')
-      : ($isLedgerGw
-        ? 'From Ledger CHECKOUT: charge on this gateway then net → Ledger address. No bank or IBAN.'
-        : 'DIPARMA GATEWAY: charge on this gateway and keep the funds here. To send to Ledger open Ledger CHECKOUT.')?>
+      ? ($settlementToLedger
+        ? 'وجهة التسوية Ledger: الخصم على هذه البوابة ثم الصافي → عنوان Ledger. لا بنك ولا IBAN.'
+        : (!empty($settlementToOtherGateway)
+          ? 'يُخصم المبلغ على هذه البوابة ثم يُوجّه الصافي إلى البوابة المحددة.'
+          : 'DIPARMA GATEWAY: الخصم على هذه البوابة والمبلغ يبقى عليها. للوصول إلى Ledger افتح صفحة Ledger CHECKOUT.'))
+      : ($settlementToLedger
+        ? 'Settlement destination: Ledger. Charge on this gateway, then send net proceeds to the Ledger address.'
+        : (!empty($settlementToOtherGateway)
+          ? 'The charge is made on this gateway, then net proceeds are routed to the selected gateway.'
+          : 'DIPARMA GATEWAY: charge on this gateway and keep the funds here. To send to Ledger open Ledger CHECKOUT.'))?>
   </div>
   <?php elseif ($isPayram): ?>
   <div class="info-note" style="margin-bottom:12px">
@@ -541,7 +559,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <span class="sum-key">Net</span>
       <span id="sumNet" style="color:var(--green)">—</span>
     </div>
-    <button class="pay-btn" id="payBtn" onclick="go()">
+    <button class="pay-btn" id="payBtn" onclick="go()" <?=!empty($settlementTargetError) ? 'disabled' : ''?>>
       <i class="fas fa-bolt"></i>
       <span id="payBtnLabel"><?=$ar?'سحب مباشر':'Direct Charge'?></span>
     </button>

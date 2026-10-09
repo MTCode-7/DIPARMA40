@@ -182,7 +182,14 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
 
 <div class="wrap">
   <div class="page-title"><i class="fas fa-briefcase"></i> <?=$ar?'الدفع حسب النشاط':'Pay by activity'?></div>
-  <div class="page-sub"><?=$ar?'نشاط الشركة → POS أو رابط → البوابة المتصلة → نوع العملية. المبلغ يبقى على نفس البوابة.':'Business activity → POS or Link → connected gateway → operation. Funds stay on the same gateway.'?></div>
+  <div class="page-sub"><?=$ar?'نشاط الشركة → POS أو Checkout أو رابط → بوابة متصلة → نوع العملية → وجهة المبلغ بعد نجاح الخصم.':'Business activity → POS, Checkout, or Link → connected gateway → operation → settlement destination.'?></div>
+  <?php if (($_GET['error'] ?? '') === 'invalid_settlement_target'): ?>
+  <div class="info-note" style="border-color:var(--red);color:var(--red)">
+    <?=$ar
+      ? 'وجهة التسوية المحددة غير صالحة أو غير متاحة. لم يتم إرسال الدفع؛ اختر بوابة ووجهة متصلة ثم حاول مجدداً.'
+      : 'The selected settlement destination is invalid or unavailable. Payment was not submitted; choose a connected gateway and destination, then try again.'?>
+  </div>
+  <?php endif; ?>
 
   <!-- Steps Bar -->
   <div class="steps-bar">
@@ -244,9 +251,9 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <?php endforeach; ?>
     </div>
     <div class="amount-section" style="margin-top:8px">
-      <div style="font-size:.75rem;font-weight:800;color:var(--orange);margin-bottom:6px"><?=$ar?'نفس البوابة':'Same gateway'?></div>
-      <div style="font-size:.7rem;color:var(--muted2);line-height:1.6"><?=$ar?'المبلغ يبقى على البوابة المستخدمة. للوصول إلى Ledger استخدم صفحة Ledger CHECKOUT — بوابة مستقلة.':'Funds stay on the gateway you use. To send to Ledger open Ledger CHECKOUT — a standalone gateway.'?></div>
-      <div style="margin-top:10px"><a href="checkout_ledger.php" style="color:var(--gold);font-weight:800;text-decoration:none"><i class="fas fa-wallet"></i> Ledger CHECKOUT</a></div>
+      <div style="font-size:.75rem;font-weight:800;color:var(--orange);margin-bottom:6px"><?=$ar?'وجهة الأموال':'Funds destination'?></div>
+      <div style="font-size:.7rem;color:var(--muted2);line-height:1.6"><?=$ar?'بعد اختيار بوابة الخصم، اختر في خطوة «المبلغ والتفاصيل» إبقاء المبلغ على البوابة أو توجيهه إلى Ledger أو بوابة متصلة أخرى.':'After choosing a charging gateway, select in “Amount & Details” whether funds stay there, go to Ledger, or are routed to another connected gateway.'?></div>
+      <div style="margin-top:10px;font-size:.7rem;color:var(--muted2)"><?=$ar?'أو افتح تدفق Ledger CHECKOUT المستقل:':'Or open the separate Ledger CHECKOUT flow:'?> <a href="checkout_ledger.php" style="color:var(--gold);font-weight:800;text-decoration:none"><i class="fas fa-wallet"></i> Ledger CHECKOUT</a></div>
     </div>
     <div style="display:flex;gap:12px">
       <button class="continue-btn" style="background:rgba(255,255,255,.06);color:var(--text);box-shadow:none;flex:0 0 120px" onclick="goStep(1)"><i class="fas fa-arrow-right"></i> <?=$ar?'رجوع':'Back'?></button>

@@ -135,8 +135,30 @@ $requestedCurrency = strtoupper(trim((string) ($_GET['currency'] ?? '')));
 $prefillCurrency = in_array($requestedCurrency, $currencies, true)
     ? $requestedCurrency
     : ($currencies[0] ?? 'USD');
+$reqChannel = strtolower(trim((string) ($_GET['channel'] ?? $_GET['ch'] ?? '')));
 $ledgerCheckout  = isset($_GET['ledger_checkout']) && (string) $_GET['ledger_checkout'] === '1';
-$prefillDest     = $ledgerCheckout ? 'ledger' : 'gateway';
+$requestedSettlementTarget = trim((string) ($_GET['settlement_target'] ?? $_GET['destination'] ?? ''));
+$settlementTargetError = false;
+$targetChannel = in_array($reqChannel, ['pos', 'link'], true) ? $reqChannel : 'checkout';
+$settlementTargetOptions = activity_settlement_target_choices($gwCode, $targetChannel);
+$prefillDest = $ledgerCheckout ? 'ledger' : 'gateway';
+if (!$ledgerCheckout && $requestedSettlementTarget !== '') {
+    $prefillDest = activity_normalize_settlement_target(
+        $requestedSettlementTarget,
+        $gwCode,
+        $settlementTargetOptions
+    );
+    if ($prefillDest === '') {
+        $settlementTargetError = true;
+        $prefillDest = 'gateway';
+    }
+}
+$settlementTargetLabel = (string) ($settlementTargetOptions[$prefillDest]['name'] ?? '');
+if ($prefillDest === 'ledger') {
+    $settlementTargetLabel = 'Ledger';
+}
+$settlementToLedger = $prefillDest === 'ledger';
+$settlementToOtherGateway = str_starts_with($prefillDest, 'gateway:');
 $prefillWallet   = trim((string)($_GET['wallet'] ?? ''));
 if ($ledgerCheckout && $prefillWallet === '' && defined('LEDGER_TRC20_ADDRESS')) {
     $prefillWallet = (string) LEDGER_TRC20_ADDRESS;
@@ -158,7 +180,10 @@ if ($secQ === '2D' && isset($checkoutOps['purchase_2d'])) {
 $activityLine = strtolower(trim((string) ($_GET['activity_line'] ?? $_GET['line'] ?? '')));
 $prefillRef      = trim((string)($_GET['ref'] ?? ''));
 $prefillLink     = trim((string)($_GET['link'] ?? ''));
-$reqChannel = strtolower(trim((string) ($_GET['channel'] ?? $_GET['ch'] ?? '')));
+if ($settlementTargetError && in_array($reqChannel, ['pos', 'link'], true)) {
+    header('Location: ' . $basePath . 'checkout_router.php?error=invalid_settlement_target', true, 302);
+    exit;
+}
 if ($reqChannel === 'pos') {
     $posQs = array_filter([
         'line' => $activityLine,
@@ -166,6 +191,7 @@ if ($reqChannel === 'pos') {
         'amount' => $prefillAmount > 0 ? $prefillAmount : '',
         'currency' => $prefillCurrency,
         'ledger_checkout' => !empty($ledgerCheckout) ? '1' : '',
+        'settlement_target' => $prefillDest !== 'gateway' ? $prefillDest : '',
     ]);
     header('Location: ' . $basePath . activity_pos_route($gwCode) . ($posQs ? ('?' . http_build_query($posQs)) : ''), true, 302);
     exit;
@@ -173,6 +199,7 @@ if ($reqChannel === 'pos') {
 if ($reqChannel === 'link' && $prefillLink === '') {
     $linkQs = array_filter([
         'ledger_checkout' => !empty($ledgerCheckout) ? '1' : '',
+        'settlement_target' => $prefillDest !== 'gateway' ? $prefillDest : '',
         'amount' => $prefillAmount > 0 ? $prefillAmount : '',
         'currency' => $prefillCurrency,
     ]);
