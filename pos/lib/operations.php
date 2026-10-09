@@ -18,6 +18,11 @@ function pos_capture_max_amount(): float
     return 5000000.00;
 }
 
+function pos_gateway_allows_overcapture(string $gateway): bool
+{
+    return in_array(strtolower(trim($gateway)), ['square', 'paypal', 'stripe', 'nuvei'], true);
+}
+
 /** Sum approved capture/advice rows that follow one AUTH hold. Hold stays reusable. */
 function pos_auth_followup_totals($db, string $paymentId, string $rrn): array
 {

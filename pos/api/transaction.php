@@ -537,7 +537,7 @@ $priorCapturedTotal = 0.0;
 $priorCaptureCount = 0;
 if (in_array($txnType, ['capture', 'purchase_advice'], true) && ($origRef !== '' || $paymentId !== '')) {
     $originalRows = $db->query(
-        "SELECT amount, transaction_type, status, rrn, reference FROM " . DB_PREFIX . "transactions
+        "SELECT amount, transaction_type, status, rrn, reference, gateway FROM " . DB_PREFIX . "transactions
          WHERE transaction_type = 'auth'
            AND (reference = ? OR rrn = ? OR gateway_response LIKE ?)
          ORDER BY id DESC LIMIT 1",
@@ -549,6 +549,27 @@ if (in_array($txnType, ['capture', 'purchase_advice'], true) && ($origRef !== ''
     );
     if (!empty($originalRows[0]['amount'])) {
         $authorizedAmount = (float) $originalRows[0]['amount'];
+        $authGateway = strtolower(trim((string) ($originalRows[0]['gateway'] ?? '')));
+        if ($authGateway !== '' && $authGateway !== strtolower(trim($posGateway))) {
+            http_response_code(422);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Capture must use the same gateway as the original AUTH hold.',
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        if (
+            $txnType === 'capture'
+            && $amount > $authorizedAmount
+            && !pos_gateway_allows_overcapture($posGateway)
+        ) {
+            http_response_code(422);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Over-capture is enabled only for Square, PayPal, Stripe, and Nuvei.',
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         $authPid = $paymentId;
         $authRrn = (string) ($originalRows[0]['rrn'] ?? $origRef);
         $follow = function_exists('pos_auth_followup_totals')

@@ -60,6 +60,8 @@ try {
             'gateway_approval' => (string) ($raw['approval_code'] ?? $row['auth_code'] ?? ''),
             'payment_id' => $paymentId,
             'gateway' => (string) ($row['gateway'] ?? ''),
+            'can_overcapture' => function_exists('pos_gateway_allows_overcapture')
+                && pos_gateway_allows_overcapture((string) ($row['gateway'] ?? '')),
             'card_last4' => (string) ($row['card_last4'] ?? ''),
             'created_at' => (string) ($row['created_at'] ?? ''),
             'age_days' => $ageDays,

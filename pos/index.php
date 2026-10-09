@@ -2343,6 +2343,10 @@ window.resolveCaptureAmount = function() {
 
 window.setCaptureCompare = function(mode) {
   const hold = parseFloat(POS.holdAmount || 0) || 0;
+  if (mode === 'more' && !['square', 'paypal', 'stripe', 'nuvei'].includes(String(POS_GW).toLowerCase())) {
+    toast(AR ? 'الزيادة متاحة فقط عبر Square وPayPal وStripe وNuvei' : 'Higher capture is enabled only for Square, PayPal, Stripe, and Nuvei', 'error');
+    return;
+  }
   if (hold <= 0 && mode !== '') {
     toast(AR ? 'اختر الحجز السابق أولاً' : 'Pick the previous hold first', 'error');
     return;
@@ -2843,6 +2847,10 @@ window.processTransaction = async function() {
     if (capMode === 'same') {
       captureAmt = holdAmt;
     } else {
+      if (capMode === 'more' && !['square', 'paypal', 'stripe', 'nuvei'].includes(String(POS_GW).toLowerCase())) {
+        toast(AR ? 'الزيادة متاحة فقط عبر Square وPayPal وStripe وNuvei' : 'Higher capture is enabled only for Square, PayPal, Stripe, and Nuvei', 'error');
+        return;
+      }
       if (captureAmt <= 0) {
         toast(AR ? 'أدخل مبلغ الكابتشر' : 'Enter the capture amount', 'error');
         document.getElementById('captureCustomAmt')?.focus();

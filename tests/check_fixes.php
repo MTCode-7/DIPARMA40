@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/activity_flow.php';
 require_once __DIR__ . '/../includes/gateway_channel_bar.php';
 require_once __DIR__ . '/../includes/square_sdk.php';
 require_once __DIR__ . '/../pos/lib/ops_sticker.php';
+require_once __DIR__ . '/../pos/lib/operations.php';
 
 $fail = 0;
 function check(bool $ok, string $label): void
@@ -44,6 +45,10 @@ require_once __DIR__ . '/../lib/Adapters/GatewayAdapterFactory.php';
 foreach (['binance', 'payram', 'whop', 'wise', 'stripe', 'nuvei', 'square', 'paypal'] as $gateway) {
     check(GatewayAdapterFactory::isSupported($gateway), $gateway . ' is registered');
 }
+foreach (['square', 'paypal', 'stripe', 'nuvei'] as $gateway) {
+    check(pos_gateway_allows_overcapture($gateway), strtoupper($gateway) . ' allows approved over-capture');
+}
+check(!pos_gateway_allows_overcapture('braintree'), 'Other gateways do not allow over-capture');
 $nuveiReflection = new ReflectionClass(NuveiAdapter::class);
 $nuveiApprovalMethod = $nuveiReflection->getMethod('nuveiTxnApproved');
 $nuveiApprovalMethod->setAccessible(true);
