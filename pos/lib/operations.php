@@ -20,7 +20,9 @@ function pos_capture_max_amount(): float
 
 function pos_gateway_allows_overcapture(string $gateway): bool
 {
-    return in_array(strtolower(trim($gateway)), ['square', 'paypal', 'stripe', 'nuvei'], true);
+    return class_exists('HoldCaptureService', false)
+        ? HoldCaptureService::allowsOvercapture($gateway)
+        : in_array(strtolower(trim($gateway)), ['square', 'paypal', 'stripe', 'nuvei'], true);
 }
 
 /** Sum approved capture/advice rows that follow one AUTH hold. Hold stays reusable. */

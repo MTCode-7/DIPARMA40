@@ -42,13 +42,16 @@ $recovered = TronSigner::recoverPublicKey($hash, $sig);
 check($recovered[0] === $pub[0] && $recovered[1] === $pub[1], 'signature recovers the public key');
 
 require_once __DIR__ . '/../lib/Adapters/GatewayAdapterFactory.php';
+require_once __DIR__ . '/../lib/HoldCaptureService.php';
 foreach (['binance', 'payram', 'whop', 'wise', 'stripe', 'nuvei', 'square', 'paypal'] as $gateway) {
     check(GatewayAdapterFactory::isSupported($gateway), $gateway . ' is registered');
 }
 foreach (['square', 'paypal', 'stripe', 'nuvei'] as $gateway) {
     check(pos_gateway_allows_overcapture($gateway), strtoupper($gateway) . ' allows approved over-capture');
+    check(HoldCaptureService::allowsOvercapture($gateway), strtoupper($gateway) . ' hold manager allows over-capture');
 }
 check(!pos_gateway_allows_overcapture('braintree'), 'Other gateways do not allow over-capture');
+check(!HoldCaptureService::allowsOvercapture('braintree'), 'Other hold gateways do not allow over-capture');
 $nuveiReflection = new ReflectionClass(NuveiAdapter::class);
 $nuveiApprovalMethod = $nuveiReflection->getMethod('nuveiTxnApproved');
 $nuveiApprovalMethod->setAccessible(true);

@@ -140,11 +140,12 @@ try {
                 echo json_encode(['success' => false, 'message' => 'أدخل Authorization ID أو Reference الحجز']); break;
             }
 
-            $captureResult = $svc->capture($piId, $partialAmount);
+            $captureResult = $svc->capture($piId, $partialAmount, $userId);
 
             if ($captureResult['success']) {
                 $hold = $svc->getHoldByPI($piId);
                 if ($hold) {
+                    $capturedAmount = (float) ($captureResult['amount'] ?? ($partialAmount ?? $hold['amount'] ?? 0));
                     $gwData = json_decode(
                         $db->find('transactions', ['reference' => $hold['reference']])['gateway_response'] ?? '{}',
                         true
@@ -162,14 +163,16 @@ try {
                     }
 
                     $db->update('transactions', [
-                        'status'     => 'completed',
+                        'status'     => (float) ($hold['captured_amount'] ?? 0) >= (float) ($hold['amount'] ?? 0)
+                            ? 'completed'
+                            : 'authorized',
                         'updated_at' => date('Y-m-d H:i:s'),
                     ], ['reference' => $hold['reference']]);
 
                     require_once __DIR__ . '/../lib/LedgerSettlementService.php';
                     $captureResult['ledger_settlement'] = LedgerSettlementService::settleSuccessfulPayment([
                         'reference' => $hold['reference'],
-                        'amount'    => (float)($hold['amount'] ?? 0),
+                        'amount'    => $capturedAmount,
                         'currency'  => (string)($hold['currency'] ?? 'USD'),
                         'gateway'   => (string)($hold['gateway'] ?? 'paypal'),
                         'user_id'   => (int)$userId,

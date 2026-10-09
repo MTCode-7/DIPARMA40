@@ -169,6 +169,7 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
     $meta  = json_decode($hold['meta'] ?? '{}', true);
     $canCapture = $hold['status'] === 'authorized';
     $canCancel  = in_array($hold['status'], ['authorized', 'pending']);
+    $canOvercapture = in_array(strtolower((string) ($hold['gateway'] ?? '')), ['square', 'paypal', 'stripe', 'nuvei'], true);
 ?>
 <div class="hold-card <?= $hold['status'] ?>">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">
@@ -207,10 +208,10 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
                 <i class="fas fa-check-double"></i>
                 <?= dp_t('Capture', 'تحصيل') ?>
             </button>
-            <button onclick="showPartialCapture('<?= addslashes($hold['payment_intent_id']) ?>',<?= $hold['amount'] ?>)"
+            <button onclick="showPartialCapture('<?= addslashes($hold['payment_intent_id']) ?>',<?= $hold['amount'] ?>,'<?= htmlspecialchars((string) ($hold['gateway'] ?? 'stripe'), ENT_QUOTES) ?>')"
                     style="padding:7px 14px;border-radius:10px;border:1px solid rgba(76,175,80,.3);background:transparent;color:#9fe870;cursor:pointer;font-size:.82rem">
                 <i class="fas fa-scissors"></i>
-                <?= dp_t('Partial', 'جزئي') ?>
+                <?= dp_t('Capture amount', 'مبلغ التحصيل') ?>
             </button>
             <?php endif; ?>
             <?php if ($canCancel): ?>
@@ -232,9 +233,9 @@ body{background:var(--bg-dark);color:var(--text-light);font-family:Cairo,sans-se
 <!-- Modal Partial Capture -->
 <div id="partialModal" class="modal-overlay">
     <div class="modal-box">
-        <h3 style="color:var(--gold);margin:0 0 16px"><?= dp_t('Partial capture', 'تحصيل جزئي') ?></h3>
+        <h3 style="color:var(--gold);margin:0 0 16px"><?= dp_t('Final capture amount', 'مبلغ التحصيل النهائي') ?></h3>
         <input type="hidden" id="partialPI">
-        <label style="color:var(--text-muted);font-size:.85rem;display:block;margin-bottom:6px"><?= dp_t('Partial amount', 'المبلغ الجزئي') ?></label>
+        <label style="color:var(--text-muted);font-size:.85rem;display:block;margin-bottom:6px"><?= dp_t('Capture amount', 'مبلغ التحصيل') ?></label>
         <input type="number" id="partialAmount" step="0.01" placeholder="0.00"
                style="width:100%;padding:12px;background:rgba(255,255,255,.05);border:1px solid var(--border-gold);border-radius:10px;color:var(--text-light);font-size:1rem;margin-bottom:6px">
         <small id="partialMax" style="color:var(--text-muted);font-size:.78rem"></small>
@@ -325,18 +326,34 @@ async function cancelHold(pi) {
     }
 }
 
-function showPartialCapture(pi, maxAmount) {
+function showPartialCapture(pi, authorizedAmount, gateway) {
     document.getElementById('partialPI').value = pi;
-    document.getElementById('partialAmount').value = '';
-    document.getElementById('partialMax').textContent = HOLD_I18N.maxLabel + maxAmount;
-    document.getElementById('partialAmount').max = maxAmount;
+    var amount = document.getElementById('partialAmount');
+    var canOvercapture = ['square', 'paypal', 'stripe', 'nuvei'].indexOf(String(gateway || '').toLowerCase()) >= 0;
+    amount.value = Number(authorizedAmount).toFixed(2);
+    if (canOvercapture) {
+        amount.removeAttribute('max');
+        document.getElementById('partialMax').textContent = dpOvercaptureHint();
+    } else {
+        amount.max = authorizedAmount;
+        document.getElementById('partialMax').textContent = HOLD_I18N.maxLabel + Number(authorizedAmount).toFixed(2);
+    }
     document.getElementById('partialModal').style.display = 'flex';
+}
+
+function dpOvercaptureHint() {
+    return <?= json_encode(dp_t(
+        'Higher amounts are enabled for Square, PayPal, Stripe, and Nuvei, subject to issuer approval.',
+        'المبلغ الأعلى متاح عبر Square وPayPal وStripe وNuvei، ويظل خاضعاً لموافقة الجهة المصدرة.'
+    ), JSON_UNESCAPED_UNICODE) ?>;
 }
 
 function confirmPartial() {
     var pi = document.getElementById('partialPI').value;
     var amt = parseFloat(document.getElementById('partialAmount').value);
     if (!amt || amt <= 0) { showToast(HOLD_I18N.enterValidAmount, 'warning'); return; }
+    var max = parseFloat(document.getElementById('partialAmount').max || 0);
+    if (max > 0 && amt > max) { showToast(HOLD_I18N.amountInvalid, 'error'); return; }
     document.getElementById('partialModal').style.display = 'none';
     captureHold(pi, amt);
 }

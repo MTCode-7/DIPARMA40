@@ -33,6 +33,11 @@ class HoldCaptureService
         return self::$instance;
     }
 
+    public static function allowsOvercapture(string $gateway): bool
+    {
+        return in_array(strtolower(trim($gateway)), ['square', 'paypal', 'stripe', 'nuvei'], true);
+    }
+
     // ══════════════════════════════════════════════════════════
     // [1] HOLD — حجز المبلغ بدون خصم
     // ══════════════════════════════════════════════════════════
@@ -144,17 +149,31 @@ class HoldCaptureService
     // ══════════════════════════════════════════════════════════
     // [3] CAPTURE — تحصيل المبلغ المحجوز
     // ══════════════════════════════════════════════════════════
-    public function capture(string $paymentIntentId, ?float $partialAmount = null): array
+    public function capture(string $paymentIntentId, ?float $partialAmount = null, ?int $userId = null): array
     {
         $hold = $this->getHoldByPI($paymentIntentId);
         if (!$hold) {
             return ['success' => false, 'message' => 'الحجز غير موجود في النظام'];
+        }
+        if ($userId !== null && (int) ($hold['user_id'] ?? 0) !== $userId) {
+            return ['success' => false, 'message' => 'لا تملك صلاحية هذا الحجز'];
         }
         if ($hold['status'] !== 'authorized' && $hold['status'] !== 'captured') {
             return ['success' => false, 'message' => "لا يمكن التحصيل — حالة الحجز: {$hold['status']}"];
         }
 
         $gateway = $hold['gateway'] ?? 'stripe';
+        $authorizedAmount = (float) ($hold['amount'] ?? 0);
+        if (
+            $partialAmount !== null
+            && $partialAmount > $authorizedAmount
+            && !self::allowsOvercapture((string) $gateway)
+        ) {
+            return [
+                'success' => false,
+                'message' => 'Over-capture is enabled only for Square, PayPal, Stripe, and Nuvei.',
+            ];
+        }
         $payload = GatewayAdapterFactory::normalizePayload([
             'transaction_id' => $paymentIntentId,
             'partial_amount' => $partialAmount,
