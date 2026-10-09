@@ -172,12 +172,17 @@ if ($isLedgerPage) {
     }
 }
 
-$extraQ = $ledgerCheckout && !$isLedgerPage ? ['ledger_checkout' => '1'] : [];
+$extraQ = $ledgerCheckout && !$isLedgerPage
+  ? ['ledger_checkout' => '1']
+  : ($settlementTarget !== 'gateway' ? ['settlement_target' => $settlementTarget] : []);
 $openCheckout = '../' . activity_channel_route($isLedgerPage ? ($chargeGateway !== '' ? $chargeGateway : 'paypal') : $gwCode, 'checkout');
 $openQs = ['channel' => 'link'];
 if ($ledgerCheckout) {
     $openQs['ledger_checkout'] = '1';
+} elseif ($settlementTarget !== 'gateway') {
+    $openQs['settlement_target'] = $settlementTarget;
 }
+$settlementTargetName = (string) ($settlementChoices[$settlementTarget]['name'] ?? $settlementTarget);
 ?><!DOCTYPE html>
 <html lang="<?=$lang?>" dir="<?=$dir?>">
 <head>
@@ -214,9 +219,11 @@ a{color:#FFD700}
 <div class="wrap">
   <?= diparma_gateway_channel_bar($gwCode, 'link', '../', $ar, $extraQ) ?>
   <div style="font-size:.82rem;color:#718096;margin-bottom:16px;line-height:1.6">
-    <?=$ledgerCheckout
-      ? ($ar ? 'رابط Ledger: الخصم على البوابة المختارة ثم الصافي يصل إلى Ledger.' : 'Ledger link: charge on the selected gateway, then the net arrives at Ledger.')
-      : ($ar ? 'رابط هذه البوابة فقط. المبلغ يبقى على ' . $gwName . '.' : 'This gateway’s link only. Funds stay on ' . $gwName . '.')?>
+    <?=$settlementTarget === 'ledger'
+      ? ($ar ? 'وجهة التسوية Ledger: يُخصم المبلغ على ' . htmlspecialchars($gwName, ENT_QUOTES, 'UTF-8') . ' ثم يصل الصافي إلى Ledger.' : 'Settlement destination: Ledger. Charge on ' . htmlspecialchars($gwName, ENT_QUOTES, 'UTF-8') . ', then send the net proceeds to Ledger.')
+      : (str_starts_with($settlementTarget, 'gateway:')
+        ? ($ar ? 'سيُوجّه صافي المبلغ إلى ' . htmlspecialchars($settlementTargetName, ENT_QUOTES, 'UTF-8') . ' بعد نجاح الدفع.' : 'Net proceeds will be routed to ' . htmlspecialchars($settlementTargetName, ENT_QUOTES, 'UTF-8') . ' after payment succeeds.')
+        : ($ar ? 'رابط هذه البوابة فقط. المبلغ يبقى على ' . htmlspecialchars($gwName, ENT_QUOTES, 'UTF-8') . '.' : 'This gateway’s link only. Funds stay on ' . htmlspecialchars($gwName, ENT_QUOTES, 'UTF-8') . '.'))?>
   </div>
 
   <?php if ($message !== ''): ?>

@@ -4,6 +4,7 @@ require_once __DIR__ . '/../lib/TronSigner.php';
 require_once __DIR__ . '/../lib/MySystem/ChargeHub.php';
 require_once __DIR__ . '/../includes/gateways.php';
 require_once __DIR__ . '/../includes/activity_flow.php';
+require_once __DIR__ . '/../includes/gateway_channel_bar.php';
 require_once __DIR__ . '/../includes/square_sdk.php';
 require_once __DIR__ . '/../pos/lib/ops_sticker.php';
 
@@ -79,6 +80,9 @@ $settlementChoices = [
 check(activity_normalize_settlement_target('gateway', 'stripe', $settlementChoices) === 'gateway', 'Settlement can stay on the charging gateway');
 check(activity_normalize_settlement_target('ledger', 'stripe', $settlementChoices) === 'ledger', 'Settlement can target Ledger');
 check(activity_normalize_settlement_target('ledger', 'paypal', activity_settlement_target_choices('paypal', 'checkout')) === 'ledger', 'Ledger target is preserved for gateway checkout');
+check(activity_normalize_settlement_target('ledger', 'paypal', activity_settlement_target_choices('paypal', 'pos')) === 'ledger', 'Ledger target is preserved for POS');
+check(activity_normalize_settlement_target('ledger', 'paypal', activity_settlement_target_choices('paypal', 'link')) === 'ledger', 'Ledger target is preserved for links');
+check(diparma_channel_query(['settlement_target' => 'ledger']) === '?settlement_target=ledger', 'Gateway channel query preserves the selected Ledger destination');
 check(activity_normalize_settlement_target('gateway:paypal', 'stripe', $settlementChoices) === 'gateway:paypal', 'Settlement can request another connected gateway');
 check(activity_normalize_settlement_target('gateway:square_online', 'paypal', $settlementChoices) === '', 'Square 2 is not a funds-transfer destination');
 check(activity_normalize_settlement_target('gateway:stripe', 'stripe', $settlementChoices) === '', 'Settlement cannot forward back to the source gateway');

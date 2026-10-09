@@ -492,8 +492,11 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
 <?php
 $posBarCode = !empty($ledgerCheckout) && $posGw === '' ? 'ledger' : $posGw;
 if ($posBarCode !== ''):
+    $posChannelExtra = !empty($ledgerCheckout)
+        ? ['ledger_checkout' => '1']
+        : ($startSettlementTarget !== 'gateway' ? ['settlement_target' => $startSettlementTarget] : []);
     echo '<div style="max-width:1280px;margin:12px auto 0;padding:0 24px">';
-    echo diparma_gateway_channel_bar($posBarCode, 'pos', '../', $ar, !empty($ledgerCheckout) ? ['ledger_checkout' => '1'] : []);
+    echo diparma_gateway_channel_bar($posBarCode, 'pos', '../', $ar, $posChannelExtra);
     echo '</div>';
 endif;
 ?>
