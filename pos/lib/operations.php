@@ -1390,6 +1390,12 @@ function pos_card_use_alert(string $reason, string $last4 = ''): array
     if (preg_match('/CARDHOLDER|إيميل العميل|يتطلب اسم حامل|payer identity/iu', $reason)) {
         return $canUse('أكمل الاسم كما على البطاقة والإيميل الحقيقي ثم نفّذ.', 'Enter the name on the card and a real email, then process again.');
     }
+    if (preg_match('/INCOMPATIBLE_PARAMETER_VALUE|invalid_client|client authentication failed|PayPal auth failed/i', $reason)) {
+        return $canUse(
+            'خطأ في إعداد أو بيانات طلب البوابة؛ لم يؤكد البنك رفض البطاقة. أصلح إعداد PayPal قبل إعادة المحاولة.',
+            'Gateway credentials or request configuration failed; the issuer did not confirm a card decline. Fix PayPal settings before retrying.'
+        );
+    }
     if (preg_match('/1019|INVALID FAILURE URL|INVALID URL/i', $scan)) {
         return $canUse('المشكلة في رابط Nuvei وليست في البطاقة.', 'This is a Nuvei URL issue, not the card.');
     }

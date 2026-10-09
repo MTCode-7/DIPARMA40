@@ -46,6 +46,7 @@ check($recovered[0] === $pub[0] && $recovered[1] === $pub[1], 'signature recover
 require_once __DIR__ . '/../lib/Adapters/GatewayAdapterFactory.php';
 require_once __DIR__ . '/../lib/HoldCaptureService.php';
 require_once __DIR__ . '/../lib/LedgerSettlementService.php';
+require_once __DIR__ . '/../lib/PayPalService.php';
 foreach (['binance', 'payram', 'whop', 'wise', 'stripe', 'nuvei', 'square', 'paypal'] as $gateway) {
     check(GatewayAdapterFactory::isSupported($gateway), $gateway . ' is registered');
 }
@@ -62,6 +63,27 @@ check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'captur
 check(pos_receipt_status(['status' => 'failed', 'transaction_type' => 'purchase_3d']) === 'DECLINED', 'Failed purchase receipt is declined');
 check(pos_receipt_status(['status' => 'pending', 'transaction_type' => 'purchase_3d']) === 'PENDING', 'Pending purchase receipt is pending');
 check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'withdrawal_pos']) === 'SUCCESS', 'Completed withdrawal receipt reports success');
+$paypalSourceBuilder = new ReflectionMethod(PayPalService::class, 'directCardPaymentSource');
+$paypalSourceBuilder->setAccessible(true);
+$paypalTestService = PayPalService::getInstance();
+$paypalAuthSource = $paypalSourceBuilder->invoke($paypalTestService, [
+    'name' => 'Test Customer',
+    'number' => '4111111111111111',
+    'expiry' => '2030-12',
+    'security_code' => '123',
+], false, 'TEST-AUTH');
+check(isset($paypalAuthSource['card'])
+    && !isset($paypalAuthSource['card']['stored_credential']), 'PayPal direct card authorization omits incompatible inferred stored-credential fields');
+$paypalThreeDsSource = $paypalSourceBuilder->invoke($paypalTestService, [
+    'name' => 'Test Customer',
+    'number' => '4111111111111111',
+    'expiry' => '2030-12',
+], true, 'TEST-3DS');
+check(($paypalThreeDsSource['card']['attributes']['verification']['method'] ?? '') === 'SCA_ALWAYS'
+    && !isset($paypalThreeDsSource['card']['stored_credential']), 'PayPal 3DS card source keeps verification fields without stored-credential metadata');
+check(pos_card_use_alert('PayPal rejected request [INCOMPATIBLE_PARAMETER_VALUE]', '0995')['card_use'] === 'can_use', 'PayPal incompatible request does not incorrectly mark the card as unusable');
+$paypalAdapter = new PayPalAdapter();
+check($paypalAdapter->normalizeError(['details' => [['issue' => 'INCOMPATIBLE_PARAMETER_VALUE']]]) === 'GATEWAY_ERROR', 'PayPal incompatible order parameters are classified as a gateway error');
 $gatewayReceiptNames = [
     'paypal' => 'PayPal',
     'nuvei' => 'Nuvei',

@@ -576,6 +576,22 @@ class PayPalService
         }
     }
 
+    private function directCardPaymentSource(array $card, bool $want3ds, string $reference): array
+    {
+        if ($want3ds) {
+            $returnBase = $this->publicBaseUrl() . '/checkout/paypal.php';
+            $qs = $reference !== '' ? ('&ref=' . rawurlencode($reference)) : '';
+            $card['attributes'] = [
+                'verification' => ['method' => 'SCA_ALWAYS'],
+            ];
+            $card['experience_context'] = [
+                'return_url' => $returnBase . '?paypal_3ds=ok' . $qs,
+                'cancel_url' => $returnBase . '?paypal_3ds=cancel' . $qs,
+            ];
+        }
+        return ['card' => $card];
+    }
+
     /**
      * Direct card charge/authorize (Advanced Card Processing / MOTO).
      * $intent: CAPTURE | AUTHORIZE
@@ -632,31 +648,7 @@ class PayPalService
                 if ($cvvOk) {
                     $card['security_code'] = $cvv;
                 }
-                if ($isMoto && !$want3ds) {
-                    $card['stored_credential'] = [
-                        'payment_initiator' => 'MERCHANT',
-                        'payment_type' => 'ONE_TIME',
-                        'usage' => 'DERIVED',
-                    ];
-                }
-                if ($want3ds) {
-                    $returnBase = $this->publicBaseUrl() . '/checkout/paypal.php';
-                    $qs = $reference !== '' ? ('&ref=' . rawurlencode($reference)) : '';
-                    $card['attributes'] = [
-                        'verification' => ['method' => 'SCA_ALWAYS'],
-                    ];
-                    $card['experience_context'] = [
-                        'return_url' => $returnBase . '?paypal_3ds=ok' . $qs,
-                        'cancel_url' => $returnBase . '?paypal_3ds=cancel' . $qs,
-                    ];
-                } elseif (!$isMoto && !CardScaService::shouldChallenge($payload)) {
-                    $card['stored_credential'] = [
-                        'payment_initiator' => 'CUSTOMER',
-                        'payment_type' => 'UNSCHEDULED',
-                        'usage' => 'SUBSEQUENT',
-                    ];
-                }
-                $paymentSource = ['card' => $card];
+                $paymentSource = $this->directCardPaymentSource($card, $want3ds, $reference);
             }
             $body = [
                 'intent' => $intent,
@@ -1031,8 +1023,17 @@ class PayPalService
             ];
         }
 
-        $issue = strtoupper((string)($response['details'][0]['issue'] ?? $response['name'] ?? ''));
-        $description = (string)($response['details'][0]['description'] ?? $response['message'] ?? 'PayPal card payment failed');
+        $detail = is_array($response['details'][0] ?? null) ? $response['details'][0] : [];
+        $issue = strtoupper((string)($detail['issue'] ?? $response['name'] ?? ''));
+        $description = (string)($detail['description'] ?? $response['message'] ?? 'PayPal card payment failed');
+        $field = trim((string) ($detail['field'] ?? ''));
+        if ($field !== '') {
+            $description .= ' (field: ' . $field . ')';
+        }
+        $debugId = trim((string) ($response['debug_id'] ?? ''));
+        if ($debugId !== '') {
+            $description .= ' (PayPal debug_id: ' . $debugId . ')';
+        }
         $this->log('✗ processCard: ' . json_encode($response));
 
         return [

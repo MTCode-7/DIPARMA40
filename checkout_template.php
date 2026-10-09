@@ -691,7 +691,9 @@ function setTx(type, el) {
 
   [cardSec, captureSec, refSec, wdSec].forEach(function(s){ if(s) s.classList.add('hidden'); });
   var bankReferenceFields = document.getElementById('bankReferenceFields');
-  if (bankReferenceFields) bankReferenceFields.style.display = type === 'auth' ? 'none' : '';
+  if (bankReferenceFields) {
+    bankReferenceFields.style.display = ['auth', 'purchase_2d', 'purchase_3d'].indexOf(type) >= 0 ? 'none' : '';
+  }
 
   if (type === 'withdrawal_pos' || type === 'withdrawal_nfc') {
     wdSec.classList.remove('hidden');

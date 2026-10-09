@@ -42,6 +42,7 @@ final class PayPalAdapter implements GatewayAdapterInterface
             'TRANSACTION_BLOCKED_BY_PAYEE' => 'DO_NOT_HONOR',
             'PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING' => 'GATEWAY_ERROR',
             'NOT_ENABLED' => 'GATEWAY_ERROR',
+            'INCOMPATIBLE_PARAMETER_VALUE' => 'GATEWAY_ERROR',
             'NETWORK_ERROR' => 'NETWORK_ERROR',
             'GATEWAY_ERROR' => 'GATEWAY_ERROR',
         ];
