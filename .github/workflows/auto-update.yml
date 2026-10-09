@@ -17,7 +17,26 @@ jobs:
             echo "AUTO_UPDATE_SECRET is not set — skipping live pull ping"
             exit 0
           fi
-          curl -fsS -X POST "https://diparmas.com/api/auto_update.php" \
+          response_file="$(mktemp)"
+          status_file="${response_file}.status"
+          trap 'rm -f "$response_file" "$status_file"' EXIT
+          if ! curl -sS -o "$response_file" -w "%{http_code}" -X POST "https://diparmas.com/api/auto_update.php" \
             -H "Content-Type: application/json" \
             -H "X-Auto-Update-Token: ${AUTO_UPDATE_SECRET}" \
-            -d "{\"ref\":\"refs/heads/${GITHUB_REF_NAME}\",\"reason\":\"github-actions\",\"sha\":\"${GITHUB_SHA}\"}"
+            -d "{\"ref\":\"refs/heads/${GITHUB_REF_NAME}\",\"reason\":\"github-actions\",\"sha\":\"${GITHUB_SHA}\"}" > "$status_file"; then
+            echo "Auto-update request failed before receiving an HTTP response."
+            exit 1
+          fi
+          http_code="$(cat "$status_file")"
+          echo "Auto-update endpoint returned HTTP ${http_code}."
+          if [ -s "$response_file" ]; then
+            cat "$response_file"
+            echo
+          fi
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            exit 1
+          fi
+          if ! jq -e '.success == true' "$response_file" >/dev/null; then
+            echo "Auto-update endpoint reported that the deployment did not succeed."
+            exit 1
+          fi
