@@ -61,6 +61,22 @@ check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'captur
 check(pos_receipt_status(['status' => 'failed', 'transaction_type' => 'purchase_3d']) === 'DECLINED', 'Failed purchase receipt is declined');
 check(pos_receipt_status(['status' => 'pending', 'transaction_type' => 'purchase_3d']) === 'PENDING', 'Pending purchase receipt is pending');
 check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'withdrawal_pos']) === 'SUCCESS', 'Completed withdrawal receipt reports success');
+check(pos_gateway_display_name('paypal') === 'PayPal', 'Receipt uses the real PayPal gateway label');
+check(pos_receipt_settlement_display('paypal', 'auth', 'DECLINED', 'gateway') === [
+    'show' => false,
+    'path' => '',
+    'target' => '',
+    'gateway_name' => 'PayPal',
+    'funds_on_gateway' => false,
+    'show_ledger' => false,
+], 'Declined PayPal AUTH receipt does not claim a settlement or ledger transfer');
+check(pos_receipt_settlement_display('paypal', 'auth', 'AUTHORIZED', 'ledger')['path'] === 'PayPal → PayPal'
+    && pos_receipt_settlement_display('paypal', 'auth', 'AUTHORIZED', 'ledger')['target'] === 'PAYPAL GATEWAY'
+    && !pos_receipt_settlement_display('paypal', 'auth', 'AUTHORIZED', 'ledger')['show_ledger'], 'Successful PayPal AUTH remains on PayPal and never routes to Ledger');
+check(pos_receipt_settlement_display('paypal', 'purchase_3d', 'APPROVED', 'gateway')['path'] === 'PayPal → PayPal'
+    && pos_receipt_settlement_display('paypal', 'purchase_3d', 'APPROVED', 'gateway')['target'] === 'PAYPAL GATEWAY', 'Same-gateway PayPal purchase receipt identifies PayPal as destination');
+check(pos_receipt_settlement_display('paypal', 'purchase_3d', 'APPROVED', 'ledger')['path'] === 'PayPal → Ledger'
+    && pos_receipt_settlement_display('paypal', 'purchase_3d', 'APPROVED', 'ledger')['show_ledger'], 'Ledger route is shown only when explicitly requested for an approved purchase');
 check(pos_gateway_receipt_identifiers([
     'authorization_id' => 'PAYPAL-AUTH-123',
     'approval_code' => 'AB12CD',

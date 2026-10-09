@@ -232,7 +232,8 @@ $secMode = $txn['security_mode'] ?? $gwResp['security_mode'] ?? $gwResp['stage_1
 $authType = $txn['authorization_type'] ?? $gwResp['authorization_type'] ?? $gwResp['stage_1_card']['auth_type'] ?? 'STANDARD';
 
 // 6.6 تفاصيل البنك المستحوذ (Acquirer)
-$acquirer = $gwResp['acquirer'] ?? ($gwResp['stage_1_card']['acquirer'] ?? 'Nuvei');
+$acquirer = $gwResp['acquirer'] ?? ($gwResp['stage_1_card']['acquirer'] ?? $gateway);
+$acquirer = pos_gateway_display_name((string) $acquirer);
 $acquirerCountry = $gwResp['acquirer_country'] ?? ($gwResp['stage_1_card']['acquirer_country'] ?? 'AE');
 $acquirerId = $gwResp['acquirer_id'] ?? ($gwResp['stage_1_card']['acquirer_id'] ?? '');
 
@@ -311,26 +312,28 @@ $settleTarget = strtolower(trim((string) (
     ?? $gwResp['settlement_target']
     ?? ''
 )));
-$fundsOnGateway = !empty($gwSettle['retained'])
-    || $settleTarget === 'gateway'
-    || $ledgerStatus === 'retained';
+$receiptSettlement = pos_receipt_settlement_display(
+    (string) ($txn['gateway'] ?? ''),
+    (string) ($txn['transaction_type'] ?? ''),
+    pos_receipt_status($txn),
+    $settleTarget
+);
+$fundsOnGateway = $receiptSettlement['funds_on_gateway']
+    || (!empty($receiptSettlement['show']) && !empty($gwSettle['retained']));
 if ($fundsOnGateway) {
     $ledgerStatusLabel = 'ON GATEWAY';
 } elseif ($ledgerTxid) {
     $ledgerStatusLabel = 'SENT';
 } elseif (!empty($gwSettle['queued']) || $ledgerStatus === 'queued') {
     $ledgerStatusLabel = 'QUEUED';
-} elseif ($usdtRaw > 0 || $netAmt > 0) {
+} elseif (!empty($receiptSettlement['show_ledger']) && ($usdtRaw > 0 || $netAmt > 0)) {
     $ledgerStatusLabel = 'PENDING';
 } else {
-    $ledgerStatusLabel = 'NONE';
+    $ledgerStatusLabel = '';
 }
 
-$showLedgerSection = ($ledgerAddr !== '—')
-    || $usdtRaw > 0
-    || $gatewayFeeAmt > 0
-    || $netAmt > 0
-    || !empty($ledgerTxid);
+$showSettlementSection = !empty($receiptSettlement['show']);
+$showLedgerSection = $showSettlementSection && !empty($receiptSettlement['show_ledger']);
 
 
 $clearOrDash = static function ($value): string {
@@ -1068,16 +1071,17 @@ if (function_exists('redact_protocol_numbers')) {
             </div>
         </div>
 
+        <?php if ($showSettlementSection): ?>
         <div class="section">
             <div class="divider">— SETTLEMENT DESTINATION —</div>
             <div class="bank-details">
                 <div class="bank-row">
                     <span class="bank-label">PATH</span>
-                    <span class="bank-value">Nuvei → Ledger</span>
+                    <span class="bank-value"><?=htmlspecialchars($receiptSettlement['path'])?></span>
                 </div>
                 <div class="bank-row">
                     <span class="bank-label">TARGET</span>
-                    <span class="bank-value"><?= !empty($fundsOnGateway) ? 'PAYPAL GATEWAY' : 'LEDGER USDT TRC20' ?></span>
+                    <span class="bank-value"><?=htmlspecialchars($receiptSettlement['target'])?></span>
                 </div>
                 <div class="bank-row">
                     <span class="bank-label">BANK PAYOUT</span>
@@ -1085,14 +1089,15 @@ if (function_exists('redact_protocol_numbers')) {
                 </div>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- تسوية: بوابة PayPal أو Ledger USDT -->
         <?php if ($showLedgerSection || !empty($fundsOnGateway)): ?>
         <div class="section">
             <div class="divider"><?= !empty($fundsOnGateway) ? '— GATEWAY SETTLEMENT —' : '— CRYPTO LEDGER SETTLEMENT —' ?></div>
             <div class="crypto-details">
-                <div class="crypto-label"><?= !empty($fundsOnGateway) ? '⬡ FIAT RETAINED ON PAYPAL' : '⬡ USDT TRC20 → LEDGER' ?></div>
-                <?php if (empty($fundsOnGateway)): ?>
+                <div class="crypto-label"><?= !empty($fundsOnGateway) ? '⬡ FIAT RETAINED ON ' . htmlspecialchars(strtoupper($receiptSettlement['gateway_name'])) : '⬡ USDT TRC20 → LEDGER' ?></div>
+                <?php if ($showLedgerSection): ?>
                 <div class="crypto-addr"><?=htmlspecialchars($maskedLedgerAddr)?></div>
                 <?php endif; ?>
                 <?php if ($gatewayFeeAmt > 0 || $feeBase > 0): ?>

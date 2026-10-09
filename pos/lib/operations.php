@@ -629,6 +629,92 @@ function pos_gateway_receipt_identifiers(array $response): array
     ];
 }
 
+function pos_gateway_display_name(string $gateway): string
+{
+    $gateway = strtolower(trim($gateway));
+    $names = [
+        'paypal' => 'PayPal',
+        'nuvei' => 'Nuvei',
+        'stripe' => 'Stripe',
+        'square' => 'Square',
+        'square_online' => 'Square Online',
+        'authorizenet' => 'Authorize.Net',
+        'braintree' => 'Braintree',
+        'myfatoorah' => 'MyFatoorah',
+        'gate_io' => 'Gate.io',
+        'diparma_gateway' => 'DI PARMA Gateway',
+    ];
+    return $names[$gateway] ?? ucwords(str_replace('_', ' ', $gateway));
+}
+
+function pos_receipt_settlement_display(
+    string $gateway,
+    string $transactionType,
+    string $status,
+    string $target
+): array {
+    $gateway = strtolower(trim($gateway));
+    $gatewayName = pos_gateway_display_name($gateway);
+    $status = strtoupper(trim($status));
+    $target = strtolower(trim($target));
+    $isSuccessful = in_array($status, ['AUTHORIZED', 'APPROVED', 'SUCCESS'], true);
+    $isAuthHold = pos_normalize_operation($transactionType) === 'auth';
+
+    if (!$isSuccessful) {
+        return [
+            'show' => false,
+            'path' => '',
+            'target' => '',
+            'gateway_name' => $gatewayName,
+            'funds_on_gateway' => false,
+            'show_ledger' => false,
+        ];
+    }
+
+    if ($isAuthHold || $target === '' || $target === 'gateway') {
+        return [
+            'show' => true,
+            'path' => $gatewayName . ' → ' . $gatewayName,
+            'target' => strtoupper($gatewayName) . ' GATEWAY',
+            'gateway_name' => $gatewayName,
+            'funds_on_gateway' => true,
+            'show_ledger' => false,
+        ];
+    }
+
+    if ($target === 'ledger' || $target === 'ledger_trx') {
+        return [
+            'show' => true,
+            'path' => $gatewayName . ' → Ledger',
+            'target' => 'LEDGER USDT TRC20',
+            'gateway_name' => $gatewayName,
+            'funds_on_gateway' => false,
+            'show_ledger' => true,
+        ];
+    }
+
+    if (str_starts_with($target, 'gateway:')) {
+        $targetName = pos_gateway_display_name(substr($target, strlen('gateway:')));
+        return [
+            'show' => true,
+            'path' => $gatewayName . ' → ' . $targetName,
+            'target' => strtoupper($targetName) . ' GATEWAY',
+            'gateway_name' => $gatewayName,
+            'funds_on_gateway' => false,
+            'show_ledger' => false,
+        ];
+    }
+
+    return [
+        'show' => true,
+        'path' => $gatewayName . ' → ' . $gatewayName,
+        'target' => strtoupper($gatewayName) . ' GATEWAY',
+        'gateway_name' => $gatewayName,
+        'funds_on_gateway' => true,
+        'show_ledger' => false,
+    ];
+}
+
 function pos_receipt_status(array $txn): string
 {
     $status = strtolower(trim((string) ($txn['status'] ?? '')));
