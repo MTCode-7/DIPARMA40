@@ -45,6 +45,7 @@ check($recovered[0] === $pub[0] && $recovered[1] === $pub[1], 'signature recover
 
 require_once __DIR__ . '/../lib/Adapters/GatewayAdapterFactory.php';
 require_once __DIR__ . '/../lib/HoldCaptureService.php';
+require_once __DIR__ . '/../lib/LedgerSettlementService.php';
 foreach (['binance', 'payram', 'whop', 'wise', 'stripe', 'nuvei', 'square', 'paypal'] as $gateway) {
     check(GatewayAdapterFactory::isSupported($gateway), $gateway . ' is registered');
 }
@@ -61,7 +62,34 @@ check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'captur
 check(pos_receipt_status(['status' => 'failed', 'transaction_type' => 'purchase_3d']) === 'DECLINED', 'Failed purchase receipt is declined');
 check(pos_receipt_status(['status' => 'pending', 'transaction_type' => 'purchase_3d']) === 'PENDING', 'Pending purchase receipt is pending');
 check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'withdrawal_pos']) === 'SUCCESS', 'Completed withdrawal receipt reports success');
-check(pos_gateway_display_name('paypal') === 'PayPal', 'Receipt uses the real PayPal gateway label');
+$gatewayReceiptNames = [
+    'paypal' => 'PayPal',
+    'nuvei' => 'Nuvei',
+    'stripe' => 'Stripe',
+    'square' => 'Square 1',
+    'square_online' => 'Square 2 · Online',
+    'authorizenet' => 'Authorize.Net',
+    'braintree' => 'Braintree',
+    'myfatoorah' => 'MyFatoorah',
+    'gate_io' => 'Gate.io',
+    'binance' => 'Binance',
+    'payram' => 'PayRam',
+    'whop' => 'Whop',
+    'wise' => 'Wise',
+    'checkout' => 'Checkout.com',
+    'paytabs' => 'PayTabs',
+    'diparma' => 'DI PARMA',
+    'diparma_gateway' => 'DIPARMA GATEWAY',
+];
+$settlementService = new LedgerSettlementService();
+foreach ($gatewayReceiptNames as $gatewayCode => $gatewayName) {
+    check(pos_gateway_display_name($gatewayCode) === $gatewayName, strtoupper($gatewayCode) . ' receipt identifies only its own gateway');
+    $sameGatewayReceipt = pos_receipt_settlement_display($gatewayCode, 'purchase_3d', 'APPROVED', 'gateway');
+    check($sameGatewayReceipt['path'] === $gatewayName . ' → ' . $gatewayName
+        && $sameGatewayReceipt['target'] === strtoupper($gatewayName) . ' GATEWAY', strtoupper($gatewayCode) . ' receipt keeps funds on its own gateway');
+    check($settlementService->keepsFundsOnGateway($gatewayCode, 'gateway'), strtoupper($gatewayCode) . ' default settlement stays on the selected gateway');
+    check(!$settlementService->keepsFundsOnGateway($gatewayCode, 'ledger'), strtoupper($gatewayCode) . ' moves to Ledger only when explicitly selected');
+}
 check(pos_receipt_settlement_display('paypal', 'auth', 'DECLINED', 'gateway') === [
     'show' => false,
     'path' => '',

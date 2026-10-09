@@ -28,14 +28,14 @@ class DIPARMAOrchestrator
 
     /* ── بوابات الدفع المتاحة ─────────────────────────── */
     private array $GATEWAYS = [
-        'nuvei'       => ['name'=>'Nuvei → Ledger',     'type'=>'card',   'priority'=>1, 'currencies'=>['USD','AED','EUR','GBP','SAR'],'max_amount'=>PHP_FLOAT_MAX],
-        'square'      => ['name'=>'Square → Ledger',    'type'=>'card',   'priority'=>1, 'currencies'=>['USD','EUR','GBP','AED','CAD','AUD','JPY'],'max_amount'=>PHP_FLOAT_MAX],
+        'nuvei'       => ['name'=>'Nuvei',               'type'=>'card',   'priority'=>1, 'currencies'=>['USD','AED','EUR','GBP','SAR'],'max_amount'=>PHP_FLOAT_MAX],
+        'square'      => ['name'=>'Square',              'type'=>'card',   'priority'=>1, 'currencies'=>['USD','EUR','GBP','AED','CAD','AUD','JPY'],'max_amount'=>PHP_FLOAT_MAX],
         'stripe'      => ['name'=>'Stripe',              'type'=>'card',   'priority'=>2, 'currencies'=>['USD','EUR','GBP','AED'],     'max_amount'=>PHP_FLOAT_MAX],
-        'paypal'      => ['name'=>'PayPal → Ledger',     'type'=>'card',   'priority'=>3, 'currencies'=>['USD','EUR','GBP','AED'],    'max_amount'=>PHP_FLOAT_MAX],
-        'payram'      => ['name'=>'PayRam → Ledger',     'type'=>'crypto', 'priority'=>4, 'currencies'=>['USD','USDT','EUR','GBP','AED'],'max_amount'=>PHP_FLOAT_MAX],
-        'whop'        => ['name'=>'Whop → Ledger',       'type'=>'card',   'priority'=>5, 'currencies'=>['USD','EUR'],                'max_amount'=>PHP_FLOAT_MAX],
-        'diparma'     => ['name'=>'DI PARMA → Ledger',   'type'=>'card',   'priority'=>1, 'currencies'=>['USD','AED','EUR','GBP','SAR'],'max_amount'=>PHP_FLOAT_MAX],
-        'diparma_gateway' => ['name'=>'DIPARMA GATEWAY → Ledger','type'=>'card','priority'=>1, 'currencies'=>['USD','USDT','AED','EUR','GBP','SAR','KWD','QAR','EGP'],'max_amount'=>PHP_FLOAT_MAX],
+        'paypal'      => ['name'=>'PayPal',              'type'=>'card',   'priority'=>3, 'currencies'=>['USD','EUR','GBP','AED'],    'max_amount'=>PHP_FLOAT_MAX],
+        'payram'      => ['name'=>'PayRam',              'type'=>'crypto', 'priority'=>4, 'currencies'=>['USD','USDT','EUR','GBP','AED'],'max_amount'=>PHP_FLOAT_MAX],
+        'whop'        => ['name'=>'Whop',                'type'=>'card',   'priority'=>5, 'currencies'=>['USD','EUR'],                'max_amount'=>PHP_FLOAT_MAX],
+        'diparma'     => ['name'=>'DI PARMA',             'type'=>'card',   'priority'=>1, 'currencies'=>['USD','AED','EUR','GBP','SAR'],'max_amount'=>PHP_FLOAT_MAX],
+        'diparma_gateway' => ['name'=>'DIPARMA GATEWAY','type'=>'card','priority'=>1, 'currencies'=>['USD','USDT','AED','EUR','GBP','SAR','KWD','QAR','EGP'],'max_amount'=>PHP_FLOAT_MAX],
         'myfatoorah'  => ['name'=>'MyFatoorah',          'type'=>'card',   'priority'=>4, 'currencies'=>['AED','SAR','KWD','QAR','EGP'],'max_amount'=>PHP_FLOAT_MAX],
         'checkout'    => ['name'=>'Checkout.com',        'type'=>'card',   'priority'=>4, 'currencies'=>['USD','EUR','GBP','AED'],     'max_amount'=>PHP_FLOAT_MAX],
         'paytabs'     => ['name'=>'PayTabs',             'type'=>'card',   'priority'=>4, 'currencies'=>['USD','AED','SAR','EUR'],    'max_amount'=>PHP_FLOAT_MAX],
@@ -141,6 +141,12 @@ class DIPARMAOrchestrator
         $currency  = strtoupper($input['currency']  ?? 'USD');
         $posId     = $input['pos_id']               ?? null;
         $gateway   = strtolower($input['gateway']   ?? '');
+        $settlementTarget = strtolower(trim((string) (
+            $input['settlement_target'] ?? $input['destination'] ?? 'gateway'
+        )));
+        if ($settlementTarget === '') {
+            $settlementTarget = 'gateway';
+        }
         $secMode   = strtoupper($input['sec_mode']  ?? '3D');
         require_once __DIR__ . '/CardScaService.php';
         if ($secMode === '3D' && !CardScaService::shouldChallenge($input)) {
@@ -153,7 +159,7 @@ class DIPARMAOrchestrator
             $gateway = strtolower(trim((string) ($input['gateway'] ?? $input['card_provider'] ?? $gateway)));
             $input['gateway'] = $gateway;
             $input['allow_fallback'] = false;
-            $input['destination'] = 'gateway';
+            $input['destination'] = $settlementTarget;
         }
         $allowFallback = false;
         $processor = $fromPos
@@ -219,7 +225,7 @@ class DIPARMAOrchestrator
             );
         }
 
-        /* ── 5b. تسوية فورية للصافي → Ledger (نسبة البوابة فقط) ── */
+        /* ── 5b. تسوية الوجهة المحددة مع إبقاء الوجهة الافتراضية على بوابة الخصم ── */
         $ledgerSettle = null;
         $alreadyLedger = !empty($result['no_bank']) && $processor !== 'diparma_gateway';
         if (!empty($result['success']) && empty($result['requires_3ds']) && empty($result['redirect_url']) && !$alreadyLedger) {
@@ -233,10 +239,12 @@ class DIPARMAOrchestrator
                     'ledger_address' => $params['ledger_addr'] ?? '',
                     'user_id'        => (int)($input['user_id'] ?? ($_SESSION['user_id'] ?? 0)),
                     'txn_type'       => $txnType,
-                    'destination'    => 'gateway',
+                    'destination'    => $settlementTarget,
+                    'settlement_target' => $settlementTarget,
+                    'ledger_checkout' => $settlementTarget === 'ledger' ? 1 : 0,
                 ]);
             } catch (Throwable $e) {
-                error_log('[DIPARMA-ORCH] Ledger settle: ' . $e->getMessage());
+                error_log('[DIPARMA-ORCH] Settlement: ' . $e->getMessage());
                 $ledgerSettle = ['success' => false, 'message' => $e->getMessage(), 'queued' => true];
             }
         }

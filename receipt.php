@@ -232,10 +232,7 @@ $secMode = $txn['security_mode'] ?? $gwResp['security_mode'] ?? $gwResp['stage_1
 $authType = $txn['authorization_type'] ?? $gwResp['authorization_type'] ?? $gwResp['stage_1_card']['auth_type'] ?? 'STANDARD';
 
 // 6.6 تفاصيل البنك المستحوذ (Acquirer)
-$acquirer = $gwResp['acquirer'] ?? ($gwResp['stage_1_card']['acquirer'] ?? $gateway);
-$acquirer = pos_gateway_display_name((string) $acquirer);
-$acquirerCountry = $gwResp['acquirer_country'] ?? ($gwResp['stage_1_card']['acquirer_country'] ?? 'AE');
-$acquirerId = $gwResp['acquirer_id'] ?? ($gwResp['stage_1_card']['acquirer_id'] ?? '');
+$gatewayDisplayName = pos_gateway_display_name((string) ($txn['gateway'] ?? ''));
 
 // 6.7 تفاصيل التاجر
 $merchantName = 'TRANSCENDIO FZ-LLC';
@@ -359,8 +356,7 @@ $sealedTime = $seal($timeStr);
 $sealedRef = $seal($ref);
 $sealedMerchant = $seal($merchantName);
 $sealedMerchantId = $seal($merchantId);
-$sealedAcquirer = $seal($acquirer);
-$sealedAcquirerId = $acquirerId !== '' ? $seal($acquirerId) : '—';
+$sealedGatewayName = $seal($gatewayDisplayName);
 $sealedMcc = $seal($merchantCategory);
 $sealedCity = $seal($merchantCity . ', ' . $merchantCountry);
 $sealedGateway = $seal($gateway);
@@ -432,7 +428,7 @@ if (function_exists('redact_protocol_numbers')) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DI PARMA | إيصال الدفع - <?=htmlspecialchars($ref)?></title>
+    <title>DI PARMA | <?=htmlspecialchars($gatewayDisplayName)?> Receipt - <?=htmlspecialchars($ref)?></title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -897,7 +893,7 @@ if (function_exists('redact_protocol_numbers')) {
         <!-- رأس الإيصال -->
         <div class="receipt-header">
             <div class="logo">DI PARMA</div>
-            <div class="subtitle">✦ ULTIMATE GATEWAY ✦</div>
+            <div class="subtitle">✦ <?=htmlspecialchars(strtoupper($gatewayDisplayName))?> PAYMENT RECEIPT ✦</div>
             <div class="company"><?=htmlspecialchars($sealedMerchant)?></div>
             <div class="address"><?=htmlspecialchars($sealedAddress)?></div>
         </div>
@@ -1042,16 +1038,12 @@ if (function_exists('redact_protocol_numbers')) {
         </div>
         <?php endif; ?>
 
-        <!-- تفاصيل المستحوذ والتاجر -->
+        <!-- تفاصيل بوابة الدفع والتاجر -->
         <div class="section">
-            <div class="divider">— ACQUIRER & MERCHANT —</div>
+            <div class="divider">— PAYMENT GATEWAY & MERCHANT —</div>
             <div class="row">
-                <span class="label">ACQUIRER</span>
-                <span class="value"><?=htmlspecialchars($sealedAcquirer)?></span>
-            </div>
-            <div class="row">
-                <span class="label">ACQUIRER ID</span>
-                <span class="value"><?=htmlspecialchars($sealedAcquirerId)?></span>
+                <span class="label">PAYMENT GATEWAY</span>
+                <span class="value"><?=htmlspecialchars($sealedGatewayName)?></span>
             </div>
             <div class="row">
                 <span class="label">MERCHANT</span>
