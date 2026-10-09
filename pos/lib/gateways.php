@@ -327,6 +327,37 @@ function pos_sale_operations(): array
     ];
 }
 
+function pos_apply_paypal_credentials(array $credentials): void
+{
+    $client = '';
+    foreach (['client_id', 'api_key'] as $key) {
+        $value = trim((string) ($credentials[$key] ?? ''));
+        if ($value !== '') {
+            $client = $value;
+            break;
+        }
+    }
+    $secret = '';
+    foreach (['secret', 'secret_key', 'client_secret'] as $key) {
+        $value = trim((string) ($credentials[$key] ?? ''));
+        if ($value !== '') {
+            $secret = $value;
+            break;
+        }
+    }
+
+    if ($client !== '') {
+        putenv('PAYPAL_CLIENT_ID=' . $client);
+        $_ENV['PAYPAL_CLIENT_ID'] = $client;
+    }
+    if ($secret !== '') {
+        putenv('PAYPAL_CLIENT_SECRET=' . $secret);
+        putenv('PAYPAL_SECRET=' . $secret);
+        $_ENV['PAYPAL_CLIENT_SECRET'] = $secret;
+        $_ENV['PAYPAL_SECRET'] = $secret;
+    }
+}
+
 function pos_prime_paypal_env(): void
 {
     if (!function_exists('pos_gateway_db_row')) {
@@ -337,18 +368,7 @@ function pos_prime_paypal_env(): void
         return;
     }
     $creds = json_decode((string) ($row['credentials'] ?? ''), true) ?: [];
-    $client = trim((string) ($creds['client_id'] ?? ''));
-    $secret = trim((string) ($creds['secret'] ?? $creds['client_secret'] ?? ''));
-    if ($client !== '' && !getenv('PAYPAL_CLIENT_ID')) {
-        putenv('PAYPAL_CLIENT_ID=' . $client);
-        $_ENV['PAYPAL_CLIENT_ID'] = $client;
-    }
-    if ($secret !== '' && !getenv('PAYPAL_CLIENT_SECRET')) {
-        putenv('PAYPAL_CLIENT_SECRET=' . $secret);
-        putenv('PAYPAL_SECRET=' . $secret);
-        $_ENV['PAYPAL_CLIENT_SECRET'] = $secret;
-        $_ENV['PAYPAL_SECRET'] = $secret;
-    }
+    pos_apply_paypal_credentials($creds);
 }
 
 function pos_paypal_host_id(array $params, string $kind): string

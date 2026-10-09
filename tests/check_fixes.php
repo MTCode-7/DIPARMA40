@@ -9,6 +9,7 @@ require_once __DIR__ . '/../includes/gateway_channel_bar.php';
 require_once __DIR__ . '/../includes/square_sdk.php';
 require_once __DIR__ . '/../pos/lib/ops_sticker.php';
 require_once __DIR__ . '/../pos/lib/operations.php';
+require_once __DIR__ . '/../pos/lib/gateways.php';
 
 $fail = 0;
 function check(bool $ok, string $label): void
@@ -180,6 +181,41 @@ $restoreEnvironment = static function () use (&$savedEnvironment): void {
         }
     }
 };
+
+$originalPaypalEnv = [];
+foreach (['PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'PAYPAL_SECRET'] as $key) {
+    $originalPaypalEnv[$key] = [
+        'process' => getenv($key),
+        'env' => $_ENV[$key] ?? null,
+        'env_exists' => array_key_exists($key, $_ENV),
+    ];
+}
+$setTestEnvironment('PAYPAL_CLIENT_ID', 'stale-client-id');
+$setTestEnvironment('PAYPAL_CLIENT_SECRET', 'stale-client-secret');
+$setTestEnvironment('PAYPAL_SECRET', 'stale-client-secret');
+$_ENV['PAYPAL_CLIENT_ID'] = 'stale-client-id';
+$_ENV['PAYPAL_CLIENT_SECRET'] = 'stale-client-secret';
+$_ENV['PAYPAL_SECRET'] = 'stale-client-secret';
+pos_apply_paypal_credentials([
+    'client_id' => 'configured-client-id',
+    'secret' => '',
+    'client_secret' => 'configured-client-secret',
+]);
+check(getenv('PAYPAL_CLIENT_ID') === 'configured-client-id'
+    && getenv('PAYPAL_CLIENT_SECRET') === 'configured-client-secret'
+    && getenv('PAYPAL_SECRET') === 'configured-client-secret', 'PayPal saved credentials override stale process environment and accept aliases');
+foreach ($originalPaypalEnv as $key => $values) {
+    if ($values['process'] === false) {
+        putenv($key);
+    } else {
+        putenv($key . '=' . $values['process']);
+    }
+    if ($values['env_exists']) {
+        $_ENV[$key] = $values['env'];
+    } else {
+        unset($_ENV[$key]);
+    }
+}
 
 $setTestEnvironment('AUTHNET_ENVIRONMENT', 'test');
 $setTestEnvironment('AUTHNET_API_LOGIN_ID', 'test-login');
