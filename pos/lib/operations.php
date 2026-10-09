@@ -131,8 +131,8 @@ function pos_operation_catalog(): array
             'amount_flexible' => false,
             'method' => 'authorize',
             'is_moto' => true,
-            'desc_ar' => 'حجز MOTO بدون OTP على البوابة المختارة فقط. الكابتشر لاحقاً بمبلغ مساوٍ أو أقل أو أكثر.',
-            'desc_en' => 'MOTO hold without OTP on the selected gateway only. Capture later for an equal, smaller, or larger amount.',
+            'desc_ar' => 'حجز MOTO بدون OTP على البوابة المختارة فقط. يمكن التحصيل بمبلغ مساوٍ أو أقل؛ الزيادة متاحة فقط عبر Square وPayPal وStripe وNuvei وبحسب موافقة الجهة المصدرة.',
+            'desc_en' => 'MOTO hold on the selected gateway only. Equal or lower capture is available; higher capture is enabled only for Square, PayPal, Stripe, and Nuvei, subject to issuer approval.',
         ],
         'capture' => [
             'ar' => 'AUTH Capture',
@@ -153,8 +153,8 @@ function pos_operation_catalog(): array
             'max_amount' => function_exists('pos_capture_max_amount') ? pos_capture_max_amount() : 5000000.00,
             'max_currency' => 'USD',
             'method' => 'capture',
-            'desc_ar' => 'MOTO. أكمل حجز AUTH على نفس البوابة. المبلغ مساوٍ أو أقل أو أكثر من الحجز. يمكن تكرار الكابتشر. حد البنك 5,000,000 دولار. CVV اختياري. المبلغ يبقى على نفس البوابة.',
-            'desc_en' => 'MOTO. Complete an AUTH hold on the same gateway. Amount may be equal, less, or more. Capture can repeat. Bank cap 5,000,000 USD. CVV is optional. Funds stay on that gateway.',
+            'desc_ar' => 'MOTO. أكمل حجز AUTH على نفس البوابة. يمكن التحصيل بمبلغ مساوٍ أو أقل؛ الزيادة متاحة فقط عبر Square وPayPal وStripe وNuvei وبحسب موافقة الجهة المصدرة. حد البنك 5,000,000 دولار. CVV اختياري. المبلغ يبقى على نفس البوابة.',
+            'desc_en' => 'MOTO. Complete an AUTH hold on the same gateway. Equal or lower capture is available; higher capture is enabled only for Square, PayPal, Stripe, and Nuvei, subject to issuer approval. Bank cap 5,000,000 USD. CVV is optional. Funds stay on that gateway.',
         ],
         'purchase_advice' => [
             'ar' => 'Purchase Advice — Direct',

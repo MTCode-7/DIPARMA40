@@ -1304,7 +1304,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     </div>
     <div id="captureCompareBox" style="display:none;background:rgba(159,232,112,.06);border:1px solid rgba(159,232,112,.28);border-radius:12px;padding:12px;margin-bottom:12px">
       <div style="font-weight:800;color:#9fe870;margin-bottom:4px"><?=$ar?'تكملة الحجز — إيجار منزل / سيارة / فندق':'Complete hold — home / car / hotel rental'?></div>
-      <div style="font-size:.7rem;color:var(--muted2);line-height:1.55;margin-bottom:8px"><?=$ar?'المبلغ مساوٍ أو أقل أو أكثر من الحجز. يمكن تكرار الكابتشر أو الإشعار على نفس الحجز. حد البنك للكابتشر: 5,000,000 دولار.':'Amount may be equal, less, or more than the hold. Capture or advice can repeat on the same hold. Bank capture cap: 5,000,000 USD.'?></div>
+      <div style="font-size:.7rem;color:var(--muted2);line-height:1.55;margin-bottom:8px"><?=$ar?'يمكن التحصيل بمبلغ مساوٍ أو أقل. الزيادة متاحة في AUTH Capture فقط عبر Square وPayPal وStripe وNuvei، وبحسب موافقة الجهة المصدرة. يمكن تكرار العملية على نفس الحجز. الحد 5,000,000 دولار.':'Equal or lower capture is available. Higher AUTH Capture is enabled only for Square, PayPal, Stripe, and Nuvei, subject to issuer approval. Capture can repeat on the same hold. Bank cap: 5,000,000 USD.'?></div>
       <div id="holdAmtLine" style="font-size:.75rem;color:var(--muted2);margin-bottom:8px"><?=$ar?'اختر حجز AUTH أولاً ليظهر مبلغ الحجز.':'Pick an AUTH hold first to show the hold amount.'?></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
         <button type="button" class="cap-cmp" data-cap-cmp="less" onclick="setCaptureCompare('less')"><?=$ar?'نقص (خروج مبكر)':'Less (early return)'?></button>
@@ -1729,6 +1729,9 @@ const SQUARE_CFG = <?=json_encode([
     'live' => !empty($squareSdk['live']),
     'config_error' => $squareSdk['config_error'] ?? '',
 ], JSON_UNESCAPED_UNICODE)?>;
+function posGatewayAllowsOvercapture(gateway) {
+  return ['square', 'paypal', 'stripe', 'nuvei'].includes(String(gateway || '').toLowerCase());
+}
 function selectPosGateway(code, el) {
   code = String(code || '').toLowerCase();
   const meta = EXEC_GWS[code];
@@ -1737,6 +1740,10 @@ function selectPosGateway(code, el) {
     return;
   }
   POS_GW = code;
+  const moreCaptureButton = document.querySelector('[data-cap-cmp="more"]');
+  if (moreCaptureButton && POS.txnType === 'capture') {
+    moreCaptureButton.style.display = posGatewayAllowsOvercapture(code) ? '' : 'none';
+  }
   renderSettlementTargets(code);
   POS_REQUIRES_CARD = !!meta.requires_card;
   document.querySelectorAll('[data-exec-gw]').forEach(b => b.classList.toggle('active', b.dataset.execGw === code));
@@ -2151,12 +2158,16 @@ function renderExtraFields(type) {
   const el = document.getElementById('extraFields');
   let html = '';
   const meta = TXN_META[type] || {};
+  const moreCaptureButton = document.querySelector('[data-cap-cmp="more"]');
+  if (moreCaptureButton && type === 'capture') {
+    moreCaptureButton.style.display = posGatewayAllowsOvercapture(POS_GW) ? '' : 'none';
+  }
 
   if (meta.desc_ar || meta.desc_en) {
     html += `<div class="info-banner" style="background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.18);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.72rem;color:var(--muted2);line-height:1.7">
       <strong style="color:var(--gold)">${escapeHtml(AR?meta.ar:meta.en)}</strong><br>
       ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
-      ${type === 'capture' ? '<br>• '+(AR?'مساوٍ / أقل / أكثر من الحجز. يمكن تكرار الكابتشر على نفس الحجز. حد البنك: 5,000,000 دولار.':'Equal / less / more than the hold. Capture can repeat on the same hold. Bank cap: 5,000,000 USD.') : ''}
+      ${type === 'capture' ? '<br>• '+(AR?'مساوٍ أو أقل؛ الزيادة فقط عبر Square وPayPal وStripe وNuvei وبحسب موافقة الجهة المصدرة. يمكن تكرار الكابتشر على نفس الحجز. حد البنك: 5,000,000 دولار.':'Equal or less; higher capture only through Square, PayPal, Stripe, and Nuvei, subject to issuer approval. Capture can repeat on the same hold. Bank cap: 5,000,000 USD.') : ''}
       ${type === 'offline_sale_moto' && POS_GW === 'square' ? '<br>• '+(AR?'ليس أوفلاين DIPARMA: استخدم تطبيق Square على الجهاز بعد تفعيل Offline payments. رفع خلال 24 ساعة، انتهاء 72، حد 50,000 دولار. إدخال الرقم ممنوع أوفلاين.':'Not DIPARMA offline: use the Square app on the device after enabling Offline payments. Upload within 24 hours, expires 72, max 50,000 USD. Keyed PAN is not allowed offline.') : ''}
       ${type === 'offline_sale_moto' && POS_GW === 'paypal' ? '<br>• '+(AR?'ليس أوفلاين DIPARMA: PayPal Reader فقط، شريحة أو لمس، تخزين على الجهاز، رفع خلال 24 ساعة. الحد 1,000 دولار والمجموع 10,000. إدخال الرقم ممنوع.':'Not DIPARMA offline: PayPal Reader only, chip or contactless, stored on the device, upload within 24 hours. Limit 1,000 USD each and 10,000 queued. Keyed PAN is not allowed.') : ''}
       ${type !== 'purchase_advice' ? '<br>• RRN = 12 '+(AR?'رقم':'digits')+' · Online Approval = 4 · Offline Approval = 6' : '<br>• RRN = 12 · Approval = 6'}
@@ -2343,7 +2354,7 @@ window.resolveCaptureAmount = function() {
 
 window.setCaptureCompare = function(mode) {
   const hold = parseFloat(POS.holdAmount || 0) || 0;
-  if (mode === 'more' && !['square', 'paypal', 'stripe', 'nuvei'].includes(String(POS_GW).toLowerCase())) {
+  if (mode === 'more' && POS.txnType === 'capture' && !posGatewayAllowsOvercapture(POS_GW)) {
     toast(AR ? 'الزيادة متاحة فقط عبر Square وPayPal وStripe وNuvei' : 'Higher capture is enabled only for Square, PayPal, Stripe, and Nuvei', 'error');
     return;
   }
@@ -2428,8 +2439,8 @@ window.syncCaptureSplit = function() {
   if (!hint) return;
   if (!mode) {
     hint.textContent = AR
-      ? 'نقص أو مساوٍ أو زيادة مقابل مبلغ الحجز الأصلي. يمكن تكرار الكابتشر/الإشعار على نفس الحجز.'
-      : 'Less, same, or more versus the original hold. Capture/advice can repeat on the same hold.';
+      ? 'يمكن اختيار مبلغ أقل أو مساوٍ للحجز. الزيادة في AUTH Capture متاحة فقط عبر Square وPayPal وStripe وNuvei وبحسب موافقة الجهة المصدرة.'
+      : 'Choose an amount less than or equal to the original hold. Higher AUTH Capture is available only for Square, PayPal, Stripe, and Nuvei, subject to issuer approval.';
     return;
   }
   if (mode === 'same') {
@@ -2439,7 +2450,9 @@ window.syncCaptureSplit = function() {
     return;
   }
   if (cap <= 0) {
-    hint.textContent = AR ? 'أدخل المبلغ النهائي. مساوٍ أو أقل أو أكثر من الحجز مقبول.' : 'Enter the final amount. Equal, less, or more than the hold is accepted.';
+    hint.textContent = AR
+      ? 'أدخل المبلغ النهائي. الزيادة متاحة فقط عبر Square وPayPal وStripe وNuvei وبحسب موافقة الجهة المصدرة.'
+      : 'Enter the final amount. Higher AUTH Capture is enabled only for Square, PayPal, Stripe, and Nuvei, subject to issuer approval.';
     return;
   }
   if (ref > 0) {
