@@ -301,6 +301,10 @@ final class AutoUpdateService
         if ($cmd === [] || !function_exists('proc_open')) {
             return ['code' => 127, 'out' => '', 'err' => 'proc_open unavailable'];
         }
+        $binary = strtolower(basename(str_replace('\\', '/', (string) $cmd[0])));
+        if ($binary === 'git' || $binary === 'git.exe') {
+            array_splice($cmd, 1, 0, ['-c', 'safe.directory=' . self::root()]);
+        }
         $descriptors = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],

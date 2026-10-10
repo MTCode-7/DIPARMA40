@@ -172,9 +172,11 @@ async function call(action, extra = {}) {
 
 function paint(d) {
   if (!d) return;
-  document.getElementById('stEnabled').className = 'stat ' + (d.enabled ? 'good' : 'bad');
-  document.getElementById('stEnabled').querySelector('.num').textContent = d.enabled ? (AR ? 'مفعّل' : 'ON') : (AR ? 'متوقف' : 'OFF');
-  document.getElementById('enabledBox').checked = !!d.enabled;
+  if (Object.prototype.hasOwnProperty.call(d, 'enabled')) {
+    document.getElementById('stEnabled').className = 'stat ' + (d.enabled ? 'good' : 'bad');
+    document.getElementById('stEnabled').querySelector('.num').textContent = d.enabled ? (AR ? 'مفعّل' : 'ON') : (AR ? 'متوقف' : 'OFF');
+    document.getElementById('enabledBox').checked = !!d.enabled;
+  }
   if (d.role) document.getElementById('stRole').textContent = d.role;
   if (d.short_sha) document.getElementById('stSha').textContent = d.short_sha;
   const dirty = document.getElementById('stDirty');
