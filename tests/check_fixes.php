@@ -195,7 +195,18 @@ check(gateway_offline_daily_limit_usd('paypal') === 1000000.00, 'PayPal offline 
 check(gateway_offline_daily_limit_usd('stripe') === 5000000.00, 'Stripe offline daily limit is 5 million USD');
 check(gateway_offline_daily_limit_usd('square') === 10000000.00, 'Square 1 offline daily limit is 10 million USD');
 check(gateway_offline_daily_limit_usd('square_online') === 20000000.00, 'Square 2 offline daily limit is 20 million USD');
-check(!dp_gateway_is_live_for_charge(['code' => 'square_online', 'status' => 'active', 'connection_status' => 'verified', 'credentials' => '{"access_token":"token","location_id":"loc","site_id":"site"}']), 'Square 2 cannot process card charges');
+check(dp_gateway_charge_path_is_complete('square_online'), 'Square 2 has a card charge path');
+check(dp_gateway_charge_path_is_complete('square_2') && dp_gateway_charge_path_is_complete('square2'), 'Square 2 aliases share the charge path');
+check(dp_gateway_is_customer_visible(['code' => 'square_online', 'status' => 'active', 'connection_status' => 'verified', 'credentials' => '{"access_token":"token","location_id":"loc","site_id":"site"}']), 'Connected active Square 2 is visible on charge surfaces');
+$connected = ['status' => 'active', 'connection_status' => 'verified', 'credentials' => '{"api_key":"live-key"}'];
+foreach (['nuvei', 'paypal', 'stripe', 'square', 'diparma', 'checkout', 'paytabs', 'authorizenet', 'braintree', 'myfatoorah', 'payram', 'whop', 'gate_io', 'binance'] as $completeCode) {
+    check(dp_gateway_charge_path_is_complete($completeCode), $completeCode . ' charge path is complete');
+    check(dp_gateway_is_customer_visible($connected + ['code' => $completeCode]), $completeCode . ' is visible when connected and active');
+}
+foreach (['wise', 'adyen', 'klarna', 'sofort', 'alipay', 'razorpay', 'bank_transfer', 'diparma_gateway', 'mashreq', 'hsbc_uae', 'nbe_egypt', 'jpmorgan', 'ledger'] as $adminOnlyCode) {
+    check(!dp_gateway_charge_path_is_complete($adminOnlyCode), $adminOnlyCode . ' stays admin-only');
+    check(!dp_gateway_is_customer_visible($connected + ['code' => $adminOnlyCode]), $adminOnlyCode . ' stays hidden when connected');
+}
 check(!dp_gateway_is_live_for_fulfillment(['code' => 'square', 'status' => 'active', 'connection_status' => 'verified', 'credentials' => '{"access_token":"token","location_id":"loc","site_id":"site"}']), 'Square 1 credentials cannot enable Square 2 fulfillment');
 check(dp_gateway_is_live_for_fulfillment(['code' => 'square_online', 'status' => 'active', 'connection_status' => 'verified', 'credentials' => '{"access_token":"token","location_id":"loc","site_id":"site"}']), 'Square 2 fulfillment requires its own verified connection');
 check(activity_gateway_checkout_operations('stripe') === ['purchase_3d', 'purchase_2d', 'online_sale_moto', 'offline_sale_moto', 'purchase_advice', 'auth', 'capture'], 'Card gateway operations match the POS charge contract');
@@ -203,7 +214,9 @@ $stickerRows = pos_ops_sticker_rows();
 check(count(array_filter($stickerRows, static fn($row) => !empty($row['card']) && $row['cvv'] !== 'optional')) === 0, 'CVV is optional on every card operation');
 check(count(array_filter($stickerRows, static fn($row) => empty($row['card']) && $row['cvv'] !== false)) === 0, 'Non-card operations do not request CVV');
 check(!dp_gateway_is_live_for_charge(['code' => 'stripe', 'status' => 'active', 'connection_status' => 'pending', 'credentials' => '{}']), 'Active but unverified gateways stay hidden');
+check(!dp_gateway_is_customer_visible(['code' => 'stripe', 'status' => 'active', 'connection_status' => 'pending', 'credentials' => '{"api_key":"live-key"}']), 'Complete but unverified gateways stay hidden');
 check(!dp_gateway_is_live_for_charge(['code' => 'stripe', 'status' => 'inactive', 'connection_status' => 'verified', 'credentials' => '{}']), 'Inactive gateways stay hidden');
+check(!dp_gateway_is_customer_visible(['code' => 'stripe', 'status' => 'inactive', 'connection_status' => 'verified', 'credentials' => '{"api_key":"live-key"}']), 'Complete but inactive gateways stay hidden');
 $settlementChoices = [
     'gateway' => ['type' => 'same'],
     'ledger' => ['type' => 'ledger'],

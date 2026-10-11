@@ -55,6 +55,14 @@ if ($title === '' || $amount <= 0 || $gateway === '') {
     echo json_encode(['success' => false, 'message' => 'title, amount, and gateway required']);
     exit;
 }
+if (!function_exists('dp_gateway_is_visible_on_channels')) {
+    require_once dirname(__DIR__) . '/includes/gateways.php';
+}
+if (!dp_gateway_is_visible_on_channels($gateway)) {
+    http_response_code(422);
+    echo json_encode(['success' => false, 'message' => 'Gateway is not available for payment links']);
+    exit;
+}
 if ($settlementTarget === '') {
     http_response_code(422);
     echo json_encode(['success' => false, 'message' => 'Settlement destination is invalid or not connected']);

@@ -456,24 +456,6 @@ function activity_connected_gateways(string $channel = 'pos'): array
             $out[$code] = $gw + ['adapter' => $code, 'rail' => 'card'];
         }
     }
-    // Square Online is its own fulfillment connection; card charging stays on Square 1.
-    try {
-        $squareOnlineRow = db()->find('payment_gateways', ['code' => 'square_online']);
-    } catch (Throwable $e) {
-        $squareOnlineRow = null;
-    }
-    if ($squareOnlineRow && isGatewayVisibleInCheckout($squareOnlineRow)) {
-        $out['square_online'] = [
-            'name' => 'Square 2 · Online',
-            'icon' => 'fas fa-store',
-            'color' => '#006AFF',
-            'desc_ar' => 'خدمات Square Online، والدفع بالبطاقة عبر Square 1',
-            'desc_en' => 'Square Online services; card payment through Square 1',
-            'adapter' => 'square',
-            'rail' => 'fulfillment',
-            'chargeable' => false,
-        ];
-    }
     return $out;
 }
 

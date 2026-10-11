@@ -1786,9 +1786,67 @@ function dp_publish_saved_gateway(int $id): array
 }
 
 /**
- * POS, CHECKOUT, and LINK show only fully connected gateways
- * (active + verified + keys). Unconnected rows stay in Gateway Manager.
+ * POS, CHECKOUT, and LINK show a gateway only when it is complete,
+ * connected, and active. Gateway Manager keeps every row.
+ *
+ * Complete means this codebase can charge, hold, or capture — or a
+ * hosted adapter can finish the payment (redirect plus confirm).
  */
+function dp_gateway_canonical_charge_code(string $code): string
+{
+    $code = dp_gateway_normalize_code($code);
+    $aliases = [
+        'square_2' => 'square_online',
+        'square2' => 'square_online',
+        'square-online' => 'square_online',
+        'checkout.com' => 'checkout',
+        'pay_tabs' => 'paytabs',
+        'authorize_net' => 'authorizenet',
+        'authnet' => 'authorizenet',
+        'binance_otc' => 'binance',
+        'gateio' => 'gate_io',
+    ];
+    return $aliases[$code] ?? $code;
+}
+
+function dp_gateway_charge_path_is_complete(string $code): bool
+{
+    static $complete = [
+        'nuvei' => true,
+        'paypal' => true,
+        'stripe' => true,
+        'square' => true,
+        'square_online' => true,
+        'diparma' => true,
+        'checkout' => true,
+        'paytabs' => true,
+        'authorizenet' => true,
+        'braintree' => true,
+        'myfatoorah' => true,
+        'payram' => true,
+        'whop' => true,
+        'gate_io' => true,
+        'binance' => true,
+    ];
+    $code = dp_gateway_canonical_charge_code($code);
+    return $code !== '' && isset($complete[$code]);
+}
+
+function dp_gateway_is_customer_visible(array $row): bool
+{
+    $code = dp_gateway_canonical_charge_code((string) ($row['code'] ?? ''));
+    if ($code === '' || !dp_gateway_charge_path_is_complete($code)) {
+        return false;
+    }
+    $row['code'] = $code;
+    if ($code === 'square_online') {
+        return dp_gateway_square_online_can_charge($row);
+    }
+    return dp_gateway_is_enabled($row)
+        && dp_gateway_is_connected($row)
+        && dp_gateway_has_connection_keys($row);
+}
+
 function dp_gateway_is_enabled(array $row): bool
 {
     $status = strtolower(trim((string) ($row['status'] ?? '')));
@@ -1858,12 +1916,12 @@ function dp_gateway_square_online_can_charge(array $row): bool
 
 function isGatewayVisibleInCheckout(array $row): bool
 {
-    return dp_gateway_is_live_for_charge($row);
+    return dp_gateway_is_customer_visible($row);
 }
 
 function isGatewayVisibleInPos(array $row): bool
 {
-    return dp_gateway_is_live_for_charge($row);
+    return dp_gateway_is_customer_visible($row);
 }
 
 function dp_gateway_lookup_row(string $code): ?array
@@ -1885,21 +1943,25 @@ function dp_gateway_lookup_row(string $code): ?array
     return $row;
 }
 
-/** Ledger is a standalone settlement page. Charge pages require a live connection. */
+/** Ledger is a standalone settlement page. Charge pages require a complete live connection. */
 function dp_gateway_is_visible_on_channels(string $code): bool
 {
-    $code = dp_gateway_normalize_code($code);
+    $code = dp_gateway_canonical_charge_code($code);
     if ($code === '' || $code === 'diparma_gateway') {
         return false;
     }
     if ($code === 'ledger') {
         return true;
     }
+    if (!dp_gateway_charge_path_is_complete($code)) {
+        return false;
+    }
     $row = dp_gateway_lookup_row($code);
     if (!$row) {
         return false;
     }
-    return dp_gateway_is_live_for_charge($row);
+    $row['code'] = $code;
+    return dp_gateway_is_customer_visible($row);
 }
 
 function getConfiguredGateways() {

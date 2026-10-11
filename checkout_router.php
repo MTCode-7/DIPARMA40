@@ -100,7 +100,6 @@ $gateways = $allGateways;
   $connectedPos = activity_connected_gateways('pos');
   $connectedCheckout = activity_connected_gateways('checkout');
   $connectedLink = activity_connected_gateways('link');
-  unset($connectedPos['wise'], $connectedLink['wise'], $connectedLink['square_online']);
   $posRoutes = [];
   $linkRoutes = [];
   foreach (array_keys($gateways) as $code) {
