@@ -192,6 +192,20 @@ class DIPARMAOrchestrator
             'pos_device'   => $posId ? ($this->POS_TERMINALS[$posId]['type'] ?? '') : 'WEB',
             'pos_id'       => $posId,
         ];
+        if ($processor === 'diparma' || $processor === 'diparma_iso') {
+            foreach ([
+                'pan', 'rrn', 'bank_rrn', 'approval_code', 'auth_code', 'stan',
+                'terminal_id', 'tid', 'merchant_id', 'mid', 'entry_mode', 'pos_entry_mode',
+                'channel', 'auth_channel', 'moto_channel', 'processing_code', 'transmission',
+                'is_moto', 'moto', 'hold_amount', 'original_amount', 'installments',
+                'de37', 'de38', 'txn_type',
+            ] as $key) {
+                if (array_key_exists($key, $input)) {
+                    $params[$key] = $input[$key];
+                }
+            }
+            $params['txn_type'] = $txnType;
+        }
 
         /* ── 3. تنفيذ العملية على البوابة المختارة فقط ── */
         $result = $this->execute($processor, $txnType, $params);
@@ -427,6 +441,10 @@ class DIPARMAOrchestrator
                     'pos_id'       => $posId,
                     'auth_code'    => $result['approval_code'] ?? null,
                     'rrn'          => $result['rrn'] ?? null,
+                    'brand'        => $result['brand'] ?? null,
+                    'scheme'       => $result['scheme'] ?? null,
+                    'mti'          => $result['mti'] ?? null,
+                    'response_code'=> $result['response_code'] ?? null,
                     'txn_id'       => $result['nuvei_txn_id'] ?? $result['payment_intent_id'] ?? null,
                     'fallback'     => $result['fallback_used'] ?? false,
                     'message'      => $result['message'] ?? null,

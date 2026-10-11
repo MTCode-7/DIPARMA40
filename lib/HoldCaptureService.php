@@ -76,6 +76,8 @@ class HoldCaptureService
             'square',
             'square_online',
             'paypal',
+            'diparma',
+            'diparma_iso',
         ], true);
     }
 
@@ -90,6 +92,8 @@ class HoldCaptureService
             'square',
             'square_online',
             'paypal',
+            'diparma',
+            'diparma_iso',
         ], true);
     }
 

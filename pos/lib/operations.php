@@ -22,7 +22,7 @@ function pos_gateway_allows_overcapture(string $gateway): bool
 {
     return class_exists('HoldCaptureService', false)
         ? HoldCaptureService::allowsOvercapture($gateway)
-        : in_array(strtolower(trim($gateway)), ['square', 'square_online', 'paypal', 'stripe', 'nuvei'], true);
+        : in_array(strtolower(trim($gateway)), ['square', 'square_online', 'paypal', 'stripe', 'nuvei', 'diparma', 'diparma_iso'], true);
 }
 
 /** Sum approved capture/advice rows that follow one AUTH hold. Hold stays reusable. */

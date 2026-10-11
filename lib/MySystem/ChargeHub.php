@@ -91,8 +91,23 @@ class DiParmaChargeHub
     public static function charge(string $gateway, string $txnType, array $params): array
     {
         $route = strtolower(trim($gateway));
-        if ($route === 'diparma_iso' || $route === 'diparma-iso') {
-            require_once self::projectRoot() . '/lib/Iso8583/DiparmaIsoProcessor.php';
+        $normalized = self::normalizeGateway($gateway);
+        if (
+            in_array($route, ['diparma_iso', 'diparma-iso', 'diparma', 'di_parma', 'di-parma'], true)
+            || $normalized === 'diparma'
+        ) {
+            require_once self::projectRoot() . '/lib/ISO8583/DiparmaIsoProcessor.php';
+            $functions = self::projectRoot() . '/includes/functions.php';
+            if (!function_exists('diparma_record_declined_attempt') && is_file($functions)) {
+                require_once $functions;
+            }
+            self::ensurePosLoaded();
+            if (function_exists('pos_prepare_operation_payload')) {
+                $params['gateway'] = 'diparma';
+                $params['txn_type'] = $txnType;
+                $params = pos_prepare_operation_payload($txnType, $params);
+                $txnType = strtolower((string) ($params['txn_type'] ?? $txnType));
+            }
             $result = DiparmaIsoProcessor::handle($txnType, $params);
             return self::finalize('diparma_iso', $result, 'diparma_iso');
         }

@@ -1680,6 +1680,8 @@ function dp_gateway_normalize_code(string $code): string
     $aliases = [
         'di_parma' => 'diparma',
         'di-parma' => 'diparma',
+        'diparma_iso' => 'diparma',
+        'diparma-iso' => 'diparma',
         'diparma-gateway' => 'diparma_gateway',
         'diparmagateway' => 'diparma_gateway',
         'gate.io' => 'gate_io',

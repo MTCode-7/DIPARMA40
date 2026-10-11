@@ -197,6 +197,8 @@ function pos_normalize_gateway(string $code): string
     $aliases = [
         'di_parma' => 'diparma',
         'di-parma' => 'diparma',
+        'diparma_iso' => 'diparma',
+        'diparma-iso' => 'diparma',
         'diparma-gateway' => 'diparma_gateway',
         'diparmagateway' => 'diparma_gateway',
         'square_2' => 'square_online',
@@ -591,6 +593,10 @@ function pos_run_isolated_card_gateway(string $gateway, string $adapter, string 
     $params['provider'] = $gateway;
     $params = pos_prepare_operation_payload($txnType, $params);
     $effective = strtolower((string) ($params['txn_type'] ?? $txnType));
+    if ($gateway === 'diparma') {
+        require_once POS_APP_ROOT . '/lib/ISO8583/DiparmaIsoProcessor.php';
+        return DiparmaIsoProcessor::handle($effective, $params);
+    }
     [$file, $class] = pos_adapter_class_file($adapter);
     if ($file === '' || $class === '') {
         return ['success' => false, 'message' => 'Isolated adapter missing for ' . $gateway, 'gateway' => $gateway];

@@ -584,7 +584,7 @@ if ($txnType === 'capture' && ($origRef !== '' || $paymentId !== '' || $approval
             http_response_code(422);
             echo json_encode([
                 'success' => false,
-                'message' => 'Over-capture is enabled only for PayPal, Stripe, Square 1, Square 2, and Nuvei.',
+                'message' => 'Over-capture is enabled only for DI PARMA, PayPal, Stripe, Square 1, Square 2, and Nuvei.',
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -613,7 +613,8 @@ if ($txnType === 'capture' && ($origRef !== '' || $paymentId !== '' || $approval
 // 8. معالجة عبر بوابة البطاقة المختارة فقط (بدون تبديل صامت)
 // ============================================================
 
-$useCardGateway = !in_array($txnType, ['balance', 'settlement']);
+$useCardGateway = !in_array($txnType, ['balance', 'settlement'])
+    || $posGateway === 'diparma';
 $success = false;
 $message = 'PENDING';
 $responseCode = '';
@@ -890,7 +891,7 @@ if ($useCardGateway) {
 // 9. معالجة Balance / Settlement
 // ============================================================
 
-if ($txnType === 'balance') {
+if ($txnType === 'balance' && $posGateway !== 'diparma') {
     if (!pos_gateway_requires_card($posGateway)) {
         $success = false;
         $message = 'No bank balance. DIPARMA GATEWAY is Ledger USDT TRC20 only.';
@@ -910,7 +911,7 @@ if ($txnType === 'balance') {
     }
 }
 
-if ($txnType === 'settlement') {
+if ($txnType === 'settlement' && $posGateway !== 'diparma') {
     $success = false;
     $message = pos_gateway_requires_card($posGateway)
         ? 'EOD settlement is not a POS charge. After each approved sale, net USDT is sent to Ledger.'
@@ -965,7 +966,7 @@ $cardUseAlert = (!$success && !$requires3ds)
     : ['card_use' => null, 'card_use_ar' => null, 'card_use_en' => null];
 $persistCharge = diparma_should_persist_charge($success, $requires3ds);
 try {
-    if (!$persistCharge) {
+    if (!$persistCharge && empty($result['decline_stored'])) {
         diparma_record_declined_attempt($db, [
             'reference' => $reference,
             'user_id' => $userId,
