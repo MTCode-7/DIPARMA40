@@ -420,6 +420,12 @@ try {
                     $reference = (string) ($resource['custom_id'] ?? $resource['invoice_id'] ?? '');
                 }
                 if ($reference !== '') {
+                    if ($statusMap[$eventType] === 'declined') {
+                        diparma_discard_unsuccessful_transaction($db, $reference);
+                        if (function_exists('logEvent')) {
+                            logEvent('PayPal decline omitted ref=' . $reference, 'info');
+                        }
+                    } else {
                     $db->update('transactions', [
                         'status' => $statusMap[$eventType],
                         'updated_at' => date('Y-m-d H:i:s'),
@@ -442,6 +448,7 @@ try {
                         } catch (Throwable $e) {
                             error_log('[PayPal][Ledger] ' . $e->getMessage());
                         }
+                    }
                     }
                 }
             }

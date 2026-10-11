@@ -135,7 +135,12 @@ $params[] = (int)$client['user_id'];
 // نأخذ جميع المعاملات من جميع البوابات لأن العميل يستخدم API Key واحد
 
 // 5.4 تصفية حسب الحالة
-if (!empty($status)) {
+$hideFailedStatus = false;
+if (!empty($status) && function_exists('diparma_is_visible_transaction_status') && !diparma_is_visible_transaction_status($status)) {
+    $hideFailedStatus = true;
+    $status = '';
+    $sql .= " AND 1=0";
+} elseif (!empty($status)) {
     $sql .= " AND status = ?";
     $params[] = $status;
 }
@@ -266,7 +271,9 @@ if (!empty($client['user_id'])) {
     $countSql .= " AND user_id = ?";
     $countParams[] = $client['user_id'];
 }
-if (!empty($status)) {
+if (!empty($hideFailedStatus)) {
+    $countSql .= " AND 1=0";
+} elseif (!empty($status)) {
     $countSql .= " AND status = ?";
     $countParams[] = $status;
 }

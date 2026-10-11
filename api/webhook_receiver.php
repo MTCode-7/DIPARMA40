@@ -10,6 +10,7 @@ header('Content-Type: application/json');
 
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/functions.php';
 
 $rawBody = file_get_contents('php://input');
 $logFile = defined('LOGS_PATH') ? LOGS_PATH . '/myfatoorah_webhook.log' : __DIR__ . '/../logs/myfatoorah_webhook.log';
@@ -97,7 +98,11 @@ try {
         $txn = $rows[0] ?? null;
     }
 
-    if ($txn) {
+    if ($normalized === 'failed') {
+        $dropRef = is_array($txn) ? (string) ($txn['reference'] ?? $reference) : (string) $reference;
+        diparma_discard_unsuccessful_transaction($db, $dropRef);
+        @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . "] Discarded failed MyFatoorah ref={$reference}\n", FILE_APPEND);
+    } elseif ($txn) {
         $db->execute(
             "UPDATE dp_transactions SET status=?, gateway_response=JSON_SET(COALESCE(gateway_response,'{}'),'$.myfatoorah_event',?,'$.myfatoorah_status',?,'$.invoice_id',?,'$.payment_id',?), updated_at=NOW() WHERE id=?",
             [$normalized, $eventType, $status, $invoiceId, $paymentId, $txn['id']]

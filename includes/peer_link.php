@@ -151,6 +151,15 @@ function peer_upsert_txn(array $body): array
     $db = db();
     $existing = $db->find('transactions', ['reference' => $ref]);
     $incomingStatus = strtolower(trim((string) ($body['status'] ?? 'pending')));
+    if (function_exists('diparma_is_failed_transaction_status') && diparma_is_failed_transaction_status($incomingStatus)) {
+        if ($existing && function_exists('diparma_discard_unsuccessful_transaction')) {
+            diparma_discard_unsuccessful_transaction($db, $ref);
+        }
+        if (function_exists('logEvent')) {
+            logEvent('Skipped failed peer transaction ref=' . $ref, 'info');
+        }
+        return ['success' => true, 'reference' => $ref, 'skipped' => 'failed'];
+    }
     if ($existing && peer_status_rank($incomingStatus) < peer_status_rank((string) ($existing['status'] ?? ''))) {
         return ['success' => true, 'reference' => $ref, 'kept' => (string) $existing['status']];
     }

@@ -432,6 +432,18 @@ try {
         $updateData = [
             'gateway_response' => $rawPayload,
         ];
+        if ($normalizedStatus === 'failed') {
+            diparma_discard_unsuccessful_transaction($db, (string) $reference);
+            file_put_contents($logFile, "[" . date('Y-m-d H:i:s') . "] Discarded failed gateway update {$reference}\n", FILE_APPEND);
+            $responseCode = defined('WEBHOOK_DEFAULT_RESPONSE_CODE') ? WEBHOOK_DEFAULT_RESPONSE_CODE : 200;
+            http_response_code($responseCode);
+            echo json_encode([
+                'status' => 'success',
+                'reference' => $reference,
+                'new_status' => 'omitted',
+            ]);
+            exit();
+        }
         // لا نضع completed قبل الاستدعاء — onPaymentConfirmed هو من يغلق التسوية
         if ($normalizedStatus !== 'completed') {
             $updateData['status'] = $normalizedStatus;

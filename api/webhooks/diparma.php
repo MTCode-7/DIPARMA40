@@ -39,10 +39,15 @@ $statusMap = [
 ];
 try {
     $db = db();
-    if (isset($statusMap[$event])) {
+    if (($statusMap[$event] ?? '') === 'failed') {
+        diparma_discard_unsuccessful_transaction($db, $reference);
+        if (function_exists('logEvent')) {
+            logEvent('Webhook charge.failed omitted ref=' . $reference, 'info');
+        }
+    } elseif (isset($statusMap[$event])) {
         $db->update('transactions', [
             'status' => $statusMap[$event],
-            'error_message' => $statusMap[$event] === 'failed' ? (string)($data['message'] ?? 'Payment failed') : null,
+            'error_message' => null,
             'updated_at' => date('Y-m-d H:i:s'),
         ], ['reference' => $reference]);
     }

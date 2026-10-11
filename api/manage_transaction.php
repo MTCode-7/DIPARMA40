@@ -42,9 +42,7 @@ $allowedStatuses = [
 
 try {
     if ($action === 'clear_failed') {
-        $cntRow = $db->query("SELECT COUNT(*) AS c FROM {$tableSql} WHERE LOWER(status) = 'failed'");
-        $count = (int) ($cntRow[0]['c'] ?? 0);
-        $db->execute("DELETE FROM {$tableSql} WHERE LOWER(status) = 'failed'");
+        $count = diparma_purge_failed_transactions($db);
         echo json_encode([
             'success' => true,
             'message' => "Deleted {$count} failed transaction(s)",
@@ -117,6 +115,9 @@ try {
         }
         $data['updated_at'] = date('Y-m-d H:i:s');
         $db->update($table, $data, ['id' => $id]);
+        if (!empty($data['status']) && diparma_is_failed_transaction_status((string) $data['status'])) {
+            diparma_purge_failed_transactions($db);
+        }
 
         echo json_encode(['success' => true, 'message' => 'Transaction updated', 'id' => $id]);
         exit;

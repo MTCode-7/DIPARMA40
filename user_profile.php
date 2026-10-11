@@ -20,7 +20,7 @@ if (!$user) {
 }
 
 $transactions = $db->query(
-    'SELECT * FROM ' . DB_PREFIX . 'transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 10',
+    'SELECT * FROM ' . DB_PREFIX . 'transactions WHERE user_id = ? AND ' . diparma_visible_transaction_sql() . ' ORDER BY created_at DESC LIMIT 10',
     [$userId]
 );
 $wallets = $db->query(

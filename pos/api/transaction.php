@@ -966,7 +966,8 @@ $cardUseAlert = (!$success && !$requires3ds)
     : ['card_use' => null, 'card_use_ar' => null, 'card_use_en' => null];
 $persistCharge = diparma_should_persist_charge($success, $requires3ds);
 try {
-    if (!$persistCharge && empty($result['decline_stored'])) {
+    if (!$persistCharge) {
+        if (empty($result['decline_stored'])) {
         diparma_record_declined_attempt($db, [
             'reference' => $reference,
             'user_id' => $userId,
@@ -994,7 +995,11 @@ try {
                 'customer_phone' => $data['phone'] ?? null,
             ],
         ]);
+        }
         diparma_discard_unsuccessful_transaction($db, (string) $reference);
+        if (function_exists('logEvent')) {
+            logEvent('POS unsuccessful charge omitted ref=' . $reference . ' gateway=' . preg_replace('/[^A-Za-z0-9_.:-]/', '', (string) $posGateway), 'info');
+        }
     } else {
     $txnPayload = [
         'reference' => $reference,

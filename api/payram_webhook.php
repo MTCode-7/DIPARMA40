@@ -13,6 +13,7 @@ header('Content-Type: application/json');
 
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../lib/PayRamAdapter.php';
 if (is_file(__DIR__ . '/../includes/peer_link.php')) {
     require_once __DIR__ . '/../includes/peer_link.php';
@@ -104,7 +105,17 @@ if ($paymentRef !== null) {
             [$refId, $refId]
         );
 
-        if (!empty($existing[0])) {
+        if ($dbStatus === 'failed') {
+            $dropRef = $refId;
+            if (!empty($existing[0]['id'])) {
+                $found = $db->query('SELECT reference FROM dp_transactions WHERE id = ? LIMIT 1', [(int) $existing[0]['id']]);
+                $dropRef = (string) ($found[0]['reference'] ?? $refId);
+            }
+            diparma_discard_unsuccessful_transaction($db, $dropRef);
+            if (function_exists('logEvent')) {
+                logEvent('Payram failure omitted ref=' . $dropRef, 'info');
+            }
+        } elseif (!empty($existing[0])) {
             $db->execute(
                 "UPDATE dp_transactions
                  SET status=?,
@@ -223,6 +234,13 @@ if (isset($payload['event_type']) && (
     $network   = $payload['network']      ?? null;
     $address   = $payload['address']      ?? null;
 
+    $payoutStatus = strtolower((string) $status);
+    if (diparma_is_failed_transaction_status($payoutStatus) || $payoutStatus === 'failed') {
+        diparma_discard_unsuccessful_transaction($db, 'PAYOUT-' . (string) $payoutId);
+        if (function_exists('logEvent')) {
+            logEvent('Payram payout failure omitted ref=PAYOUT-' . preg_replace('/[^A-Za-z0-9_.:-]/', '', (string) $payoutId), 'info');
+        }
+    } else {
     try {
         $db->execute(
             "INSERT INTO dp_transactions
@@ -249,6 +267,7 @@ if (isset($payload['event_type']) && (
         );
     } catch (Exception $e) {
         error_log('[PayRam Webhook] Payout DB: ' . $e->getMessage());
+    }
     }
 
     echo json_encode(['received' => true, 'event' => $eventType]);

@@ -68,6 +68,7 @@ function dp_get_dashboard_stats(int $days = 30): array {
                 COALESCE(AVG(amount),0)                               AS avg_amount
             FROM {$pfx}transactions
             WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+              AND " . (function_exists('diparma_visible_transaction_sql') ? diparma_visible_transaction_sql() : '1=1') . "
         ", [$days]);
 
         return $rows[0] ?? [];
@@ -85,6 +86,7 @@ function dp_get_gateway_stats(int $days = 30): array {
                    COALESCE(SUM(amount),0) AS total_amount
             FROM " . DB_PREFIX . "transactions
             WHERE created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+              AND " . (function_exists('diparma_visible_transaction_sql') ? diparma_visible_transaction_sql() : '1=1') . "
             GROUP BY gateway
             ORDER BY total DESC
             LIMIT 10

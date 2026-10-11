@@ -34,6 +34,10 @@ try {
 } catch (Throwable $e) {
     $reconcileReport = [];
 }
+try {
+    diparma_purge_failed_transactions($db);
+} catch (Throwable $e) {
+}
 
 $refundMessage = '';
 $refundStatus = '';
@@ -59,6 +63,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['refund_reference']))
 // تصفية البحث
 $search = trim($_GET['search'] ?? '');
 $status = $_GET['status'] ?? '';
+if ($status !== '' && !diparma_is_visible_transaction_status($status)) {
+    $status = '';
+}
 $gateway = $_GET['gateway'] ?? '';
 $date_from = $_GET['date_from'] ?? '';
 $date_to = $_GET['date_to'] ?? '';
@@ -191,16 +198,15 @@ $transactions = $db->query($sql, $queryParams);
 // [3] إحصائيات المعاملات
 // ============================================================
 
+$successSql = "LOWER(TRIM(COALESCE(status,''))) IN (" . diparma_sql_in_list(['success','successful','completed','approved','captured','settled']) . ")";
+$pendingSql = "LOWER(TRIM(COALESCE(status,''))) IN (" . diparma_sql_in_list(['pending','authorized','processing','in_progress','pending_ledger','partially_captured']) . ")";
 $stats = $db->query("
     SELECT 
         COUNT(*) as total,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
-        SUM(CASE WHEN status = 'refunded' THEN 1 ELSE 0 END) as refunded,
-        SUM(CASE WHEN status = 'chargeback' THEN 1 ELSE 0 END) as chargeback,
+        SUM(CASE WHEN {$successSql} THEN 1 ELSE 0 END) as completed,
+        SUM(CASE WHEN {$pendingSql} THEN 1 ELSE 0 END) as pending,
         SUM(amount) as total_amount,
-        SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END) as completed_amount,
+        SUM(CASE WHEN {$successSql} THEN amount ELSE 0 END) as completed_amount,
         AVG(amount) as avg_amount
     FROM " . DB_PREFIX . "transactions
     WHERE " . diparma_visible_transaction_sql() . "
@@ -225,6 +231,7 @@ $transactionStats = $stats[0] ?? [
 $gatewaysList = $db->query("
     SELECT DISTINCT gateway 
     FROM " . DB_PREFIX . "transactions 
+    WHERE " . diparma_visible_transaction_sql() . "
     ORDER BY gateway COLLATE utf8mb4_general_ci
 ");
 
@@ -654,18 +661,6 @@ $totalPages = ceil($totalTransactions / $limit);
             <div class="label">Pending</div>
         </div>
         <div class="stat-card">
-            <div class="number red"><?= number_format($transactionStats['failed'] ?? 0) ?></div>
-            <div class="label">Failed</div>
-        </div>
-        <div class="stat-card">
-            <div class="number blue"><?= number_format($transactionStats['refunded'] ?? 0) ?></div>
-            <div class="label">Refunded</div>
-        </div>
-        <div class="stat-card">
-            <div class="number purple"><?= number_format($transactionStats['chargeback'] ?? 0) ?></div>
-            <div class="label">Chargebacks</div>
-        </div>
-        <div class="stat-card">
             <div class="number"><?= number_format($transactionStats['total_amount'] ?? 0, 2) ?></div>
             <div class="label">Total Amount</div>
         </div>
@@ -692,9 +687,8 @@ $totalPages = ceil($totalTransactions / $limit);
                         <option value="captured" <?= $status === 'captured' ? 'selected' : '' ?>>Captured</option>
                         <option value="settled" <?= $status === 'settled' ? 'selected' : '' ?>>Settled</option>
                         <option value="completed" <?= $status === 'completed' ? 'selected' : '' ?>>Completed</option>
-                        <option value="failed" <?= $status === 'failed' ? 'selected' : '' ?>>Failed</option>
-                        <option value="refunded" <?= $status === 'refunded' ? 'selected' : '' ?>>Refunded</option>
-                        <option value="chargeback" <?= $status === 'chargeback' ? 'selected' : '' ?>>Chargeback</option>
+                        <option value="approved" <?= $status === 'approved' ? 'selected' : '' ?>>Approved</option>
+                        <option value="processing" <?= $status === 'processing' ? 'selected' : '' ?>>Processing</option>
                     </select>
                 </div>
                 <div class="filter-group">
@@ -739,11 +733,6 @@ $totalPages = ceil($totalTransactions / $limit);
                 <span style="font-size:0.7rem;color:#888;">
                     Showing <?= count($transactions) ?> of <?= number_format($totalTransactions) ?>
                 </span>
-                <?php if (($transactionStats['failed'] ?? 0) > 0): ?>
-                <button type="button" class="btn btn-danger btn-sm" onclick="clearFailedTxns()">
-                    <i class="fas fa-trash"></i> Clear Failed (<?= (int)$transactionStats['failed'] ?>)
-                </button>
-                <?php endif; ?>
                 <a href="?export=csv&<?= http_build_query($_GET) ?>" class="btn btn-success btn-sm">
                     <i class="fas fa-file-csv"></i> Export
                 </a>
@@ -859,7 +848,7 @@ $totalPages = ceil($totalTransactions / $limit);
                                 <td>
                                     <div class="txn-manage" style="display:flex;flex-direction:column;gap:6px;min-width:160px;">
                                         <select class="txn-edit-status" style="font-size:.7rem;padding:4px;border-radius:6px;background:#0a1020;color:var(--text-gold);border:1px solid rgba(255,215,0,.2);">
-                                            <?php foreach (['pending','authorized','captured','settled','completed','failed','refunded','chargeback','cancelled'] as $stOpt): ?>
+                                            <?php foreach (['pending','authorized','processing','captured','settled','completed','approved'] as $stOpt): ?>
                                                 <option value="<?= $stOpt ?>" <?= ($tx['status'] === $stOpt) ? 'selected' : '' ?>><?= htmlspecialchars($stOpt) ?></option>
                                             <?php endforeach; ?>
                                         </select>

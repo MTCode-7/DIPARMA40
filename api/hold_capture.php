@@ -282,7 +282,7 @@ try {
                 $hold = $svc->getHoldByPI($piId);
                 if ($hold) {
                     $db->update('transactions', [
-                        'status'     => 'failed',
+                        'status'     => 'cancelled',
                         'updated_at' => date('Y-m-d H:i:s'),
                     ], ['reference' => $hold['reference']]);
                 }

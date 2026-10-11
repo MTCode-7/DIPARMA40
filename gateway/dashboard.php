@@ -29,8 +29,9 @@ try {
     $pending = $db->query(
         "SELECT * FROM dp_ledger_transfer_queue WHERE status IN ('queued','processing') ORDER BY created_at DESC LIMIT 20"
     ) ?: [];
+    diparma_purge_failed_transactions($db);
     $recentTxns = $db->query(
-        "SELECT * FROM dp_transactions ORDER BY created_at DESC LIMIT 15"
+        "SELECT * FROM dp_transactions WHERE " . diparma_visible_transaction_sql() . " ORDER BY created_at DESC LIMIT 15"
     ) ?: [];
     $auditTrail = [];
     try {

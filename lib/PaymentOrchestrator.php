@@ -513,10 +513,13 @@ class PaymentOrchestrator
             $fulfillResult['skipped'] = true;
         } else {
             $this->db->update('transactions', [
-                'status'        => 'failed',
+                'status'        => 'pending_ledger',
                 'error_message' => $fulfillResult['message'] ?? ($ledgerSettle['message'] ?? 'Settlement failed'),
                 'updated_at'    => date('Y-m-d H:i:s'),
             ], ['reference' => $reference]);
+            if (function_exists('logEvent')) {
+                logEvent('Ledger settlement still pending ref=' . $reference, 'info');
+            }
         }
 
         return array_merge($fulfillResult, [

@@ -605,10 +605,138 @@ function saveSiteTerms(string $text) {
     }
 }
 
-/** Statuses shown in DIPARMA lists. Failed rows stay visible for history review. */
-function diparma_visible_transaction_sql(): string
+/** Statuses shown on Transactions and gateway lists: success or still pending. */
+function diparma_visible_transaction_statuses(): array
 {
-    return "LOWER(COALESCE(status,'')) NOT IN ('deleted')";
+    return [
+        'success', 'successful', 'completed', 'approved', 'captured', 'settled',
+        'pending', 'authorized', 'processing', 'in_progress', 'pending_ledger', 'partially_captured',
+    ];
+}
+
+/** Statuses that mean the operation failed and must not stay on the list. */
+function diparma_failed_transaction_statuses(): array
+{
+    return [
+        'failed', 'failure', 'fail', 'declined', 'decline', 'error', 'errored',
+        'rejected', 'reject', 'denied', 'expired', 'voided', 'void',
+        'cancelled', 'canceled',
+    ];
+}
+
+function diparma_sql_in_list(array $values): string
+{
+    $quoted = [];
+    foreach ($values as $value) {
+        $quoted[] = "'" . str_replace("'", '', strtolower((string) $value)) . "'";
+    }
+    return implode(',', $quoted);
+}
+
+function diparma_is_visible_transaction_status(string $status): bool
+{
+    return in_array(strtolower(trim($status)), diparma_visible_transaction_statuses(), true);
+}
+
+function diparma_is_failed_transaction_status(string $status): bool
+{
+    return in_array(strtolower(trim($status)), diparma_failed_transaction_statuses(), true);
+}
+
+/**
+ * True when a stored gateway payload says the attempt failed or was declined.
+ * Matches status tokens only, so a pending 3-D Secure row is not treated as a failure.
+ */
+function diparma_gateway_failure_sql(string $column = 'gateway_response'): string
+{
+    $tokens = diparma_sql_in_list([
+        'failed', 'failure', 'fail', 'declined', 'decline', 'rejected', 'reject',
+        'error', 'errored', 'denied', 'voided', 'void', 'cancelled', 'canceled',
+    ]);
+    $paths = [
+        '$.status',
+        '$.gateway_status',
+        '$.transactionStatus',
+        '$.transaction_status',
+        '$.Status',
+        '$.response.status',
+        '$.raw.status',
+        '$.myfatoorah_status',
+        '$.payram_status',
+        '$.gateway_details.status',
+    ];
+    $checks = [];
+    foreach ($paths as $path) {
+        $checks[] = "LOWER(CASE WHEN JSON_VALID({$column}) THEN JSON_UNQUOTE(JSON_EXTRACT({$column}, '{$path}')) ELSE '' END) IN ({$tokens})";
+    }
+    return '(' . implode(' OR ', $checks) . ')';
+}
+
+function diparma_visible_transaction_sql(string $statusColumn = 'status', string $gatewayColumn = 'gateway_response'): string
+{
+    $visible = diparma_sql_in_list(diparma_visible_transaction_statuses());
+    return "LOWER(TRIM(COALESCE({$statusColumn},''))) IN ({$visible}) AND NOT " . diparma_gateway_failure_sql($gatewayColumn);
+}
+
+/**
+ * Rows safe to remove: explicit failures, and pending non-hold rows the gateway already declined.
+ * Authorized and pending holds stay. Successful and refunded rows stay.
+ */
+function diparma_failed_transaction_delete_sql(): string
+{
+    $hard = diparma_sql_in_list([
+        'failed', 'failure', 'fail', 'declined', 'decline', 'error', 'errored',
+        'rejected', 'reject', 'denied', 'expired', 'voided', 'void',
+    ]);
+    $keep = diparma_sql_in_list(array_merge(diparma_visible_transaction_statuses(), ['refunded', 'chargeback']));
+    $holdTypes = diparma_sql_in_list(['auth', 'auth_hold', 'auth_moto', 'hold', 'void', 'avoid', 'cancel', 'reversal']);
+    $gatewayFailed = diparma_gateway_failure_sql('gateway_response');
+
+    return "(
+        LOWER(TRIM(COALESCE(status,''))) IN ({$hard})
+        OR (
+            LOWER(TRIM(COALESCE(status,''))) IN ('cancelled','canceled')
+            AND LOWER(TRIM(COALESCE(transaction_type,''))) NOT IN ({$holdTypes})
+            AND NOT (
+                JSON_VALID(gateway_response)
+                AND LOWER(JSON_UNQUOTE(JSON_EXTRACT(gateway_response, '$.type'))) IN ('hold','auth')
+            )
+        )
+        OR (
+            {$gatewayFailed}
+            AND LOWER(TRIM(COALESCE(status,''))) NOT IN ({$keep})
+            AND NOT (
+                LOWER(TRIM(COALESCE(status,''))) = 'pending'
+                AND LOWER(TRIM(COALESCE(transaction_type,''))) IN ({$holdTypes})
+            )
+        )
+    )";
+}
+
+/** Idempotent. Deletes failed transaction rows only. Returns the number removed. */
+function diparma_purge_failed_transactions($db): int
+{
+    if ($db === null) {
+        return 0;
+    }
+    $table = (defined('DB_PREFIX') ? DB_PREFIX : 'dp_') . 'transactions';
+    $where = diparma_failed_transaction_delete_sql();
+    try {
+        $countRow = $db->query("SELECT COUNT(*) AS c FROM {$table} WHERE {$where}");
+        $count = (int) ($countRow[0]['c'] ?? 0);
+        if ($count > 0) {
+            $db->execute("DELETE FROM {$table} WHERE {$where}");
+        }
+        if (function_exists('logEvent')) {
+            logEvent('Purged failed transactions count=' . $count, 'info');
+        }
+        return $count;
+    } catch (Throwable $e) {
+        if (function_exists('logEvent')) {
+            logEvent('purge failed transactions: ' . $e->getMessage(), 'error');
+        }
+        return 0;
+    }
 }
 
 function diparma_should_persist_charge(bool $success, bool $pending3ds = false): bool
@@ -672,14 +800,28 @@ function diparma_discard_unsuccessful_transaction($db, string $reference): void
     try {
         $row = $db->find('transactions', ['reference' => $reference]);
         if (!$row) {
+            if (function_exists('logEvent')) {
+                logEvent('Unsuccessful charge omitted ref=' . $reference, 'info');
+            }
             return;
         }
         $st = strtolower(trim((string) ($row['status'] ?? '')));
-        if (in_array($st, [
-            'completed', 'authorized', 'captured', 'settled', 'approved', 'refunded',
-            'pending', 'processing', 'pending_ledger',
-        ], true)) {
+        $type = strtolower(trim((string) ($row['transaction_type'] ?? '')));
+        $live = [
+            'success', 'successful', 'completed', 'approved', 'captured', 'settled',
+            'authorized', 'processing', 'in_progress', 'pending_ledger', 'partially_captured',
+            'refunded', 'chargeback',
+        ];
+        if (in_array($st, $live, true)) {
             return;
+        }
+        if ($st === 'pending' && in_array($type, ['auth', 'auth_hold', 'auth_moto', 'hold', 'void', 'avoid', 'cancel', 'reversal'], true)) {
+            return;
+        }
+        $gateway = preg_replace('/[^A-Za-z0-9_.:-]/', '', (string) ($row['gateway'] ?? ''));
+        $db->delete('transactions', ['id' => (int) $row['id']]);
+        if (function_exists('logEvent')) {
+            logEvent('Discarded unsuccessful transaction ref=' . $reference . ' gateway=' . $gateway . ' status=' . $st, 'info');
         }
     } catch (Throwable $e) {
         if (function_exists('logEvent')) {

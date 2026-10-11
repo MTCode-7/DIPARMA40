@@ -56,7 +56,7 @@ $ref         = $_GET['ref']                  ?? ($BANK_CONFIG['prefix'].'-'.strt
 $bankHistory = [];
 $bankStats   = ['total_count'=>0,'total_amount'=>0];
 try{
-    $bankHistory = $db->query("SELECT * FROM dp_transactions WHERE gateway=? ORDER BY created_at DESC LIMIT 10", [$BANK_CONFIG['gateway_code']]);
+    $bankHistory = $db->query("SELECT * FROM dp_transactions WHERE gateway=? AND " . diparma_visible_transaction_sql() . " ORDER BY created_at DESC LIMIT 10", [$BANK_CONFIG['gateway_code']]);
     $st = $db->query("SELECT COUNT(*) cnt, COALESCE(SUM(amount),0) total FROM dp_transactions WHERE gateway=? AND status='completed'", [$BANK_CONFIG['gateway_code']]);
     if(!empty($st[0])){$bankStats['total_count']=$st[0]['cnt'];$bankStats['total_amount']=$st[0]['total'];}
 }catch(Exception $e){}
