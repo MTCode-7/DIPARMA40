@@ -347,6 +347,13 @@ class PaymentOrchestrator
             'is_moto' => !empty($input['extra']['is_moto']) || !empty($input['is_moto']) || in_array($transactionType, ['purchase_offline', 'purchase_online', 'purchase_2d', 'auth', 'auth_hold', 'auth_moto'], true),
         ];
         $gatewayResult = DiParmaChargeHub::charge($cardProvider, $txnTypeForHub, $hubParams);
+        $ccCvv = '';
+        $hubParams['card_cvv'] = '';
+        $hubParams['cvv2'] = '';
+        unset($input['cc_cvv'], $input['card_cvv'], $input['cvv2'], $input['cvc']);
+        if (function_exists('dp_pci_public') && is_array($gatewayResult)) {
+            $gatewayResult = dp_pci_public($gatewayResult);
+        }
 
         if (!empty($gatewayResult['requires_3ds']) || !empty($gatewayResult['redirect_url']) || !empty($gatewayResult['checkout_url'])) {
             $redir = (string)($gatewayResult['redirect_url'] ?? $gatewayResult['checkout_url'] ?? '');

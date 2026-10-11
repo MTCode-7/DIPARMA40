@@ -1076,9 +1076,12 @@ function pos_redact_pci($value)
         foreach ($value as $k => $v) {
             $lk = strtolower((string) $k);
             $compactKey = preg_replace('/[^a-z0-9]/', '', $lk);
-            if (preg_match('/(^|_)(cvv|cvc|csc|pin|pan|track1|track2|card_number|cc_number|card_cvv|cc_cvv|card_cvc)(_|$)/', $lk)
-                || in_array($compactKey, ['cvv', 'cvc', 'csc', 'pin', 'pan', 'track1', 'track2', 'cardnumber', 'ccnumber', 'cardcvv', 'cccvv', 'cardcvc'], true)
-                || in_array($lk, ['password', 'secret', 'client_secret', 'private_key', 'card_name', 'cc_name'], true)) {
+            $sadKey = !str_contains($lk, 'check') && (
+                preg_match('/(^|_)(cvv2|cvc2|cvv|cvc|csc|cid|pin_block|pin|pan|track_data|track1|track2|track|magstripe|card_number|cc_number|card_cvv|cc_cvv|card_cvc|security_code|card_code)(_|$)/', $lk)
+                || in_array($compactKey, ['cvv', 'cvc', 'csc', 'cid', 'cvv2', 'cvc2', 'pin', 'pinblock', 'pan', 'track', 'track1', 'track2', 'trackdata', 'magstripe', 'cardnumber', 'ccnumber', 'cardcvv', 'cccvv', 'cardcvc', 'securitycode', 'cardcode'], true)
+                || in_array($lk, ['password', 'secret', 'client_secret', 'private_key', 'card_name', 'cc_name'], true)
+            );
+            if ($sadKey) {
                 $out[$k] = '[redacted]';
                 continue;
             }
@@ -1086,11 +1089,15 @@ function pos_redact_pci($value)
         }
         return $out;
     }
-    if (is_string($value) && preg_match('/(?<!\d)(\d[ -]*){13,19}(?!\d)/', $value)) {
-        return preg_replace_callback('/(?<!\d)(?:\d[ -]*){13,19}(?!\d)/', static function ($m) {
-            $d = preg_replace('/\D/', '', $m[0]);
-            return '****' . substr($d, -4);
-        }, $value);
+    if (is_string($value)) {
+        $value = preg_replace('/%B[^?%]{0,160}\??/', '****TRACK****', $value) ?? $value;
+        $value = preg_replace('/;\d{0,19}=[^?]{0,80}\??/', '****TRACK****', $value) ?? $value;
+        if (preg_match('/(?<!\d)(\d[ -]*){13,19}(?!\d)/', $value)) {
+            return preg_replace_callback('/(?<!\d)(?:\d[ -]*){13,19}(?!\d)/', static function ($m) {
+                $d = preg_replace('/\D/', '', $m[0]);
+                return '****' . substr($d, -4);
+            }, $value);
+        }
     }
     return $value;
 }

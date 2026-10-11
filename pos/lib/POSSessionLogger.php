@@ -136,7 +136,11 @@ class POSSessionLogger
 
     public static function sanitizePayload(string $raw): string
     {
-        $raw = preg_replace('/\d{13,19}/', '****', $raw) ?? $raw;
+        $raw = preg_replace('/%B[^?%]{0,160}\??/', '****TRACK****', $raw) ?? $raw;
+        $raw = preg_replace('/;\d{0,19}=[^?]{0,80}\??/', '****TRACK****', $raw) ?? $raw;
+        $raw = preg_replace_callback('/\d{13,19}/', static function (array $m): string {
+            return '****' . substr($m[0], -4);
+        }, $raw) ?? $raw;
         if (strlen($raw) > 4000) {
             $raw = substr($raw, 0, 4000);
         }

@@ -233,7 +233,7 @@ footer a{color:var(--gold);text-decoration:none}
     <div class="hero-badges">
         <span class="hero-badge"><i class="fas fa-shield-halved"></i> GIA Certified</span>
         <span class="hero-badge"><i class="fas fa-certificate"></i> ISO/IEC 27001</span>
-        <span class="hero-badge"><i class="fas fa-lock"></i> PCI DSS Level 1</span>
+        <span class="hero-badge"><i class="fas fa-lock"></i> PCI-DSS controls</span>
         <span class="hero-badge"><i class="fas fa-globe"></i> <?= $isAr ? 'شحن عالمي' : 'Worldwide Shipping' ?></span>
     </div>
 </div>

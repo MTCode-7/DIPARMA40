@@ -435,4 +435,5 @@ INSERT IGNORE INTO `dp_settings` (`key`, `value`) VALUES
     ('site_name', 'DI PARMA Gateway'),
     ('timezone', 'Asia/Dubai'),
     ('default_currency', 'AED'),
-    ('session_timeout', '3600');
+    ('session_timeout', '3600'),
+    ('pci_dss', '1');

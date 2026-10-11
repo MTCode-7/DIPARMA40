@@ -37,6 +37,7 @@ if (!function_exists('_dp_load_env')) {
     }
 }
 _dp_load_env(ROOT_PATH . '/.env');
+require_once __DIR__ . '/pci.php';
 
 // ── Language bootstrap: English is default; Arabic only when explicitly chosen ──
 if (!function_exists('dp_bootstrap_lang')) {
@@ -49,7 +50,7 @@ if (!function_exists('dp_bootstrap_lang')) {
                 setcookie('di_parma_lang', $chosen, [
                     'expires'  => time() + (365 * 24 * 3600),
                     'path'     => '/',
-                    'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+                    'secure'   => dp_request_is_https(),
                     'httponly' => false,
                     'samesite' => 'Lax',
                 ]);
@@ -79,7 +80,7 @@ if (!function_exists('dp_bootstrap_lang')) {
                 setcookie('di_parma_lang', 'en', [
                     'expires'  => time() + (365 * 24 * 3600),
                     'path'     => '/',
-                    'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+                    'secure'   => dp_request_is_https(),
                     'httponly' => false,
                     'samesite' => 'Lax',
                 ]);
@@ -102,6 +103,7 @@ if (!function_exists('env')) {
         return $val;
     }
 }
+dp_pci_boot();
 
 // ── [3] اكتشاف البيئة تلقائياً ──────────────────────────────
 if (!function_exists('_dp_detect_env')) {
@@ -322,10 +324,7 @@ if (APP_IS_LOCAL) {
 // ── [9] بدء الجلسة ──────────────────────────────────────────
 if (session_status() === PHP_SESSION_NONE && PHP_SAPI !== 'cli') {
     if (!headers_sent()) {
-        $requestIsHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-            || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https'
-            || strtolower($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '') === 'on'
-            || str_contains($_SERVER['HTTP_CF_VISITOR'] ?? '', '"scheme":"https"');
+        $requestIsHttps = dp_request_is_https();
         session_name('DIPARMASESSID');
         session_set_cookie_params([
             'lifetime' => SESSION_TIMEOUT,
@@ -334,6 +333,7 @@ if (session_status() === PHP_SESSION_NONE && PHP_SAPI !== 'cli') {
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
+        dp_pci_send_headers();
     }
     session_start();
 }

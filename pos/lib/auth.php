@@ -49,8 +49,10 @@ function pos_issue_device_token(int $userId, string $terminalId, string $model):
     ];
     $body = pos_auth_b64(json_encode($payload, JSON_UNESCAPED_UNICODE));
     $sig = hash_hmac('sha256', $body, pos_auth_secret());
-    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    $secure = function_exists('dp_request_is_https')
+        ? dp_request_is_https()
+        : ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https'));
     setcookie(POS_DEVICE_COOKIE, $body . '.' . $sig, [
         'expires' => $payload['exp'],
         'path' => '/',
@@ -63,9 +65,11 @@ function pos_issue_device_token(int $userId, string $terminalId, string $model):
 
 function pos_clear_device_token(): void
 {
+    $secure = function_exists('dp_request_is_https') ? dp_request_is_https() : false;
     setcookie(POS_DEVICE_COOKIE, '', [
         'expires' => time() - 3600,
         'path' => '/',
+        'secure' => $secure,
         'httponly' => true,
         'samesite' => 'Lax',
     ]);

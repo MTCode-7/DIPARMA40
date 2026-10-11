@@ -80,6 +80,10 @@ try {
                 'email'         => $email,
                 'channel'       => 'stripe_charge_api',
             ]);
+            $cardNumber = '';
+            if (function_exists('dp_pci_public') && is_array($settlement)) {
+                $settlement = dp_pci_public($settlement);
+            }
 
             if (ob_get_level() > 0) ob_clean();
             echo json_encode(array_merge($settlement, [
@@ -104,6 +108,10 @@ try {
             'channel' => 'stripe_charge_api',
             'destination' => 'gateway',
         ]);
+        $cardNumber = '';
+        if (function_exists('dp_pci_public') && is_array($result)) {
+            $result = dp_pci_public($result);
+        }
 
         if (!empty($result['success']) && empty($result['order_persisted'])) {
             db()->insert('transactions', [
@@ -165,6 +173,9 @@ try {
             'name'              => trim((string)($payload['card_name'] ?? 'Customer')),
         ],
     ]);
+    if (function_exists('dp_pci_public')) {
+        $result = dp_pci_public($result);
+    }
 
     if (ob_get_level() > 0) ob_clean();
     echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

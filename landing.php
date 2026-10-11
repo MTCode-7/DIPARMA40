@@ -169,7 +169,7 @@ a{text-decoration:none;color:inherit}
         'DI PARMA brings payment, settlement, and digital finance solutions together in one integrated interface for your daily operations.'?>
       </p>
       <ul class="feat">
-        <li><i class="fas fa-check-circle"></i> <?=$ar?'ISO/IEC 27001 + PCI DSS Level 1':'ISO/IEC 27001 + PCI DSS Level 1'?></li>
+        <li><i class="fas fa-check-circle"></i> <?=$ar?'ISO/IEC 27001 + ضوابط PCI-DSS':'ISO/IEC 27001 + PCI-DSS controls'?></li>
         <li><i class="fas fa-check-circle"></i> <?=$ar?'دعم 150+ عملة فيات وكريبتو':'150+ fiat & crypto currencies'?></li>
         <li><i class="fas fa-check-circle"></i> <?=$ar?'تسوية فورية يومية':'Instant daily settlement'?></li>
         <li><i class="fas fa-check-circle"></i> <?=$ar?'دعم فني 24/7':'24/7 technical support'?></li>
@@ -591,8 +591,8 @@ a{text-decoration:none;color:inherit}
         <div style="margin-bottom:8px"><a href="/login.php" style="color:var(--muted);font-size:.8rem;transition:.2s"
           onmouseover="this.style.color='var(--gold)'" onmouseout="this.style.color='var(--muted)'"><?=$ar?'تسجيل الدخول':'Login'?></a></div>
         <div style="margin-top:20px">
-          <div style="font-size:.68rem;color:var(--muted);margin-bottom:8px">CERTIFIED</div>
-          <div style="font-size:.7rem;color:#888;line-height:1.8">ISO/IEC 27001<br>PCI DSS Level 1</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-bottom:8px"><?=$ar?'ضوابط':'CONTROLS'?></div>
+          <div style="font-size:.7rem;color:#888;line-height:1.8">ISO/IEC 27001<br><?=$ar?'ضوابط PCI-DSS مفعّلة':'PCI-DSS controls enabled'?></div>
         </div>
       </div>
     </div>

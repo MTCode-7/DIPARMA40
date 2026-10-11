@@ -398,9 +398,13 @@ class ApiAuth
         $durationMs = null
     ): void {
         $scrub = static function (string $body): string {
+            if (function_exists('dp_pci_scrub_storage')) {
+                $clean = dp_pci_scrub_storage($body);
+                return mb_substr(is_string($clean) ? $clean : $body, 0, 4000);
+            }
             $decoded = json_decode($body, true);
             if (!is_array($decoded)) {
-                return mb_substr($body, 0, 4000);
+                return mb_substr(function_exists('dp_pci_mask_text') ? dp_pci_mask_text($body) : $body, 0, 4000);
             }
             foreach (['card_number', 'cc_number', 'card_cvv', 'cc_cvv', 'cvv', 'cvv2', 'security_code'] as $key) {
                 if (isset($decoded[$key])) {

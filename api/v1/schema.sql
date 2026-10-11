@@ -556,6 +556,7 @@ INSERT INTO `dp_settings` (`key`, `value`, `group`, `type`, `description`) VALUE
 ('notification_sms', '971501234567', 'notifications', 'string', 'رقم SMS'),
 ('security_encryption_key', '', 'security', 'string', 'مفتاح التشفير'),
 ('security_hmac_key', '', 'security', 'string', 'مفتاح HMAC'),
+('pci_dss', '1', 'security', 'boolean', 'PCI-DSS controls are enabled. This is not a certification.'),
 ('api_rate_limit', '100', 'security', 'int', 'حد الطلبات في الدقيقة'),
 ('webhook_retry_attempts', '5', 'webhook', 'int', 'عدد محاولات إعادة Webhook'),
 ('webhook_retry_delay', '60', 'webhook', 'int', 'تأخير إعادة المحاولة (ثواني)');

@@ -282,7 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     </div>
 
     <div class="security-badge">
-        <span><i class="fas fa-shield-alt"></i> PCI DSS Level 1</span>
+        <span><i class="fas fa-shield-alt"></i> PCI-DSS controls</span>
         <span><i class="fas fa-lock"></i> 256-bit Encryption</span>
     </div>
 </div>

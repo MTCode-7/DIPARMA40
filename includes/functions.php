@@ -14,10 +14,12 @@ if (!function_exists('generateCsrfToken')) {
 
         $token = (string) $_SESSION['csrf_token'];
         if (!headers_sent()) {
-            $requestIsHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-                || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https'
-                || strtolower($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '') === 'on'
-                || str_contains($_SERVER['HTTP_CF_VISITOR'] ?? '', '"scheme":"https"');
+            $requestIsHttps = function_exists('dp_request_is_https')
+                ? dp_request_is_https()
+                : ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                    || strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https'
+                    || strtolower($_SERVER['HTTP_X_FORWARDED_SSL'] ?? '') === 'on'
+                    || str_contains($_SERVER['HTTP_CF_VISITOR'] ?? '', '"scheme":"https"'));
 
             setcookie('diparma_csrf_token', $token, [
                 'expires' => time() + 3600,
@@ -186,6 +188,9 @@ function logEvent($message, $level = 'info') {
     $timestamp = date('Y-m-d H:i:s');
     $ip = getClientIP();
     $user = $_SESSION['user_id'] ?? 'guest';
+    if (function_exists('dp_pci_mask_text')) {
+        $message = dp_pci_mask_text((string) $message);
+    }
     $entry = json_encode([
         'timestamp' => $timestamp,
         'level' => $level,

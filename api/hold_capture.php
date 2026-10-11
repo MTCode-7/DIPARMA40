@@ -89,7 +89,7 @@ try {
             }
 
             $result = $svc->createHold($amount, $currency, $reference, $userId, $meta);
-            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            echo json_encode(dp_pci_public($result), JSON_UNESCAPED_UNICODE);
             break;
 
         // ── تأكيد HOLD ────────────────────────────────────────
@@ -108,7 +108,7 @@ try {
                     ], ['reference' => $hold['reference']]);
                 }
             }
-            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            echo json_encode(dp_pci_public($result), JSON_UNESCAPED_UNICODE);
             break;
 
         // ── CAPTURE — تحصيل المبلغ المحجوز ───────────────────
@@ -246,7 +246,7 @@ try {
                         'fees'             => 0,
                         'net_amount'       => $amount,
                         'security_mode'    => '2D',
-                        'gateway_response' => json_encode($result),
+                        'gateway_response' => json_encode(dp_pci_public($result)),
                         'created_at'       => date('Y-m-d H:i:s'),
                     ]);
                 }
@@ -262,7 +262,7 @@ try {
                 ]);
             }
 
-            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            echo json_encode(dp_pci_public($result), JSON_UNESCAPED_UNICODE);
             break;
 
         // ── CANCEL — إلغاء الحجز ─────────────────────────────
@@ -287,7 +287,7 @@ try {
                     ], ['reference' => $hold['reference']]);
                 }
             }
-            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            echo json_encode(dp_pci_public($result), JSON_UNESCAPED_UNICODE);
             break;
 
         // ── قائمة الحجوزات ────────────────────────────────────

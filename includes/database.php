@@ -72,6 +72,9 @@ class Database {
             } catch (Throwable $e) {
                 error_log('[schema_compat] ' . $e->getMessage());
             }
+            if (function_exists('dp_pci_ensure_setting')) {
+                dp_pci_ensure_setting($this);
+            }
 
         } catch (PDOException $e) {
             // عرض صفحة خطأ مناسبة بدلاً من die() المجردة
@@ -117,10 +120,11 @@ p{color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:20px}
             $stmt = $this->stmtCache[$cacheKey];
             $stmt->execute($params);
             $result = $stmt->fetchAll();
-            
+            $loggedParams = function_exists('dp_pci_scrub_debug_params') ? dp_pci_scrub_debug_params($params) : $params;
+
             $this->queries[] = [
                 'sql' => $sql,
-                'params' => $params,
+                'params' => $loggedParams,
                 'time' => microtime(true) - $start
             ];
             $this->queryCount++;
@@ -128,7 +132,10 @@ p{color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:20px}
             
             return $result;
         } catch (PDOException $e) {
-            error_log('Query error: ' . $e->getMessage() . ' | SQL: ' . $sql);
+            $logged = function_exists('dp_pci_mask_text')
+                ? dp_pci_mask_text($e->getMessage() . ' | SQL: ' . $sql)
+                : ($e->getMessage() . ' | SQL: ' . $sql);
+            error_log('Query error: ' . $logged);
             throw $e;
         }
     }
@@ -139,7 +146,10 @@ p{color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:20px}
             $stmt->execute($params);
             return $stmt->rowCount();
         } catch (PDOException $e) {
-            error_log('Execute error: ' . $e->getMessage() . ' | SQL: ' . $sql);
+            $logged = function_exists('dp_pci_mask_text')
+                ? dp_pci_mask_text($e->getMessage() . ' | SQL: ' . $sql)
+                : ($e->getMessage() . ' | SQL: ' . $sql);
+            error_log('Execute error: ' . $logged);
             throw $e;
         }
     }
@@ -162,6 +172,9 @@ p{color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:20px}
     }
 
     public function insert($table, $data) {
+        if (function_exists('dp_pci_scrub_row')) {
+            $data = dp_pci_scrub_row((string) $table, $data);
+        }
         $columns = array_keys($data);
         $placeholders = array_fill(0, count($columns), '?');
         
@@ -203,6 +216,9 @@ p{color:#aaa;font-size:.9rem;line-height:1.7;margin-bottom:20px}
     }
 
     public function update($table, $data, $where) {
+        if (function_exists('dp_pci_scrub_row')) {
+            $data = dp_pci_scrub_row((string) $table, $data);
+        }
         $set = [];
         $params = [];
         

@@ -117,6 +117,13 @@ $params = [
 
 try {
     $result = DiParmaChargeHub::charge($gateway, $txnType, $params);
+    $cardCVV = '';
+    $cardNumber = '';
+    $params['card_cvv'] = '';
+    $params['card_number'] = '';
+    if (function_exists('dp_pci_public') && is_array($result)) {
+        $result = dp_pci_public($result);
+    }
 } catch (Exception $e) {
     $resp = json_encode(['success'=>false,'error'=>'gateway_error','message'=>$e->getMessage()]);
     http_response_code(502);
