@@ -50,7 +50,7 @@ require_once __DIR__ . '/../lib/PayPalService.php';
 foreach (['binance', 'payram', 'whop', 'wise', 'stripe', 'nuvei', 'square', 'paypal'] as $gateway) {
     check(GatewayAdapterFactory::isSupported($gateway), $gateway . ' is registered');
 }
-foreach (['square', 'paypal', 'stripe', 'nuvei'] as $gateway) {
+foreach (['square', 'square_online', 'paypal', 'stripe', 'nuvei'] as $gateway) {
     check(pos_gateway_allows_overcapture($gateway), strtoupper($gateway) . ' allows approved over-capture');
     check(HoldCaptureService::allowsOvercapture($gateway), strtoupper($gateway) . ' hold manager allows over-capture');
 }

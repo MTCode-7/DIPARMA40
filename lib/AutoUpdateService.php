@@ -167,6 +167,7 @@ final class AutoUpdateService
             $after = trim(self::run([$git, '-C', $root, 'rev-parse', '--short', 'HEAD'])['out']);
             $subject = trim(self::run([$git, '-C', $root, 'log', '-1', '--format=%s'])['out']);
             self::reloadRuntime();
+            $repair = self::repairHoldStores();
 
             $result = [
                 'success'  => true,
@@ -176,6 +177,7 @@ final class AutoUpdateService
                 'changed'  => $before !== $after,
                 'subject'  => $subject,
                 'reason'   => $reason,
+                'hold_repair' => $repair,
                 'ms'       => (int) round((microtime(true) - $started) * 1000),
             ];
             self::rememberRun($result);
@@ -184,6 +186,23 @@ final class AutoUpdateService
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
+        }
+    }
+
+    private static function repairHoldStores(): array
+    {
+        $file = self::root() . '/lib/HoldStoreSync.php';
+        if (!is_file($file)) {
+            return ['skipped' => true, 'reason' => 'missing'];
+        }
+        try {
+            require_once $file;
+            if (!class_exists('HoldStoreSync', false)) {
+                return ['skipped' => true, 'reason' => 'class'];
+            }
+            return HoldStoreSync::repairOnce(false);
+        } catch (Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
         }
     }
 

@@ -1814,8 +1814,11 @@ function dp_gateway_is_live_for_charge(array $row): bool
     $code = function_exists('dp_gateway_normalize_code')
         ? dp_gateway_normalize_code((string) ($row['code'] ?? ''))
         : strtolower(trim((string) ($row['code'] ?? '')));
-    if ($code === '' || in_array($code, ['diparma_gateway', 'ledger', 'square_online'], true)) {
+    if ($code === '' || in_array($code, ['diparma_gateway', 'ledger'], true)) {
         return false;
+    }
+    if ($code === 'square_online') {
+        return dp_gateway_square_online_can_charge($row);
     }
     return dp_gateway_is_enabled($row)
         && dp_gateway_is_connected($row)
@@ -1834,19 +1837,32 @@ function dp_gateway_is_live_for_fulfillment(array $row): bool
         && !empty($creds['site_id']);
 }
 
+function dp_gateway_square_online_can_charge(array $row): bool
+{
+    if (!dp_gateway_is_enabled($row) || !dp_gateway_is_connected($row)) {
+        return false;
+    }
+    $creds = function_exists('dp_gateway_effective_credentials')
+        ? dp_gateway_effective_credentials($row)
+        : [];
+    $token = trim((string) ($creds['access_token'] ?? ''));
+    $location = trim((string) ($creds['location_id'] ?? ''));
+    if ($token === '') {
+        $token = trim((string) (getenv('SQUARE2_ACCESS_TOKEN') ?: ''));
+    }
+    if ($location === '') {
+        $location = trim((string) (getenv('SQUARE2_LOCATION_ID') ?: ''));
+    }
+    return $token !== '' && $location !== '';
+}
+
 function isGatewayVisibleInCheckout(array $row): bool
 {
-    if (dp_gateway_normalize_code((string) ($row['code'] ?? '')) === 'square_online') {
-        return dp_gateway_is_live_for_fulfillment($row);
-    }
     return dp_gateway_is_live_for_charge($row);
 }
 
 function isGatewayVisibleInPos(array $row): bool
 {
-    if (dp_gateway_normalize_code((string) ($row['code'] ?? '')) === 'square_online') {
-        return false;
-    }
     return dp_gateway_is_live_for_charge($row);
 }
 
@@ -1883,9 +1899,7 @@ function dp_gateway_is_visible_on_channels(string $code): bool
     if (!$row) {
         return false;
     }
-    return $code === 'square_online'
-        ? dp_gateway_is_live_for_fulfillment($row)
-        : dp_gateway_is_live_for_charge($row);
+    return dp_gateway_is_live_for_charge($row);
 }
 
 function getConfiguredGateways() {

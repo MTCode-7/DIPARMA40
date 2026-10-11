@@ -329,7 +329,11 @@ $reference = $data['reference'] ?? 'POS-' . strtoupper(substr($txnType, 0, 4)) .
 $errors = [];
 
 // بدون حدود مبلغ عامة — فقط أكبر من صفر (ما عدا avoid بدون مبلغ)
-if ($amount <= 0 && $txnType !== 'avoid') {
+if ($txnType === 'purchase_advice') {
+    if (abs($amount) < 0.01) {
+        $errors[] = 'Invalid amount. Purchase advice accepts a positive or negative amount.';
+    }
+} elseif ($amount <= 0 && $txnType !== 'avoid') {
     $errors[] = 'Invalid amount. Must be greater than 0.';
 }
 if ($txnType === 'offline_sale_moto' && function_exists('gateway_offline_daily_limit_usd')) {
@@ -355,7 +359,7 @@ if ($txnType === 'offline_sale_moto' && function_exists('gateway_offline_daily_l
 // Bank account ceiling: Direct Advice / Purchase Advice capped at 5,000,000
 if ($txnType === 'purchase_advice') {
     $bankCap = function_exists('pos_direct_advice_max_amount') ? pos_direct_advice_max_amount() : 5000000.00;
-    if ($amount > $bankCap) {
+    if (abs($amount) > $bankCap) {
         $errors[] = 'Bank account limit: amount cannot exceed ' . number_format($bankCap, 2, '.', ',') . '.';
     }
 }
@@ -481,14 +485,6 @@ if (!$cardRail && in_array($txnType, ['refund', 'avoid'], true) && pos_normalize
     $fieldErrors[] = 'Original reference is required for refund/avoid.';
 }
 
-if ($cardRail && $txnType === 'purchase_advice') {
-    if (!pos_is_valid_approval($bankApprovalCode, 6)) {
-        $fieldErrors[] = 'Approval Code must be 4 or 6 digits (bank/other-terminal hold).';
-        $fieldErrors = array_values(array_filter($fieldErrors, static function ($e) {
-            return stripos($e, 'Approval Code is required') === false;
-        }));
-    }
-}
 $errors = array_merge($errors, $fieldErrors);
 
 // CVV فقط عندما تطلبه العملية على سكة البطاقة (وليس CLOUD)
@@ -515,6 +511,8 @@ if (!empty($errors)) {
 // ============================================================
 
 $db = db();
+require_once POS_APP_ROOT . '/lib/HoldStoreSync.php';
+HoldStoreSync::repairOnce(false);
 
 $captureAmount = floatval($data['capture_amount'] ?? $extra['capture_amount'] ?? 0);
 $refundAmount = floatval($data['refund_amount'] ?? $extra['refund_amount'] ?? 0);
@@ -531,25 +529,49 @@ if ($txnType === 'capture') {
     $amount = $captureAmount;
 }
 
-// Capture / advice linked to AUTH — amount may be equal, less, or more; hold stays reusable
+// Capture looks up the AUTH hold in dp_transactions or dp_holds.
+// purchase_advice is an independent charge and does not require a prior hold.
 $authorizedAmount = null;
 $priorCapturedTotal = 0.0;
 $priorCaptureCount = 0;
-if (in_array($txnType, ['capture', 'purchase_advice'], true) && ($origRef !== '' || $paymentId !== '')) {
-    $originalRows = $db->query(
-        "SELECT amount, transaction_type, status, rrn, reference, gateway FROM " . DB_PREFIX . "transactions
-         WHERE transaction_type = 'auth'
-           AND (reference = ? OR rrn = ? OR gateway_response LIKE ?)
-         ORDER BY id DESC LIMIT 1",
-        [
-            $origRef !== '' ? $origRef : $paymentId,
-            pos_normalize_rrn($origRef),
-            '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $paymentId !== '' ? $paymentId : $origRef) . '%',
-        ]
-    );
-    if (!empty($originalRows[0]['amount'])) {
-        $authorizedAmount = (float) $originalRows[0]['amount'];
-        $authGateway = strtolower(trim((string) ($originalRows[0]['gateway'] ?? '')));
+$approvalLookup = trim($bankApprovalCode !== '' ? $bankApprovalCode : $gatewayApprovalCode);
+if ($txnType === 'capture' && ($origRef !== '' || $paymentId !== '' || $approvalLookup !== '')) {
+    $foundHold = HoldStoreSync::find($db, [
+        'payment_id' => $paymentId,
+        'transaction_id' => $paymentId,
+        'orig_ref' => $origRef,
+        'reference' => $origRef,
+        'rrn' => pos_normalize_rrn($origRef),
+        'approval' => $approvalLookup,
+    ]);
+    $original = $foundHold['txn'];
+    $holdRow = $foundHold['hold'];
+    if ($original === null && is_array($holdRow)) {
+        $original = [
+            'amount' => $holdRow['amount'] ?? 0,
+            'gateway' => $holdRow['gateway'] ?? '',
+            'rrn' => $holdRow['rrn'] ?? $origRef,
+            'status' => $holdRow['status'] ?? '',
+            'approval_code' => $holdRow['approval_code'] ?? '',
+            'auth_code' => $holdRow['auth_code'] ?? '',
+        ];
+    }
+    if (HoldStoreSync::isClosed(is_array($foundHold['txn']) ? $foundHold['txn'] : null, is_array($holdRow) ? $holdRow : null)) {
+        $closedStatus = strtolower((string) (($holdRow['status'] ?? '') ?: ($foundHold['txn']['status'] ?? '')));
+        http_response_code(409);
+        echo json_encode([
+            'success' => false,
+            'error_code' => $closedStatus === 'cancelled' ? 'HOLD_CANCELLED' : 'ALREADY_CAPTURED',
+            'message' => $closedStatus === 'cancelled'
+                ? 'This authorization has been cancelled and cannot be captured.'
+                : 'This authorization has already been fully captured.',
+            'hold_status' => $closedStatus,
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    if (!empty($original['amount'])) {
+        $authorizedAmount = (float) $original['amount'];
+        $authGateway = strtolower(trim((string) ($original['gateway'] ?? '')));
         if ($authGateway !== '' && $authGateway !== strtolower(trim($posGateway))) {
             http_response_code(422);
             echo json_encode([
@@ -558,26 +580,33 @@ if (in_array($txnType, ['capture', 'purchase_advice'], true) && ($origRef !== ''
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
-        if (
-            $txnType === 'capture'
-            && $amount > $authorizedAmount
-            && !pos_gateway_allows_overcapture($posGateway)
-        ) {
+        if ($amount > $authorizedAmount && !pos_gateway_allows_overcapture($posGateway)) {
             http_response_code(422);
             echo json_encode([
                 'success' => false,
-                'message' => 'Over-capture is enabled only for Square, PayPal, Stripe, and Nuvei.',
+                'message' => 'Over-capture is enabled only for PayPal, Stripe, Square 1, Square 2, and Nuvei.',
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
         $authPid = $paymentId;
-        $authRrn = (string) ($originalRows[0]['rrn'] ?? $origRef);
+        $authRrn = (string) ($original['rrn'] ?? $origRef);
         $follow = function_exists('pos_auth_followup_totals')
             ? pos_auth_followup_totals($db, $authPid, $authRrn)
             : ['captured_total' => 0.0, 'capture_count' => 0];
         $priorCapturedTotal = (float) $follow['captured_total'];
         $priorCaptureCount = (int) $follow['capture_count'];
     }
+    if (is_array($holdRow)) {
+        $GLOBALS['_dp_hold_row'] = $holdRow;
+    }
+    $GLOBALS['_dp_capture_keys'] = [
+        'payment_id' => $paymentId,
+        'transaction_id' => $paymentId,
+        'orig_ref' => $origRef,
+        'reference' => $origRef,
+        'rrn' => pos_normalize_rrn($origRef),
+        'approval' => $approvalLookup,
+    ];
 }
 
 // ============================================================
@@ -792,8 +821,25 @@ if ($useCardGateway) {
         $approvalCode = $receiptIds['approval_code'];
         $providerPaymentId = $receiptIds['payment_id'];
         $rrn = $receiptIds['rrn'];
-        if ($txnType !== 'auth' && $rrn === '') {
+        if ($approvalCode === '') {
+            $approvalCode = trim((string) (
+                $result['authCode']
+                ?? $result['authorization_code']
+                ?? $result['auth_result_code']
+                ?? ''
+            ));
+        }
+        if ($rrn === '' && in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold'], true)) {
             $rrn = trim((string) ($result['transaction_id'] ?? $result['payment_id'] ?? ''));
+        } elseif ($txnType !== 'auth' && $rrn === '') {
+            $rrn = trim((string) ($result['transaction_id'] ?? $result['payment_id'] ?? ''));
+        }
+        if ($rrn !== '') {
+            $result['rrn'] = $rrn;
+        }
+        if ($approvalCode !== '') {
+            $result['approval_code'] = $approvalCode;
+            $result['auth_code'] = $result['auth_code'] ?? $approvalCode;
         }
         $cardLast4 = preg_replace('/\D+/', '', (string) ($result['card_last4'] ?? '')) ?? '';
         if ($cardLast4 === '' && $cardNumber !== '') {
@@ -1005,7 +1051,7 @@ try {
             'charge_mode' => $chargeMode ?: null,
             'capture_amount' => $txnType === 'capture' ? $captureAmount : null,
             'refund_amount' => $txnType === 'capture' ? $refundAmount : null,
-            'linked_to_auth' => ($txnType === 'capture' || ($txnType === 'purchase_advice' && ($paymentId !== '' || $origRef !== ''))),
+            'linked_to_auth' => $txnType === 'capture',
             'advice_independent' => ($txnType === 'purchase_advice' && $paymentId === '' && $origRef === ''),
             'capture_sequence' => in_array($txnType, ['capture', 'purchase_advice'], true) ? ($priorCaptureCount + 1) : null,
             'prior_captured_total' => in_array($txnType, ['capture', 'purchase_advice'], true) ? $priorCapturedTotal : null,
@@ -1022,6 +1068,7 @@ try {
         ])),
         'ledger_address' => $ledgerAddr,
         'auth_code' => $approvalCode,
+        'approval_code' => $approvalCode,
         'rrn' => $rrn,
         'stan' => $stan,
         'bank_approval_code' => $bankApprovalCode,
@@ -1041,6 +1088,52 @@ try {
         $txnPayload['created_at'] = date('Y-m-d H:i:s');
         $transactionId = $db->insertAvailable('transactions', $txnPayload);
         $saved = !empty($transactionId);
+    }
+
+    if ($success && $txnType === 'auth') {
+        try {
+            HoldStoreSync::syncAuthorized($db, [
+                'reference' => $reference,
+                'user_id' => $userId,
+                'payment_intent_id' => $providerPaymentId !== '' ? $providerPaymentId : $reference,
+                'amount' => $amount,
+                'currency' => $currency,
+                'gateway' => $posGateway,
+                'status' => 'authorized',
+                'rrn' => $rrn,
+                'approval_code' => $approvalCode,
+                'gateway_response' => $txnPayload['gateway_response'] ?? '',
+                'mode' => $secMode ?? '2D',
+            ]);
+        } catch (Throwable $syncEx) {
+            error_log('[POS][HoldSync] auth sync failed: ' . $syncEx->getMessage());
+        }
+    }
+    if ($success && $txnType === 'capture') {
+        try {
+            $captureKeys = $GLOBALS['_dp_capture_keys'] ?? [
+                'payment_id' => $paymentId,
+                'orig_ref' => $origRef,
+                'rrn' => $origRef,
+                'approval' => $approvalCode,
+            ];
+            HoldStoreSync::markCaptured($db, $captureKeys, (float) ($captureAmount > 0 ? $captureAmount : $amount));
+        } catch (Throwable $syncEx) {
+            error_log('[POS][HoldSync] capture sync failed: ' . $syncEx->getMessage());
+        }
+    }
+    if ($success && in_array($txnType, ['avoid', 'void', 'cancel'], true)) {
+        try {
+            HoldStoreSync::markCancelled($db, [
+                'payment_id' => $paymentId,
+                'transaction_id' => $paymentId,
+                'orig_ref' => $origRef,
+                'rrn' => $origRef,
+                'approval' => $bankApprovalCode,
+            ]);
+        } catch (Throwable $syncEx) {
+            error_log('[POS][HoldSync] void sync failed: ' . $syncEx->getMessage());
+        }
     }
     }
     if ($saved && empty($data['_peer_mirror']) && function_exists('diparma_peer_push_txn')) {

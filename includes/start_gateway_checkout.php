@@ -233,9 +233,9 @@ $squareSdk = [
     'script_url' => '',
     'ready' => false,
 ];
-if ($gwCode === 'square') {
+if (in_array($gwCode, ['square', 'square_online'], true)) {
     require_once __DIR__ . '/square_sdk.php';
-    $squareSdk = square_sdk_config();
+    $squareSdk = square_sdk_config($gwCode);
 }
 
 require __DIR__ . '/../checkout_template.php';

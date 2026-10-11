@@ -110,7 +110,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
     private function saleOrAuth(array $params): string
     {
         $type = (string) ($params['transactionType'] ?? 'Sale');
-        return in_array($type, ['Sale', 'Auth', 'PreAuth'], true) ? $type : 'Sale';
+        return in_array($type, ['Sale', 'Auth', 'PreAuth', 'Credit'], true) ? $type : 'Sale';
     }
 
     public function supports(string $mode): bool {
@@ -137,6 +137,9 @@ class NuveiAdapter implements GatewayAdapterInterface {
     }
 
     public function charge(array $payload): array {
+        if (strtolower(trim((string) ($payload['txn_type'] ?? ''))) === 'purchase_advice') {
+            return $this->purchaseAdvice($payload);
+        }
         $reference = $payload['reference'] ?? 'N'.time();
         $amount    = floatval($payload['amount'] ?? 0);
         $currency  = strtoupper($payload['currency'] ?? 'USD');
@@ -167,8 +170,19 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     public function hold(array $payload): array {
         $payload['transactionType'] = 'Auth';
-        $payload['is_moto'] = true;
-        $payload['processing_mode'] = '2D';
+        $mode = strtoupper(trim((string) ($payload['processing_mode'] ?? $payload['mode'] ?? '')));
+        $channel = strtolower(trim((string) ($payload['auth_channel'] ?? $payload['moto_channel'] ?? '')));
+        if ($channel === 'offline' || !empty($payload['is_offline']) || $mode === 'OFFLINE') {
+            $payload['processing_mode'] = 'OFFLINE';
+            $payload['is_offline'] = true;
+            $payload['is_moto'] = true;
+        } elseif ($channel === 'ecom' || $mode === '3D') {
+            $payload['processing_mode'] = '3D';
+            $payload['is_moto'] = false;
+        } else {
+            $payload['processing_mode'] = 'MOTO';
+            $payload['is_moto'] = true;
+        }
         $payload['card_number'] = $payload['card_number'] ?? $payload['cc_number'] ?? '';
         $payload['card_expiry'] = $payload['card_expiry'] ?? $payload['cc_expiry'] ?? '';
         $payload['card_cvv'] = $payload['cvv2'] ?? $payload['card_cvv'] ?? $payload['cc_cvv'] ?? '';
@@ -700,7 +714,9 @@ class NuveiAdapter implements GatewayAdapterInterface {
             return ['success' => false, 'message' => 'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')];
         }
         $sessionToken = $sessionRes['sessionToken'];
-        $isMoto = !empty($params['is_moto']) || !empty($params['direct_advice']);
+        $mode = strtoupper(trim((string) ($params['processing_mode'] ?? '')));
+        $offline = $mode === 'OFFLINE' || !empty($params['is_offline']);
+        $isMoto = $offline || $mode === 'MOTO' || !empty($params['is_moto']) || !empty($params['direct_advice']);
 
         $ts        = date('YmdHis');
         $clientReqId = 'POS-PUR-' . strtoupper(substr(uniqid(), 0, 8));
@@ -764,12 +780,12 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'checksum'         => $checksum,
             'deviceDetails'    => $this->buildDeviceDetails($params),
             'urlDetails'       => $this->restUrlDetails($reference),
-            'isMoto'           => !empty($params['is_moto']) ? '1' : '0',
+            'isMoto'           => $isMoto ? '1' : '0',
             'merchantDetails'  => [
                 'customField1' => 'TRANSCENDIO_FZ_LLC',
                 'customField2' => $params['ledger_addr'] ?? $params['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
                 'customField3' => $params['pos_device'] ?? 'BITEL_IC3600',
-                'customField4' => !empty($params['is_moto']) ? 'MOTO' : 'ECOM',
+                'customField4' => $offline ? 'OFFLINE' : ($isMoto ? 'MOTO' : 'ECOM'),
             ],
         ];
         $authCode = trim((string)($params['auth_code'] ?? $params['approval_code'] ?? ''));
@@ -803,8 +819,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
     }
 
     /**
-     * Purchase Advice / Direct Advice (bank MTI 0220, DIRECT_ADVICE_NO_PRE_AUTH).
-     * Live Nuvei only — settle when relatedTransactionId exists, else Sale + bank authCode.
+     * Purchase Advice — immediate Sale/Credit. No prior auth, RRN, or approval is required.
+     * A negative amount uses Nuvei's Credit transaction with the documented positive decimal.
      */
     public function purchaseAdvice(array $params): array
     {
@@ -812,110 +828,25 @@ class NuveiAdapter implements GatewayAdapterInterface {
             return ['success' => false, 'message' => 'NUVEI credentials missing for Direct Advice'];
         }
 
+        $amountRaw = (float) ($params['amount'] ?? 0);
+        if (abs($amountRaw) < 0.00001) {
+            return ['success' => false, 'message' => 'Purchase advice amount is required'];
+        }
+
         $params['card_cvv'] = '';
-        $params['is_moto'] = false;
-        $params['transactionType'] = 'Sale';
         $params['direct_advice'] = true;
-
-        $relatedId = trim((string) ($params['related_transaction_id'] ?? $params['payment_id'] ?? $params['nuvei_txn_id'] ?? ''));
-        $authCode = trim((string) ($params['auth_code'] ?? $params['approval_code'] ?? ''));
-        $rrn = trim((string) ($params['rrn'] ?? $params['orig_ref'] ?? $params['reference'] ?? $params['client_unique_id'] ?? ''));
-
-        // Prior host txn → real settleTransaction
-        if ($relatedId !== '' && $authCode !== '') {
-            $settled = $this->captureFromParams(array_merge($params, [
-                'related_transaction_id' => $relatedId,
-                'auth_code' => $authCode,
-                'client_unique_id' => $rrn !== '' ? $rrn : ($params['client_unique_id'] ?? ''),
-            ]));
-            if (!empty($settled['success'])) {
-                $settled['auth_type'] = 'DIRECT_ADVICE_NO_PRE_AUTH';
-                $settled['mti'] = '0220';
-                $settled['response_code'] = '00';
-            }
-            return $settled;
+        $params['is_moto'] = true;
+        $params['txn_type'] = 'purchase_advice';
+        if ($amountRaw < 0) {
+            $params['amount'] = abs($amountRaw);
+            $params['transactionType'] = 'Credit';
+            $params['advice_sign'] = 'minus';
+        } else {
+            $params['amount'] = $amountRaw;
+            $params['transactionType'] = 'Sale';
         }
 
-        if ($authCode === '') {
-            return ['success' => false, 'message' => 'Bank Approval Code is required for Direct Advice (MTI 0220)'];
-        }
-        if ($rrn === '') {
-            return ['success' => false, 'message' => 'Bank reference (RRN) is required for Direct Advice (MTI 0220)'];
-        }
-
-        $params['reference'] = $rrn;
-        $params['client_unique_id'] = $rrn;
-        $params['auth_code'] = $authCode;
-
-        $sessionRes = $this->getSessionToken();
-        if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
-            return ['success' => false, 'message' => 'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')];
-        }
-        $sessionToken = $sessionRes['sessionToken'];
-
-        $ts = date('YmdHis');
-        $clientReqId = 'POS-ADV-' . strtoupper(substr(uniqid(), 0, 8));
-        $amount = number_format((float) ($params['amount'] ?? 0), 2, '.', '');
-        $currency = $params['currency'] ?? 'USD';
-        $ident = $this->missingPayerIdentity($params);
-        if ($ident !== null) {
-            return $ident;
-        }
-        $userToken = $this->identifiedEmail($params) ?: (string) ($params['user_token_id'] ?? '');
-
-        $checksum = $this->buildChecksum([
-            $this->merchantId,
-            $this->siteId,
-            $clientReqId,
-            $amount,
-            $currency,
-            $ts,
-            $this->secretKey,
-        ]);
-
-        $body = [
-            'sessionToken' => $sessionToken,
-            'merchantId' => $this->merchantId,
-            'merchantSiteId' => $this->siteId,
-            'clientRequestId' => $clientReqId,
-            'clientUniqueId' => $rrn,
-            'amount' => $amount,
-            'currency' => $currency,
-            'userTokenId' => $userToken,
-            'transactionType' => 'Sale',
-            'paymentOption' => $this->buildCardPaymentOption($params),
-            'billingAddress' => $this->buildBillingAddress($params),
-            'timeStamp' => $ts,
-            'checksum' => $checksum,
-            'deviceDetails' => $this->buildDeviceDetails($params),
-            'urlDetails' => $this->restUrlDetails($rrn),
-            'isMoto' => '0',
-            'authCode' => $authCode,
-            'merchantDetails' => [
-                'customField1' => 'TRANSCENDIO_FZ_LLC',
-                'customField2' => $params['ledger_addr'] ?? $params['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
-                'customField3' => $params['terminal_id'] ?? $params['pos_device'] ?? 'POS',
-                'customField4' => 'DIRECT_ADVICE_NO_PRE_AUTH',
-                'customField5' => 'MTI0220',
-                'customField6' => (string) ($params['processing_code'] ?? '000000'),
-                'customField7' => (string) ($params['mid'] ?? $params['merchant_id'] ?? $this->merchantId),
-                'customField8' => (string) ($params['tid'] ?? $params['terminal_id'] ?? ''),
-            ],
-        ];
-
-        $result = $this->request('payment', $body);
-        $this->log('purchaseAdvice ' . $clientReqId . ' ' . json_encode([
-            'status' => $result['status'] ?? null,
-            'transactionStatus' => $result['transactionStatus'] ?? null,
-            'errCode' => $result['errCode'] ?? null,
-            'reason' => $result['reason'] ?? null,
-            'gwErrorReason' => $result['gwErrorReason'] ?? null,
-            'transactionId' => $result['transactionId'] ?? null,
-            'mti' => '0220',
-            'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
-        ]));
-
-        $normalized = $this->normalizeResponse('purchase_advice', $result, $clientReqId);
+        $normalized = $this->purchase($params);
         $normalized['mti'] = '0220';
         $normalized['auth_type'] = 'DIRECT_ADVICE_NO_PRE_AUTH';
         if (!empty($normalized['success'])) {

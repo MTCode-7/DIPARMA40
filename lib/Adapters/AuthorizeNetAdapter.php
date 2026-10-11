@@ -307,6 +307,17 @@ final class AuthorizeNetAdapter implements GatewayAdapterInterface
             $txRes['errors'][0]['errorText'] ?? 'فشل الإلغاء');
     }
 
+    public function refund(string $transactionId, ?float $amount = null, string $currency = 'USD'): array
+    {
+        return GatewayErrorMapper::buildErrorResponse(
+            'GATEWAY_ERROR',
+            $transactionId,
+            (float) ($amount ?? 0),
+            $currency,
+            'Refund is not supported on Authorize.Net in this adapter. The client has voidTransaction only.'
+        );
+    }
+
     // ══════════════════════════════════════════════════════════
     // مساعد تحليل Response
     // ══════════════════════════════════════════════════════════

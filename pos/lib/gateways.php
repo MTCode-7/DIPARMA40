@@ -57,11 +57,10 @@ function pos_terminal_gateways(): array
             'icon' => 'fas fa-store',
             'color' => '#006AFF',
             'adapter' => 'square',
-            'rail' => 'fulfillment',
-            'chargeable' => false,
+            'rail' => 'card',
             'company_no' => 10,
-            'desc_ar' => 'شركة مستقلة عن Square 1 — DI PARMA BUSINESSMAN SERVICES. النشاط: سياحة، حجوزات، إيجارات، عقارات، فنادق. تستخدم مفاتيح Square 2 فقط ولا ترتبط بحساب Square 1.',
-            'desc_en' => 'Independent company from Square 1 — DI PARMA BUSINESSMAN SERVICES. Tourism, bookings, rentals, real estate, and hotels. Uses Square 2 credentials only and never links to Square 1.',
+            'desc_ar' => 'Square 2 — شركة مستقلة عن Square 1. نفس عمليات البطاقة (MOTO وOffline وHold وCapture وPurchase Advice) بمفاتيح SQUARE2 فقط.',
+            'desc_en' => 'Square 2 — independent from Square 1. Same card operations (MOTO, offline, hold, capture, purchase advice) using SQUARE2 credentials only.',
         ],
         'payram' => [
             'name' => 'PayRam',
@@ -526,6 +525,27 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
         $params['direct_advice'] = true;
         $params['card_cvv'] = '';
     }
+    $gw = strtolower(trim((string) ($params['gateway'] ?? $params['provider'] ?? '')));
+    if (in_array($gw, ['paypal', 'stripe', 'square', 'square_online', 'nuvei'], true)) {
+        $channel = strtolower(trim((string) ($params['auth_channel'] ?? $params['moto_channel'] ?? '')));
+        $offline = $txnType === 'offline_sale_moto'
+            || $channel === 'offline'
+            || !empty($params['is_offline']);
+        if ($offline && in_array($txnType, ['offline_sale_moto', 'auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice'], true)) {
+            $params['processing_mode'] = 'OFFLINE';
+            $params['is_offline'] = true;
+            $params['is_moto'] = true;
+            $params['moto_channel'] = 'offline';
+        } elseif (
+            $txnType === 'online_sale_moto'
+            || $txnType === 'purchase_advice'
+            || ($channel === 'online')
+            || (in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold'], true) && $channel !== 'ecom')
+        ) {
+            $params['processing_mode'] = 'MOTO';
+            $params['is_moto'] = true;
+        }
+    }
     if (in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold', 'capture'], true)) {
         $params['card_cvv'] = $params['card_cvv'] ?? '';
     }
@@ -560,15 +580,16 @@ function pos_run_isolated_card_gateway(string $gateway, string $adapter, string 
     $gateway = pos_normalize_gateway($gateway);
     $adapter = strtolower(trim($adapter));
     $isolated = pos_isolated_card_adapters();
-    if (in_array($gateway, $isolated, true) && $adapter !== $gateway) {
+    $square2 = ($gateway === 'square_online' && $adapter === 'square');
+    if (in_array($gateway, $isolated, true) && $adapter !== $gateway && !$square2) {
         return ['success' => false, 'message' => $gateway . ' runs only on the ' . $gateway . ' adapter', 'gateway' => $gateway];
     }
-    if (in_array($adapter, $isolated, true) && $gateway !== $adapter) {
+    if (in_array($adapter, $isolated, true) && $gateway !== $adapter && !$square2) {
         return ['success' => false, 'message' => $adapter . ' adapter cannot charge for ' . $gateway, 'gateway' => $gateway];
     }
-    $params = pos_prepare_operation_payload($txnType, $params);
     $params['gateway'] = $gateway;
     $params['provider'] = $gateway;
+    $params = pos_prepare_operation_payload($txnType, $params);
     $effective = strtolower((string) ($params['txn_type'] ?? $txnType));
     [$file, $class] = pos_adapter_class_file($adapter);
     if ($file === '' || $class === '') {
@@ -580,6 +601,9 @@ function pos_run_isolated_card_gateway(string $gateway, string $adapter, string 
     require_once POS_APP_ROOT . '/lib/Adapters/' . $file;
     if (!class_exists($class, false)) {
         return ['success' => false, 'message' => 'Adapter class not found: ' . $class, 'gateway' => $gateway];
+    }
+    if ($square2 && $class === 'SquareAdapter') {
+        SquareAdapter::forProfile('square_online');
     }
     $obj = new $class();
     $amount = (float) ($params['amount'] ?? 0);
@@ -629,10 +653,10 @@ function pos_run_isolated_card_gateway(string $gateway, string $adapter, string 
     if ($effective === 'purchase_3d' && method_exists($obj, 'purchase3D')) {
         return pos_format_gateway_result($obj->purchase3D($params), 'DECLINED', $gateway);
     }
-    if ($adapter === 'nuvei' && $effective === 'offline_sale_moto' && method_exists($obj, 'purchaseAdvice')) {
+    if ($effective === 'purchase_advice' && method_exists($obj, 'purchaseAdvice')) {
         return pos_format_gateway_result($obj->purchaseAdvice($params), 'DECLINED', $gateway);
     }
-    if (in_array($effective, ['purchase_2d', 'online_sale_moto', 'offline_sale_moto', 'purchase_advice'], true)
+    if (in_array($effective, ['purchase_2d', 'online_sale_moto', 'offline_sale_moto'], true)
         && method_exists($obj, 'purchase2D')) {
         return pos_format_gateway_result($obj->purchase2D($params), 'DECLINED', $gateway);
     }

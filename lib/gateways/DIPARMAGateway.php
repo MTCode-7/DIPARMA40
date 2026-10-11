@@ -66,6 +66,17 @@ class DIPARMAGateway implements GatewayAdapterInterface
         ]);
     }
 
+    public function refund(string $transactionId, ?float $amount = null, string $currency = 'USD'): array
+    {
+        return GatewayErrorMapper::buildErrorResponse(
+            'GATEWAY_ERROR',
+            $transactionId,
+            (float) ($amount ?? 0),
+            $currency,
+            'Refund is not supported on DI PARMA in this adapter. The client has charge, auth, capture, and void only.'
+        );
+    }
+
     public function normalizeError(array $rawResponse): string
     {
         if (!empty($rawResponse['error_code'])) {

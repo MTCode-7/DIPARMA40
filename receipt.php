@@ -210,26 +210,178 @@ $customerEmail = $txn['customer_email'] ?? ($gwResp['email'] ?? '—');
 $customerPhone = $txn['customer_phone'] ?? ($gwResp['phone'] ?? '—');
 
 // 6.4 رموز الموافقة والتحقق
-$receiptIds = pos_gateway_receipt_identifiers($gwResp);
+// ── استخراج موحّد من pos_gateway_receipt_identifiers ────────
+$receiptIds       = pos_gateway_receipt_identifiers($gwResp);
 $nestedReceiptIds = pos_gateway_receipt_identifiers($gatewayResult);
-$authCode = $receiptIds['approval_code'] !== '' ? $receiptIds['approval_code']
-    : ($nestedReceiptIds['approval_code'] !== '' ? $nestedReceiptIds['approval_code'] : ($gwResp['stage_1_card']['auth_code'] ?? '—'));
-$bankApprovalCode = $gwResp['bank_approval_code'] ?? $gwResp['original_approval_code']
-    ?? $gatewayResult['bank_approval_code'] ?? $gatewayResult['original_approval_code'] ?? '—';
-$rrn = $receiptIds['rrn'] !== '' ? $receiptIds['rrn']
-    : ($nestedReceiptIds['rrn'] !== '' ? $nestedReceiptIds['rrn'] : ($gwResp['stage_1_card']['rrn'] ?? '—'));
-$stan = $gwResp['stan'] ?? $gwResp['system_trace_audit_number'] ?? $gwResp['stage_1_card']['stan'] ?? '—';
-$transactionId = $gwResp['transaction_id'] ?? $gwResp['authorization_id'] ?? $gwResp['nuvei_txn_id']
-    ?? $gatewayResult['transaction_id'] ?? $gatewayResult['authorization_id'] ?? $gatewayResult['id']
-    ?? $gwResp['stage_1_card']['nuvei_txn'] ?? $gwResp['id'] ?? '—';
-$paymentId = $receiptIds['payment_id'] !== '' ? $receiptIds['payment_id']
-    : ($nestedReceiptIds['payment_id'] !== '' ? $nestedReceiptIds['payment_id'] : $transactionId);
-$internalApprovalCode = $receiptIds['internal_approval_code'] !== '' ? $receiptIds['internal_approval_code']
-    : ($nestedReceiptIds['internal_approval_code'] !== '' ? $nestedReceiptIds['internal_approval_code'] : '—');
+$txnGateway       = strtolower(trim((string) ($txn['gateway'] ?? '')));
+
+// ── helper: أول قيمة غير فارغة من قائمة مصادر ──────────────
+$firstNonEmpty = static function (array $sources): string {
+    foreach ($sources as $v) {
+        $s = trim((string) $v);
+        if ($s !== '' && $s !== '—') {
+            return $s;
+        }
+    }
+    return '—';
+};
+
+// ── Auth Code — مصادر لكل بوابة ─────────────────────────────
+$gatewayAuthCodeSources = [
+    $txn['approval_code'] ?? '',
+    $txn['auth_code'] ?? '',
+    // مصادر مشتركة (موحّدة عبر pos_gateway_receipt_identifiers)
+    $receiptIds['approval_code'],
+    $nestedReceiptIds['approval_code'],
+    $gwResp['authCode'] ?? '',
+    $gwResp['approvalCode'] ?? '',
+    $gwResp['auth_result_code'] ?? '',
+    $gatewayResult['authCode'] ?? '',
+    $gatewayResult['authorization_code'] ?? '',
+    // Nuvei
+    $gwResp['stage_1_card']['auth_code'] ?? '',
+    $gwResp['auth_code'] ?? '',
+    $gwResp['authCode'] ?? '',
+    // Stripe
+    $gatewayResult['payment_method_details']['card']['network_transaction_id'] ?? '',
+    $gwResp['charges']['data'][0]['payment_method_details']['card']['checks']['cvc_check'] ?? '',
+    $gwResp['latest_charge']['payment_method_details']['card']['network_transaction_id'] ?? '',
+    // PayPal
+    $gwResp['processor_response']['authorization_id'] ?? '',
+    $gwResp['purchase_units'][0]['payments']['authorizations'][0]['id'] ?? '',
+    $gwResp['purchase_units'][0]['payments']['captures'][0]['id'] ?? '',
+    // Square
+    $gwResp['payment']['card_details']['auth_result_code'] ?? '',
+    $gatewayResult['card_details']['auth_result_code'] ?? '',
+    // MyFatoorah
+    $gwResp['Data']['PaymentId'] ?? '',
+    $gwResp['InvoiceId'] ?? '',
+    // Checkout.com
+    $gwResp['auth_code'] ?? '',
+    $gatewayResult['auth_code'] ?? '',
+    // Wise
+    $gwResp['transferId'] ?? '',
+    // Gate.io / Binance
+    $gwResp['order_id'] ?? '',
+    $gwResp['orderId'] ?? '',
+];
+$authCode = $firstNonEmpty($gatewayAuthCodeSources);
+
+// ── Bank Approval Code ───────────────────────────────────────
+$bankApprovalCode = $firstNonEmpty([
+    $gwResp['bank_approval_code'] ?? '',
+    $gwResp['original_approval_code'] ?? '',
+    $gatewayResult['bank_approval_code'] ?? '',
+    $gatewayResult['original_approval_code'] ?? '',
+    // Nuvei specific
+    $gwResp['stage_1_card']['bank_approval_code'] ?? '',
+]);
+
+// ── RRN ─────────────────────────────────────────────────────
+$squareFamily = in_array($txnGateway, ['square', 'square_online'], true);
+$gatewayRrnSources = [
+    $txn['rrn'] ?? '',
+    $receiptIds['rrn'],
+    $nestedReceiptIds['rrn'],
+    $gwResp['retrieval_reference_number'] ?? '',
+    $gwResp['retrievalReferenceNumber'] ?? '',
+    // Nuvei
+    $gwResp['stage_1_card']['rrn'] ?? '',
+    $gwResp['rrn'] ?? '',
+    // Stripe — payment intent id كـ RRN
+    ($txnGateway === 'stripe' ? ($gwResp['id'] ?? '') : ''),
+    ($txnGateway === 'stripe' ? ($gatewayResult['id'] ?? '') : ''),
+    // PayPal
+    ($txnGateway === 'paypal' ? ($gwResp['purchase_units'][0]['payments']['captures'][0]['id'] ?? '') : ''),
+    ($txnGateway === 'paypal' ? ($gwResp['purchase_units'][0]['payments']['authorizations'][0]['id'] ?? '') : ''),
+    // Square
+    ($squareFamily ? ($gwResp['payment']['id'] ?? '') : ''),
+    ($squareFamily ? ($gatewayResult['id'] ?? '') : ''),
+    // MyFatoorah
+    ($txnGateway === 'myfatoorah' ? ($gwResp['Data']['InvoiceId'] ?? '') : ''),
+    // Checkout.com
+    ($txnGateway === 'checkout' ? ($gwResp['id'] ?? '') : ''),
+    // Wise
+    ($txnGateway === 'wise' ? ((string) ($gwResp['id'] ?? '')) : ''),
+    // PayRam
+    ($txnGateway === 'payram' ? ($gwResp['reference_id'] ?? '') : ''),
+    // fallback عام
+    $gwResp['transaction_id'] ?? '',
+    $gatewayResult['transaction_id'] ?? '',
+];
+$rrn = $firstNonEmpty($gatewayRrnSources);
+
+// ── STAN ─────────────────────────────────────────────────────
+$stan = $firstNonEmpty([
+    $gwResp['stan'] ?? '',
+    $gwResp['system_trace_audit_number'] ?? '',
+    $gwResp['stage_1_card']['stan'] ?? '',
+    $gatewayResult['stan'] ?? '',
+]);
+
+// ── Transaction ID (gateway-side) ────────────────────────────
+$transactionId = $firstNonEmpty([
+    // مشترك
+    $gwResp['transaction_id'] ?? '',
+    $gwResp['authorization_id'] ?? '',
+    // Nuvei
+    $gwResp['nuvei_txn_id'] ?? '',
+    $gwResp['stage_1_card']['nuvei_txn'] ?? '',
+    // Stripe
+    ($txnGateway === 'stripe' ? ($gwResp['id'] ?? '') : ''),
+    ($txnGateway === 'stripe' ? ($gatewayResult['id'] ?? '') : ''),
+    // PayPal
+    ($txnGateway === 'paypal' ? ($gwResp['purchase_units'][0]['payments']['captures'][0]['id'] ?? '') : ''),
+    ($txnGateway === 'paypal' ? ($gwResp['purchase_units'][0]['payments']['authorizations'][0]['id'] ?? '') : ''),
+    // Square
+    ($txnGateway === 'square' ? ($gwResp['payment']['id'] ?? '') : ''),
+    // MyFatoorah
+    ($txnGateway === 'myfatoorah' ? ($gwResp['Data']['PaymentId'] ?? '') : ''),
+    // Checkout.com
+    ($txnGateway === 'checkout' ? ($gwResp['id'] ?? '') : ''),
+    // Gate.io
+    ($txnGateway === 'gate_io' ? ($gwResp['order_id'] ?? '') : ''),
+    // Binance
+    ($txnGateway === 'binance' ? ($gwResp['orderId'] ?? '') : ''),
+    // Wise
+    ($txnGateway === 'wise' ? ((string) ($gwResp['id'] ?? '')) : ''),
+    // PayRam
+    ($txnGateway === 'payram' ? ($gwResp['id'] ?? $gwResp['reference_id'] ?? '') : ''),
+    // Whop
+    ($txnGateway === 'whop' ? ($gwResp['payment_id'] ?? '') : ''),
+    // fallback
+    $gatewayResult['transaction_id'] ?? '',
+    $gatewayResult['authorization_id'] ?? '',
+    $gatewayResult['id'] ?? '',
+    $gwResp['id'] ?? '',
+]);
+
+// ── Payment ID ───────────────────────────────────────────────
+$paymentId = $firstNonEmpty([
+    $receiptIds['payment_id'],
+    $nestedReceiptIds['payment_id'],
+    $transactionId,
+]);
+
+// ── Internal Approval Code ───────────────────────────────────
+$internalApprovalCode = $firstNonEmpty([
+    $receiptIds['internal_approval_code'],
+    $nestedReceiptIds['internal_approval_code'],
+]);
 
 // 6.5 تفاصيل الأمان
-$secMode = $txn['security_mode'] ?? $gwResp['security_mode'] ?? $gwResp['stage_1_card']['sec_mode'] ?? '3D SECURE';
-$authType = $txn['authorization_type'] ?? $gwResp['authorization_type'] ?? $gwResp['stage_1_card']['auth_type'] ?? 'STANDARD';
+$secMode = $firstNonEmpty([
+    $txn['security_mode'] ?? '',
+    $gwResp['security_mode'] ?? '',
+    $gwResp['stage_1_card']['sec_mode'] ?? '',
+    '3D SECURE',
+]);
+$authType = $firstNonEmpty([
+    $txn['authorization_type'] ?? '',
+    $gwResp['authorization_type'] ?? '',
+    $gwResp['stage_1_card']['auth_type'] ?? '',
+    'STANDARD',
+]);
 
 // 6.6 تفاصيل البنك المستحوذ (Acquirer)
 $gatewayDisplayName = pos_gateway_display_name((string) ($txn['gateway'] ?? ''));
@@ -344,7 +496,7 @@ $maskedCardholderName = $seal($cardholderName);
 $maskedCardExpiry = $cardExpiry !== '—' ? $seal($cardExpiry) : '—';
 $maskedEmail = $customerEmail !== '—' ? $seal($customerEmail) : '—';
 $maskedPhone = $customerPhone !== '—' ? $seal($customerPhone) : '—';
-$clearAuthCode = $clearOrDash($authCode);
+$clearAuthCode = $clearOrDash(pos_approval_receipt_label($authCode === '—' ? '' : $authCode));
 $clearBankApprovalCode = $clearOrDash($bankApprovalCode);
 $clearRrn = $clearOrDash($rrn);
 $maskedStan = $seal($stan);

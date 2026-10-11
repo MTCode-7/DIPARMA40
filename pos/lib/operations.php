@@ -22,7 +22,7 @@ function pos_gateway_allows_overcapture(string $gateway): bool
 {
     return class_exists('HoldCaptureService', false)
         ? HoldCaptureService::allowsOvercapture($gateway)
-        : in_array(strtolower(trim($gateway)), ['square', 'paypal', 'stripe', 'nuvei'], true);
+        : in_array(strtolower(trim($gateway)), ['square', 'square_online', 'paypal', 'stripe', 'nuvei'], true);
 }
 
 /** Sum approved capture/advice rows that follow one AUTH hold. Hold stays reusable. */
@@ -133,8 +133,8 @@ function pos_operation_catalog(): array
             'amount_flexible' => false,
             'method' => 'authorize',
             'is_moto' => true,
-            'desc_ar' => 'حجز MOTO بدون OTP على البوابة المختارة فقط. يمكن التحصيل بمبلغ مساوٍ أو أقل؛ الزيادة متاحة فقط عبر Square وPayPal وStripe وNuvei وبحسب موافقة الجهة المصدرة.',
-            'desc_en' => 'MOTO hold on the selected gateway only. Equal or lower capture is available; higher capture is enabled only for Square, PayPal, Stripe, and Nuvei, subject to issuer approval.',
+            'desc_ar' => 'حجز MOTO أو Offline بدون OTP على البوابة المختارة. لا يُطلب RRN أو Approval عند إدخال الحجز. بعد الموافقة يظهران في الإيصال. التحصيل يقبل مبلغاً أقل أو مساوياً أو أكبر عبر PayPal وStripe وSquare 1 وSquare 2 وNuvei.',
+            'desc_en' => 'MOTO or offline hold with no OTP on the selected gateway. RRN and approval are not entered on the hold. After approval they print on the receipt. Capture may be lower, equal, or higher on PayPal, Stripe, Square 1, Square 2, and Nuvei.',
         ],
         'capture' => [
             'ar' => 'AUTH Capture',
@@ -155,8 +155,8 @@ function pos_operation_catalog(): array
             'max_amount' => function_exists('pos_capture_max_amount') ? pos_capture_max_amount() : 5000000.00,
             'max_currency' => 'USD',
             'method' => 'capture',
-            'desc_ar' => 'MOTO. أكمل حجز AUTH على نفس البوابة. يمكن التحصيل بمبلغ مساوٍ أو أقل؛ الزيادة متاحة فقط عبر Square وPayPal وStripe وNuvei وبحسب موافقة الجهة المصدرة. حد البنك 5,000,000 دولار. CVV اختياري. المبلغ يبقى على نفس البوابة.',
-            'desc_en' => 'MOTO. Complete an AUTH hold on the same gateway. Equal or lower capture is available; higher capture is enabled only for Square, PayPal, Stripe, and Nuvei, subject to issuer approval. Bank cap 5,000,000 USD. CVV is optional. Funds stay on that gateway.',
+            'desc_ar' => 'أكمل حجز AUTH على نفس البوابة. المبلغ يمكن أن يكون أقل أو مساوياً أو أكبر من الحجز عبر PayPal وStripe وSquare 1 وSquare 2 وNuvei. حد البنك 5,000,000 دولار. RRN وApproval من إيصال الحجز. CVV اختياري.',
+            'desc_en' => 'Complete an AUTH hold on the same gateway. The amount may be lower, equal, or higher than the hold on PayPal, Stripe, Square 1, Square 2, and Nuvei. Bank cap 5,000,000 USD. RRN and approval come from the hold receipt. CVV is optional.',
         ],
         'purchase_advice' => [
             'ar' => 'Purchase Advice — Direct',
@@ -168,19 +168,20 @@ function pos_operation_catalog(): array
             'requires_card' => true,
             'requires_cvv' => false,
             'requires_expiry' => true,
-            'requires_rrn' => true,
-            'requires_approval' => true,
-            'requires_payment_id' => true,
-            'approval_len' => 6, // bank MOTO: 4 or 6 digits
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'requires_payment_id' => false,
+            'approval_len' => null,
             'linked_to_auth' => false,
             'amount_flexible' => true,
+            'amount_signed' => true,
             'method' => 'purchase',
             'direct_advice' => true,
             'mti' => '0220',
             'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
             'max_amount' => function_exists('pos_direct_advice_max_amount') ? pos_direct_advice_max_amount() : 5000000.00,
-            'desc_ar' => 'MOTO سحب مباشر بدون حجز على البوابة المختارة فقط. بطاقة + انتهاء. CVV اختياري. RRN + Approval.',
-            'desc_en' => 'MOTO direct sale without a hold on the selected gateway only. Card + expiry. CVV optional. RRN + Approval.',
+            'desc_ar' => 'سحب مباشر بدون حجز سابق وبدون RRN أو Approval من حجز. المبلغ يُخصم فوراً ويمكن أن يكون موجباً أو سالباً. بطاقة + انتهاء. CVV اختياري.',
+            'desc_en' => 'Direct charge with no prior hold and no RRN or approval from a hold. The entered amount is charged immediately and may be positive or negative. Card + expiry. CVV optional.',
         ],
         'online_sale_moto' => [
             'ar' => 'Online SALE MOTO',
@@ -431,7 +432,7 @@ function pos_operation_catalog(): array
 /** أنواع تحتاج مراجع Nuvei Control Panel: بنك RRN+Auth Code وبوابة Transaction ID+Auth Code */
 function pos_dual_acquirer_types(): array
 {
-    return ['offline_sale_moto', 'online_sale_moto', 'purchase_advice', 'capture'];
+    return ['offline_sale_moto', 'online_sale_moto', 'capture'];
 }
 
 function pos_is_valid_payment_id(?string $id): bool
@@ -449,9 +450,9 @@ function pos_withdrawal_charge_modes(): array
             'en' => 'Purchase Advice — Offline',
             'base' => 'purchase_advice',
             'channel' => 'offline',
-            'approval_len' => 6,
-            'requires_rrn' => true,
-            'requires_approval' => true,
+            'approval_len' => null,
+            'requires_rrn' => false,
+            'requires_approval' => false,
             'requires_card' => true,
             'requires_expiry' => true,
         ],
@@ -460,9 +461,9 @@ function pos_withdrawal_charge_modes(): array
             'en' => 'Purchase Advice — Online',
             'base' => 'purchase_advice',
             'channel' => 'online',
-            'approval_len' => 6,
-            'requires_rrn' => true,
-            'requires_approval' => true,
+            'approval_len' => null,
+            'requires_rrn' => false,
+            'requires_approval' => false,
             'requires_card' => true,
             'requires_expiry' => true,
         ],
@@ -622,7 +623,8 @@ function pos_gateway_receipt_identifiers(array $response): array
             'acquirer_reference_number', 'acquirerReferenceNumber',
         ]),
         'approval_code' => $findValue($response, [
-            'gateway_approval_code', 'approval_code', 'auth_code', 'authorization_code', 'authorizationCode',
+            'gateway_approval_code', 'approval_code', 'auth_code', 'authCode', 'approvalCode',
+            'authorization_code', 'authorizationCode', 'auth_result_code',
         ]),
         'payment_id' => $paymentId,
         'internal_approval_code' => $findValue($response, ['internal_approval_code', 'internalApprovalCode']),
@@ -817,17 +819,59 @@ function pos_normalize_rrn(?string $rrn): string
 function pos_is_valid_approval(?string $code, ?int $expectedLen): bool
 {
     $code = strtoupper(preg_replace('/[^0-9A-Za-z]/', '', (string)$code));
-    if ($code === '' || !ctype_digit($code)) {
+    if ($code === '') {
         return false;
     }
     $len = strlen($code);
     if ($expectedLen === 4 || $expectedLen === 6) {
-        return $len === 4 || $len === 6;
+        return ctype_digit($code) && ($len === 4 || $len === 6);
     }
     if ($expectedLen !== null) {
-        return $len === $expectedLen;
+        return ctype_digit($code) && $len === $expectedLen;
     }
-    return $len >= 4 && $len <= 12;
+    if (!ctype_digit($code)) {
+        return $len >= 4 && $len <= 32;
+    }
+    return $len === 4 || $len === 6 || ($len > 6 && $len <= 32);
+}
+
+/**
+ * Receipt label for a stored gateway approval code.
+ * The database keeps the gateway value unchanged.
+ * When the stored code is purely numeric: 4 or 6 digits are shown as returned;
+ * a longer numeric code shows only the last 6 digits. Any other code is shown as returned.
+ */
+function pos_approval_receipt_label(string $stored): string
+{
+    $stored = trim($stored);
+    if ($stored === '' || $stored === '—') {
+        return $stored;
+    }
+    if (ctype_digit($stored)) {
+        $len = strlen($stored);
+        if ($len === 4 || $len === 6) {
+            return $stored;
+        }
+        if ($len > 6) {
+            return substr($stored, -6);
+        }
+    }
+    return $stored;
+}
+
+/** Capture lookup accepts the full stored code or the 4/6-digit receipt form. */
+function pos_approval_codes_match(string $stored, string $entered): bool
+{
+    $stored = trim($stored);
+    $entered = trim($entered);
+    if ($stored === '' || $entered === '') {
+        return false;
+    }
+    if (strcasecmp($stored, $entered) === 0) {
+        return true;
+    }
+    $label = pos_approval_receipt_label($stored);
+    return $label !== '' && strcasecmp($label, $entered) === 0;
 }
 
 /**
@@ -913,12 +957,6 @@ function pos_validate_operation_fields(string $type, array $data): array
     if ($type === 'capture' && pos_is_valid_payment_id($paymentId)) {
         $requiresRrn = false;
     }
-    $authCh = strtolower(trim((string) ($data['auth_channel'] ?? $data['moto_channel'] ?? $data['extra']['auth_channel'] ?? '')));
-    if ($type === 'auth' && $authCh === 'offline') {
-        $requiresApproval = true;
-        $approvalLen = 6;
-    }
-
     if ($requiresRrn && !pos_is_valid_rrn($rrn)) {
         $errors[] = 'RRN must be exactly 12 digits.';
     }
@@ -926,7 +964,7 @@ function pos_validate_operation_fields(string $type, array $data): array
         if ($approvalLen === 4 || $approvalLen === 6) {
             $errors[] = 'Bank Auth Code (Nuvei Auth Code) must be 4 or 6 digits.';
         } else {
-            $errors[] = 'Bank Auth Code is required (4–12 digits).';
+            $errors[] = 'Enter the full approval code or its 4/6 digit form.';
         }
     }
     if (!empty($meta['requires_payment_id']) || in_array($type, pos_dual_acquirer_types(), true)) {

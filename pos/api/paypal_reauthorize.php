@@ -47,10 +47,24 @@ if (!empty($result['success'])) {
     $blob = json_decode((string) ($txn['gateway_response'] ?? ''), true) ?: [];
     $blob['paypal_reauthorization'] = $result;
     $blob['authorization_id'] = (string) ($result['authorization_id'] ?? $authorizationId);
+    $authCode = trim((string) ($result['auth_code'] ?? $txn['auth_code'] ?? ''));
     $db->update('transactions', [
-        'auth_code' => (string) ($result['auth_code'] ?? $txn['auth_code'] ?? ''),
+        'auth_code' => $authCode,
         'gateway_response' => json_encode($blob, JSON_UNESCAPED_UNICODE),
         'updated_at' => date('Y-m-d H:i:s'),
     ], ['id' => (int) $txn['id']]);
+    require_once POS_APP_ROOT . '/lib/HoldStoreSync.php';
+    HoldStoreSync::syncAuthorized($db, [
+        'reference' => (string) ($txn['reference'] ?? $reference),
+        'user_id' => (int) ($txn['user_id'] ?? 0),
+        'payment_intent_id' => (string) ($result['authorization_id'] ?? $authorizationId),
+        'amount' => $amount,
+        'currency' => $currency,
+        'gateway' => 'paypal',
+        'status' => 'authorized',
+        'rrn' => (string) ($txn['rrn'] ?? ''),
+        'approval_code' => $authCode,
+        'gateway_response' => json_encode($blob, JSON_UNESCAPED_UNICODE),
+    ]);
 }
 echo json_encode($result, JSON_UNESCAPED_UNICODE);

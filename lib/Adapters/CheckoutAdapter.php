@@ -340,6 +340,17 @@ class CheckoutAdapter implements GatewayAdapterInterface
         return GatewayErrorMapper::buildErrorResponse($errCode, '', 0, '', $res['error_codes'][0] ?? 'فشل الإلغاء');
     }
 
+    public function refund(string $transactionId, ?float $amount = null, string $currency = 'USD'): array
+    {
+        return GatewayErrorMapper::buildErrorResponse(
+            'GATEWAY_ERROR',
+            $transactionId,
+            (float) ($amount ?? 0),
+            $currency,
+            'Refund is not supported on Checkout.com in this adapter. The client has a void call only.'
+        );
+    }
+
     // ── مساعدات ──────────────────────────────────────────────
 
     private function validateCard(array $payload): array

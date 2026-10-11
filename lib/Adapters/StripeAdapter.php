@@ -54,7 +54,7 @@ class StripeAdapter implements GatewayAdapterInterface
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $payload['reference'] ?? '', 0, '', 'Stripe live secret required (sk_live_). Test keys are rejected.');
         }
 
-        $mode      = strtoupper($payload['processing_mode'] ?? '3D');
+        $mode      = $this->resolveProcessingMode($payload);
         require_once __DIR__ . '/../CardScaService.php';
         if ($mode === '3D' && !CardScaService::shouldChallenge($payload)) {
             $mode = '2D';
@@ -62,6 +62,13 @@ class StripeAdapter implements GatewayAdapterInterface
         $amount    = floatval($payload['amount']   ?? 0);
         $currency  = strtolower($payload['currency'] ?? 'usd');
         $reference = $payload['reference'] ?? uniqid('str_', true);
+        $adviceMinus = false;
+        if (strtolower((string) ($payload['txn_type'] ?? '')) === 'purchase_advice' && $amount < 0) {
+            // No unlinked credit in this client: /v1/refunds requires a payment_intent.
+            // A positive amount is sent with metadata advice_sign=minus. Gateway errors stay declines.
+            $adviceMinus = true;
+            $amount = abs($amount);
+        }
 
         if ($amount <= 0) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, strtoupper($currency), 'المبلغ غير صالح');
@@ -113,9 +120,18 @@ class StripeAdapter implements GatewayAdapterInterface
 
             if ($mode === '3D') {
                 $piParams['payment_method_options[card][request_three_d_secure]'] = 'challenge';
-            } elseif ($mode === '2D') {
+            } elseif ($mode === 'MOTO' || $mode === 'OFFLINE') {
+                $piParams['payment_method_options[card][moto]'] = 'true';
+                $piParams['payment_method_options[card][request_three_d_secure]'] = 'any';
+                if ($mode === 'OFFLINE') {
+                    $piParams['metadata[offline]'] = 'true';
+                }
+            } else {
                 $piParams['off_session'] = 'true';
                 $piParams['payment_method_options[card][request_three_d_secure]'] = 'any';
+            }
+            if ($adviceMinus) {
+                $piParams['metadata[advice_sign]'] = 'minus';
             }
 
             if (!empty($payload['approval_code'])) {
@@ -266,23 +282,30 @@ class StripeAdapter implements GatewayAdapterInterface
                 return GatewayErrorMapper::buildErrorResponse($errCode, $reference, $amount, strtoupper($currency));
             }
 
-            $pi = $this->request('POST', '/v1/payment_intents', [
+            $holdMode = $this->resolveProcessingMode($payload);
+            $pi = $this->request('POST', '/v1/payment_intents', array_merge([
                 'amount'                                     => (int)($amount * 100),
                 'currency'                                   => $currency,
                 'capture_method'                             => 'manual',
                 'payment_method'                             => $pm['id'],
                 'confirm'                                    => 'true',
                 'payment_method_types[]'                     => 'card',
+                'payment_method_options[card][request_overcapture]' => 'if_available',
                 'metadata[reference]'                        => $reference,
                 'metadata[platform]'                         => 'diparma',
                 'metadata[type]'                             => 'hold',
-            ], $this->buildIdempotencyKey('hold_' . $reference, $amount));
+                'metadata[mode]'                             => $holdMode,
+            ], ($holdMode === 'MOTO' || $holdMode === 'OFFLINE') ? [
+                'payment_method_options[card][moto]' => 'true',
+                'payment_method_options[card][request_three_d_secure]' => 'any',
+            ] : []), $this->buildIdempotencyKey('hold_' . $reference, $amount));
 
             $status   = $pi['status'] ?? '';
             $piId     = $pi['id']     ?? '';
             $duration = microtime(true) - $start;
 
             if (in_array($status, ['requires_capture', 'succeeded'])) {
+                $cardAuth = $this->cardAuthFromIntent($pi);
                 $result = [
                     'success'        => true,
                     'status'         => 'authorized',
@@ -293,6 +316,9 @@ class StripeAdapter implements GatewayAdapterInterface
                     'amount'         => $amount,
                     'currency'       => strtoupper($currency),
                     'message'        => '✅ تم حجز المبلغ — لم يُخصم بعد',
+                    'approval_code'  => $cardAuth['approval_code'],
+                    'auth_code'      => $cardAuth['auth_code'],
+                    'rrn'            => $cardAuth['rrn'],
                     'error_code'     => '',
                     'requires_3ds'   => false,
                     'redirect_url'   => '',
@@ -481,6 +507,55 @@ class StripeAdapter implements GatewayAdapterInterface
     }
 
     // ── مساعدات ──────────────────────────────────────────────
+
+    private function resolveProcessingMode(array $payload): string
+    {
+        $mode = strtoupper(trim((string) (
+            $payload['processing_mode']
+            ?? $payload['mode']
+            ?? $payload['security_mode']
+            ?? $payload['charge_mode']
+            ?? '2D'
+        )));
+        $txn = strtolower(trim((string) ($payload['txn_type'] ?? '')));
+        $channel = strtolower(trim((string) ($payload['moto_channel'] ?? $payload['auth_channel'] ?? '')));
+        if ($mode === 'OFFLINE' || $txn === 'offline_sale_moto' || $channel === 'offline' || !empty($payload['is_offline'])) {
+            return 'OFFLINE';
+        }
+        if ($mode === '3D' || $txn === 'purchase_3d') {
+            return '3D';
+        }
+        if ($mode === 'MOTO' || !empty($payload['is_moto']) || $txn === 'online_sale_moto' || $channel === 'online') {
+            return 'MOTO';
+        }
+        return $mode !== '' ? $mode : '2D';
+    }
+
+    /** @return array{approval_code:string,auth_code:string,rrn:string} */
+    private function cardAuthFromIntent(array $pi): array
+    {
+        $authCode = '';
+        $rrn = '';
+        $chargeObj = $pi['charges']['data'][0] ?? null;
+        if (!$chargeObj && !empty($pi['latest_charge'])) {
+            $lcId = $pi['latest_charge'];
+            if (is_string($lcId)) {
+                $chargeObj = $this->request('GET', "/v1/charges/{$lcId}");
+            } elseif (is_array($lcId)) {
+                $chargeObj = $lcId;
+            }
+        }
+        if (is_array($chargeObj)) {
+            $cardDet = $chargeObj['payment_method_details']['card'] ?? [];
+            $authCode = trim((string) ($cardDet['authorization_code'] ?? ''));
+            $rrn = trim((string) ($chargeObj['balance_transaction'] ?? $chargeObj['id'] ?? ''));
+        }
+        return [
+            'approval_code' => $authCode,
+            'auth_code' => $authCode,
+            'rrn' => $rrn,
+        ];
+    }
 
     private function validateCard(array $payload): array
     {

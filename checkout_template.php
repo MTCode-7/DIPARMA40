@@ -36,7 +36,7 @@ $chargeEndpoint = ($basePath ?? '') . 'api/checkout_charge.php';
 $chargeGwCode = $chargeGwCode ?? $gwCode;
 $isNuveiFamily = in_array(($chargeGwCode ?? $gwCode ?? ''), ['nuvei', 'diparma'], true);
 $squareSdk = $squareSdk ?? ['ready' => false, 'application_id' => '', 'location_id' => '', 'script_url' => '', 'live' => false];
-$hasSquareSdk = (($gwCode ?? '') === 'square' && !empty($squareSdk['application_id']) && !empty($squareSdk['location_id']));
+$hasSquareSdk = (in_array(($gwCode ?? ''), ['square', 'square_online'], true) && !empty($squareSdk['application_id']) && !empty($squareSdk['location_id']));
 ?><!DOCTYPE html>
 <html lang="<?=$lang?>" dir="<?=$dir?>">
 <head>
@@ -712,12 +712,12 @@ function setTx(type, el) {
     }
     var localFields = document.getElementById('localCardFields');
     if (localFields) {
-      if ((CHARGE_GW || GW) === 'square' && SQUARE_CFG.enabled) localFields.classList.add('hidden');
+      if (isSquareFamily() && SQUARE_CFG.enabled) localFields.classList.add('hidden');
       else if (typeof GW !== 'undefined' && GW !== 'payram') localFields.classList.remove('hidden');
     }
     var sq = document.getElementById('squareWrap');
     if (sq) {
-      if ((CHARGE_GW || GW) === 'square' && SQUARE_CFG.enabled && ['purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','auth','purchase','purchase_advice'].indexOf(type) >= 0) {
+      if (isSquareFamily() && SQUARE_CFG.enabled && ['purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','auth','purchase','purchase_advice'].indexOf(type) >= 0) {
         sq.classList.remove('hidden');
         initSquareSdk();
       } else {
@@ -794,8 +794,12 @@ function hasLiveSquareToken(obj) {
   var t = squareTokenFrom(obj);
   return t.length >= 8 && !isSquareSandboxNonce(t);
 }
+function isSquareFamily() {
+  var g = String(CHARGE_GW || GW || '').toLowerCase();
+  return g === 'square' || g === 'square_online';
+}
 function usesSquareHostedCard() {
-  return (CHARGE_GW || GW) === 'square' && SQUARE_CFG.enabled && squareChargeTypes().indexOf(curTx) >= 0;
+  return isSquareFamily() && SQUARE_CFG.enabled && squareChargeTypes().indexOf(curTx) >= 0;
 }
 
 async function attachSquareCheckoutToken(payload) {

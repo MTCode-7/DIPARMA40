@@ -621,15 +621,22 @@ class PayPalService
         $useVault = $cloudToken !== '' && strlen($cardNumber) < 13;
         $txnType = strtolower(trim((string)($payload['txn_type'] ?? '')));
         $authChannel = strtolower(trim((string)($payload['auth_channel'] ?? $payload['moto_channel'] ?? '')));
-        $isMoto = in_array($txnType, ['online_sale_moto', 'offline_sale_moto'], true)
-            || ($txnType === 'auth' && in_array($authChannel, ['online', 'offline'], true));
+        $mode = strtoupper(trim((string)($payload['processing_mode'] ?? $payload['security_mode'] ?? $payload['mode'] ?? $payload['charge_mode'] ?? '')));
+        $isOffline = $mode === 'OFFLINE'
+            || $txnType === 'offline_sale_moto'
+            || $authChannel === 'offline'
+            || !empty($payload['is_offline']);
+        $isMoto = $isOffline
+            || $mode === 'MOTO'
+            || !empty($payload['is_moto'])
+            || in_array($txnType, ['online_sale_moto', 'offline_sale_moto', 'purchase_advice'], true)
+            || (in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold'], true) && $authChannel !== 'ecom');
         $cvvOk = (bool) preg_match('/^\d{3,4}$/', $cvv);
         if (!$useVault && (strlen($cardNumber) < 13 || $expiry === '' || (!$isMoto && !$cvvOk))) {
             return ['success' => false, 'message' => 'بيانات البطاقة غير مكتملة', 'error_code' => 'INVALID_CARD'];
         }
 
-        $mode = strtoupper(trim((string)($payload['processing_mode'] ?? $payload['security_mode'] ?? '')));
-        $want3ds = ($mode === '3D' || $txnType === 'purchase_3d');
+        $want3ds = (!$isMoto && !$isOffline && ($mode === '3D' || $txnType === 'purchase_3d'));
         require_once __DIR__ . '/CardScaService.php';
         if ($want3ds && !CardScaService::shouldChallenge($payload)) {
             $want3ds = false;
@@ -650,13 +657,31 @@ class PayPalService
                 }
                 $paymentSource = $this->directCardPaymentSource($card, $want3ds, $reference);
             }
+            if ($isMoto && isset($paymentSource['card']) && is_array($paymentSource['card'])) {
+                $paymentSource['card']['attributes'] = [
+                    'verification' => ['method' => 'SCA_NEVER'],
+                ];
+                $paymentSource['card']['stored_credential'] = [
+                    'payment_initiator' => 'MERCHANT',
+                    'payment_type' => 'ONE_OFF',
+                    'usage' => 'FIRST',
+                ];
+            }
+            $description = (string) ($payload['transaction_label'] ?? ($payload['description'] ?? 'DI PARMA Payment'));
+            if (($payload['advice_sign'] ?? '') === 'minus') {
+                $description = 'PURCHASE_ADVICE_MINUS ' . $description;
+            } elseif ($isOffline) {
+                $description = 'OFFLINE ' . $description;
+            } elseif ($isMoto) {
+                $description = 'MOTO ' . $description;
+            }
             $body = [
                 'intent' => $intent,
                 'payment_source' => $paymentSource,
                 'purchase_units' => [[
                     'reference_id' => $reference !== '' ? $reference : ('PP-' . strtoupper(bin2hex(random_bytes(6)))),
                     'custom_id' => $reference,
-                    'description' => $payload['transaction_label'] ?? ($payload['description'] ?? 'DI PARMA Payment'),
+                    'description' => $description,
                     'amount' => [
                         'currency_code' => $currency,
                         'value' => number_format($amount, 2, '.', ''),
@@ -991,7 +1016,9 @@ class PayPalService
                 'order_id' => $orderId,
                 'authorization_id' => $authorization['id'] ?? '',
                 'approval_code' => $approvalCode,
+                'auth_code' => $approvalCode,
                 'gateway_approval_code' => $approvalCode,
+                'rrn' => trim((string) ($processor['retrieval_reference_number'] ?? $processor['acquirer_reference_number'] ?? '')),
                 'response_code' => $responseCode,
                 'reference' => $reference,
                 'amount' => $amount,

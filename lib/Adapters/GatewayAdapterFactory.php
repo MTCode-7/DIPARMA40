@@ -35,6 +35,7 @@ class GatewayAdapterFactory
     // ── خريطة الأسماء → الكلاسات ──────────────────────────────
     private static array $map = [
         'square'        => SquareAdapter::class,
+        'square_online' => SquareAdapter::class,
         'stripe'        => StripeAdapter::class,
         'myfatoorah'    => MyFatoorahAdapter::class,
         'checkout'      => CheckoutAdapter::class,
@@ -59,7 +60,8 @@ class GatewayAdapterFactory
 
     // ── البوابات التي تدعم كل عملية ──────────────────────────
     private static array $capabilities = [
-        'square'       => ['2D','3D','hold','capture','cancel','refund','moto','offline','advice'],
+        'square'        => ['2D','3D','hold','capture','cancel','refund','moto','offline','advice'],
+        'square_online' => ['2D','3D','hold','capture','cancel','refund','moto','offline','advice'],
         'stripe'       => ['2D','3D','hold','capture','cancel','refund','moto','offline','advice'],
         'myfatoorah'   => ['2D','3D','hold','capture','cancel','moto','offline','advice'],
         'checkout'     => ['2D','3D','hold','capture','cancel','moto','offline','advice'],
@@ -138,6 +140,7 @@ class GatewayAdapterFactory
                 'authnet' => 'authorizenet',
                 'pay_tabs' => 'paytabs',
                 'gateio' => 'gate_io',
+                'square_online' => 'square_online',
             ];
             return $aliases[$name] ?? $name;
         };
@@ -305,6 +308,9 @@ class GatewayAdapterFactory
             GatewayLogger::quick('factory', 'build', '', false,
                 "بوابة غير معروفة: $gateway");
             throw new InvalidArgumentException("Unknown gateway: {$gateway}");
+        }
+        if ($gateway === 'square_online' && $class === SquareAdapter::class) {
+            SquareAdapter::forProfile('square_online');
         }
         return new $class();
     }

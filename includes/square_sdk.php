@@ -129,8 +129,10 @@ function square_app_id_live_flag(string $id): ?bool
     return preg_match('/^sq0idp-/', $id) ? true : null;
 }
 
-function square_sdk_config(): array
+function square_sdk_config(string $gateway = 'square'): array
 {
+    $gateway = $gateway === 'square_online' ? 'square_online' : 'square';
+    $prefix = $gateway === 'square_online' ? 'SQUARE2_' : 'SQUARE_';
     $candidates = [];
     $pushId = static function (string $id) use (&$candidates): void {
         $id = trim($id);
@@ -138,15 +140,20 @@ function square_sdk_config(): array
             $candidates[] = $id;
         }
     };
-    $pushId((string) (getenv('SQUARE_APPLICATION_ID') ?: ''));
-    $pushId((string) (getenv('SQUARE_API_KEY') ?: ''));
-    $locationId = trim((string) (getenv('SQUARE_LOCATION_ID') ?: ''));
-    $token = trim((string) (getenv('SQUARE_ACCESS_TOKEN') ?: getenv('SQUARE_SECRET_KEY') ?: ''));
-    $env = strtolower(trim((string) (getenv('SQUARE_ENVIRONMENT') ?: 'production')));
+    $pushId((string) (getenv($prefix . 'APPLICATION_ID') ?: ''));
+    if ($gateway === 'square') {
+        $pushId((string) (getenv('SQUARE_API_KEY') ?: ''));
+    }
+    $locationId = trim((string) (getenv($prefix . 'LOCATION_ID') ?: ''));
+    $token = trim((string) (getenv($prefix . 'ACCESS_TOKEN') ?: ''));
+    if ($gateway === 'square' && $token === '') {
+        $token = trim((string) (getenv('SQUARE_SECRET_KEY') ?: ''));
+    }
+    $env = strtolower(trim((string) (getenv($prefix . 'ENVIRONMENT') ?: 'production')));
     $configError = '';
 
     try {
-        $row = function_exists('db') ? db()->find('payment_gateways', ['code' => 'square']) : null;
+        $row = function_exists('db') ? db()->find('payment_gateways', ['code' => $gateway]) : null;
         $creds = json_decode((string) ($row['credentials'] ?? '{}'), true) ?: [];
         $pushId((string) ($creds['application_id'] ?? ''));
         $pushId((string) ($creds['api_key'] ?? ''));
