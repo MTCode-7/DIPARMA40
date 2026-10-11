@@ -68,13 +68,88 @@ class DIPARMAGateway implements GatewayAdapterInterface
 
     public function refund(string $transactionId, ?float $amount = null, string $currency = 'USD'): array
     {
-        return GatewayErrorMapper::buildErrorResponse(
-            'GATEWAY_ERROR',
-            $transactionId,
-            (float) ($amount ?? 0),
-            $currency,
-            'Refund is not supported on DI PARMA in this adapter. The client has charge, auth, capture, and void only.'
-        );
+        $transactionId = trim($transactionId);
+        $currency = strtoupper(trim($currency) ?: 'USD');
+        $amountValue = $amount === null ? 0.0 : (float) $amount;
+        if ($transactionId === '') {
+            return GatewayErrorMapper::buildErrorResponse(
+                'GATEWAY_ERROR',
+                '',
+                $amountValue,
+                $currency,
+                'Transaction id is required for a DI PARMA refund'
+            );
+        }
+        if ($amountValue <= 0) {
+            return GatewayErrorMapper::buildErrorResponse(
+                'GATEWAY_ERROR',
+                $transactionId,
+                $amountValue,
+                $currency,
+                'A positive amount is required. POST /api/v1/refund accepts a partial or full amount and has no amount-less refund.'
+            );
+        }
+
+        $decoded = $this->request('refund', [
+            'transaction_id' => $transactionId,
+            'orig_reference' => $transactionId,
+            'reference' => $transactionId,
+            'amount' => $amountValue,
+            'currency' => $currency,
+            'merchant_id' => $this->merchantId,
+            'ledger_address' => $this->ledgerAddress,
+            'txn_type' => 'refund',
+        ]);
+
+        if (!$this->refundApproved($decoded)) {
+            $message = trim((string) ($decoded['message'] ?? $decoded['error'] ?? ''));
+            if ($message === '' && !empty($decoded['errors']) && is_array($decoded['errors'])) {
+                $message = implode('; ', array_map('strval', $decoded['errors']));
+            }
+            return GatewayErrorMapper::buildErrorResponse(
+                $this->normalizeError($decoded),
+                $transactionId,
+                $amountValue,
+                $currency,
+                $message !== '' ? $message : 'DI PARMA refund was not approved'
+            );
+        }
+
+        return [
+            'success' => true,
+            'status' => 'refunded',
+            'transaction_id' => (string) ($decoded['nuvei_txn_id'] ?? $decoded['reference'] ?? $transactionId),
+            'reference' => (string) ($decoded['reference'] ?? $transactionId),
+            'amount' => (float) ($decoded['amount'] ?? $amountValue),
+            'currency' => strtoupper((string) ($decoded['currency'] ?? $currency)),
+            'message' => (string) ($decoded['message'] ?? 'Approved'),
+            'approval_code' => $decoded['approval_code'] ?? null,
+            'rrn' => $decoded['rrn'] ?? null,
+            'error_code' => '',
+            'requires_3ds' => false,
+            'raw' => $decoded,
+        ];
+    }
+
+    private function refundApproved(array $decoded): bool
+    {
+        if (empty($decoded['success'])) {
+            return false;
+        }
+        $status = strtolower(trim((string) ($decoded['status'] ?? '')));
+        $message = strtolower(trim((string) ($decoded['message'] ?? '')));
+        if (in_array($status, ['failed', 'declined', 'error', 'rejected', 'pending'], true)) {
+            return false;
+        }
+        if ($message !== '' && (
+            str_contains($message, 'declin')
+            || str_contains($message, 'fail')
+            || str_contains($message, 'reject')
+            || str_contains($message, 'not approved')
+        )) {
+            return false;
+        }
+        return in_array($status, ['completed', 'approved', 'refunded', 'success'], true);
     }
 
     public function normalizeError(array $rawResponse): string
