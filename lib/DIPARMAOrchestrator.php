@@ -277,6 +277,9 @@ class DIPARMAOrchestrator
     ): string {
         /* بوابة صريحة مطلوبة — لا نبدّلها ببوابة أخرى */
         if ($requested !== '') {
+            if (strtolower($requested) === 'diparma_iso') {
+                return 'diparma_iso';
+            }
             if (isset($this->GATEWAYS[$requested])) {
                 $gw = $this->GATEWAYS[$requested];
                 return $requested;
@@ -439,6 +442,9 @@ class DIPARMAOrchestrator
 
     private function getProcessorName(string $processor): string
     {
+        if ($processor === 'diparma_iso') {
+            return 'DI PARMA ISO 8583';
+        }
         if (str_starts_with($processor, 'bank:')) {
             $code = substr($processor, 5);
             return $this->BANKS[$code]['name'] ?? $processor;
