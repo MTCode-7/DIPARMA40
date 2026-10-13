@@ -365,18 +365,7 @@ class HoldCaptureService
         $overAmount = max(0.0, $requestedAmount - $remaining);
         $isOver     = $overAmount > 0.01;
 
-        // ─── 6) سياسة Over-Capture ──────────────────────────
-        if ($isOver) {
-            if (!self::allowsOvercapture($gateway)) {
-                return [
-                    'success'    => false,
-                    'error_code' => 'OVERCAPTURE_NOT_ALLOWED',
-                    'message'    => "Over-capture غير مدعوم لبوابة {$gateway}",
-                ];
-            }
-
-            // Approved gateways: send the requested amount. No second local ceiling.
-        }
+        // ─── 6) المبلغ الأعلى من المتبقي يُرسل كما أُدخل. سقف البنك المطلق يُفحص قبل ذلك.
 
         // ─── 7) بناء مفتاح الـ Idempotency ──────────────────
         $idempotencyKey = $opts['idempotency_key']

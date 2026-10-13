@@ -3,6 +3,47 @@
  * DI PARMA | API v1 Router
  * يوجّه الطلبات للـ endpoints الصحيحة
  */
+ini_set('display_errors', '0');
+ob_start();
+
+register_shutdown_function(static function (): void {
+    $error = error_get_last();
+    if ($error === null || !in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        return;
+    }
+    if (($error['file'] ?? '') !== __FILE__) {
+        return;
+    }
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode([
+        'success' => false,
+        'error' => 'server_error',
+        'message' => 'Internal server error',
+    ]);
+});
+
+try {
+    require_once __DIR__ . '/../../includes/config.php';
+} catch (Throwable $e) {
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'success' => false,
+        'error' => 'server_error',
+        'message' => 'Internal server error',
+    ]);
+    exit;
+}
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: X-Api-Key, X-Timestamp, X-Signature, Content-Type, Authorization');

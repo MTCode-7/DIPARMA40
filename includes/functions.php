@@ -744,6 +744,28 @@ function diparma_should_persist_charge(bool $success, bool $pending3ds = false):
     return $success || $pending3ds;
 }
 
+function diparma_is_account_setup_fault(string $reason): bool
+{
+    return (bool) preg_match(
+        '/PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING|PAYEE_NOT_ENABLED_FOR_MOTO|MOTO_NOT_ENABLED|ADVANCED CREDIT|مدفوعات البطاقة المباشرة|not setup to be able to process card|not enabled for card|لا يدعم MOTO|Mail Order|التفعيل يتم من لوحة PayPal/iu',
+        $reason
+    );
+}
+
+function diparma_strip_card_tail($value)
+{
+    if (!is_array($value)) {
+        return $value;
+    }
+    unset($value['card_last4']);
+    foreach ($value as $key => $child) {
+        if (is_array($child)) {
+            $value[$key] = diparma_strip_card_tail($child);
+        }
+    }
+    return $value;
+}
+
 function diparma_record_declined_attempt($db, array $attempt): void
 {
     if ($db === null) {
@@ -771,6 +793,14 @@ function diparma_record_declined_attempt($db, array $attempt): void
         if (function_exists('pos_redact_pci')) {
             $details = pos_redact_pci($details);
         }
+        $reason = trim((string) ($attempt['reason'] ?? 'Declined'));
+        $cardLast4 = preg_replace('/\D/', '', (string) ($attempt['card_last4'] ?? '')) ?? '';
+        $status = 'declined';
+        if (diparma_is_account_setup_fault($reason) || (function_exists('pos_is_local_field_fault') && pos_is_local_field_fault($reason))) {
+            $status = diparma_is_account_setup_fault($reason) ? 'account_setup' : 'validation';
+            $cardLast4 = '';
+            $details = diparma_strip_card_tail($details);
+        }
         $db->insertAvailable('payment_attempts', [
             'reference' => trim((string) ($attempt['reference'] ?? '')),
             'user_id' => !empty($attempt['user_id']) ? (int) $attempt['user_id'] : null,
@@ -778,9 +808,9 @@ function diparma_record_declined_attempt($db, array $attempt): void
             'transaction_type' => trim((string) ($attempt['transaction_type'] ?? '')),
             'amount' => (float) ($attempt['amount'] ?? 0),
             'currency' => strtoupper(trim((string) ($attempt['currency'] ?? 'USD'))),
-            'status' => 'declined',
-            'reason' => trim((string) ($attempt['reason'] ?? 'Declined')),
-            'card_last4' => preg_replace('/\D/', '', (string) ($attempt['card_last4'] ?? '')),
+            'status' => $status,
+            'reason' => $reason !== '' ? $reason : 'Declined',
+            'card_last4' => $cardLast4 !== '' ? substr($cardLast4, -4) : null,
             'details' => json_encode($details, JSON_UNESCAPED_UNICODE),
             'created_at' => date('Y-m-d H:i:s'),
         ]);

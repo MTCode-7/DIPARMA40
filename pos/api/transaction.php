@@ -40,6 +40,10 @@
 // 1. إعدادات الرأس والأمان
 // ============================================================
 
+ob_start(static function (string $buffer): string {
+    return (string) preg_replace('/^\xEF\xBB\xBF+/', '', $buffer);
+});
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-Api-Key, X-Timestamp, X-Signature, X-POS-Device');
@@ -117,6 +121,14 @@ if ($requestedGateway === 'diparma_gateway') {
     }
     $requestedGateway = $alt;
 }
+if ($requestedGateway === 'diparma' && function_exists('dp_diparma_iso_host') && dp_diparma_iso_host() === '') {
+    http_response_code(422);
+    echo json_encode([
+        'success' => false,
+        'message' => 'DI PARMA ISO host is not configured. The charge was not sent.',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 if ($requestedGateway === '' || !pos_is_charge_processor($requestedGateway) || !pos_gateway_is_live($requestedGateway)) {
     http_response_code(422);
     echo json_encode([
@@ -145,8 +157,16 @@ $cardType = strtoupper(trim((string)($data['card_type'] ?? $data['card_type_sele
 $cardNetwork = pos_normalize_card_network((string)($data['card_network'] ?? $data['card_scheme'] ?? $extraEarly['card_network'] ?? 'auto'));
 $cloudToken = trim((string)($data['cloud_token'] ?? $data['payment_token'] ?? $data['source_id'] ?? ''));
 $sourceId = trim((string)($data['source_id'] ?? $cloudToken));
-$origRef = trim((string)($data['orig_ref'] ?? $data['rrn'] ?? $data['bank_rrn'] ?? $data['refund_reference'] ?? ''));
-$bankRrn = pos_normalize_rrn((string)($data['bank_rrn'] ?? $extraEarly['bank_rrn'] ?? $origRef));
+$typedBankRrn = (string) ($data['bank_rrn'] ?? $extraEarly['bank_rrn'] ?? '');
+$typedRrn = (string) ($data['rrn'] ?? '');
+$typedOrig = (string) ($data['orig_ref'] ?? $data['refund_reference'] ?? '');
+$bankRrn = pos_first_rrn([$typedBankRrn, $typedRrn, $typedOrig]);
+$origRef = $bankRrn;
+$typedBankNorm = pos_normalize_rrn($typedBankRrn);
+if (pos_is_valid_rrn($typedBankNorm)) {
+    $bankRrn = $typedBankNorm;
+    $origRef = $typedBankNorm;
+}
 $paymentId = trim((string)($data['payment_id'] ?? $data['nuvei_txn_id'] ?? $data['transaction_id'] ?? $extraEarly['payment_id'] ?? ''));
 $gatewayApprovalCode = trim((string)($data['gateway_approval_code'] ?? $data['auth_code'] ?? $extraEarly['gateway_approval_code'] ?? ''));
 $ledgerAddr = trim((string) LEDGER_TRC20_ADDRESS);
@@ -264,6 +284,33 @@ if ($userId > 0) {
     }
 }
 
+$paymentLinkId = trim((string) ($data['link_id'] ?? $extra['link_id'] ?? $extraEarly['link_id'] ?? ''));
+if ($paymentLinkId !== '') {
+    if (!function_exists('isLinkValid')) {
+        require_once dirname(__DIR__, 2) . '/includes/functions.php';
+    }
+    $paymentLink = db()->find('payment_links', ['link_id' => $paymentLinkId]);
+    if (!$paymentLink) {
+        $paymentLink = db()->find('payment_links', ['slug' => $paymentLinkId]);
+    }
+    if (!$paymentLink || !isLinkValid($paymentLink)) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => 'Payment link is missing or expired.']);
+        exit;
+    }
+    $storedAmount = number_format((float) ($paymentLink['amount'] ?? 0), 2, '.', '');
+    $requestAmount = number_format((float) ($data['amount'] ?? 0), 2, '.', '');
+    $storedCurrency = strtoupper(trim((string) ($paymentLink['currency'] ?? '')));
+    $requestCurrency = strtoupper(trim((string) ($data['currency'] ?? '')));
+    if ($requestAmount !== $storedAmount || $requestCurrency !== $storedCurrency) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'message' => 'Amount or currency does not match the payment link.']);
+        exit;
+    }
+    $amount = (float) $storedAmount;
+    $currency = $storedCurrency;
+}
+
 // بيانات إضافية
 $manualApproval = $extra['approval_code'] ?? '';
 $bankApprovalCode = trim((string)($data['approval_code'] ?? $data['bank_approval_code'] ?? $manualApproval ?? ''));
@@ -277,11 +324,67 @@ if ($gatewayApprovalCode === '') {
 if ($paymentId === '') {
     $paymentId = trim((string)($extra['payment_id'] ?? $extra['nuvei_txn_id'] ?? ''));
 }
-if ($bankRrn !== '') {
+if ($bankRrn !== '' && pos_is_valid_rrn($bankRrn)) {
     $origRef = $bankRrn;
+}
+$captureHoldLinked = false;
+$holdId = (int) ($data['hold_id'] ?? $extraEarly['hold_id'] ?? 0);
+if ($txnType === 'capture' && $holdId > 0) {
+    try {
+        $holdDb = db();
+        $pfx = defined('DB_PREFIX') ? DB_PREFIX : 'dp_';
+        $holdTypes = pos_open_hold_type_list();
+        $holdStatuses = pos_open_hold_status_list();
+        $typeSql = implode(',', array_fill(0, count($holdTypes), '?'));
+        $statusSql = implode(',', array_fill(0, count($holdStatuses), '?'));
+        $holdRows = $holdDb->query(
+            "SELECT id, reference, rrn, auth_code, bank_approval_code, gateway, gateway_response
+             FROM {$pfx}transactions
+             WHERE id = ? AND user_id = ?
+               AND (
+                 LOWER(TRIM(COALESCE(transaction_type,''))) IN ({$typeSql})
+                 OR (
+                   LOWER(TRIM(COALESCE(gateway,''))) = 'paypal'
+                   AND LOWER(COALESCE(transaction_type,'')) LIKE '%authoriz%'
+                 )
+               )
+               AND LOWER(TRIM(COALESCE(status,''))) IN ({$statusSql})
+             LIMIT 1",
+            array_merge([$holdId, $userId], $holdTypes, $holdStatuses)
+        ) ?: [];
+        if (!empty($holdRows[0])) {
+            $captureHoldLinked = true;
+            $holdRow = $holdRows[0];
+            $holdRrn = pos_normalize_rrn((string) ($holdRow['rrn'] ?? ''));
+            if (!pos_is_valid_rrn($bankRrn) && pos_is_valid_rrn($holdRrn)) {
+                $bankRrn = $holdRrn;
+                $origRef = $holdRrn;
+            }
+            if ($paymentId === '') {
+                $rawHold = [];
+                if (!empty($holdRow['gateway_response'])) {
+                    $decodedHold = json_decode((string) $holdRow['gateway_response'], true);
+                    $rawHold = is_array($decodedHold) ? $decodedHold : [];
+                }
+                $paymentId = pos_hold_payment_id($rawHold, $holdRow);
+            }
+            if ($bankApprovalCode === '' && !empty($holdRow['bank_approval_code'])) {
+                $bankApprovalCode = trim((string) $holdRow['bank_approval_code']);
+            }
+        }
+    } catch (Throwable $e) {
+        $holdId = 0;
+    }
 }
 $manualNotes = trim((string)($extra['notes'] ?? ''));
 $terminalId = $resolvedDevice['terminal_id'] ?? pos_normalize_terminal_id((string)($extra['terminal_id'] ?? $data['tid'] ?? ''));
+if ($terminalId === '' && function_exists('pos_session_terminal_id')) {
+    $terminalId = pos_session_terminal_id((string) ($resolvedDevice['model'] ?? $posModel));
+    if ($terminalId !== '') {
+        $resolvedDevice['terminal_id'] = $terminalId;
+        $extra['terminal_id'] = $terminalId;
+    }
+}
 if ($isWebCharge && $terminalId === '') {
     $terminalId = 'WEB' . strtoupper(bin2hex(random_bytes(4)));
     $resolvedDevice['terminal_id'] = $terminalId;
@@ -404,7 +507,7 @@ if ($cardRail && !in_array($txnType, ['refund', 'avoid', 'capture'], true) && $c
     }
 }
 if (!$isWebCharge) {
-    if ($terminalId === '') {
+    if ($terminalId === '' && strtolower((string) $posGateway) !== 'paypal') {
         $errors[] = 'Terminal ID (TID) is required.';
     }
     if (empty($resolvedDevice['model']) || empty($resolvedDevice['accepted'])) {
@@ -451,6 +554,7 @@ $fieldPayload = [
     'rrn' => $origRef !== '' ? $origRef : ($data['rrn'] ?? $manualRRN ?? ''),
     'orig_ref' => $origRef,
     'bank_rrn' => $bankRrn,
+    'hold_linked' => !empty($captureHoldLinked),
     'approval_code' => $bankApprovalCode,
     'bank_approval_code' => $bankApprovalCode,
     'payment_id' => $paymentId,
@@ -498,10 +602,17 @@ if ($cardRail && $cardType !== 'CLOUD' && $requiresCvv && (empty($cardCVV) || st
 if (!empty($errors)) {
     http_response_code(422);
     $uniq = array_values(array_unique($errors));
+    $localMessage = implode(' · ', $uniq);
+    $localAlert = function_exists('pos_card_use_alert')
+        ? pos_card_use_alert($localMessage, '')
+        : ['card_use' => 'local_validation', 'card_use_ar' => '', 'card_use_en' => ''];
     echo json_encode([
         'success' => false,
-        'message' => implode(' · ', $uniq),
+        'message' => $localMessage,
         'errors' => $uniq,
+        'card_use' => $localAlert['card_use'] ?? 'local_validation',
+        'card_use_ar' => $localAlert['card_use_ar'] ?? '',
+        'card_use_en' => $localAlert['card_use_en'] ?? '',
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -577,14 +688,6 @@ if ($txnType === 'capture' && ($origRef !== '' || $paymentId !== '' || $approval
             echo json_encode([
                 'success' => false,
                 'message' => 'Capture must use the same gateway as the original AUTH hold.',
-            ], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-        if ($amount > $authorizedAmount && !pos_gateway_allows_overcapture($posGateway)) {
-            http_response_code(422);
-            echo json_encode([
-                'success' => false,
-                'message' => 'Over-capture is enabled only for DI PARMA, PayPal, Stripe, Square 1, Square 2, and Nuvei.',
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }

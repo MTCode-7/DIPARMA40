@@ -86,8 +86,8 @@ function pos_terminal_gateways(): array
             'color' => '#FFD700',
             'adapter' => 'diparma',
             'rail' => 'card',
-            'desc_ar' => 'DI PARMA. ' . $acceptNoteAr . ' بعد الموافقة يبقى المبلغ على نفس البوابة.',
-            'desc_en' => 'DI PARMA. ' . $acceptNoteEn . ' After approval the funds stay on the same gateway.',
+            'desc_ar' => 'DI PARMA. Visa وMastercard فقط. بعد الموافقة يبقى المبلغ على نفس البوابة.',
+            'desc_en' => 'DI PARMA. Visa and Mastercard only. After approval the funds stay on the same gateway.',
         ],
         'diparma_gateway' => [
             'name' => 'DIPARMA GATEWAY',
@@ -378,7 +378,7 @@ function pos_paypal_host_id(array $params, string $kind): string
     if (function_exists('pos_host_payment_id')) {
         $candidates[] = pos_host_payment_id($params);
     }
-    foreach (['payment_id', 'related_transaction_id', 'transaction_id', 'orig_ref', 'rrn'] as $key) {
+    foreach (['payment_id', 'authorization_id', 'related_transaction_id', 'transaction_id', 'orig_ref', 'rrn', 'bank_rrn'] as $key) {
         $candidates[] = trim((string) ($params[$key] ?? ''));
     }
     foreach ($candidates as $value) {
@@ -528,7 +528,16 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
         $params['card_cvv'] = '';
     }
     $gw = strtolower(trim((string) ($params['gateway'] ?? $params['provider'] ?? '')));
-    if (in_array($gw, ['paypal', 'stripe', 'square', 'square_online', 'nuvei'], true)) {
+    $paypalAuthorize = $gw === 'paypal' && in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold'], true);
+    if ($paypalAuthorize) {
+        $params['processing_mode'] = '2D';
+        $params['security_mode'] = '2D';
+        $params['mode'] = '2D';
+        $params['is_moto'] = false;
+        $params['is_offline'] = false;
+        $params['auth_channel'] = 'ecom';
+        unset($params['moto_channel'], $params['moto_type'], $params['moto_indicator']);
+    } elseif (in_array($gw, ['paypal', 'stripe', 'square', 'square_online', 'nuvei'], true)) {
         $channel = strtolower(trim((string) ($params['auth_channel'] ?? $params['moto_channel'] ?? '')));
         $offline = $txnType === 'offline_sale_moto'
             || $channel === 'offline'
@@ -625,7 +634,9 @@ function pos_run_isolated_card_gateway(string $gateway, string $adapter, string 
         if ($adapter === 'nuvei') {
             return pos_format_gateway_result($obj->capture($params, $amount > 0 ? $amount : null), 'DECLINED', $gateway);
         }
-        $id = pos_related_host_id($gateway, $params);
+        $id = ($adapter === 'paypal' && function_exists('pos_paypal_host_id'))
+            ? pos_paypal_host_id($params, 'authorization')
+            : pos_related_host_id($gateway, $params);
         if ($id === '') {
             return ['success' => false, 'message' => 'Original payment id required for capture on ' . $gateway, 'gateway' => $gateway];
         }

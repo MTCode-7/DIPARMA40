@@ -16,13 +16,27 @@ $requestedGateway = function_exists('pos_normalize_gateway')
 $holds = [];
 try {
     $pfx = defined('DB_PREFIX') ? DB_PREFIX : 'dp_';
-        $gatewaySql = $requestedGateway !== '' ? ' AND gateway = ?' : '';
-        $queryParams = $requestedGateway !== '' ? [$userId, $requestedGateway] : [$userId];
+        $holdTypes = function_exists('pos_open_hold_type_list') ? pos_open_hold_type_list() : ['auth', 'paypal authorization'];
+        $holdStatuses = function_exists('pos_open_hold_status_list') ? pos_open_hold_status_list() : ['completed', 'authorized'];
+        $typeSql = implode(',', array_fill(0, count($holdTypes), '?'));
+        $statusSql = implode(',', array_fill(0, count($holdStatuses), '?'));
+        $gatewaySql = $requestedGateway !== '' ? ' AND LOWER(TRIM(COALESCE(gateway,\'\'))) = ?' : '';
+        $queryParams = array_merge([$userId], $holdTypes, $holdStatuses);
+        if ($requestedGateway !== '') {
+            $queryParams[] = $requestedGateway;
+        }
         $rows = db()->query(
                 "SELECT id, reference, amount, currency, rrn, auth_code, bank_approval_code, gateway, card_last4, status, gateway_response, created_at
          FROM {$pfx}transactions
-         WHERE user_id = ? AND transaction_type = 'auth'
-                     AND LOWER(COALESCE(status,'')) IN ('completed','authorized','hold','held','pending','success'){$gatewaySql}
+         WHERE user_id = ?
+           AND (
+             LOWER(TRIM(COALESCE(transaction_type,''))) IN ({$typeSql})
+             OR (
+               LOWER(TRIM(COALESCE(gateway,''))) = 'paypal'
+               AND LOWER(COALESCE(transaction_type,'')) LIKE '%authoriz%'
+             )
+           )
+           AND LOWER(TRIM(COALESCE(status,''))) IN ({$statusSql}){$gatewaySql}
                  ORDER BY id DESC LIMIT 40",
                 $queryParams
     ) ?: [];
@@ -32,13 +46,9 @@ try {
             $decoded = json_decode((string) $row['gateway_response'], true);
             $raw = is_array($decoded) ? $decoded : [];
         }
-        $paymentId = (string) (
-            $raw['nuvei_txn_id']
-            ?? $raw['transaction_id']
-            ?? $raw['payment_id']
-            ?? ($raw['raw']['transactionId'] ?? '')
-            ?? ($raw['gateway_details']['transaction_id'] ?? '')
-        );
+        $paymentId = function_exists('pos_hold_payment_id')
+            ? pos_hold_payment_id($raw, $row)
+            : trim((string) ($raw['authorization_id'] ?? $raw['payment_id'] ?? $raw['transaction_id'] ?? ''));
         $rrn = (string) ($row['rrn'] ?? '');
         $follow = function_exists('pos_auth_followup_totals')
             ? pos_auth_followup_totals(db(), $paymentId, $rrn)

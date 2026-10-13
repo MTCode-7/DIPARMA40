@@ -32,8 +32,10 @@ if ($gwCode === 'ledger') {
     exit;
 }
 
+$diparmaNotReady = ($gwCode === 'diparma' && dp_diparma_iso_host() === '');
+
 // منع الوصول المباشر لصفحة بوابة غير مفعّلة أو غير متصلة بالكامل
-if (!dp_gateway_is_visible_on_channels($gwCode)) {
+if (!$diparmaNotReady && !dp_gateway_is_visible_on_channels($gwCode)) {
     header('Location: ' . (isset($checkoutBase) ? $checkoutBase : '') . 'checkout_router.php?error=gateway_not_ready');
     exit;
 }

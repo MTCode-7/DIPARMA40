@@ -11,6 +11,13 @@
  * ─ Crypto: Binance, Gate.io, Ledger TRX
  * ============================================================
  */
+ini_set('display_errors', '0');
+require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/api_guard.php';
+require_once __DIR__ . '/../lib/DIPARMAOrchestrator.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Headers: Content-Type,X-Api-Key,X-Timestamp,X-Signature');
 
@@ -29,17 +36,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 set_exception_handler(function($e) {
-    echo json_encode(['success'=>false,'message'=>$e->getMessage()]);
+    http_response_code(500);
+    echo json_encode(['success'=>false,'message'=>'Internal server error']);
     exit;
 });
 
 if (session_status() === PHP_SESSION_NONE) session_start();
-
-require_once __DIR__ . '/../includes/config.php';
-require_once __DIR__ . '/../includes/database.php';
-require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/api_guard.php';
-require_once __DIR__ . '/../lib/DIPARMAOrchestrator.php';
 
 $raw  = file_get_contents('php://input');
 $body = json_decode($raw, true);

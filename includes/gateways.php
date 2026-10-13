@@ -151,22 +151,16 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
         'region' => 'Global',
         'icon' => 'fas fa-coins',
         'credentials' => [
-            'merchant_id' => getenv('NUVEI_MERCHANT_ID') ?: (getenv('DIPARMA_MERCHANT_ID') ?: ''),
-            'site_id' => getenv('NUVEI_SITE_ID') ?: '',
-            'secret_key' => getenv('NUVEI_SECRET_KEY') ?: '',
+            'merchant_id' => getenv('DIPARMA_MERCHANT_ID') ?: '',
             'api_key' => getenv('DIPARMA_API_KEY') ?: '',
             'api_secret' => getenv('DIPARMA_API_SECRET') ?: '',
         ],
         'urls' => [
-            'api' => 'https://secure.nuvei.com/ppp/api/v1/',
-            'success' => getenv('NUVEI_SUCCESS_URL') ?: 'https://diparmas.com/nuvei-success.html',
-            'cancel' => getenv('NUVEI_FAILURE_URL') ?: getenv('NUVEI_CANCEL_URL') ?: 'https://diparmas.com/nuvei-fail.html',
-            'pending' => getenv('NUVEI_PENDING_URL') ?: 'https://diparmas.com/nuvei-pending.html',
-            'back' => getenv('NUVEI_BACK_URL') ?: 'https://diparmas.com/nuvei-back.html',
-            'webhook' => getenv('NUVEI_WEBHOOK_URL') ?: 'https://diparmas.com/api/nuvei_dmn.php',
+            'success' => getenv('DIPARMA_SUCCESS_URL') ?: '',
+            'cancel' => getenv('DIPARMA_CANCEL_URL') ?: '',
         ],
-        'api_base' => 'https://secure.nuvei.com/ppp/api/v1/',
-        'environment' => getenv('DIPARMA_ENVIRONMENT') ?: (getenv('NUVEI_ENVIRONMENT') ?: 'live'),
+        'api_base' => '',
+        'environment' => getenv('DIPARMA_ENVIRONMENT') ?: '',
         'currencies' => ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'KWD', 'QAR', 'EGP', 'USDT'],
         'fees' => ['percentage' => 0, 'fixed' => 0],
         'limits' => ['min' => 1, 'max_daily' => PHP_INT_MAX, 'max_monthly' => PHP_INT_MAX],
@@ -175,7 +169,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
             'refund', 'void', '3ds', 'webhooks', 'moto', 'offline', 'online',
         ],
         'card_types' => ['Visa', 'Mastercard'],
-        'setup_complete' => true
+        'setup_complete' => false
     ],
 
     'diparma_gateway' => [
@@ -1811,15 +1805,30 @@ function dp_gateway_canonical_charge_code(string $code): string
     return $aliases[$code] ?? $code;
 }
 
+function dp_diparma_iso_host(): string
+{
+    $file = dirname(__DIR__) . '/lib/ISO8583/DiparmaIsoProcessor.php';
+    if (!class_exists('DiparmaIsoProcessor', false) && is_file($file)) {
+        require_once $file;
+    }
+    if (!class_exists('DiparmaIsoProcessor', false) || !method_exists('DiparmaIsoProcessor', 'configuredHostValue')) {
+        return '';
+    }
+    return DiparmaIsoProcessor::configuredHostValue();
+}
+
 function dp_gateway_charge_path_is_complete(string $code): bool
 {
+    $code = dp_gateway_canonical_charge_code($code);
+    if ($code === 'diparma') {
+        return dp_diparma_iso_host() !== '';
+    }
     static $complete = [
         'nuvei' => true,
         'paypal' => true,
         'stripe' => true,
         'square' => true,
         'square_online' => true,
-        'diparma' => true,
         'checkout' => true,
         'paytabs' => true,
         'authorizenet' => true,
@@ -1830,7 +1839,6 @@ function dp_gateway_charge_path_is_complete(string $code): bool
         'gate_io' => true,
         'binance' => true,
     ];
-    $code = dp_gateway_canonical_charge_code($code);
     return $code !== '' && isset($complete[$code]);
 }
 

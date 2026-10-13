@@ -622,17 +622,21 @@ class PayPalService
         $txnType = strtolower(trim((string)($payload['txn_type'] ?? '')));
         $authChannel = strtolower(trim((string)($payload['auth_channel'] ?? $payload['moto_channel'] ?? '')));
         $mode = strtoupper(trim((string)($payload['processing_mode'] ?? $payload['security_mode'] ?? $payload['mode'] ?? $payload['charge_mode'] ?? '')));
-        $isOffline = $mode === 'OFFLINE'
+        $isAuthorize = $intent === 'AUTHORIZE';
+        $isOffline = !$isAuthorize && (
+            $mode === 'OFFLINE'
             || $txnType === 'offline_sale_moto'
             || $authChannel === 'offline'
-            || !empty($payload['is_offline']);
-        $isMoto = $isOffline
+            || !empty($payload['is_offline'])
+        );
+        $isMoto = !$isAuthorize && (
+            $isOffline
             || $mode === 'MOTO'
             || !empty($payload['is_moto'])
-            || in_array($txnType, ['online_sale_moto', 'offline_sale_moto', 'purchase_advice'], true)
-            || (in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold'], true) && $authChannel !== 'ecom');
+            || in_array($txnType, ['online_sale_moto', 'offline_sale_moto', 'purchase_advice', 'purchase_2d'], true)
+        );
         $cvvOk = (bool) preg_match('/^\d{3,4}$/', $cvv);
-        if (!$useVault && (strlen($cardNumber) < 13 || $expiry === '' || (!$isMoto && !$cvvOk))) {
+        if (!$useVault && (strlen($cardNumber) < 13 || $expiry === '' || (!$isAuthorize && !$isMoto && !$cvvOk))) {
             return ['success' => false, 'message' => 'بيانات البطاقة غير مكتملة', 'error_code' => 'INVALID_CARD'];
         }
 

@@ -21,7 +21,8 @@ if (!function_exists('dp_gateway_is_visible_on_channels')) {
         require_once $root . '/includes/gateways.php';
     }
 }
-if ($gwCode !== 'ledger' && function_exists('dp_gateway_is_visible_on_channels') && !dp_gateway_is_visible_on_channels($gwCode)) {
+$diparmaNotReady = ($gwCode === 'diparma' && function_exists('dp_diparma_iso_host') && dp_diparma_iso_host() === '');
+if (!$diparmaNotReady && $gwCode !== 'ledger' && function_exists('dp_gateway_is_visible_on_channels') && !dp_gateway_is_visible_on_channels($gwCode)) {
     header('Location: index.php?kiosk=1', true, 302);
     exit;
 }

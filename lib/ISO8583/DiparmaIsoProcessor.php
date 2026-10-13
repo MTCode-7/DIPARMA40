@@ -72,6 +72,7 @@ class DiparmaIsoProcessor
         'purchase_offline' => 'offline_sale_moto',
         'online_moto' => 'online_sale_moto',
         'offline_moto' => 'offline_sale_moto',
+        'offline_sales_moto' => 'offline_sale_moto',
         'auth_complete' => 'capture',
         'auth_capture' => 'capture',
         'auth_hold' => 'auth',
@@ -151,8 +152,17 @@ class DiparmaIsoProcessor
      * @param array<string,mixed> $fields
      * @return array<string,mixed>
      */
+    public static function configuredHostValue(): string
+    {
+        return self::configuredHost();
+    }
+
     public static function handle(string $txnType, array $fields): array
     {
+        if (self::configuredHost() === '') {
+            return self::scrub(self::fail('DI PARMA ISO host is not configured. The charge was not sent.'));
+        }
+
         $built = self::buildIso8583($txnType, $fields);
         if (empty($built['mti'])) {
             return self::scrub($built);

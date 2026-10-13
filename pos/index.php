@@ -67,14 +67,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['pos_catalog'])) {
 $chosenModel = trim((string)($_GET['device'] ?? $_COOKIE['di_parma_pos_model'] ?? 'bitel_ic3600'));
 $resolvedPick = pos_device_get($chosenModel);
 $chosenModel = (string)($resolvedPick['model'] ?? 'generic_pos');
+$pageTid = pos_request_terminal_id();
+if ($pageTid === '') {
+    $pageTid = pos_session_terminal_id($chosenModel);
+}
 $posDevice = pos_device_resolve([
     'pos_model' => $chosenModel,
-    'terminal_id' => pos_request_terminal_id(),
+    'terminal_id' => $pageTid,
 ]);
 $isVerix = pos_device_is_verix($posDevice);
 $verixCommission = pos_device_commission($posDevice);
 $posGw = pos_normalize_gateway((string)($_GET['gw'] ?? ''));
-if ($posGw !== '' && !pos_gateway_is_live($posGw)) {
+if (!function_exists('dp_diparma_iso_host') && defined('POS_APP_ROOT') && is_file(POS_APP_ROOT . '/includes/gateways.php')) {
+    require_once POS_APP_ROOT . '/includes/gateways.php';
+}
+$diparmaNotReady = ($posGw === 'diparma' && function_exists('dp_diparma_iso_host') && dp_diparma_iso_host() === '');
+if (!$diparmaNotReady && $posGw !== '' && !pos_gateway_is_live($posGw)) {
     $posGw = '';
 }
 $ledgerCheckout = isset($_GET['ledger_checkout']) && (string) $_GET['ledger_checkout'] === '1';
@@ -1306,7 +1314,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     </div>
     <div id="captureCompareBox" style="display:none;background:rgba(159,232,112,.06);border:1px solid rgba(159,232,112,.28);border-radius:12px;padding:12px;margin-bottom:12px">
       <div style="font-weight:800;color:#9fe870;margin-bottom:4px"><?=$ar?'تكملة الحجز — إيجار منزل / سيارة / فندق':'Complete hold — home / car / hotel rental'?></div>
-      <div style="font-size:.7rem;color:var(--muted2);line-height:1.55;margin-bottom:8px"><?=$ar?'التحصيل يقبل مبلغاً أقل أو مساوياً أو أكبر عبر PayPal وStripe وSquare 1 وSquare 2 وNuvei. يمكن تكرار العملية على نفس الحجز. الحد 5,000,000 دولار.':'Capture may be lower, equal, or higher on PayPal, Stripe, Square 1, Square 2, and Nuvei. Capture can repeat on the same hold. Bank cap: 5,000,000 USD.'?></div>
+      <div style="font-size:.7rem;color:var(--muted2);line-height:1.55;margin-bottom:8px"><?=$ar?'مبلغ الإكمال يقبل الأقل والمساوي والأكبر من الحجز. الحد 5,000,000 دولار.':'The completion amount may be lower, equal, or higher than the hold. Bank cap: 5,000,000 USD.'?></div>
       <div id="holdAmtLine" style="font-size:.75rem;color:var(--muted2);margin-bottom:8px"><?=$ar?'اختر حجز AUTH أولاً ليظهر مبلغ الحجز.':'Pick an AUTH hold first to show the hold amount.'?></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
         <button type="button" class="cap-cmp" data-cap-cmp="less" onclick="setCaptureCompare('less')"><?=$ar?'نقص (خروج مبكر)':'Less (early return)'?></button>
@@ -1314,7 +1322,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
         <button type="button" class="cap-cmp" data-cap-cmp="more" onclick="setCaptureCompare('more')"><?=$ar?'زيادة (تمديد)':'More (extension)'?></button>
       </div>
       <div class="fld" id="captureCustomAmtWrap" style="display:none;margin:0">
-        <label id="captureCustomAmtLabel"><?=$ar?'أدخل مبلغ الكابتشر النهائي':'Enter final capture amount'?> <span style="color:var(--red)">*</span></label>
+        <label id="captureCustomAmtLabel"><?=$ar?'مبلغ الإكمال بعد الحجز':'Completion amount after the hold'?> <span style="color:var(--red)">*</span></label>
         <input type="text" id="captureCustomAmt" inputmode="decimal" autocomplete="off" placeholder="0.00"
           oninput="window.onCaptureCustomAmt()">
       </div>
@@ -1353,7 +1361,15 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       </div>
     </div>
 
-    <button class="btn btn-gold btn-full" id="processBtn" onclick="processTransaction()" <?= $posGw===''?'disabled':'' ?>>
+    <?php if ($posGw === 'diparma'): ?>
+    <div style="margin-bottom:12px;border:1px solid rgba(255,215,0,.35);border-radius:12px;padding:10px;font-size:.75rem;line-height:1.6;color:var(--gold)">
+      <?php if (!empty($diparmaNotReady)): ?>
+      <?=$ar?'مسار DI PARMA غير جاهز: مضيف ISO غير مضبوط. لن يُرسل أي خصم.':'DI PARMA path is not ready: no ISO host is configured. No charge is sent.'?>
+      <?php endif; ?>
+      <?=$ar?'الشبكات المقبولة: Visa وMastercard فقط.':'Accepted networks: Visa and Mastercard only.'?>
+    </div>
+    <?php endif; ?>
+    <button class="btn btn-gold btn-full" id="processBtn" onclick="processTransaction()" <?= ($posGw==='' || !empty($diparmaNotReady))?'disabled':'' ?>>
       <i class="fas fa-credit-card"></i> <span id="processBtnText"><?=$ar?'تنفيذ شراء 3D (OTP)':'Process Purchase 3D (OTP)'?></span>
     </button>
   </div>
@@ -1420,10 +1436,20 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="receipt-banner" id="rBanner">PENDING</div>
     <div class="receipt-reason" id="rReason" style="display:none"></div>
     <div class="receipt-advice" id="rAdvice" style="display:none"></div>
+    <div id="rRefs" style="display:none">
+      <div class="receipt-cut"><?=$ar?'البنك':'BANK'?></div>
+      <div class="receipt-row"><span><?=$ar?'RRN للبنك':'RRN for the bank'?></span><span id="rBankRrn"></span></div>
+      <div class="receipt-row"><span><?=$ar?'Approval Code للبنك':'Approval Code for the bank'?></span><span id="rBankApproval"></span></div>
+      <div class="receipt-cut"><?=$ar?'بوابة الدفع':'PAYMENT GATEWAY'?></div>
+      <div class="receipt-row"><span><?=$ar?'Payment ID لبوابة الدفع':'Payment ID for the payment gateway'?></span><span id="rGwPaymentId"></span></div>
+      <div class="receipt-row"><span><?=$ar?'Approval Code لبوابة الدفع':'Approval Code for the payment gateway'?></span><span id="rGwApproval"></span></div>
+    </div>
+    <div id="rLegacyRefs">
     <div class="receipt-row"><span>APPROVAL CODE</span><span id="rApproval">—</span></div>
     <div class="receipt-row"><span>RRN</span><span id="rRRN">—</span></div>
     <div class="receipt-row"><span>PAYMENT / TXN ID</span><span id="rPaymentId">—</span></div>
     <div class="receipt-row"><span>INTERNAL APPROVAL</span><span id="rInternalApproval">—</span></div>
+    </div>
     <div class="receipt-row"><span>RC</span><span id="rRc">—</span></div>
     <div class="receipt-row"><span>TRACE</span><span id="rRef">—</span></div>
     <div class="receipt-row" id="rHostRow"><span>HOST</span><span id="rNuvei">—</span></div>
@@ -1947,8 +1973,19 @@ function posPlainReason(raw) {
   return text;
 }
 
+function posGatewaySetupFault(text) {
+  return /PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING|PAYEE_NOT_ENABLED_FOR_MOTO|MOTO_NOT_ENABLED|ADVANCED CREDIT|مدفوعات البطاقة المباشرة|not setup to be able to process card|not enabled for card|لا يدعم MOTO|Mail Order|التفعيل يتم من لوحة PayPal/i.test(String(text || ''));
+}
+
 function posCardUseAlert(d, why) {
   const last4 = String((d && d.card_last4) || '').replace(/\D/g, '').slice(-4);
+  const setupBlob = [why, d && d.message, d && d.status_message, d && d.decline_reason, d && d.error_code, d && d.raw_message].join(' ');
+  if ((d && d.card_use === 'account_setup') || posGatewaySetupFault(setupBlob)) {
+    return { code: 'account_setup', text: '' };
+  }
+  if (d && d.card_use === 'local_validation') {
+    return { code: 'local_validation', text: '' };
+  }
   if (d && (d.card_use_ar || d.card_use_en)) {
     return {
       code: String(d.card_use || ''),
@@ -1956,6 +1993,10 @@ function posCardUseAlert(d, why) {
     };
   }
   const scan = String(why || '').toUpperCase();
+  if (!/GENERIC\s*DECLINE|1507|1116|-1100|ISSUER DECLINED|CVV_FAILURE|PAN_FAILURE|EXPIRED CARD/.test(scan)
+      && /Terminal ID \(TID\) is required|Select a real POS model|Card number must be|Expiry date required|Enter the full approval code|Bank Auth Code|Gateway Auth Code|RRN must be|Payment ID\) is required|Invalid CVV|Enter the name on the card|Placeholder names are rejected|Test and dummy cards are blocked|CLOUD token is required|Physical POS requires a real card|Original reference is required/i.test(String(why || ''))) {
+    return { code: 'local_validation', text: '' };
+  }
   const tail = last4 ? (' ****' + last4) : '';
   const doNot = (ar, en) => ({
     code: 'do_not_use',
@@ -1971,6 +2012,12 @@ function posCardUseAlert(d, why) {
   });
   if (/CARDHOLDER|إيميل العميل|يتطلب اسم حامل/i.test(String(why || ''))) {
     return canUse('أكمل الاسم والإيميل الحقيقي ثم نفّذ.', 'Complete the real name and email, then process again.');
+  }
+  if (/PERMISSION_DENIED|NOT_AUTHORIZED|ACCESS_DENIED|INSUFFICIENT_PERMISSION|صلاحية الحساب|صلاحية حساب/i.test(String(why || ''))) {
+    return canUse('صلاحية حساب PayPal لا تسمح بهذه العملية. المُصدر لم يرفض البطاقة.', 'The PayPal account permission does not allow this operation. The issuer did not decline the card.');
+  }
+  if (/INCOMPATIBLE_PARAMETER_VALUE|invalid_client|client authentication failed|PayPal auth failed/i.test(String(why || ''))) {
+    return canUse('خطأ في إعداد أو بيانات طلب البوابة؛ لم يؤكد البنك رفض البطاقة.', 'Gateway credentials or request configuration failed; the issuer did not confirm a card decline.');
   }
   if (/1019|INVALID FAILURE URL|INVALID URL/.test(scan)) {
     return canUse('المشكلة في رابط Nuvei وليست في البطاقة.', 'This is a Nuvei URL issue, not the card.');
@@ -2016,8 +2063,14 @@ function posShowDeclineReceipt(d, type, amount, currency, cardNum) {
   const hasRef = !!(d && d.reference);
   if (full) full.style.display = hasRef ? '' : 'none';
   if (modalFull) modalFull.style.display = hasRef ? '' : 'none';
-  const advice = posCardUseAlert(d, posPlainReason(d));
-  toast(advice.text || 'DECLINED', advice.code === 'can_use' ? 'info' : 'error');
+  const adviceWhy = posPlainReason(d);
+  const advice = posCardUseAlert(d, adviceWhy);
+  const toastText = advice.code === 'account_setup'
+    ? (adviceWhy || (AR ? 'حساب PayPal غير مفعّل لمدفوعات البطاقة المباشرة. التفعيل من لوحة PayPal ولا يمكن للكود فتحه.' : 'The live PayPal account is not enabled for direct card payments. Enable it in the PayPal dashboard; this code cannot turn it on.'))
+    : (advice.code === 'local_validation'
+      ? (adviceWhy || (AR ? 'تحقق من الحقول قبل الإرسال.' : 'Check the fields before sending.'))
+      : (advice.text || 'DECLINED'));
+  toast(toastText, advice.code === 'can_use' ? 'info' : 'error');
 }
 
 function posResponseCode(d, why) {
@@ -2052,7 +2105,8 @@ function approvalLenFor(type, chargeMode) {
 }
 
 function needsRrn(type, chargeMode) {
-  if (['auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice'].includes(type)) return false;
+  if (['auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice', 'offline_sale_moto', 'offline_sales_moto'].includes(type)) return false;
+  if (chargeMode === 'offline_sale_moto') return false;
   if (['capture','refund','avoid'].includes(type)) return true;
   if (chargeMode && CHARGE_MODES[chargeMode]) return !!CHARGE_MODES[chargeMode].requires_rrn;
   return !!(TXN_META[type]?.requires_rrn);
@@ -2060,7 +2114,7 @@ function needsRrn(type, chargeMode) {
 
 function needsApproval(type, chargeMode) {
   if (['auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice'].includes(type)) return false;
-  if (['capture','online_sale_moto','offline_sale_moto'].includes(type)) return true;
+  if (['capture','offline_sale_moto','offline_sales_moto'].includes(type)) return true;
   if (chargeMode && CHARGE_MODES[chargeMode]) return !!CHARGE_MODES[chargeMode].requires_approval;
   return !!(TXN_META[type]?.requires_approval);
 }
@@ -2127,6 +2181,10 @@ window.applyOpsLegend = function(type) {
     row.rrn = false;
     row.appr = false;
     row.pid = false;
+  }
+  if (type === 'offline_sale_moto' || type === 'offline_sales_moto') {
+    row.rrn = false;
+    row.appr = true;
   }
   if (row.card === true) row.cvv = 'optional';
   const needCard = legendNeed(row.card) || !!meta.requires_card;
@@ -2207,17 +2265,17 @@ function renderExtraFields(type) {
   const meta = TXN_META[type] || {};
   const moreCaptureButton = document.querySelector('[data-cap-cmp="more"]');
   if (moreCaptureButton && type === 'capture') {
-    moreCaptureButton.style.display = posGatewayAllowsOvercapture(POS_GW) ? '' : 'none';
+    moreCaptureButton.style.display = '';
   }
 
   if (meta.desc_ar || meta.desc_en) {
     html += `<div class="info-banner" style="background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.18);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.72rem;color:var(--muted2);line-height:1.7">
       <strong style="color:var(--gold)">${escapeHtml(AR?meta.ar:meta.en)}</strong><br>
       ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
-      ${type === 'capture' ? '<br>• '+(AR?'أقل أو مساوٍ أو أكبر عبر PayPal وStripe وSquare 1 وSquare 2 وNuvei. يمكن تكرار الكابتشر على نفس الحجز. حد البنك: 5,000,000 دولار.':'Lower, equal, or higher on PayPal, Stripe, Square 1, Square 2, and Nuvei. Capture can repeat on the same hold. Bank cap: 5,000,000 USD.') : ''}
+      ${type === 'capture' ? '<br>• '+(AR?'مبلغ الإكمال يقبل الأقل والمساوي والأكبر من الحجز. حد البنك: 5,000,000 دولار.':'The completion amount may be lower, equal, or higher than the hold. Bank cap: 5,000,000 USD.') : ''}
       ${type === 'offline_sale_moto' && POS_GW === 'square' ? '<br>• '+(AR?'ليس أوفلاين DIPARMA: استخدم تطبيق Square على الجهاز بعد تفعيل Offline payments. رفع خلال 24 ساعة، انتهاء 72، حد 50,000 دولار. إدخال الرقم ممنوع أوفلاين.':'Not DIPARMA offline: use the Square app on the device after enabling Offline payments. Upload within 24 hours, expires 72, max 50,000 USD. Keyed PAN is not allowed offline.') : ''}
       ${type === 'offline_sale_moto' && POS_GW === 'paypal' ? '<br>• '+(AR?'ليس أوفلاين DIPARMA: PayPal Reader فقط، شريحة أو لمس، تخزين على الجهاز، رفع خلال 24 ساعة. الحد 1,000 دولار والمجموع 10,000. إدخال الرقم ممنوع.':'Not DIPARMA offline: PayPal Reader only, chip or contactless, stored on the device, upload within 24 hours. Limit 1,000 USD each and 10,000 queued. Keyed PAN is not allowed.') : ''}
-      ${type === 'purchase_advice' ? '<br>• '+(AR?'بدون حجز سابق. المبلغ موجب أو سالب.':'No prior hold. Amount may be positive or negative.') : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز.':'No RRN or approval fields while entering the hold.') : '<br>• RRN = 12 '+(AR?'رقم':'digits')+' · Online Approval = 4 · Offline Approval = 6')}
+      ${type === 'purchase_advice' ? '<br>• '+(AR?'بدون حجز سابق. المبلغ موجب أو سالب.':'No prior hold. Amount may be positive or negative.') : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز.':'No RRN or approval fields while entering the hold.') : '')}
     </div>`;
   }
 
@@ -2235,33 +2293,36 @@ function renderExtraFields(type) {
 
   if (type === 'capture') {
     html += `<div class="fld">
-      <label><i class="fas fa-lock"></i> ${AR?'الحجوزات (AUTH) — تبقى بعد الكابتشر':'AUTH holds — remain after capture'} <span style="color:var(--red)">*</span></label>
+      <label><i class="fas fa-lock"></i> ${AR?'الحجوزات (AUTH) — تبقى بعد الكابتشر':'AUTH holds — remain after capture'}</label>
       <select id="openHoldSelect" onchange="applyOpenHold(this)">
         <option value="">${AR?'— اختر حجزاً أو أدخل المراجع يدوياً —':'— Pick a hold or enter refs —'}</option>
       </select>
       <div style="font-size:.62rem;color:var(--muted2);margin-top:4px">${AR?'الحجز لا يُغلق بعد أول كابتشر. يمكن الكابتشر أو الإشعار أكثر من مرة على نفس الحجز.':'The hold stays open after the first capture. Capture or advice can run again on the same hold.'}</div>
-    </div>
-    <div class="fld">
-      <label>Payment ID</label>
-      <input type="text" id="paymentId" placeholder="${AR?'معرّف البوابة من إيصال الحجز':'Gateway id from the hold receipt'}">
     </div>`;
   }
 
-  if (type === 'capture' || type === 'refund' || type === 'avoid') {
+  const offlineSale = type === 'offline_sale_moto' || type === 'offline_sales_moto';
+  if (type === 'online_sale_moto' || type === 'purchase_advice' || type === 'capture') {
     html += `<div class="fld">
-      <label><i class="fas fa-hashtag"></i> RRN <span style="color:var(--red)">*</span> <span style="color:var(--muted);font-weight:600">(12 ${AR?'رقم':'digits'})</span></label>
+      <label>RRN</label>
       <input type="text" id="origRef" maxlength="12" inputmode="numeric" placeholder="000000000000"
         oninput="this.value=this.value.replace(/\\D/g,'').slice(0,12)">
     </div>`;
   }
-
-  if (type === 'capture' || type === 'online_sale_moto' || type === 'offline_sale_moto') {
+  if (offlineSale || type === 'online_sale_moto' || type === 'purchase_advice' || type === 'capture') {
     html += `<div class="fld">
-      <label><i class="fas fa-key" style="color:var(--gold)"></i> Approval Code <span style="color:var(--red)">*</span>
-        <span style="color:var(--muted);font-weight:600">(4 ${AR?'أو':'or'} 6 ${AR?'أرقام':'digits'})</span></label>
-      <input type="text" id="approvalCode" maxlength="6" inputmode="numeric" placeholder="4 or 6"
+      <label>APPROVAL CODE</label>
+      <input type="text" id="approvalCode" maxlength="6" placeholder="4 or 6"
         style="letter-spacing:4px;font-weight:800;text-align:center"
-        oninput="this.value=this.value.replace(/\\D/g,'').slice(0,6)">
+        oninput="this.value=this.value.replace(/[^0-9A-Za-z]/g,'').slice(0,6)">
+    </div>`;
+  }
+
+  if (type === 'refund' || type === 'avoid') {
+    html += `<div class="fld">
+      <label><i class="fas fa-hashtag"></i> RRN <span style="color:var(--red)">*</span> <span style="color:var(--muted);font-weight:600">(12 ${AR?'رقم':'digits'})</span></label>
+      <input type="text" id="origRef" maxlength="12" inputmode="numeric" placeholder="000000000000"
+        oninput="this.value=this.value.replace(/\\D/g,'').slice(0,12)">
     </div>`;
   }
 
@@ -2378,50 +2439,32 @@ window.captureCompareMode = function() {
 };
 
 window.resolveCaptureAmount = function() {
-  const hold = parseFloat(POS.holdAmount || 0) || 0;
-  const mode = POS.captureMode || '';
-  if (mode === 'same') return hold;
   const typed = parseFloat(document.getElementById('captureCustomAmt')?.value || 0) || 0;
-  return typed;
+  if (typed > 0) return typed;
+  const hold = parseFloat(POS.holdAmount || 0) || 0;
+  return (POS.captureMode === 'same') ? hold : 0;
 };
 
 window.setCaptureCompare = function(mode) {
   const hold = parseFloat(POS.holdAmount || 0) || 0;
-  if (mode === 'more' && POS.txnType === 'capture' && !posGatewayAllowsOvercapture(POS_GW)) {
-    toast(AR ? 'الزيادة متاحة فقط عبر PayPal وStripe وSquare 1 وSquare 2 وNuvei' : 'Higher capture is enabled only for PayPal, Stripe, Square 1, Square 2, and Nuvei', 'error');
-    return;
-  }
-  if (hold <= 0 && mode !== '') {
-    toast(AR ? 'اختر الحجز السابق أولاً' : 'Pick the previous hold first', 'error');
-    return;
-  }
   POS.captureMode = mode;
   const wrap = document.getElementById('captureCustomAmtWrap');
   const inp = document.getElementById('captureCustomAmt');
   const lbl = document.getElementById('captureCustomAmtLabel');
   const hasHold = hold > 0;
-  const editable = mode === 'less' || mode === 'more';
-  if (wrap) wrap.style.display = hasHold ? '' : 'none';
+  const editable = true;
+  if (wrap) wrap.style.display = '';
   if (lbl) {
-    lbl.textContent = mode === 'more'
-      ? (AR ? 'المبلغ النهائي بعد التمديد' : 'Final amount after extension')
-      : (mode === 'less'
-        ? (AR ? 'المبلغ النهائي بعد الخروج المبكر' : 'Final amount after early return')
-        : (AR ? 'مبلغ الكابتشر' : 'Capture amount'));
+    lbl.textContent = AR ? 'مبلغ الإكمال بعد الحجز' : 'Completion amount after the hold';
   }
   if (inp) {
     inp.placeholder = hold > 0 ? hold.toFixed(2) : '0.00';
-    inp.readOnly = !editable;
-    if (mode === 'same' && hold > 0) {
+    inp.readOnly = false;
+    if (mode === 'same' && hold > 0 && !inp.value) {
       inp.value = hold.toFixed(2);
-    } else if (editable) {
-      inp.value = '';
-      setTimeout(function() { try { inp.focus(); } catch (e) {} }, 0);
-    } else {
-      inp.value = '';
     }
   }
-  const cap = mode === 'same' ? hold : 0;
+  const cap = parseFloat(inp?.value || '') || (mode === 'same' ? hold : 0);
   const amtEl = document.getElementById('txnAmount');
   const hid = document.getElementById('captureAmt');
   if (amtEl) amtEl.value = cap > 0 ? cap.toFixed(2) : '';
@@ -2472,8 +2515,8 @@ window.syncCaptureSplit = function() {
   if (!hint) return;
   if (!mode) {
     hint.textContent = AR
-      ? 'يمكن اختيار مبلغ أقل أو مساوٍ للحجز. الزيادة في AUTH Capture متاحة فقط عبر Square وPayPal وStripe وNuvei وبحسب موافقة الجهة المصدرة.'
-      : 'Choose an amount less than or equal to the original hold. Higher AUTH Capture is available only for Square, PayPal, Stripe, and Nuvei, subject to issuer approval.';
+      ? 'أدخل مبلغ الإكمال: أقل من الحجز أو مساوٍ له أو أكبر منه. سقف البنك 5,000,000 دولار.'
+      : 'Enter the completion amount: lower than, equal to, or higher than the hold. Bank cap is 5,000,000 USD.';
     return;
   }
   if (mode === 'same') {
@@ -2516,7 +2559,7 @@ window.loadOpenHolds = async function() {
   const sel = document.getElementById('openHoldSelect');
   if (!sel) return;
   try {
-    const r = await fetch('api/auth_holds.php', { credentials: 'same-origin' });
+    const r = await fetch('api/auth_holds.php?gateway=' + encodeURIComponent(POS_GW || ''), { credentials: 'same-origin' });
     const d = await r.json();
     const holds = Array.isArray(d.holds) ? d.holds : [];
     sel.innerHTML = `<option value="">${AR?'— اختر حجزاً أو أدخل المراجع يدوياً —':'— Pick a hold or enter refs —'}</option>`;
@@ -2526,7 +2569,7 @@ window.loadOpenHolds = async function() {
       const n = Number(h.capture_count || 0);
       const taken = Number(h.captured_total || 0).toFixed(2);
       const opt = document.createElement('option');
-      opt.value = String(i);
+      opt.value = String(h.id || i);
       opt.textContent = [h.reference, amt, n ? (`${n}× ${taken}`) : '', last4, h.rrn || h.payment_id || ''].filter(Boolean).join(' · ');
       opt.dataset.hold = JSON.stringify(h);
       sel.appendChild(opt);
@@ -2553,8 +2596,11 @@ window.applyOpenHold = function(sel) {
   const rrn = document.getElementById('origRef');
   const ap = document.getElementById('approvalCode');
   const pid = document.getElementById('paymentId');
-  if (rrn) rrn.value = String(h.rrn || '').replace(/\D/g, '').slice(0, 12);
-  if (ap) ap.value = String(h.bank_approval || h.gateway_approval || '').replace(/\D/g, '').slice(0, 12);
+  const gwAp = document.getElementById('gatewayApprovalCode');
+  const holdRrn = String(h.rrn || '').replace(/\D/g, '');
+  if (rrn && /^\d{12}$/.test(holdRrn)) rrn.value = holdRrn;
+  if (ap && h.bank_approval) ap.value = String(h.bank_approval);
+  if (gwAp && h.gateway_approval) gwAp.value = String(h.gateway_approval);
   if (pid) pid.value = h.payment_id || h.reference || '';
   const curSel = document.getElementById('txnCurrency');
   if (curSel && h.currency) {
@@ -2881,34 +2927,12 @@ window.processTransaction = async function() {
   const capMode = POS.captureMode || '';
   let captureAmt = parseFloat(document.getElementById('captureAmt')?.value) || 0;
   let amount   = parseFloat(document.getElementById('txnAmount').value) || parseFloat(POS.amount) || 0;
-  if (type === 'capture' || (type === 'purchase_advice' && capMode)) {
-    if (!capMode) {
-      toast(AR ? 'اختر نقص أو مساوٍ أو زيادة' : 'Choose less, same, or more', 'error');
+  if (type === 'capture') {
+    captureAmt = parseFloat(document.getElementById('captureCustomAmt')?.value) || captureAmt || amount;
+    if (captureAmt <= 0 && refundAmt <= 0) {
+      toast(AR ? 'أدخل مبلغ الإكمال بعد الحجز' : 'Enter the completion amount after the hold', 'error');
+      document.getElementById('captureCustomAmt')?.focus();
       return;
-    }
-    captureAmt = typeof resolveCaptureAmount === 'function' ? resolveCaptureAmount() : captureAmt;
-    if (capMode === 'same') {
-      captureAmt = holdAmt;
-    } else {
-      if (capMode === 'more' && !posGatewayAllowsOvercapture(POS_GW)) {
-        toast(AR ? 'الزيادة متاحة فقط عبر PayPal وStripe وSquare 1 وSquare 2 وNuvei' : 'Higher capture is enabled only for PayPal, Stripe, Square 1, Square 2, and Nuvei', 'error');
-        return;
-      }
-      if (captureAmt <= 0) {
-        toast(AR ? 'أدخل مبلغ الكابتشر' : 'Enter the capture amount', 'error');
-        document.getElementById('captureCustomAmt')?.focus();
-        return;
-      }
-      if (holdAmt > 0 && capMode === 'less' && captureAmt >= holdAmt) {
-        toast(AR ? 'مبلغ التحصيل الأقل يجب أن يكون أقل من مبلغ الحجز' : 'Less capture must be below the hold amount', 'error');
-        document.getElementById('captureCustomAmt')?.focus();
-        return;
-      }
-      if (holdAmt > 0 && capMode === 'more' && captureAmt <= holdAmt) {
-        toast(AR ? 'مبلغ التحصيل بالزيادة يجب أن يكون أكبر من مبلغ الحجز' : 'More capture must be above the hold amount', 'error');
-        document.getElementById('captureCustomAmt')?.focus();
-        return;
-      }
     }
     amount = captureAmt > 0 ? captureAmt : refundAmt;
     const capMax = Number((TXN_META.capture && TXN_META.capture.max_amount) || 5000000);
@@ -2936,8 +2960,19 @@ window.processTransaction = async function() {
   const cardType = document.getElementById('cardType').value;
   const cardNetwork = document.getElementById('cardNetwork')?.value || 'auto';
   const cloudToken = document.getElementById('cloudToken').value.trim();
-  const origRef  = document.getElementById('origRef')?.value || '';
+  const bankRrnDigits = String((document.querySelector('#extraFields #origRef') || document.getElementById('origRef'))?.value || '').replace(/\D/g, '');
+  const holdOpt = type === 'capture' ? document.getElementById('openHoldSelect')?.selectedOptions?.[0] : null;
+  const holdPicked = !!(holdOpt && holdOpt.dataset && holdOpt.dataset.hold);
+  let origRef = /^\d{12}$/.test(bankRrnDigits) ? bankRrnDigits : '';
+  if (!origRef && holdPicked) {
+    try {
+      const picked = JSON.parse(holdOpt.dataset.hold);
+      const holdRrn = String(picked.rrn || '').replace(/\D/g, '');
+      if (/^\d{12}$/.test(holdRrn)) origRef = holdRrn;
+    } catch (e) {}
+  }
   const approval = document.getElementById('approvalCode')?.value || '';
+  const gwApproval = document.getElementById('gatewayApprovalCode')?.value || '';
   const chargeMode = document.getElementById('chargeMode')?.value || '';
   const meta     = TXN_META[type] || {};
   if (POS_REQUIRES_CARD && cardType !== 'CLOUD' && meta.requires_card && cardNum && !luhnOk(cardNum)) {
@@ -2979,7 +3014,7 @@ window.processTransaction = async function() {
     auth_channel: document.getElementById('authChannel')?.value || undefined,
     is_moto: ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto') ? true : undefined,
     moto_indicator: ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto') ? 'M' : undefined,
-    payment_id: document.getElementById('paymentId')?.value || undefined,
+    payment_id: document.getElementById('paymentId')?.value || (holdPicked ? (function(){ try { return JSON.parse(holdOpt.dataset.hold).payment_id || undefined; } catch (e) { return undefined; } })() : undefined),
     wallet_address: walletAddr || undefined,
     wallet_provider: walletOpt?.dataset?.provider || undefined,
     wallet_network: walletOpt?.dataset?.network || undefined,
@@ -3007,7 +3042,12 @@ window.processTransaction = async function() {
   }
   if (approval) {
     extraData.approval_code = approval;
-    extraData.auth_code = approval;
+    extraData.bank_approval_code = approval;
+  }
+  if (gwApproval) {
+    extraData.gateway_approval_code = gwApproval;
+    extraData.auth_code = gwApproval;
+    extraData.internal_approval_code = gwApproval;
   }
 
   if (type === 'capture' && captureAmt <= 0 && refundAmt <= 0) {
@@ -3023,11 +3063,11 @@ window.processTransaction = async function() {
   if (POS_REQUIRES_CARD && (type === 'withdrawal_pos' || type === 'withdrawal_nfc') && !chargeMode) {
     toast(AR?'اختر وضع التنفيذ داخل السحب':'Select withdrawal charge mode', 'error'); return;
   }
-  if (POS_REQUIRES_CARD && needsRrn(type, chargeMode) && !/^\d{12}$/.test(origRef)) {
-    const pid = (document.getElementById('paymentId')?.value || '').trim();
-    if (!((type === 'capture' || type === 'purchase_advice') && pid.length >= 6)) {
-      toast(AR?'RRN يجب أن يكون 12 رقماً أو اختر الحجز من القائمة':'RRN must be 12 digits, or pick the hold from the list', 'error'); return;
-    }
+  if (type === 'capture' && !/^\d{12}$/.test(origRef) && !holdPicked) {
+    toast(AR?'RRN يجب أن يكون 12 رقماً أو اختر الحجز من القائمة':'RRN must be 12 digits, or pick the hold from the list', 'error'); return;
+  }
+  if (type !== 'capture' && POS_REQUIRES_CARD && needsRrn(type, chargeMode) && !/^\d{12}$/.test(bankRrnDigits)) {
+    toast(AR?'RRN يجب أن يكون 12 رقماً':'RRN must be exactly 12 digits', 'error'); return;
   }
   if (!POS_REQUIRES_CARD && ['refund','avoid'].includes(type) && !origRef) {
     toast(AR?'أدخل مرجع العملية الأصلية':'Enter original reference', 'error'); return;
@@ -3114,7 +3154,7 @@ window.processTransaction = async function() {
   setPosStatus('PENDING');
 
   const payload = {
-    txn_type: type, amount, currency,
+    txn_type: type === 'offline_sales_moto' ? 'offline_sale_moto' : type, amount, currency,
     card_number: squareToken ? '' : cardNum, card_name: cardName,
     card_expiry: squareToken ? '' : expiry, card_cvv: squareToken ? '' : cvv,
     card_type: squareToken ? 'CLOUD' : cardType, card_network: cardNetwork, cloud_token: squareToken || cloudToken,
@@ -3123,8 +3163,12 @@ window.processTransaction = async function() {
     verification_token: extraData.verification_token || undefined,
     orig_ref: origRef,
     rrn: origRef,
+    bank_rrn: origRef,
     approval_code: approval,
-    auth_code: approval,
+    bank_approval_code: approval,
+    gateway_approval_code: gwApproval,
+    auth_code: gwApproval,
+    internal_approval_code: gwApproval,
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     email: (document.getElementById('posEmail')?.value || '').trim(),
     ledger_address: POS.ledgerAddress,
@@ -3146,6 +3190,7 @@ window.processTransaction = async function() {
     pos_type: POS_DEVICE.type,
     extra: extraData,
     payment_id: extraData.payment_id || undefined,
+    hold_id: holdPicked ? (holdOpt.value || undefined) : undefined,
   };
   if (type === 'capture' || type === 'purchase_advice') {
     if (type === 'capture' || captureAmt > 0) {
@@ -3292,6 +3337,24 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   set('rRRN', receiptRrn);
   set('rPaymentId', clearDash(d.payment_id || d.authorization_id || d.transaction_id || ''));
   set('rInternalApproval', clearDash(d.internal_approval_code || ''));
+  const receiptTypes = ['purchase_2d', 'purchase_3d', 'online_sale_moto', 'offline_sale_moto', 'offline_sales_moto', 'auth', 'capture', 'purchase_advice'];
+  const happened = !!(d && (d.reference || d.response_code || d.status || d.success === true || d.success === false));
+  const showRefs = happened && receiptTypes.indexOf(String(type || '').toLowerCase()) >= 0;
+  const refBox = document.getElementById('rRefs');
+  const legacyRefs = document.getElementById('rLegacyRefs');
+  if (refBox) refBox.style.display = showRefs ? '' : 'none';
+  if (legacyRefs) legacyRefs.style.display = showRefs ? 'none' : '';
+  if (showRefs) {
+  const bankRrn = String(d.bank_rrn || '').trim() || (/^\d{12}$/.test(String(d.rrn || '').trim()) ? String(d.rrn).trim() : '');
+    const bankApproval = String(d.bank_approval_code || '').trim()
+      || (String(d.gateway_approval_code || d.internal_approval_code || '').trim() ? '' : String(d.approval_code || '').trim());
+    const gwPay = String(d.payment_id || d.transaction_id || d.authorization_id || '').trim();
+    const gwApproval = String(d.gateway_approval_code || d.internal_approval_code || '').trim();
+    set('rBankRrn', bankRrn);
+    set('rBankApproval', bankApproval);
+    set('rGwPaymentId', gwPay);
+    set('rGwApproval', gwApproval);
+  }
   set('rRef', clearDash(d.reference || ''));
   set('rNuvei', clearDash(d.nuvei_txn_id || d.payment_id || d.rrn || ''));
   const merch = document.getElementById('rMerchantSeal');

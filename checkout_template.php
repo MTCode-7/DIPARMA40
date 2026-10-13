@@ -34,7 +34,7 @@ $isLedgerGw = !empty($ledgerCheckout);
 $settlementToLedger = !empty($settlementToLedger) || $isLedgerGw;
 $chargeEndpoint = ($basePath ?? '') . 'api/checkout_charge.php';
 $chargeGwCode = $chargeGwCode ?? $gwCode;
-$isNuveiFamily = in_array(($chargeGwCode ?? $gwCode ?? ''), ['nuvei', 'diparma'], true);
+$isNuveiFamily = (($chargeGwCode ?? $gwCode ?? '') === 'nuvei');
 $squareSdk = $squareSdk ?? ['ready' => false, 'application_id' => '', 'location_id' => '', 'script_url' => '', 'live' => false];
 $hasSquareSdk = (in_array(($gwCode ?? ''), ['square', 'square_online'], true) && !empty($squareSdk['application_id']) && !empty($squareSdk['location_id']));
 ?><!DOCTYPE html>
@@ -175,6 +175,19 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
         : ($ar ? 'كل عمليات الشراء متاحة هنا — المبلغ يبقى على هذه البوابة' : 'all purchase operations available here — funds stay on this gateway'))?>
     · <span style="color:var(--gold);font-weight:800">ENDPOINT</span>
     <code style="color:var(--text);font-size:.72rem">POST <?=htmlspecialchars($chargeEndpoint)?></code>
+    <?php if (($gwCode ?? '') === 'diparma'): ?>
+    <div class="info-note" style="margin-top:10px">
+      <i class="fas fa-exclamation-triangle" style="color:var(--gold)"></i>
+      <?php if (!empty($diparmaNotReady)): ?>
+      <?=$ar
+        ? 'مسار DI PARMA غير جاهز: مضيف ISO غير مضبوط. لن يُرسل أي خصم.'
+        : 'DI PARMA path is not ready: no ISO host is configured. No charge is sent.'?>
+      <?php endif; ?>
+      <?=$ar
+        ? 'الشبكات المقبولة: Visa وMastercard فقط.'
+        : 'Accepted networks: Visa and Mastercard only.'?>
+    </div>
+    <?php endif; ?>
     <?php if (($gwCode ?? '') === 'paypal'): ?>
       · <a href="<?=htmlspecialchars($basePath)?>holds.php" style="color:#4DA6FF;font-weight:700;text-decoration:none">
           <i class="fas fa-hand-holding-usd"></i> <?= $ar ? 'إدارة حجوزات PayPal' : 'Manage PayPal Holds' ?>
@@ -206,11 +219,11 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <i class="fas fa-link" style="color:var(--gw)"></i>
     <?=$ar
       ? ($isLedgerGw
-        ? 'Nuvei / DI PARMA — التحصيل عبر Nuvei من Ledger CHECKOUT. بعد الموافقة يصل الصافي إلى Ledger.'
-        : 'Nuvei / DI PARMA — التحصيل عبر Nuvei. المبلغ يبقى على Nuvei. الحقول الإلزامية تتغير حسب نوع العملية.')
+        ? 'Nuvei — التحصيل عبر Nuvei من Ledger CHECKOUT. بعد الموافقة يصل الصافي إلى Ledger.'
+        : 'Nuvei — التحصيل عبر Nuvei. المبلغ يبقى على Nuvei. الحقول الإلزامية تتغير حسب نوع العملية.')
       : ($isLedgerGw
-        ? 'Nuvei / DI PARMA — Nuvei charges the card from Ledger CHECKOUT. After approval the net arrives at Ledger.'
-        : 'Nuvei / DI PARMA — Nuvei charges the card. Funds stay on Nuvei. Required fields change by operation type.')?>
+        ? 'Nuvei charges the card from Ledger CHECKOUT. After approval the net arrives at Ledger.'
+        : 'Nuvei charges the card. Funds stay on Nuvei. Required fields change by operation type.')?>
   </div>
   <?php endif; ?>
   <div id="txDesc" class="info-note">
@@ -233,6 +246,19 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
         : ($isPayram ? ($ar ? 'بطاقة → كريبتو (PayRam)' : 'Card → Crypto (PayRam)') : ($ar ? 'بيانات البطاقة' : 'Card Details')))?>
     <span id="modeLabel" style="font-size:.72rem;color:var(--muted);font-weight:600;margin-<?=$ar?'right':'left'?>:auto"></span>
   </div>
+  <?php if (($gwCode ?? '') === 'diparma'): ?>
+  <div class="info-note" style="margin-bottom:12px">
+    <i class="fas fa-exclamation-triangle" style="color:var(--gold)"></i>
+    <?php if (!empty($diparmaNotReady)): ?>
+    <?=$ar
+      ? 'مسار DI PARMA غير جاهز: مضيف ISO غير مضبوط. لن يُرسل أي خصم.'
+      : 'DI PARMA path is not ready: no ISO host is configured. No charge is sent.'?>
+    <?php endif; ?>
+    <?=$ar
+      ? 'الشبكات المقبولة: Visa وMastercard فقط.'
+      : 'Accepted networks: Visa and Mastercard only.'?>
+  </div>
+  <?php else: ?>
   <div class="info-note" style="margin-bottom:12px">
     <i class="fas fa-credit-card" style="color:var(--gw)"></i>
     <?=htmlspecialchars($gwName)?> —
@@ -240,6 +266,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       ? 'قبول كل الشبكات والمُصدرين (فيزا، ماستركارد، أمكس، UnionPay، مدى، وغيرها). لا رفض حسب الشركة.'
       : 'All networks and issuers accepted (Visa, Mastercard, Amex, UnionPay, Mada, and any other). No brand block.'?>
   </div>
+  <?php endif; ?>
   <?php if ($isDiparmaGw): ?>
   <div class="info-note" style="margin-bottom:12px">
     <i class="fas fa-credit-card" style="color:var(--gw)"></i>
@@ -284,19 +311,21 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
     <div class="fld-row">
       <div class="fld">
-        <label style="color:#f0ad4e">RRN <?=$ar?'للبنك':'Bank RRN'?> <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
+        <label style="color:#f0ad4e">RRN <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
         <input type="text" id="cardBankRrn" placeholder="12 digits" maxlength="12"
                oninput="this.value=this.value.replace(/[^0-9]/g,'')">
       </div>
       <div class="fld">
-        <label style="color:#f0ad4e">APPROVAL CODE <?=$ar?'للبنك':'Bank Approval Code'?> <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
+        <label style="color:#f0ad4e">APPROVAL CODE <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
         <input type="text" id="cardBankApproval" placeholder="4-6 characters" maxlength="6"
                oninput="this.value=this.value.replace(/[^0-9A-Za-z]/g,'')">
       </div>
     </div>
   </div>
   <div class="fld">
-    <label id="lblCcNumber"><?=$ar?'رقم البطاقة — كل الشبكات والمُصدرين':'Card Number — all networks and issuers'?> <span class="req" id="reqCcNumber">*</span></label>
+    <label id="lblCcNumber"><?=($gwCode ?? '') === 'diparma'
+      ? ($ar ? 'رقم البطاقة — Visa وMastercard فقط' : 'Card Number — Visa and Mastercard only')
+      : ($ar ? 'رقم البطاقة — كل الشبكات والمُصدرين' : 'Card Number — all networks and issuers')?> <span class="req" id="reqCcNumber">*</span></label>
     <input type="text" id="ccNumber" maxlength="23" placeholder="0000 0000 0000 0000" oninput="fmtCard(this)" style="font-family:monospace;letter-spacing:1px">
   </div>
   <div class="fld-row3">
@@ -366,37 +395,45 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <i class="fas fa-exclamation-circle"></i>
       <?=$ar?'إلزامي — مطلوب للتنفيذ':'Required — mandatory for execution'?>
     </div>
+    <div class="fld" id="openHoldWrap" style="display:none;margin-bottom:10px">
+      <label><?=$ar?'الحجوزات القابلة للإكمال':'Holds that can be completed'?></label>
+      <select id="openHoldSelect" onchange="applyCheckoutHold(this)">
+        <option value=""><?=$ar?'— اختر حجزاً أو أدخل RRN البنك —':'— Pick a hold or enter the bank RRN —'?></option>
+      </select>
+      <input type="hidden" id="captureHoldId" value="">
+      <div class="opt" style="margin-top:4px"><?=$ar?'اختيار حجز يملأ المرجع ويُغني عن كتابة RRN.':'Picking a hold fills the reference and replaces the RRN.'?></div>
+    </div>
     <div class="fld-row">
       <div class="fld">
-        <label style="color:#f0ad4e">RRN <span class="req">*</span></label>
+        <label style="color:#f0ad4e">RRN</label>
         <input type="text" id="rrnInput" placeholder="<?=$ar?'12 رقم':'12 digits'?>" maxlength="12"
                oninput="this.value=this.value.replace(/[^0-9]/g,'')" style="font-family:monospace;letter-spacing:1px">
       </div>
       <div class="fld">
-        <label style="color:#f0ad4e">Approval Code <span class="req">*</span></label>
+        <label style="color:#f0ad4e">APPROVAL CODE</label>
         <input type="text" id="approvalInput" placeholder="4–6 digits" maxlength="6"
                oninput="this.value=this.value.replace(/[^0-9A-Za-z]/g,'')" style="font-family:monospace">
       </div>
     </div>
-    <div class="fld-row">
+    <div class="fld-row" id="gatewayRefRow" style="display:none">
       <div class="fld">
-        <label><?=$ar?'Payment ID أو Transaction ID':'Payment ID or Transaction ID'?> <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
+        <label><?=$ar?'Payment ID لبوابة الدفع':'Payment ID for the payment gateway'?></label>
         <input type="text" id="paymentIdInput" placeholder="PAY... / TXN...">
       </div>
       <div class="fld">
-        <label><?=$ar?'Approval Code الداخلي':'Internal Approval Code'?> <span class="opt">(<?=$ar?'اختياري':'optional'?>)</span></label>
-        <input type="text" id="internalApprovalInput" placeholder="Internal approval code" maxlength="64">
+        <label><?=$ar?'Approval Code لبوابة الدفع':'Approval Code for the payment gateway'?></label>
+        <input type="text" id="internalApprovalInput" placeholder="<?=$ar?'رمز موافقة البوابة':'Gateway approval code'?>" maxlength="64">
       </div>
     </div>
-    <div class="fld-row">
+    <div class="fld-row" id="captureAmountRow">
       <div class="fld">
-        <label><?=$ar?'مبلغ التحصيل النهائي':'Final capture amount'?> <span class="req">*</span></label>
+        <label id="captureAmountLabel"><?=$ar?'مبلغ الإكمال بعد الحجز':'Completion amount after the hold'?> <span class="req">*</span></label>
         <input type="number" id="captureAmt" min="0.01" step="0.01" placeholder="0.00" oninput="calcP()"
                value="<?=!empty($prefillAmount)?htmlspecialchars((string)$prefillAmount):''?>">
-        <div class="opt" style="display:block;margin-top:5px">
+        <div class="opt" id="captureAmountNote" style="display:block;margin-top:5px">
           <?=$ar
-            ? 'أدخل المبلغ نفسه أو أقل أو أكثر من مبلغ الحجز. قبول الزيادة يعتمد على بوابة الدفع والبنك.'
-            : 'Enter the same, a lower, or a higher amount than the hold. Higher captures depend on gateway and issuer support.'?>
+            ? 'أدخل مبلغاً أقل من الحجز أو مساوياً له أو أكبر منه. سقف البنك يبقى 5,000,000 دولار.'
+            : 'Enter an amount lower than, equal to, or higher than the hold. The bank cap stays 5,000,000 USD.'?>
         </div>
       </div>
       <div class="fld">
@@ -452,7 +489,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
   </div>
   <?php if ($isNuveiFamily): ?>
   <div class="info-note">
-    <?=$ar?'Nuvei/DI PARMA تتطلب RRN بطول 12 رقم للعمليات Refund / Avoid':'Nuvei/DI PARMA require a 12-digit RRN for Refund / Avoid'?>
+    <?=$ar?'Nuvei تتطلب RRN بطول 12 رقم للعمليات Refund / Avoid':'Nuvei requires a 12-digit RRN for Refund / Avoid'?>
   </div>
   <div class="fld">
     <label>RRN <span class="req">*</span> <span class="opt">(12 digits)</span></label>
@@ -565,7 +602,7 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
       <span class="sum-key">Net</span>
       <span id="sumNet" style="color:var(--green)">—</span>
     </div>
-    <button class="pay-btn" id="payBtn" onclick="go()" <?=!empty($settlementTargetError) ? 'disabled' : ''?>>
+    <button class="pay-btn" id="payBtn" onclick="go()" <?=(!empty($settlementTargetError) || !empty($diparmaNotReady)) ? 'disabled' : ''?>>
       <i class="fas fa-bolt"></i>
       <span id="payBtnLabel"><?=$ar?'سحب مباشر':'Direct Charge'?></span>
     </button>
@@ -669,6 +706,62 @@ function applyFieldRequirements(meta) {
   mark('reqMotoExpiry', !squareHosted && !!meta.requires_expiry);
 }
 
+function loadOpenHolds() {
+  var sel = document.getElementById('openHoldSelect');
+  if (!sel) return;
+  var gw = (typeof CHARGE_GW !== 'undefined' && CHARGE_GW) ? CHARGE_GW : (typeof GW !== 'undefined' ? GW : '');
+  fetch('/pos/api/auth_holds.php?gateway=' + encodeURIComponent(gw), { credentials: 'same-origin' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var holds = Array.isArray(d.holds) ? d.holds : [];
+      sel.innerHTML = '<option value=""><?=$ar?'— اختر حجزاً أو أدخل RRN البنك —':'— Pick a hold or enter the bank RRN —'?></option>';
+      holds.forEach(function(h){
+        var opt = document.createElement('option');
+        opt.value = String(h.id || '');
+        var last4 = h.card_last4 ? ('****' + h.card_last4) : '';
+        opt.textContent = [h.reference, Number(h.amount || 0).toFixed(2) + ' ' + (h.currency || ''), last4, h.rrn || h.payment_id || ''].filter(Boolean).join(' · ');
+        opt.dataset.hold = JSON.stringify(h);
+        sel.appendChild(opt);
+      });
+      if (!holds.length) {
+        var empty = document.createElement('option');
+        empty.disabled = true;
+        empty.textContent = '<?=$ar?'لا حجوزات مفتوحة — نفّذ AUTH أولاً':'No open holds — run AUTH first'?>';
+        sel.appendChild(empty);
+      }
+    })
+    .catch(function(){
+      var opt = document.createElement('option');
+      opt.disabled = true;
+      opt.textContent = '<?=$ar?'تعذر تحميل الحجوزات':'Could not load holds'?>';
+      sel.appendChild(opt);
+    });
+}
+
+function applyCheckoutHold(sel) {
+  var holdId = document.getElementById('captureHoldId');
+  var opt = sel && sel.selectedOptions ? sel.selectedOptions[0] : null;
+  if (!opt || !opt.dataset || !opt.dataset.hold) {
+    if (holdId) holdId.value = '';
+    return;
+  }
+  var h = {};
+  try { h = JSON.parse(opt.dataset.hold); } catch (e) { return; }
+  if (holdId) holdId.value = String(h.id || opt.value || '');
+  var rrnEl = document.getElementById('rrnInput');
+  var bankAp = document.getElementById('approvalInput');
+  var pid = document.getElementById('paymentIdInput');
+  var gwAp = document.getElementById('internalApprovalInput');
+  var holdRrn = String(h.rrn || '').replace(/\D/g, '');
+  if (rrnEl && /^\d{12}$/.test(holdRrn)) rrnEl.value = holdRrn;
+  if (bankAp && h.bank_approval) bankAp.value = String(h.bank_approval);
+  if (pid) pid.value = h.payment_id || h.reference || '';
+  if (gwAp && h.gateway_approval) gwAp.value = String(h.gateway_approval);
+  var amt = document.getElementById('captureAmt');
+  if (amt && !amt.value && h.amount) amt.value = Number(h.amount).toFixed(2);
+  if (typeof calcP === 'function') calcP();
+}
+
 function setTx(type, el) {
   curTx = type;
   document.querySelectorAll('.tx-btn').forEach(function(b){b.classList.remove('active');});
@@ -691,9 +784,7 @@ function setTx(type, el) {
 
   [cardSec, captureSec, refSec, wdSec].forEach(function(s){ if(s) s.classList.add('hidden'); });
   var bankReferenceFields = document.getElementById('bankReferenceFields');
-  if (bankReferenceFields) {
-    bankReferenceFields.style.display = ['auth', 'purchase_2d', 'purchase_3d'].indexOf(type) >= 0 ? 'none' : '';
-  }
+  if (bankReferenceFields) bankReferenceFields.style.display = type === 'online_sale_moto' ? '' : 'none';
 
   if (type === 'withdrawal_pos' || type === 'withdrawal_nfc') {
     wdSec.classList.remove('hidden');
@@ -703,8 +794,8 @@ function setTx(type, el) {
   } else if (type === 'purchase' || type === 'purchase_2d' || type === 'purchase_3d' || type === 'online_sale_moto' || type === 'auth') {
     cardSec.classList.remove('hidden');
     modeLabel.textContent = type === 'purchase' ? 'Card → Crypto · Base'
-      : (type === 'online_sale_moto' ? 'MOTO · Approval 4 or 6'
-      : (type === 'purchase_3d' ? '3D OTP' : (type === 'auth' ? 'AUTH HOLD' : '2D')));
+      : (type === 'online_sale_moto' ? 'ONLINE SALES - MOTO'
+      : (type === 'purchase_3d' ? '3D OTP' : (type === 'auth' ? 'AUTH HOLD' : '2D MOTO')));
     var sw = document.getElementById('stripeWrap');
     if (sw) {
       if (type === 'purchase_3d' && stripe) { sw.classList.remove('hidden'); initStripe(); }
@@ -717,7 +808,7 @@ function setTx(type, el) {
     }
     var sq = document.getElementById('squareWrap');
     if (sq) {
-      if (isSquareFamily() && SQUARE_CFG.enabled && ['purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','auth','purchase','purchase_advice'].indexOf(type) >= 0) {
+      if (isSquareFamily() && SQUARE_CFG.enabled && ['purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','offline_sales_moto','auth','purchase','purchase_advice'].indexOf(type) >= 0) {
         sq.classList.remove('hidden');
         initSquareSdk();
       } else {
@@ -725,25 +816,40 @@ function setTx(type, el) {
       }
     }
     var onlineAp = document.getElementById('onlineApprovalWrap');
-    if (onlineAp) {
-      if (type === 'online_sale_moto') onlineAp.classList.remove('hidden');
-      else onlineAp.classList.add('hidden');
-    }
+    if (onlineAp) onlineAp.classList.add('hidden');
     applyFieldRequirements(meta);
-  } else if (type === 'capture' || type === 'purchase_advice' || type === 'offline_sale_moto') {
+  } else if (type === 'capture' || type === 'purchase_advice' || type === 'offline_sale_moto' || type === 'offline_sales_moto') {
     captureSec.classList.remove('hidden');
     var ap = document.getElementById('approvalInput');
     var rrn = document.getElementById('rrnInput');
+    var offlineSale = type === 'offline_sale_moto' || type === 'offline_sales_moto';
     if (rrn) {
       rrn.maxLength = 12;
       rrn.placeholder = '12 digits';
       var rrnReq = rrn.closest('.fld');
-      if (rrnReq) rrnReq.style.opacity = (meta.requires_rrn || type !== 'offline_sale_moto') ? '1' : '.5';
+      if (rrnReq) {
+        rrnReq.style.display = offlineSale ? 'none' : '';
+        rrnReq.style.opacity = offlineSale ? '' : ((meta.requires_rrn || type === 'capture') ? '1' : '.5');
+      }
+      if (offlineSale) rrn.value = '';
     }
     if (ap) {
       ap.maxLength = 6;
       ap.placeholder = '4 or 6 digits';
     }
+    var capRow = document.getElementById('captureAmountRow');
+    var capLabel = document.getElementById('captureAmountLabel');
+    if (capRow) capRow.style.display = '';
+    var holdWrap = document.getElementById('openHoldWrap');
+    if (holdWrap) holdWrap.style.display = type === 'capture' ? '' : 'none';
+    if (type === 'capture') loadOpenHolds();
+    if (capLabel) {
+      capLabel.innerHTML = type === 'capture'
+        ? (<?= $ar ? "'مبلغ الإكمال بعد الحجز'" : "'Completion amount after the hold'" ?> + ' <span class="req">*</span>')
+        : (<?= $ar ? "'المبلغ'" : "'Amount'" ?> + ' <span class="req">*</span>');
+    }
+    var capNote = document.getElementById('captureAmountNote');
+    if (capNote) capNote.style.display = type === 'capture' ? 'block' : 'none';
     applyFieldRequirements(meta);
   } else if (type === 'refund' || type === 'avoid') {
     refSec.classList.remove('hidden');
@@ -780,7 +886,7 @@ async function initSquareSdk() {
 }
 
 function squareChargeTypes() {
-  return ['purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','auth','purchase','purchase_advice'];
+  return ['purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','offline_sales_moto','auth','purchase','purchase_advice'];
 }
 function isSquareSandboxNonce(tok) {
   var t = String(tok || '').trim().toLowerCase();
@@ -1002,19 +1108,27 @@ async function go() {
       payload.payment_type = 'auth';
     }
 
-  } else if (curTx === 'capture' || curTx === 'purchase_advice' || curTx === 'offline_sale_moto') {
+  } else if (curTx === 'capture' || curTx === 'purchase_advice' || curTx === 'offline_sale_moto' || curTx === 'offline_sales_moto') {
     var rrn  = document.getElementById('rrnInput').value.trim().replace(/\D/g,'');
     var apco = document.getElementById('approvalInput').value.trim().replace(/\D/g,'');
     var ma   = parseFloat(document.getElementById('captureAmt').value) || 0;
     var mn   = document.getElementById('motoCardNum').value.replace(/\s/g,'');
     var mexp = document.getElementById('motoExpiry').value.trim();
-    if (curTx === 'capture' || curTx === 'purchase_advice') {
-      if (!/^\d{12}$/.test(rrn)) { showToast('RRN must be 12 digits','error'); btn.disabled=false; resetBtn(); return; }
+    if (curTx === 'capture') {
+      var holdOpt = document.getElementById('openHoldSelect') && document.getElementById('openHoldSelect').selectedOptions
+        ? document.getElementById('openHoldSelect').selectedOptions[0] : null;
+      var holdPicked = !!(holdOpt && holdOpt.dataset && holdOpt.dataset.hold);
+      if (!/^\d{12}$/.test(rrn) && !holdPicked) {
+        showToast('RRN must be 12 digits, or pick the hold from the list','error'); btn.disabled=false; resetBtn(); return;
+      }
+      if (!/^\d{12}$/.test(rrn)) rrn = '';
+    } else if ((curTx === 'purchase_advice' || curTx === 'offline_sale_moto' || curTx === 'offline_sales_moto') && !/^\d{12}$/.test(rrn)) {
+      rrn = '';
     }
-    if (curTx === 'offline_sale_moto') {
-      if (!/^\d{4}$|^\d{6}$/.test(apco)) { showToast('Offline Approval must be 4 or 6 digits','error'); btn.disabled=false; resetBtn(); return; }
-    } else if (!apco || (apco.length !== 4 && apco.length !== 6 && apco.length < 4)) {
-      showToast('Approval Code must be 4 or 6 digits','error'); btn.disabled=false; resetBtn(); return;
+    if (curTx === 'offline_sale_moto' || curTx === 'offline_sales_moto') {
+      if (!/^\d{4}$|^\d{6}$/.test(apco)) { showToast('APPROVAL CODE must be 4 or 6 digits','error'); btn.disabled=false; resetBtn(); return; }
+    } else if (curTx === 'capture' && (!apco || (apco.length !== 4 && apco.length !== 6 && apco.length < 4))) {
+      showToast('APPROVAL CODE must be 4 or 6 digits','error'); btn.disabled=false; resetBtn(); return;
     }
     if (ma <= 0){ showToast('<?=$ar?'أدخل مبلغاً صحيحاً':'Enter valid amount'?>','error'); btn.disabled=false; resetBtn(); return; }
     if (!squareTokPresent && (!mn || !mexp)) {
@@ -1023,18 +1137,23 @@ async function go() {
     }
     payload.rrn           = rrn;
     payload.orig_ref      = rrn;
-    payload.approval_code = apco;
     payload.bank_rrn      = rrn;
+    payload.approval_code = apco;
     payload.bank_approval_code = apco;
+    var gwApproval = document.getElementById('internalApprovalInput').value.trim();
     payload.payment_id = document.getElementById('paymentIdInput').value.trim();
     payload.transaction_id = payload.payment_id;
-    payload.internal_approval_code = document.getElementById('internalApprovalInput').value.trim();
+    payload.gateway_approval_code = gwApproval;
+    payload.auth_code = gwApproval;
+    payload.internal_approval_code = gwApproval;
+    var holdIdEl = document.getElementById('captureHoldId');
+    if (curTx === 'capture' && holdIdEl && holdIdEl.value) payload.hold_id = holdIdEl.value;
     payload.amount        = ma;
     payload.currency      = document.getElementById('captureCur').value;
     payload.protocol      = 'DTC';
     payload.security_mode = '2D';
     payload.moto_type     = 'MOTO';
-    payload.txn_type      = curTx;
+    payload.txn_type      = curTx === 'offline_sales_moto' ? 'offline_sale_moto' : curTx;
     payload.linked_to_auth = (curTx === 'capture');
     if (!squareTokPresent) {
       payload.cc_number = mn;
@@ -1054,7 +1173,6 @@ async function go() {
   } else if (curTx === 'online_sale_moto') {
     var amt = parseFloat(document.getElementById('cardAmt').value) || 0;
     var cc = (document.getElementById('ccNumber')?.value || '').replace(/\s/g,'');
-    var apOnline = (document.getElementById('cardOnlineApproval')?.value || document.getElementById('cardBankApproval')?.value || '').replace(/\D/g,'');
     var expO = (document.getElementById('ccExpiry')?.value || '').trim();
     var cvvO = (document.getElementById('ccCvv')?.value || '').trim();
     if (amt <= 0) { showToast('<?=$ar?'أدخل مبلغاً صحيحاً':'Enter valid amount'?>','error'); btn.disabled=false; resetBtn(); return; }
@@ -1062,7 +1180,6 @@ async function go() {
     if (!squareTokPresent && !/^(0[1-9]|1[0-2])\/[0-9]{2}$/.test(expO)) { showToast('Expiry required (MM/YY)','error'); btn.disabled=false; resetBtn(); return; }
     // CVV اختياري في MOTO
     if (cvvO) { payload.cc_cvv = cvvO; payload.card_cvv = cvvO; }
-    if (!/^\d{4}$|^\d{6}$/.test(apOnline)) { showToast('Online Approval must be 4 or 6 digits','error'); btn.disabled=false; resetBtn(); return; }
     payload.amount = amt;
     payload.currency = document.getElementById('cardCur').value;
     if (!squareTokPresent) {
@@ -1073,13 +1190,22 @@ async function go() {
       payload.cc_cvv = cvvO;
       payload.card_cvv = cvvO;
     }
-    payload.approval_code = apOnline;
-    payload.bank_approval_code = apOnline;
     payload.txn_type = 'online_sale_moto';
     payload.security_mode = '2D';
     payload.moto_type = 'MOTO';
     payload.moto_channel = 'online';
     payload.email = document.getElementById('cardEmail').value.trim() || 'guest@diparmas.com';
+    var onlineRrn = (document.getElementById('cardBankRrn')?.value || '').replace(/\D/g,'');
+    var onlineAp = (document.getElementById('cardBankApproval')?.value || '').trim();
+    if (/^\d{12}$/.test(onlineRrn)) {
+      payload.bank_rrn = onlineRrn;
+      payload.rrn = onlineRrn;
+      payload.orig_ref = onlineRrn;
+    }
+    if (onlineAp) {
+      payload.bank_approval_code = onlineAp;
+      payload.approval_code = onlineAp;
+    }
 
   } else if (curTx === 'refund' || curTx === 'avoid') {
     var ref = document.getElementById('refInput').value.trim();

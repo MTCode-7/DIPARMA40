@@ -98,8 +98,8 @@ function pos_operation_catalog(): array
             'desc_en' => 'Card + expiry. CVV/CVC is optional. Gateway OTP if required. No approval before 3DS. After success the funds stay on the same gateway.',
         ],
         'purchase_2d' => [
-            'ar' => 'شراء 2D',
-            'en' => 'Purchase 2D',
+            'ar' => '2D MOTO',
+            'en' => '2D MOTO',
             'icon' => 'fa-bolt',
             'color' => '#FFD700',
             'security' => '2D',
@@ -137,8 +137,8 @@ function pos_operation_catalog(): array
             'desc_en' => 'MOTO or offline hold with no OTP on the selected gateway. RRN and approval are not entered on the hold. After approval they print on the receipt. Capture may be lower, equal, or higher on PayPal, Stripe, Square 1, Square 2, and Nuvei.',
         ],
         'capture' => [
-            'ar' => 'AUTH Capture',
-            'en' => 'AUTH Capture',
+            'ar' => 'CAPTURE - MOTO',
+            'en' => 'CAPTURE - MOTO',
             'icon' => 'fa-check-double',
             'color' => '#9fe870',
             'security' => '2D',
@@ -159,8 +159,8 @@ function pos_operation_catalog(): array
             'desc_en' => 'Complete an AUTH hold on the same gateway. The amount may be lower, equal, or higher than the hold on PayPal, Stripe, Square 1, Square 2, and Nuvei. Bank cap 5,000,000 USD. RRN and approval come from the hold receipt. CVV is optional.',
         ],
         'purchase_advice' => [
-            'ar' => 'Purchase Advice — Direct',
-            'en' => 'Purchase Advice — Direct',
+            'ar' => 'PURCHASE ADVICE - MOTO',
+            'en' => 'PURCHASE ADVICE - MOTO',
             'icon' => 'fa-bell',
             'color' => '#F59E0B',
             'security' => '2D',
@@ -184,8 +184,8 @@ function pos_operation_catalog(): array
             'desc_en' => 'Direct charge with no prior hold and no RRN or approval from a hold. The entered amount is charged immediately and may be positive or negative. Card + expiry. CVV optional.',
         ],
         'online_sale_moto' => [
-            'ar' => 'Online SALE MOTO',
-            'en' => 'Online SALE MOTO',
+            'ar' => 'ONLINE SALES - MOTO',
+            'en' => 'ONLINE SALES - MOTO',
             'icon' => 'fa-globe',
             'color' => '#00B9FF',
             'security' => '2D',
@@ -193,9 +193,9 @@ function pos_operation_catalog(): array
             'requires_card' => true,
             'requires_cvv' => false,
             'requires_expiry' => true,
-            'requires_rrn' => true,
-            'requires_approval' => true,
-            'requires_payment_id' => true,
+            'requires_rrn' => false,
+            'requires_approval' => false,
+            'requires_payment_id' => false,
             'approval_len' => 6,
             'linked_to_auth' => false,
             'amount_flexible' => false,
@@ -203,8 +203,32 @@ function pos_operation_catalog(): array
             'is_moto' => true,
             'moto_channel' => 'online',
             'security' => '2D',
-            'desc_ar' => '2D MOTO على البوابة المختارة فقط. بطاقة + انتهاء. CVV اختياري. RRN + Approval. بدون OTP.',
-            'desc_en' => '2D MOTO on the selected gateway only. Card + expiry. CVV optional. RRN + Approval. No OTP.',
+            'desc_ar' => '2D MOTO على البوابة المختارة فقط. بطاقة + انتهاء. CVV اختياري. بدون OTP. RRN وApproval وPayment ID تظهر في الإيصال بعد العملية.',
+            'desc_en' => '2D MOTO on the selected gateway only. Card + expiry. CVV optional. No OTP. RRN, approval, and Payment ID print on the receipt after the operation.',
+        ],
+        'offline_sales_moto' => [
+            'ar' => 'OFFLINE SALES - MOTO',
+            'en' => 'OFFLINE SALES - MOTO',
+            'icon' => 'fa-phone',
+            'color' => '#F97316',
+            'security' => '2D',
+            'requires_otp' => false,
+            'requires_card' => true,
+            'requires_cvv' => false,
+            'requires_expiry' => true,
+            'requires_rrn' => false,
+            'requires_approval' => true,
+            'requires_payment_id' => false,
+            'approval_len' => 6,
+            'linked_to_auth' => false,
+            'amount_flexible' => false,
+            'method' => 'purchase',
+            'is_moto' => true,
+            'moto_channel' => 'offline',
+            'charge_as' => 'offline_sale_moto',
+            'max_amount' => function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00,
+            'desc_ar' => 'OFFLINE SALES - MOTO. بطاقة ومبلغ وApproval من 4 أو 6 أرقام. RRN غير مطلوب.',
+            'desc_en' => 'OFFLINE SALES - MOTO. Card, amount, and a 4- or 6-digit approval. RRN is not required.',
         ],
         'offline_sale_moto' => [
             'ar' => 'Offline SALE — SAF',
@@ -216,7 +240,7 @@ function pos_operation_catalog(): array
             'requires_card' => true,
             'requires_cvv' => false,
             'requires_expiry' => true,
-            'requires_rrn' => true,
+            'requires_rrn' => false,
             'requires_approval' => true,
             'requires_payment_id' => false,
             'approval_len' => 6,
@@ -227,8 +251,8 @@ function pos_operation_catalog(): array
             'moto_channel' => 'offline',
             'saf' => true,
             'max_amount' => function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00,
-            'desc_ar' => 'Offline SALE MOTO على البوابة المختارة فقط. حد 2,000,000. بطاقة + انتهاء. CVV اختياري. RRN + Approval. بدون OTP.',
-            'desc_en' => 'Offline SALE MOTO on the selected gateway only. Limit 2,000,000. Card + expiry. CVV optional. RRN + Approval. No OTP.',
+            'desc_ar' => 'Offline SALE — SAF على البوابة المختارة فقط. حد 2,000,000. بطاقة + انتهاء. CVV اختياري. Approval من 4 أو 6 أرقام. RRN غير مطلوب. بدون OTP.',
+            'desc_en' => 'Offline SALE — SAF on the selected gateway only. Limit 2,000,000. Card + expiry. CVV optional. Approval is 4 or 6 digits. RRN is not required. No OTP.',
         ],
         'refund' => [
             'ar' => 'استرداد (Refund)',
@@ -432,7 +456,7 @@ function pos_operation_catalog(): array
 /** أنواع تحتاج مراجع Nuvei Control Panel: بنك RRN+Auth Code وبوابة Transaction ID+Auth Code */
 function pos_dual_acquirer_types(): array
 {
-    return ['offline_sale_moto', 'online_sale_moto', 'capture'];
+    return ['capture'];
 }
 
 function pos_is_valid_payment_id(?string $id): bool
@@ -506,7 +530,7 @@ function pos_withdrawal_charge_modes(): array
             'base' => 'offline_sale_moto',
             'channel' => 'offline',
             'approval_len' => 6,
-            'requires_rrn' => true,
+            'requires_rrn' => false,
             'requires_approval' => true,
             'requires_card' => true,
             'requires_expiry' => true,
@@ -533,6 +557,7 @@ function pos_operation_aliases(): array
         'purchase_offline' => 'offline_sale_moto',
         'online_moto' => 'online_sale_moto',
         'offline_moto' => 'offline_sale_moto',
+        'offline_sales_moto' => 'offline_sale_moto',
         'online_SALE_moto' => 'online_sale_moto',
         'offline_SALE_moto' => 'offline_sale_moto',
         'auth_complete' => 'capture',
@@ -557,6 +582,9 @@ function pos_normalize_operation(string $type): string
     $type = trim($type);
     if ($type === '') {
         return 'purchase_2d';
+    }
+    if (strtolower($type) === 'offline_sales_moto') {
+        return 'offline_sale_moto';
     }
     $catalog = pos_operation_catalog();
     if (isset($catalog[$type])) {
@@ -814,6 +842,64 @@ function pos_normalize_rrn(?string $rrn): string
 }
 
 /**
+ * A 12-digit bank RRN wins over an empty or short legacy field.
+ * A short value is returned only when no field has 12 digits, so it still fails validation.
+ */
+function pos_first_rrn(array $values): string
+{
+    $fallback = '';
+    foreach ($values as $value) {
+        $digits = pos_normalize_rrn((string) $value);
+        if ($digits === '') {
+            continue;
+        }
+        if (pos_is_valid_rrn($digits)) {
+            return $digits;
+        }
+        if ($fallback === '') {
+            $fallback = $digits;
+        }
+    }
+    return $fallback;
+}
+
+/** أنواع الحجوزات المفتوحة، بما فيها تفويض PayPal المخزّن باسمه. */
+function pos_open_hold_type_list(): array
+{
+    return ['auth', 'auth_hold', 'auth_moto', 'hold', 'authorize', 'paypal authorization'];
+}
+
+function pos_open_hold_status_list(): array
+{
+    return ['completed', 'authorized', 'hold', 'held', 'pending', 'success', 'approved'];
+}
+
+function pos_hold_payment_id(array $raw, array $row = []): string
+{
+    $nodes = [$raw];
+    if (isset($raw['raw']) && is_array($raw['raw'])) {
+        $nodes[] = $raw['raw'];
+    }
+    if (isset($raw['gateway_details']) && is_array($raw['gateway_details'])) {
+        $nodes[] = $raw['gateway_details'];
+    }
+    $keys = ['authorization_id', 'nuvei_txn_id', 'transaction_id', 'payment_id', 'transactionId'];
+    foreach ($nodes as $node) {
+        foreach ($keys as $key) {
+            $value = trim((string) ($node[$key] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+    }
+    $nested = trim((string) ($raw['purchase_units'][0]['payments']['authorizations'][0]['id'] ?? ''));
+    if ($nested !== '') {
+        return $nested;
+    }
+    return trim((string) ($row['reference'] ?? ''));
+}
+
+/**
  * Bank MOTO / voice approvals are 4 or 6 digits.
  */
 function pos_is_valid_approval(?string $code, ?int $expectedLen): bool
@@ -917,7 +1003,11 @@ function pos_validate_operation_fields(string $type, array $data): array
         return $errors;
     }
 
-    $rrn = pos_normalize_rrn($data['rrn'] ?? $data['orig_ref'] ?? $data['bank_rrn'] ?? '');
+    $rrn = pos_first_rrn([
+        $data['bank_rrn'] ?? '',
+        $data['rrn'] ?? '',
+        $data['orig_ref'] ?? '',
+    ]);
     $approval = strtoupper(preg_replace('/[^0-9A-Za-z]/', '', (string)($data['approval_code'] ?? $data['bank_approval_code'] ?? '')));
     $paymentId = trim((string)($data['payment_id'] ?? $data['nuvei_txn_id'] ?? $data['transaction_id'] ?? ''));
     $gwApproval = strtoupper(preg_replace('/[^0-9A-Za-z]/', '', (string)($data['gateway_approval_code'] ?? $data['auth_code'] ?? '')));
@@ -939,6 +1029,9 @@ function pos_validate_operation_fields(string $type, array $data): array
     }
 
     $requiresRrn = !empty($meta['requires_rrn']) || !empty($modeMeta['requires_rrn']);
+    if ($type !== 'capture' && ($type === 'offline_sale_moto' || $chargeMode === 'offline_sale_moto')) {
+        $requiresRrn = false;
+    }
     $requiresApproval = !empty($meta['requires_approval']) || !empty($modeMeta['requires_approval']);
     $requiresCard = !empty($meta['requires_card']) || !empty($modeMeta['requires_card']);
     $requiresExpiry = !empty($meta['requires_expiry']) || !empty($modeMeta['requires_expiry']);
@@ -954,11 +1047,13 @@ function pos_validate_operation_fields(string $type, array $data): array
         $requiresExpiry = false;
     }
 
-    if ($type === 'capture' && pos_is_valid_payment_id($paymentId)) {
+    if ($type === 'capture' && (pos_is_valid_payment_id($paymentId) || !empty($data['hold_linked']))) {
         $requiresRrn = false;
     }
     if ($requiresRrn && !pos_is_valid_rrn($rrn)) {
-        $errors[] = 'RRN must be exactly 12 digits.';
+        $errors[] = $type === 'capture'
+            ? 'RRN must be 12 digits, or pick the hold from the list'
+            : 'RRN must be exactly 12 digits.';
     }
     if ($requiresApproval && !pos_is_valid_approval($approval, $approvalLen)) {
         if ($approvalLen === 4 || $approvalLen === 6) {
@@ -967,7 +1062,8 @@ function pos_validate_operation_fields(string $type, array $data): array
             $errors[] = 'Enter the full approval code or its 4/6 digit form.';
         }
     }
-    if (!empty($meta['requires_payment_id']) || in_array($type, pos_dual_acquirer_types(), true)) {
+    $hiddenGatewayRefs = in_array($type, ['capture', 'purchase_advice', 'offline_sale_moto', 'online_sale_moto'], true);
+    if (!$hiddenGatewayRefs && (!empty($meta['requires_payment_id']) || in_array($type, pos_dual_acquirer_types(), true))) {
         if (!pos_is_valid_payment_id($paymentId)) {
             $errors[] = 'Nuvei Transaction ID (Payment ID) is required.';
         }
@@ -1406,6 +1502,22 @@ function pos_host_decline_line(array $result): string
     return $msg !== '' ? pos_plain_host_message($msg) : 'DECLINED';
 }
 
+/** Local field checks that happen before any host or issuer sees the card. */
+function pos_is_local_field_fault(string $reason): bool
+{
+    $reason = trim($reason);
+    if ($reason === '') {
+        return false;
+    }
+    if (preg_match('/GENERIC\s*DECLINE|1507|1116|-1100|ISSUER DECLINED|HOST DECLINED|CVV_FAILURE|PAN_FAILURE|EXPIRED CARD/i', $reason)) {
+        return false;
+    }
+    return (bool) preg_match(
+        '/Terminal ID \(TID\) is required|Select a real POS model|Card number must be|Expiry date required|Enter the full approval code|Bank Auth Code|Gateway Auth Code|RRN must be|Nuvei Transaction ID \(Payment ID\) is required|Invalid CVV|Enter the name on the card|Placeholder names are rejected|Test and dummy cards are blocked|CLOUD token is required|Physical POS requires a real card|Original reference is required/i',
+        $reason
+    );
+}
+
 /**
  * After a host decline: tell the cashier whether this PAN must not be reused.
  *
@@ -1432,8 +1544,28 @@ function pos_card_use_alert(string $reason, string $last4 = ''): array
         ];
     };
 
+    if (function_exists('diparma_is_account_setup_fault') && diparma_is_account_setup_fault($reason)) {
+        return [
+            'card_use' => 'account_setup',
+            'card_use_ar' => '',
+            'card_use_en' => '',
+        ];
+    }
+    if (pos_is_local_field_fault($reason)) {
+        return [
+            'card_use' => 'local_validation',
+            'card_use_ar' => '',
+            'card_use_en' => '',
+        ];
+    }
     if (preg_match('/CARDHOLDER|إيميل العميل|يتطلب اسم حامل|payer identity/iu', $reason)) {
         return $canUse('أكمل الاسم كما على البطاقة والإيميل الحقيقي ثم نفّذ.', 'Enter the name on the card and a real email, then process again.');
+    }
+    if (preg_match('/PERMISSION_DENIED|NOT_AUTHORIZED|ACCESS_DENIED|INSUFFICIENT_PERMISSION|صلاحية الحساب|صلاحية حساب/iu', $reason)) {
+        return $canUse(
+            'صلاحية حساب PayPal لا تسمح بهذه العملية. المُصدر لم يرفض البطاقة.',
+            'The PayPal account permission does not allow this operation. The issuer did not decline the card.'
+        );
     }
     if (preg_match('/INCOMPATIBLE_PARAMETER_VALUE|invalid_client|client authentication failed|PayPal auth failed/i', $reason)) {
         return $canUse(
@@ -1558,6 +1690,9 @@ function pos_plain_host_message($raw, int $depth = 0): string
         if (strlen($text) > 140) {
             $text = substr($text, 0, 137) . '...';
         }
+        return $text;
+    }
+    if (function_exists('diparma_is_account_setup_fault') && diparma_is_account_setup_fault($text)) {
         return $text;
     }
     if (strlen($text) > 120) {

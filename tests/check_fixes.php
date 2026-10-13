@@ -82,6 +82,77 @@ $paypalThreeDsSource = $paypalSourceBuilder->invoke($paypalTestService, [
 check(($paypalThreeDsSource['card']['attributes']['verification']['method'] ?? '') === 'SCA_ALWAYS'
     && !isset($paypalThreeDsSource['card']['stored_credential']), 'PayPal 3DS card source keeps verification fields without stored-credential metadata');
 check(pos_card_use_alert('PayPal rejected request [INCOMPATIBLE_PARAMETER_VALUE]', '0995')['card_use'] === 'can_use', 'PayPal incompatible request does not incorrectly mark the card as unusable');
+$setupReason = 'حساب PayPal الحي غير مفعّل لمدفوعات البطاقة المباشرة (Advanced Credit and Debit Card Payments). التفعيل يتم من لوحة PayPal ولا يمكن للكود فتحه. [PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING]';
+$setupAlert = pos_card_use_alert(pos_plain_host_message($setupReason), '1461');
+check($setupAlert['card_use'] === 'account_setup', 'Advanced Credit setup is not treated as a host decline');
+check($setupAlert['card_use_ar'] === '' && $setupAlert['card_use_en'] === '', 'Advanced Credit setup does not add a do-not-use card alert');
+check(pos_card_use_alert('GENERIC DECLINE', '1461')['card_use'] === 'do_not_use', 'Issuer generic decline still blocks immediate retry');
+check(pos_card_use_alert('PERMISSION_DENIED', '1461')['card_use'] === 'can_use', 'PayPal account permission does not block the card');
+check(pos_card_use_alert('invalid_client', '1461')['card_use'] === 'can_use', 'PayPal key error does not block the card');
+$tidAlert = pos_card_use_alert('Terminal ID (TID) is required.', '4242');
+check($tidAlert['card_use'] === 'local_validation', 'Missing TID is local validation, not a host decline');
+check($tidAlert['card_use_en'] === '' && $tidAlert['card_use_ar'] === '', 'Missing TID does not add a do-not-use card alert');
+check(pos_card_use_alert('Select a real POS model from the catalog. · Enter the full approval code or its 4/6 digit form.', '4242')['card_use'] === 'local_validation', 'POS model and approval checks stay local');
+check(pos_card_use_alert('GENERIC DECLINE', '4242')['card_use'] === 'do_not_use', 'Generic decline still blocks retry after the local-validation split');
+if (!defined('DB_PREFIX')) {
+    define('DB_PREFIX', 'dp_');
+}
+if (!defined('LOGS_PATH')) {
+    define('LOGS_PATH', sys_get_temp_dir());
+}
+$setupWriter = new class {
+    public array $rows = [];
+    public function execute($sql) {}
+    public function insertAvailable($table, $row) { $this->rows[] = $row; }
+};
+diparma_record_declined_attempt($setupWriter, [
+    'reference' => 'SETUP-CHECK',
+    'gateway' => 'paypal',
+    'transaction_type' => 'purchase_3d',
+    'amount' => 1,
+    'currency' => 'USD',
+    'reason' => $setupReason,
+    'card_last4' => '1461',
+    'details' => ['card_last4' => '1461', 'gateway_response' => ['card_last4' => '1461', 'message' => $setupReason]],
+]);
+$setupRow = $setupWriter->rows[0] ?? [];
+$setupDetails = json_decode((string) ($setupRow['details'] ?? ''), true);
+check(($setupRow['status'] ?? '') === 'account_setup', 'Advanced Credit attempt is stored as account setup');
+check(($setupRow['card_last4'] ?? null) === null, 'Advanced Credit attempt does not store a card tail');
+check(is_array($setupDetails) && !isset($setupDetails['card_last4']) && !isset($setupDetails['gateway_response']['card_last4']), 'Advanced Credit details do not keep a card tail');
+$hostWriter = new class {
+    public array $rows = [];
+    public function execute($sql) {}
+    public function insertAvailable($table, $row) { $this->rows[] = $row; }
+};
+diparma_record_declined_attempt($hostWriter, [
+    'reference' => 'HOST-CHECK',
+    'gateway' => 'paypal',
+    'transaction_type' => 'purchase_3d',
+    'amount' => 1,
+    'currency' => 'USD',
+    'reason' => 'GENERIC DECLINE',
+    'card_last4' => '1461',
+]);
+check(($hostWriter->rows[0]['status'] ?? '') === 'declined' && ($hostWriter->rows[0]['card_last4'] ?? '') === '1461', 'Real host decline still records the card tail');
+$localWriter = new class {
+    public array $rows = [];
+    public function execute($sql) {}
+    public function insertAvailable($table, $row) { $this->rows[] = $row; }
+};
+diparma_record_declined_attempt($localWriter, [
+    'reference' => 'TID-CHECK',
+    'gateway' => 'nuvei',
+    'transaction_type' => 'purchase_2d',
+    'amount' => 1,
+    'currency' => 'USD',
+    'reason' => 'Terminal ID (TID) is required.',
+    'card_last4' => '4242',
+    'details' => ['card_last4' => '4242'],
+]);
+$localRow = $localWriter->rows[0] ?? [];
+check(($localRow['status'] ?? '') === 'validation', 'TID failure is stored as validation, not a host decline');
+check(($localRow['card_last4'] ?? null) === null, 'TID failure does not store a card tail');
 $paypalAdapter = new PayPalAdapter();
 check($paypalAdapter->normalizeError(['details' => [['issue' => 'INCOMPATIBLE_PARAMETER_VALUE']]]) === 'GATEWAY_ERROR', 'PayPal incompatible order parameters are classified as a gateway error');
 $gatewayReceiptNames = [

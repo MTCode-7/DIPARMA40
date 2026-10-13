@@ -20,7 +20,8 @@ if (empty($gwCode)) {
 
 $gwCode = strtolower(trim((string) $gwCode));
 $isLedgerPage = ($gwCode === 'ledger');
-if (!$isLedgerPage && !dp_gateway_is_visible_on_channels($gwCode)) {
+$diparmaNotReady = ($gwCode === 'diparma' && function_exists('dp_diparma_iso_host') && dp_diparma_iso_host() === '');
+if (!$diparmaNotReady && !$isLedgerPage && !dp_gateway_is_visible_on_channels($gwCode)) {
     header('Location: ../checkout_router.php?error=gateway_not_ready', true, 302);
     exit;
 }
@@ -281,7 +282,15 @@ a{color:#FFD700}
         <label><?=$ar?'وصف':'Description'?></label>
         <textarea name="description" rows="2"></textarea>
       </div>
-      <button class="btn" type="submit" name="create_link" value="1"><i class="fas fa-plus"></i> <?=$ar?'إنشاء رابط':'Create link'?></button>
+      <?php if ($gwCode === 'diparma'): ?>
+      <div style="margin-bottom:12px;border:1px solid rgba(255,215,0,.35);border-radius:10px;padding:10px;font-size:.78rem;line-height:1.6;color:#f5d76e">
+        <?php if (!empty($diparmaNotReady)): ?>
+        <?=$ar?'مسار DI PARMA غير جاهز: مضيف ISO غير مضبوط. لن يُرسل أي خصم.':'DI PARMA path is not ready: no ISO host is configured. No charge is sent.'?>
+        <?php endif; ?>
+        <?=$ar?'الشبكات المقبولة عند الخصم: Visa وMastercard فقط.':'Accepted networks at charge: Visa and Mastercard only.'?>
+      </div>
+      <?php endif; ?>
+      <button class="btn" type="submit" name="create_link" value="1" <?=!empty($diparmaNotReady)?'disabled':''?>><i class="fas fa-plus"></i> <?=$ar?'إنشاء رابط':'Create link'?></button>
       <a class="btn" href="<?=htmlspecialchars($openCheckout . '?' . http_build_query($openQs))?>" style="display:inline-block;margin-<?=$ar?'right':'left'?>:8px;background:rgba(255,255,255,.08);color:#edf0f7;text-decoration:none"><?=$ar?'فتح CHECKOUT كرابط':'Open LINK checkout'?></a>
     </form>
   </div>

@@ -70,6 +70,9 @@ if (!$txn) {
         $attempt = $rows[0] ?? null;
         if ($attempt) {
             $details = json_decode((string) ($attempt['details'] ?? '{}'), true) ?: [];
+            $attemptReason = (string) ($attempt['reason'] ?? '');
+            $accountSetup = (string) ($attempt['status'] ?? '') === 'account_setup'
+                || (function_exists('diparma_is_account_setup_fault') && diparma_is_account_setup_fault($attemptReason));
             $txn = [
                 'reference' => $attempt['reference'],
                 'user_id' => $attempt['user_id'],
@@ -78,13 +81,16 @@ if (!$txn) {
                 'amount' => $attempt['amount'],
                 'currency' => $attempt['currency'],
                 'status' => 'declined',
-                'card_last4' => $attempt['card_last4'],
+                'card_last4' => $accountSetup ? '' : $attempt['card_last4'],
                 'created_at' => $attempt['created_at'],
                 'gateway_response' => json_encode(array_merge($details, [
-                    'decline_reason' => $attempt['reason'],
-                    'status_message' => $attempt['reason'],
-                    'raw_message' => $attempt['reason'],
-                    'attempt_status' => 'declined',
+                    'decline_reason' => $attemptReason,
+                    'status_message' => $attemptReason,
+                    'raw_message' => $attemptReason,
+                    'attempt_status' => $accountSetup ? 'account_setup' : 'declined',
+                    'card_use' => $accountSetup ? 'account_setup' : ($details['card_use'] ?? null),
+                    'card_use_ar' => $accountSetup ? '' : ($details['card_use_ar'] ?? null),
+                    'card_use_en' => $accountSetup ? '' : ($details['card_use_en'] ?? null),
                 ]), JSON_UNESCAPED_UNICODE),
             ];
         }
@@ -565,6 +571,34 @@ if ($rawTxnType === '' && !empty($txn['protocol'])) {
         ? protocol_display_name((string)$txn['protocol'])
         : 'PURCHASE';
 }
+$receiptRefTypes = ['purchase_2d', 'purchase_3d', 'online_sale_moto', 'offline_sale_moto', 'offline_sales_moto', 'auth', 'auth_hold', 'hold', 'capture', 'purchase_advice'];
+$showOperatorRefs = in_array(strtolower(trim($rawTxnType)), $receiptRefTypes, true) && trim((string) ($txn['reference'] ?? '')) !== '';
+$receiptBankRrn = $firstNonEmpty([
+    $txn['bank_rrn'] ?? '',
+    $gwResp['bank_rrn'] ?? '',
+    $gwResp['retrieval_reference_number'] ?? '',
+    (preg_match('/^\d{12}$/', (string) ($txn['rrn'] ?? '')) ? $txn['rrn'] : ''),
+    (preg_match('/^\d{12}$/', (string) ($gwResp['rrn'] ?? '')) ? $gwResp['rrn'] : ''),
+]);
+$receiptBankApproval = $firstNonEmpty([
+    $txn['bank_approval_code'] ?? '',
+    $bankApprovalCode,
+]);
+if ($receiptBankApproval === '' && $internalApprovalCode === '' && trim((string) ($gwResp['gateway_approval_code'] ?? '')) === '') {
+    $receiptBankApproval = $firstNonEmpty([$txn['approval_code'] ?? '', $authCode]);
+}
+$receiptGatewayPayment = $firstNonEmpty([
+    $receiptIds['payment_id'] ?? '',
+    $gwResp['payment_id'] ?? '',
+    $gwResp['transaction_id'] ?? '',
+    $paymentId,
+]);
+$receiptGatewayApproval = $firstNonEmpty([
+    $gwResp['gateway_approval_code'] ?? '',
+    $gatewayResult['gateway_approval_code'] ?? '',
+    $txn['gateway_approval_code'] ?? '',
+    $internalApprovalCode,
+]);
 $txnType = strtoupper(str_replace('_', ' ', $rawTxnType !== '' ? $rawTxnType : 'PURCHASE'));
 if (function_exists('redact_protocol_numbers')) {
     $txnType = redact_protocol_numbers($txnType);
@@ -1084,6 +1118,29 @@ if (function_exists('redact_protocol_numbers')) {
             <?php endif; ?>
             <?php endif; ?>
         </div>
+
+        <?php if ($showOperatorRefs): ?>
+        <div class="section">
+            <div class="divider">— <?=$ar?'البنك':'BANK'?> —</div>
+            <div class="row">
+                <span class="label"><?=$ar?'RRN للبنك':'RRN for the bank'?></span>
+                <span class="value small"><?=htmlspecialchars((string) $receiptBankRrn)?></span>
+            </div>
+            <div class="row">
+                <span class="label"><?=$ar?'Approval Code للبنك':'Approval Code for the bank'?></span>
+                <span class="value highlight"><?=htmlspecialchars((string) $receiptBankApproval)?></span>
+            </div>
+            <div class="divider">— <?=$ar?'بوابة الدفع':'PAYMENT GATEWAY'?> —</div>
+            <div class="row">
+                <span class="label"><?=$ar?'Payment ID لبوابة الدفع':'Payment ID for the payment gateway'?></span>
+                <span class="value small"><?=htmlspecialchars((string) $receiptGatewayPayment)?></span>
+            </div>
+            <div class="row">
+                <span class="label"><?=$ar?'Approval Code لبوابة الدفع':'Approval Code for the payment gateway'?></span>
+                <span class="value highlight"><?=htmlspecialchars((string) $receiptGatewayApproval)?></span>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <!-- التاريخ والمرجع -->
         <div class="section">

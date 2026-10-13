@@ -53,7 +53,7 @@ final class PayPalAdapter implements GatewayAdapterInterface, GatewayCapabilitie
     /** مصفوفة التوافق: عملية → أوضاع مسموحة */
     private const OP_MODE_MATRIX = [
         'CHARGE'  => [self::MODE_2D, self::MODE_3D, self::MODE_MOTO, self::MODE_OFFLINE],
-        'HOLD'    => [self::MODE_2D, self::MODE_3D, self::MODE_MOTO, self::MODE_OFFLINE],
+        'HOLD'    => [self::MODE_2D, self::MODE_3D],
         'CAPTURE' => self::CODE_SUPPORTED_MODES,
         'CANCEL'  => self::CODE_SUPPORTED_MODES,
         'REFUND'  => self::CODE_SUPPORTED_MODES,
@@ -271,8 +271,40 @@ final class PayPalAdapter implements GatewayAdapterInterface, GatewayCapabilitie
 
     public function hold(array $payload): array
     {
+        $payload = $this->payloadForAuthorize($payload);
         $mode = $this->resolveMode($payload);
+        if (!in_array($mode, [self::MODE_2D, self::MODE_3D], true)) {
+            $mode = self::MODE_2D;
+            $payload['processing_mode'] = self::MODE_2D;
+            $payload['mode'] = self::MODE_2D;
+            $payload['is_moto'] = false;
+        }
         return $this->runCard($payload, 'AUTHORIZE', 'hold', $mode);
+    }
+
+    /**
+     * PayPal rejects intent AUTHORIZE when the card is sent as MOTO.
+     * HOLD stays 2D or 3D. Sale MOTO types keep their own charge() path.
+     */
+    private function payloadForAuthorize(array $payload): array
+    {
+        $explicit = strtoupper(trim((string) (
+            $payload['security_mode']
+            ?? $payload['processing_mode']
+            ?? $payload['mode']
+            ?? $payload['charge_mode']
+            ?? ''
+        )));
+        $mode = $explicit === self::MODE_3D ? self::MODE_3D : self::MODE_2D;
+        $payload['processing_mode'] = $mode;
+        $payload['security_mode'] = $mode;
+        $payload['mode'] = $mode;
+        $payload['charge_mode'] = $mode;
+        $payload['is_moto'] = false;
+        $payload['is_offline'] = false;
+        $payload['auth_channel'] = 'ecom';
+        unset($payload['moto_channel'], $payload['moto_type'], $payload['moto_indicator'], $payload['_moto'], $payload['_offline']);
+        return $payload;
     }
 
     public function capture(string $transactionId, ?float $amount = null): array
@@ -602,7 +634,7 @@ final class PayPalAdapter implements GatewayAdapterInterface, GatewayCapabilitie
         $start = microtime(true);
 
         $this->validatePayload($payload, $mode);
-        $this->assertModeCompatible($intent, $mode);
+        $this->assertModeCompatible(strtoupper($operation), $mode);
 
         $payload = $this->applyModeToPayload($payload, $mode);
 
@@ -733,8 +765,8 @@ final class PayPalAdapter implements GatewayAdapterInterface, GatewayCapabilitie
             || str_contains(strtolower($message), 'not setup to be able to process card')
             || str_contains(strtolower($message), 'not enabled for card')
         ) {
-            $message = 'حساب PayPal الحي غير مفعّل لمدفوعات البطاقة المباشرة. '
-                . 'فعّل Advanced Credit and Debit Card Payments من Developer Dashboard.';
+            $message = 'حساب PayPal الحي غير مفعّل لمدفوعات البطاقة المباشرة (Advanced Credit and Debit Card Payments). '
+                . 'التفعيل يتم من لوحة PayPal ولا يمكن للكود فتحه.';
         } elseif (
             $issue === 'MOTO_NOT_ENABLED'
             || str_contains(strtolower($message), 'moto')

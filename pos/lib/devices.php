@@ -325,6 +325,43 @@ function pos_request_terminal_id(): string
     return pos_normalize_terminal_id($raw);
 }
 
+/**
+ * TID already stored for this terminal. Never manufactures one, and never
+ * attaches a TID that belongs to a different device model.
+ */
+function pos_session_terminal_id(string $model): string
+{
+    $model = strtolower(trim($model));
+    $candidates = [];
+    $cookie = pos_normalize_terminal_id((string) ($_COOKIE['di_parma_pos_tid'] ?? ''));
+    if ($cookie !== '') {
+        $candidates[] = $cookie;
+    }
+    $sessionModel = strtolower(trim((string) ($_SESSION['pos_model'] ?? '')));
+    $sessionTid = pos_normalize_terminal_id((string) ($_SESSION['pos_terminal_id'] ?? ''));
+    if ($sessionTid !== '' && ($model === '' || $sessionModel === '' || $sessionModel === $model)) {
+        $candidates[] = $sessionTid;
+    }
+    if (function_exists('pos_read_device_token')) {
+        $token = pos_read_device_token();
+        if (is_array($token)) {
+            $tokenModel = strtolower(trim((string) ($token['model'] ?? '')));
+            $tokenTid = pos_normalize_terminal_id((string) ($token['tid'] ?? ''));
+            if ($tokenTid !== '' && ($model === '' || $tokenModel === '' || $tokenModel === $model)) {
+                $candidates[] = $tokenTid;
+            }
+        }
+    }
+    foreach ($candidates as $tid) {
+        $bound = function_exists('pos_device_model_for_tid') ? strtolower(pos_device_model_for_tid($tid)) : '';
+        if ($bound !== '' && $model !== '' && $bound !== $model) {
+            continue;
+        }
+        return $tid;
+    }
+    return '';
+}
+
 function pos_normalize_terminal_id(string $tid): string
 {
     $tid = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', $tid) ?? '');
