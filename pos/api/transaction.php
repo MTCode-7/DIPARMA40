@@ -389,8 +389,15 @@ if ($isWebCharge && $terminalId === '') {
     $terminalId = 'WEB' . strtoupper(bin2hex(random_bytes(4)));
     $resolvedDevice['terminal_id'] = $terminalId;
 }
+if ($terminalId === '' && function_exists('pos_default_terminal_id')) {
+    $terminalId = pos_default_terminal_id();
+    if ($terminalId !== '') {
+        $resolvedDevice['terminal_id'] = $terminalId;
+        $extra['terminal_id'] = $terminalId;
+    }
+}
 $merchantId = trim((string)($extra['merchant_id'] ?? $resolvedDevice['merchant_id'] ?? 'DIPARMA'));
-if ($merchantId === '') {
+if ($merchantId === '' || strcasecmp(str_replace(' ', '', $merchantId), 'DIPARMA') === 0) {
     $merchantId = 'DIPARMA';
 }
 $posLocation = trim((string)($extra['pos_location'] ?? ''));
@@ -730,7 +737,10 @@ $receiptIds = [
     'internal_approval_code' => '',
 ];
 $originalRrn = $origRef;
-$stan = '';
+$stanDigits = preg_replace('/\D/', '', (string) ($extra['stan'] ?? $data['stan'] ?? '')) ?? '';
+$stan = $stanDigits !== '' ? str_pad(substr($stanDigits, -6), 6, '0', STR_PAD_LEFT) : date('His');
+$batchDigits = preg_replace('/\D/', '', (string) ($extra['batch'] ?? $data['batch'] ?? '')) ?? '';
+$batch = $batchDigits !== '' ? substr($batchDigits, -6) : date('dmy');
 $approvalCode = '';
 $nuveiTxnId = null;
 $cardLast4 = '';
@@ -776,7 +786,10 @@ if ($useCardGateway) {
             'authorized_amount' => $authorizedAmount,
             'reference' => $reference,
             'terminal_id' => $terminalId,
+            'tid' => $terminalId,
             'merchant_id' => $merchantId,
+            'stan' => $stan,
+            'batch' => $batch,
             'moto_indicator' => $extra['moto_indicator'] ?? (in_array($txnType, ['auth', 'purchase_advice', 'offline_sale_moto', 'online_sale_moto'], true) ? 'M' : null),
             'is_moto' => !empty($extra['is_moto']) || !empty($opMeta['is_moto']) || in_array($txnType, ['auth', 'purchase_advice', 'offline_sale_moto', 'online_sale_moto'], true),
             'auth_channel' => $extra['auth_channel'] ?? $data['auth_channel'] ?? '',
@@ -955,7 +968,10 @@ if ($useCardGateway) {
         if (in_array($txnType, ['capture'], true) && $rrn === '') {
             $rrn = $originalRrn;
         }
-        $stan = $result['stan'] ?? '';
+        $returnedStan = preg_replace('/\D/', '', (string) ($result['stan'] ?? '')) ?? '';
+        if ($returnedStan !== '') {
+            $stan = str_pad(substr($returnedStan, -6), 6, '0', STR_PAD_LEFT);
+        }
         $nuveiTxnId = $result['nuvei_txn_id'] ?? null;
         $requires3ds = !empty($result['requires_3ds']);
         $redirectUrl = $result['redirect_url'] ?? null;
@@ -1404,6 +1420,7 @@ echo json_encode([
     'reference' => $reference,
     'rrn' => $rrn,
     'stan' => $stan,
+    'batch' => $batch,
     'original_rrn' => $originalRrn,
     'approval_code' => $approvalCode,
     'gateway_approval_code' => $approvalCode,

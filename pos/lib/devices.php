@@ -311,7 +311,7 @@ function pos_is_company_tid(string $tid): bool
 
 function pos_default_terminal_id(): string
 {
-    return '';
+    return '16526256';
 }
 
 function pos_request_terminal_id(): string

@@ -75,6 +75,12 @@ $posDevice = pos_device_resolve([
     'pos_model' => $chosenModel,
     'terminal_id' => $pageTid,
 ]);
+if (($posDevice['terminal_id'] ?? '') === '' && function_exists('pos_default_terminal_id')) {
+    $fallbackTid = pos_default_terminal_id();
+    if ($fallbackTid !== '') {
+        $posDevice['terminal_id'] = $fallbackTid;
+    }
+}
 $isVerix = pos_device_is_verix($posDevice);
 $verixCommission = pos_device_commission($posDevice);
 $posGw = pos_normalize_gateway((string)($_GET['gw'] ?? ''));
@@ -3003,7 +3009,10 @@ window.processTransaction = async function() {
     wallet_network: walletOpt?.dataset?.network || undefined,
     pos_model: POS_DEVICE.model,
     pos_type: POS_DEVICE.type,
-    terminal_id: document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || '',
+    terminal_id: document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || '16526256',
+    merchant_id: 'DIPARMA',
+    batch: (document.getElementById('rBatch')?.textContent || '').replace(/[^\d]/g, ''),
+    stan: (document.getElementById('rStan')?.textContent || '').replace(/[^\d]/g, ''),
     settlement_target: POS_SETTLEMENT_TARGET,
     arrival: POS_ARRIVAL || 'wallet',
     payout_via: POS_ARRIVAL === 'payout' ? (POS_PAYOUT || '') : '',
