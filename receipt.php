@@ -509,7 +509,7 @@ $stanDigits = preg_replace('/\D/', '', (string) $stan) ?? '';
 $maskedStan = $stanDigits !== '' ? str_pad(substr($stanDigits, -6), 6, '0', STR_PAD_LEFT) : date('His');
 $receiptTid = trim((string) ($txn['terminal_id'] ?? $gwResp['terminal_id'] ?? $gwResp['tid'] ?? ''));
 if ($receiptTid === '') {
-    $receiptTid = 'DP000001';
+    $receiptTid = '16526256';
 }
 $receiptBatchDigits = preg_replace('/\D/', '', (string) ($txn['batch'] ?? $gwResp['batch'] ?? $gwResp['batch_number'] ?? '')) ?? '';
 $receiptBatch = $receiptBatchDigits !== '' ? substr($receiptBatchDigits, -6) : date('dmy');

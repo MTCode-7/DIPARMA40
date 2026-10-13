@@ -1423,7 +1423,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     </div>
     <div class="receipt-row"><span>DATE</span><span id="rDate"><?=htmlspecialchars(date('d/m/Y'))?></span></div>
     <div class="receipt-row"><span>TIME</span><span id="rTime"><?=htmlspecialchars(date('H:i:s'))?></span></div>
-    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars(($posDevice['terminal_id'] ?? '') !== '' ? $posDevice['terminal_id'] : 'DP000001')?></span></div>
+    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars(($posDevice['terminal_id'] ?? '') !== '' ? $posDevice['terminal_id'] : '16526256')?></span></div>
     <div class="receipt-row"><span>MID</span><span id="rMid">DIPARMA</span></div>
     <div class="receipt-row"><span>BATCH</span><span id="rBatch"><?=htmlspecialchars(date('dmy'))?></span></div>
     <div class="receipt-row"><span>STAN</span><span id="rStan"><?=htmlspecialchars(date('His'))?></span></div>
@@ -3286,7 +3286,7 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const pad = (n) => String(n).padStart(2, '0');
   const dateStr = pad(when.getDate()) + '/' + pad(when.getMonth() + 1) + '/' + when.getFullYear();
   const timeStr = pad(when.getHours()) + ':' + pad(when.getMinutes()) + ':' + pad(when.getSeconds());
-  const tid = document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || d.terminal_id || 'DP000001';
+  const tid = document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || d.terminal_id || '16526256';
   const mid = 'DIPARMA';
   const last4 = String(d.card_last4 || (cardNum ? String(cardNum).replace(/\D/g, '').slice(-4) : '')).replace(/\D/g, '').slice(-4);
   const pan = last4 ? ('************' + last4) : '************';
@@ -3309,7 +3309,7 @@ function updateReceipt(d, type, amount, currency, cardNum) {
     .toUpperCase();
   set('rDate', dateStr);
   set('rTime', timeStr);
-  set('rTid', String(tid).trim() || 'DP000001');
+  set('rTid', String(tid).trim() || '16526256');
   set('rMid', mid);
   set('rBatch', batch);
   set('rStan', stan);
