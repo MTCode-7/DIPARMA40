@@ -1423,10 +1423,10 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     </div>
     <div class="receipt-row"><span>DATE</span><span id="rDate"><?=htmlspecialchars(date('d/m/Y'))?></span></div>
     <div class="receipt-row"><span>TIME</span><span id="rTime"><?=htmlspecialchars(date('H:i:s'))?></span></div>
-    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars(($posDevice['terminal_id'] ?? '') !== '' ? $posDevice['terminal_id'] : '—')?></span></div>
-    <div class="receipt-row"><span>MID</span><span id="rMid"><?=htmlspecialchars((string)($posDevice['merchant_id'] ?? $posMerchant['brand'] ?? 'DIPARMA'))?></span></div>
-    <div class="receipt-row"><span>BATCH</span><span id="rBatch">—</span></div>
-    <div class="receipt-row"><span>STAN</span><span id="rStan">—</span></div>
+    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars(($posDevice['terminal_id'] ?? '') !== '' ? $posDevice['terminal_id'] : 'DP000001')?></span></div>
+    <div class="receipt-row"><span>MID</span><span id="rMid">DIPARMA</span></div>
+    <div class="receipt-row"><span>BATCH</span><span id="rBatch"><?=htmlspecialchars(date('dmy'))?></span></div>
+    <div class="receipt-row"><span>STAN</span><span id="rStan"><?=htmlspecialchars(date('His'))?></span></div>
     <div class="receipt-cut">------------------------</div>
     <div class="receipt-row"><span>TRANS</span><span id="rType">—</span></div>
     <div class="receipt-row"><span>ENTRY</span><span id="rEntry">—</span></div>
@@ -1436,24 +1436,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="receipt-banner" id="rBanner">PENDING</div>
     <div class="receipt-reason" id="rReason" style="display:none"></div>
     <div class="receipt-advice" id="rAdvice" style="display:none"></div>
-    <div id="rRefs" style="display:none">
-      <div class="receipt-cut"><?=$ar?'البنك':'BANK'?></div>
-      <div class="receipt-row"><span><?=$ar?'RRN للبنك':'RRN for the bank'?></span><span id="rBankRrn"></span></div>
-      <div class="receipt-row"><span><?=$ar?'Approval Code للبنك':'Approval Code for the bank'?></span><span id="rBankApproval"></span></div>
-      <div class="receipt-cut"><?=$ar?'بوابة الدفع':'PAYMENT GATEWAY'?></div>
-      <div class="receipt-row"><span><?=$ar?'Payment ID لبوابة الدفع':'Payment ID for the payment gateway'?></span><span id="rGwPaymentId"></span></div>
-      <div class="receipt-row"><span><?=$ar?'Approval Code لبوابة الدفع':'Approval Code for the payment gateway'?></span><span id="rGwApproval"></span></div>
-    </div>
-    <div id="rLegacyRefs">
-    <div class="receipt-row"><span>APPROVAL CODE</span><span id="rApproval">—</span></div>
-    <div class="receipt-row"><span>RRN</span><span id="rRRN">—</span></div>
-    <div class="receipt-row"><span>PAYMENT / TXN ID</span><span id="rPaymentId">—</span></div>
-    <div class="receipt-row"><span>INTERNAL APPROVAL</span><span id="rInternalApproval">—</span></div>
-    </div>
     <div class="receipt-row"><span>RC</span><span id="rRc">—</span></div>
-    <div class="receipt-row"><span>TRACE</span><span id="rRef">—</span></div>
-    <div class="receipt-row" id="rHostRow"><span>HOST</span><span id="rNuvei">—</span></div>
-    <div class="receipt-row" id="rLedgerRow"><span>LEDGER</span><span id="rLedger">—</span></div>
     <div class="receipt-total">
       <div class="receipt-row"><span>STATUS</span><span id="rStatus">PENDING</span></div>
     </div>
@@ -3297,13 +3280,14 @@ function setPosStatus(msg) {
 
 // ── Update Receipt ────────────────────────────────
 function updateReceipt(d, type, amount, currency, cardNum) {
-  const now = d && d.timestamp ? new Date(d.timestamp) : new Date();
+  d = d || {};
+  const now = d.timestamp ? new Date(d.timestamp) : new Date();
   const when = Number.isNaN(now.getTime()) ? new Date() : now;
   const pad = (n) => String(n).padStart(2, '0');
   const dateStr = pad(when.getDate()) + '/' + pad(when.getMonth() + 1) + '/' + when.getFullYear();
   const timeStr = pad(when.getHours()) + ':' + pad(when.getMinutes()) + ':' + pad(when.getSeconds());
-  const tid = document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || d.terminal_id || '';
-  const mid = document.getElementById('merchantId')?.value || POS_DEVICE.merchant_id || (POS_MERCHANT && POS_MERCHANT.brand) || 'DIPARMA';
+  const tid = document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || d.terminal_id || 'DP000001';
+  const mid = 'DIPARMA';
   const last4 = String(d.card_last4 || (cardNum ? String(cardNum).replace(/\D/g, '').slice(-4) : '')).replace(/\D/g, '').slice(-4);
   const pan = last4 ? ('************' + last4) : '************';
   const entry = (document.getElementById('posInputMode')?.value || POS.inputMode || 'manual').toString().toUpperCase();
@@ -3313,50 +3297,28 @@ function updateReceipt(d, type, amount, currency, cardNum) {
     const s = String(v == null ? '' : v).trim();
     return s ? s : '—';
   };
-  const ledgerRaw = String(d.ledger_txid || d.ledger_address || '').trim();
-  const ledgerShow = ledgerRaw
-    ? (ledgerRaw.length > 10 ? (ledgerRaw.slice(0, 6) + '…' + ledgerRaw.slice(-4)) : ledgerRaw)
-    : '—';
-  const rawApproval = String(d.gateway_approval_code || d.approval_code || d.bank_approval_code || '').trim();
-  const rawRrn = String(d.rrn || d.gateway_rrn || d.original_rrn || '').trim();
-  const receiptApproval = clearDash(approvalReceiptLabel(rawApproval));
-  const receiptRrn = clearDash(rawRrn);
+  const stanDigits = String(d.stan || '').replace(/\D/g, '');
+  const stan = stanDigits ? stanDigits.slice(-6).padStart(6, '0') : timeStr.replace(/:/g, '');
+  const batchDigits = String(d.batch || d.batch_number || '').replace(/\D/g, '');
+  const batch = batchDigits ? batchDigits.slice(-6) : (pad(when.getDate()) + pad(when.getMonth() + 1) + String(when.getFullYear()).slice(-2));
+  const slipType = String(d.operation_name || type || 'SALE')
+    .replace(/_?moto/ig, '')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
   set('rDate', dateStr);
   set('rTime', timeStr);
-  set('rTid', clearDash(tid));
-  set('rMid', clearDash(mid));
-  set('rBatch', clearDash(d.stan || d.reference || ''));
-  set('rStan', clearDash(d.stan || d.reference || ''));
-  set('rType', clearDash(d.operation_name || type || 'SALE'));
-  set('rEntry', clearDash(entry));
+  set('rTid', String(tid).trim() || 'DP000001');
+  set('rMid', mid);
+  set('rBatch', batch);
+  set('rStan', stan);
+  set('rType', slipType || 'SALE');
+  set('rEntry', clearDash(String(entry).replace(/moto/ig, '').replace(/\s+/g, ' ').trim() || 'MANUAL'));
   set('rCard', pan);
   set('rAmount', parseFloat(amount || 0).toFixed(2));
   set('rCurrency', currency || 'USD');
   set('rRc', clearDash(d.response_code || (status === 'APPROVED' || status === 'AUTHORIZED' ? '00' : '05')));
-  set('rApproval', receiptApproval);
-  set('rRRN', receiptRrn);
-  set('rPaymentId', clearDash(d.payment_id || d.authorization_id || d.transaction_id || ''));
-  set('rInternalApproval', clearDash(d.internal_approval_code || ''));
-  const receiptTypes = ['purchase_2d', 'purchase_3d', 'online_sale_moto', 'offline_sale_moto', 'offline_sales_moto', 'auth', 'capture', 'purchase_advice'];
-  const happened = !!(d && (d.reference || d.response_code || d.status || d.success === true || d.success === false));
-  const showRefs = happened && receiptTypes.indexOf(String(type || '').toLowerCase()) >= 0;
-  const refBox = document.getElementById('rRefs');
-  const legacyRefs = document.getElementById('rLegacyRefs');
-  if (refBox) refBox.style.display = showRefs ? '' : 'none';
-  if (legacyRefs) legacyRefs.style.display = showRefs ? 'none' : '';
-  if (showRefs) {
-  const bankRrn = String(d.bank_rrn || '').trim() || (/^\d{12}$/.test(String(d.rrn || '').trim()) ? String(d.rrn).trim() : '');
-    const bankApproval = String(d.bank_approval_code || '').trim()
-      || (String(d.gateway_approval_code || d.internal_approval_code || '').trim() ? '' : String(d.approval_code || '').trim());
-    const gwPay = String(d.payment_id || d.transaction_id || d.authorization_id || '').trim();
-    const gwApproval = String(d.gateway_approval_code || d.internal_approval_code || '').trim();
-    set('rBankRrn', bankRrn);
-    set('rBankApproval', bankApproval);
-    set('rGwPaymentId', gwPay);
-    set('rGwApproval', gwApproval);
-  }
-  set('rRef', clearDash(d.reference || ''));
-  set('rNuvei', clearDash(d.nuvei_txn_id || d.payment_id || d.rrn || ''));
   const merch = document.getElementById('rMerchantSeal');
   if (merch) merch.textContent = (POS_MERCHANT && (POS_MERCHANT.legal_name || POS_MERCHANT.brand)) || 'DIPARMA';
   const reasonEl = document.getElementById('rReason');
@@ -3399,10 +3361,6 @@ function updateReceipt(d, type, amount, currency, cardNum) {
     banner.textContent = status;
     banner.className = 'receipt-banner ' + ((status === 'APPROVED' || status === 'SUCCESS') ? 'ok' : (status === 'DECLINED' ? 'no' : ''));
   }
-  const ledEl = document.getElementById('rLedger');
-  const ledRow = document.getElementById('rLedgerRow');
-  if (ledRow) ledRow.style.display = 'flex';
-  if (ledEl) ledEl.textContent = ledgerShow;
   set('rStatus', status);
   const foot = document.getElementById('receiptFooter');
   if (foot) {

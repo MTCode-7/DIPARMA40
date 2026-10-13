@@ -505,7 +505,14 @@ $maskedPhone = $customerPhone !== '—' ? $seal($customerPhone) : '—';
 $clearAuthCode = $clearOrDash(pos_approval_receipt_label($authCode === '—' ? '' : $authCode));
 $clearBankApprovalCode = $clearOrDash($bankApprovalCode);
 $clearRrn = $clearOrDash($rrn);
-$maskedStan = $seal($stan);
+$stanDigits = preg_replace('/\D/', '', (string) $stan) ?? '';
+$maskedStan = $stanDigits !== '' ? str_pad(substr($stanDigits, -6), 6, '0', STR_PAD_LEFT) : date('His');
+$receiptTid = trim((string) ($txn['terminal_id'] ?? $gwResp['terminal_id'] ?? $gwResp['tid'] ?? ''));
+if ($receiptTid === '') {
+    $receiptTid = 'DP000001';
+}
+$receiptBatchDigits = preg_replace('/\D/', '', (string) ($txn['batch'] ?? $gwResp['batch'] ?? $gwResp['batch_number'] ?? '')) ?? '';
+$receiptBatch = $receiptBatchDigits !== '' ? substr($receiptBatchDigits, -6) : date('dmy');
 $clearPaymentId = $clearOrDash($paymentId);
 $clearInternalApproval = $clearOrDash($internalApprovalCode);
 $maskedLedgerAddr = $ledgerAddr !== '—' ? $seal($ledgerAddr) : '—';
@@ -571,8 +578,7 @@ if ($rawTxnType === '' && !empty($txn['protocol'])) {
         ? protocol_display_name((string)$txn['protocol'])
         : 'PURCHASE';
 }
-$receiptRefTypes = ['purchase_2d', 'purchase_3d', 'online_sale_moto', 'offline_sale_moto', 'offline_sales_moto', 'auth', 'auth_hold', 'hold', 'capture', 'purchase_advice'];
-$showOperatorRefs = in_array(strtolower(trim($rawTxnType)), $receiptRefTypes, true) && trim((string) ($txn['reference'] ?? '')) !== '';
+$showOperatorRefs = false;
 $receiptBankRrn = $firstNonEmpty([
     $txn['bank_rrn'] ?? '',
     $gwResp['bank_rrn'] ?? '',
@@ -600,6 +606,10 @@ $receiptGatewayApproval = $firstNonEmpty([
     $internalApprovalCode,
 ]);
 $txnType = strtoupper(str_replace('_', ' ', $rawTxnType !== '' ? $rawTxnType : 'PURCHASE'));
+$txnType = trim((string) preg_replace('/\s+/', ' ', str_ireplace('MOTO', '', $txnType)));
+if ($txnType === '') {
+    $txnType = 'SALE';
+}
 if (function_exists('redact_protocol_numbers')) {
     $txnType = redact_protocol_numbers($txnType);
 }
@@ -1149,20 +1159,20 @@ if (function_exists('redact_protocol_numbers')) {
                 <span class="value"><?=htmlspecialchars($sealedDate)?> <?=htmlspecialchars($sealedTime)?></span>
             </div>
             <div class="row">
-                <span class="label">REFERENCE</span>
-                <span class="value small"><?=htmlspecialchars($sealedRef)?></span>
+                <span class="label">TID</span>
+                <span class="value"><?=htmlspecialchars($receiptTid)?></span>
+            </div>
+            <div class="row">
+                <span class="label">MID</span>
+                <span class="value">DIPARMA</span>
+            </div>
+            <div class="row">
+                <span class="label">BATCH</span>
+                <span class="value"><?=htmlspecialchars($receiptBatch)?></span>
             </div>
             <div class="row">
                 <span class="label">STAN</span>
                 <span class="value small"><?=htmlspecialchars($maskedStan)?></span>
-            </div>
-            <div class="row">
-                <span class="label">RRN</span>
-                <span class="value small"><?=htmlspecialchars($clearRrn)?></span>
-            </div>
-            <div class="row">
-                <span class="label">APPROVAL CODE</span>
-                <span class="value highlight"><?=htmlspecialchars($clearAuthCode)?></span>
             </div>
         </div>
 
@@ -1206,18 +1216,6 @@ if (function_exists('redact_protocol_numbers')) {
                     <span class="label">AUTH CODE</span>
                     <span class="value highlight"><?=htmlspecialchars($clearAuthCode)?></span>
                 </div>
-                <?php if ($clearBankApprovalCode !== '—'): ?>
-                <div class="row">
-                    <span class="label">BANK APPROVAL CODE</span>
-                    <span class="value highlight"><?=htmlspecialchars($clearBankApprovalCode)?></span>
-                </div>
-                <?php endif; ?>
-                <?php if ($paymentId && $paymentId !== '—'): ?>
-                <div class="row">
-                    <span class="label">PAYMENT / AUTHORIZATION ID</span>
-                    <span class="value small"><?=htmlspecialchars($clearPaymentId)?></span>
-                </div>
-                <?php endif; ?>
                 <div class="row">
                     <span class="label">INTERNAL APPROVAL CODE</span>
                     <span class="value small"><?=htmlspecialchars($clearInternalApproval)?></span>
@@ -1249,11 +1247,7 @@ if (function_exists('redact_protocol_numbers')) {
 
         <!-- تفاصيل بوابة الدفع والتاجر -->
         <div class="section">
-            <div class="divider">— PAYMENT GATEWAY & MERCHANT —</div>
-            <div class="row">
-                <span class="label">PAYMENT GATEWAY</span>
-                <span class="value"><?=htmlspecialchars($sealedGatewayName)?></span>
-            </div>
+            <div class="divider">— MERCHANT —</div>
             <div class="row">
                 <span class="label">MERCHANT</span>
                 <span class="value"><?=htmlspecialchars($sealedMerchant)?></span>
@@ -1292,8 +1286,7 @@ if (function_exists('redact_protocol_numbers')) {
         </div>
         <?php endif; ?>
 
-        <!-- تسوية: بوابة PayPal أو Ledger USDT -->
-        <?php if ($showLedgerSection || !empty($fundsOnGateway)): ?>
+        <?php if (false && ($showLedgerSection || !empty($fundsOnGateway))): ?>
         <div class="section">
             <div class="divider"><?= !empty($fundsOnGateway) ? '— GATEWAY SETTLEMENT —' : '— CRYPTO LEDGER SETTLEMENT —' ?></div>
             <div class="crypto-details">
