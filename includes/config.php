@@ -27,11 +27,25 @@ if (!function_exists('_dp_load_env')) {
             [$key, $value] = explode('=', $line, 2);
             $key   = trim($key);
             $value = trim($value, " \t\"'");
-            // لا تُعيد التعيين إذا كان موجوداً في $_ENV أو $_SERVER
-            if (!array_key_exists($key, $_ENV) && !array_key_exists($key, $_SERVER)) {
+            $existing = null;
+            if (array_key_exists($key, $_ENV)) {
+                $existing = $_ENV[$key];
+            } elseif (array_key_exists($key, $_SERVER)) {
+                $existing = $_SERVER[$key];
+            } else {
+                $fromProcess = getenv($key);
+                if ($fromProcess !== false) {
+                    $existing = $fromProcess;
+                }
+            }
+            // A shorter process value must not hide a usable ENCRYPTION_KEY from .env.
+            $replaceShortKey = $key === 'ENCRYPTION_KEY'
+                && strlen($value) >= 32
+                && ($existing === null || strlen((string) $existing) < 32);
+            if ($existing === null || $replaceShortKey) {
                 $_ENV[$key]    = $value;
                 $_SERVER[$key] = $value;
-                putenv("$key=$value");
+                putenv($key . '=' . $value);
             }
         }
     }

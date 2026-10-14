@@ -88,6 +88,9 @@ check($setupAlert['card_use'] === 'account_setup', 'Advanced Credit setup is not
 check($setupAlert['card_use_ar'] === '' && $setupAlert['card_use_en'] === '', 'Advanced Credit setup does not add a do-not-use card alert');
 check(pos_card_use_alert('GENERIC DECLINE', '1461')['card_use'] === 'do_not_use', 'Issuer generic decline still blocks immediate retry');
 check(pos_card_use_alert('PERMISSION_DENIED', '1461')['card_use'] === 'can_use', 'PayPal account permission does not block the card');
+$squareAccount = pos_card_use_alert('PAYMENT_SOURCE_NOT_ENABLED_FOR_TARGET — This account has not been enabled to take payments', '9388');
+check($squareAccount['card_use'] === 'account_setup', 'Square account-not-enabled is not a card host decline');
+check($squareAccount['card_use_en'] === '' && $squareAccount['card_use_ar'] === '', 'Square account-not-enabled does not tell the cashier to abandon the card');
 check(pos_card_use_alert('invalid_client', '1461')['card_use'] === 'can_use', 'PayPal key error does not block the card');
 $tidAlert = pos_card_use_alert('Terminal ID (TID) is required.', '4242');
 check($tidAlert['card_use'] === 'local_validation', 'Missing TID is local validation, not a host decline');

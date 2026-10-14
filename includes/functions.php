@@ -747,7 +747,7 @@ function diparma_should_persist_charge(bool $success, bool $pending3ds = false):
 function diparma_is_account_setup_fault(string $reason): bool
 {
     return (bool) preg_match(
-        '/PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING|PAYEE_NOT_ENABLED_FOR_MOTO|MOTO_NOT_ENABLED|ADVANCED CREDIT|مدفوعات البطاقة المباشرة|not setup to be able to process card|not enabled for card|لا يدعم MOTO|Mail Order|التفعيل يتم من لوحة PayPal/iu',
+        '/PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING|PAYEE_NOT_ENABLED_FOR_MOTO|MOTO_NOT_ENABLED|PAYMENT_SOURCE_NOT_ENABLED_FOR_TARGET|not been enabled to take payments|ADVANCED CREDIT|مدفوعات البطاقة المباشرة|not setup to be able to process card|not enabled for card|لا يدعم MOTO|Mail Order|التفعيل يتم من لوحة PayPal/iu',
         $reason
     );
 }

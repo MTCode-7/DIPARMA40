@@ -1963,7 +1963,7 @@ function posPlainReason(raw) {
 }
 
 function posGatewaySetupFault(text) {
-  return /PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING|PAYEE_NOT_ENABLED_FOR_MOTO|MOTO_NOT_ENABLED|ADVANCED CREDIT|مدفوعات البطاقة المباشرة|not setup to be able to process card|not enabled for card|لا يدعم MOTO|Mail Order|التفعيل يتم من لوحة PayPal/i.test(String(text || ''));
+  return /PAYEE_NOT_ENABLED_FOR_CARD_PROCESSING|PAYEE_NOT_ENABLED_FOR_MOTO|MOTO_NOT_ENABLED|PAYMENT_SOURCE_NOT_ENABLED_FOR_TARGET|not been enabled to take payments|ADVANCED CREDIT|مدفوعات البطاقة المباشرة|not setup to be able to process card|not enabled for card|لا يدعم MOTO|Mail Order|التفعيل يتم من لوحة PayPal/i.test(String(text || ''));
 }
 
 function posCardUseAlert(d, why) {
@@ -3023,7 +3023,7 @@ window.processTransaction = async function() {
   }
   if (type === 'withdrawal_pos' || type === 'withdrawal_nfc') {
     extraData.pos_location = document.getElementById('posLocation')?.value || '';
-    extraData.merchant_id  = document.getElementById('merchantId')?.value || '';
+    extraData.merchant_id  = document.getElementById('merchantId')?.value || 'DIPARMA';
     extraData.processing_mode = '2D';
     extraData.sec_mode = '2D';
     extraData.requires_otp = false;
@@ -3180,6 +3180,11 @@ window.processTransaction = async function() {
     pos_device: POS_DEVICE.code,
     pos_model: POS_DEVICE.model,
     pos_type: POS_DEVICE.type,
+    terminal_id: extraData.terminal_id,
+    tid: extraData.terminal_id,
+    merchant_id: extraData.merchant_id || 'DIPARMA',
+    batch: extraData.batch,
+    stan: extraData.stan,
     extra: extraData,
     payment_id: extraData.payment_id || undefined,
     hold_id: holdPicked ? (holdOpt.value || undefined) : undefined,
