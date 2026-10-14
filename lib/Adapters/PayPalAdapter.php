@@ -611,11 +611,6 @@ final class PayPalAdapter implements GatewayAdapterInterface, GatewayCapabilitie
                     $payload['payment_source']['card']['attributes'] ?? [],
                     ['verification' => ['method' => 'SCA_NEVER']]
                 );
-                $payload['payment_source']['card']['stored_credential'] = [
-                    'payment_initiator' => 'MERCHANT',
-                    'payment_type'      => 'ONE_OFF',
-                    'usage'             => 'FIRST',
-                ];
                 $payload['_moto']    = true;
                 $payload['_offline'] = ($mode === self::MODE_OFFLINE);
                 break;

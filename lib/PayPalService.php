@@ -665,11 +665,6 @@ class PayPalService
                 $paymentSource['card']['attributes'] = [
                     'verification' => ['method' => 'SCA_NEVER'],
                 ];
-                $paymentSource['card']['stored_credential'] = [
-                    'payment_initiator' => 'MERCHANT',
-                    'payment_type' => 'ONE_OFF',
-                    'usage' => 'FIRST',
-                ];
             }
             $description = (string) ($payload['transaction_label'] ?? ($payload['description'] ?? 'DI PARMA Payment'));
             if (($payload['advice_sign'] ?? '') === 'minus') {

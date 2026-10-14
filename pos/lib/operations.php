@@ -1514,7 +1514,7 @@ function pos_is_local_field_fault(string $reason): bool
         return false;
     }
     return (bool) preg_match(
-        '/Terminal ID \(TID\) is required|Select a real POS model|Card number must be|Expiry date required|Enter the full approval code|Bank Auth Code|Gateway Auth Code|RRN must be|Nuvei Transaction ID \(Payment ID\) is required|Invalid CVV|Enter the name on the card|Placeholder names are rejected|Test and dummy cards are blocked|CLOUD token is required|Physical POS requires a real card|Original reference is required/i',
+        '/Terminal ID \(TID\) is required|Select a real POS model|Card number must be|Expiry date required|Enter the full approval code|Bank Auth Code|Gateway Auth Code|RRN must be|Nuvei Transaction ID \(Payment ID\) is required|Invalid CVV|Enter the name on the card|Placeholder names are rejected|Test and dummy cards are blocked|CLOUD token is required|Physical POS requires a real card|Original reference is required|ENCRYPTION_KEY is missing or shorter|value of a field is invalid|stored_credential|INVALID_PARAMETER/i',
         $reason
     );
 }

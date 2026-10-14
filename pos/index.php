@@ -1977,6 +1977,9 @@ function posCardUseAlert(d, why) {
   if ((d && d.card_use === 'account_setup') || posGatewaySetupFault(setupBlob)) {
     return { code: 'account_setup', text: '' };
   }
+  if (/ENCRYPTION_KEY is missing or shorter|value of a field is invalid|stored_credential|INVALID_PARAMETER/i.test(setupBlob)) {
+    return { code: 'local_validation', text: '' };
+  }
   if (d && d.card_use === 'local_validation') {
     return { code: 'local_validation', text: '' };
   }
@@ -1988,7 +1991,7 @@ function posCardUseAlert(d, why) {
   }
   const scan = String(why || '').toUpperCase();
   if (!/GENERIC\s*DECLINE|1507|1116|-1100|ISSUER DECLINED|CVV_FAILURE|PAN_FAILURE|EXPIRED CARD/.test(scan)
-      && /Terminal ID \(TID\) is required|Select a real POS model|Card number must be|Expiry date required|Enter the full approval code|Bank Auth Code|Gateway Auth Code|RRN must be|Payment ID\) is required|Invalid CVV|Enter the name on the card|Placeholder names are rejected|Test and dummy cards are blocked|CLOUD token is required|Physical POS requires a real card|Original reference is required/i.test(String(why || ''))) {
+      && /Terminal ID \(TID\) is required|Select a real POS model|Card number must be|Expiry date required|Enter the full approval code|Bank Auth Code|Gateway Auth Code|RRN must be|Payment ID\) is required|Invalid CVV|Enter the name on the card|Placeholder names are rejected|Test and dummy cards are blocked|CLOUD token is required|Physical POS requires a real card|Original reference is required|ENCRYPTION_KEY is missing or shorter|value of a field is invalid|stored_credential|INVALID_PARAMETER/i.test(String(why || ''))) {
     return { code: 'local_validation', text: '' };
   }
   const tail = last4 ? (' ****' + last4) : '';

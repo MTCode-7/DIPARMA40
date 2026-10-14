@@ -97,6 +97,11 @@ check($tidAlert['card_use'] === 'local_validation', 'Missing TID is local valida
 check($tidAlert['card_use_en'] === '' && $tidAlert['card_use_ar'] === '', 'Missing TID does not add a do-not-use card alert');
 check(pos_card_use_alert('Select a real POS model from the catalog. · Enter the full approval code or its 4/6 digit form.', '4242')['card_use'] === 'local_validation', 'POS model and approval checks stay local');
 check(pos_card_use_alert('GENERIC DECLINE', '4242')['card_use'] === 'do_not_use', 'Generic decline still blocks retry after the local-validation split');
+$paypalField = pos_card_use_alert('The value of a field is invalid. (field: /payment_source/card/stored_credential/payment_type) (PayPal debug_id: e3c9070a574f9) [INVALID_PARAMETER]', '1461');
+check($paypalField['card_use'] === 'local_validation', 'PayPal invalid stored_credential field is not a host decline');
+check($paypalField['card_use_en'] === '' && $paypalField['card_use_ar'] === '', 'PayPal invalid field does not tell the cashier to abandon the card');
+$keyAlert = pos_card_use_alert('ENCRYPTION_KEY is missing or shorter than 32 chars', '9465');
+check($keyAlert['card_use'] === 'local_validation' && $keyAlert['card_use_en'] === '', 'A short encryption key does not mark the card unusable');
 if (!defined('DB_PREFIX')) {
     define('DB_PREFIX', 'dp_');
 }
