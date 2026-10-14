@@ -321,7 +321,24 @@ if ($gatewayApprovalCode === '') {
 if ($gatewayApprovalCode === '') {
     $gatewayApprovalCode = $bankApprovalCode;
 }
-if ($txnType === 'offline_sale_moto') {
+$inputMode = strtolower(trim((string) ($extra['input_mode'] ?? $data['input_mode'] ?? '')));
+$entryMode = strtolower(trim((string) ($extra['entry_mode'] ?? $data['entry_mode'] ?? '')));
+$manualKeyed = $inputMode === 'manual' || $entryMode === 'keyed';
+$manualOffline = $manualKeyed && in_array($txnType, ['purchase_2d', 'purchase_3d', 'online_sale_moto', 'offline_sale_moto', 'purchase'], true);
+if ($manualOffline) {
+    $extra['is_offline'] = true;
+    $extra['input_mode'] = 'manual';
+    $extra['entry_mode'] = 'keyed';
+    $extra['processing_mode'] = 'OFFLINE';
+    $extra['sec_mode'] = 'OFFLINE';
+    $extra['moto_channel'] = 'offline';
+    $extra['auth_channel'] = 'offline';
+    if ($txnType === 'purchase_3d') {
+        $txnType = 'purchase_2d';
+        $opMeta = pos_operation_meta($txnType) ?? $opMeta;
+    }
+}
+if ($txnType === 'offline_sale_moto' || $manualOffline) {
     $bankApprovalCode = '';
     $gatewayApprovalCode = '';
     $manualApproval = '';
@@ -423,7 +440,9 @@ $extra['merchant_id'] = $merchantId;
 $extra['pos_location'] = $posLocation;
 $extra['notes'] = $manualNotes;
 $secMode = '2D';
-if ($cardType === 'CLOUD') {
+if (!empty($extra['is_offline']) || strtoupper((string) ($extra['processing_mode'] ?? '')) === 'OFFLINE') {
+    $secMode = 'OFFLINE';
+} elseif ($cardType === 'CLOUD') {
     $secMode = '2D';
 } elseif (in_array($txnType, ['withdrawal_pos', 'withdrawal_nfc'], true)) {
     $secMode = '2D';
@@ -813,6 +832,9 @@ if ($useCardGateway) {
             'auth_channel' => $extra['auth_channel'] ?? $data['auth_channel'] ?? '',
             'moto_channel' => $extra['auth_channel'] ?? $data['auth_channel'] ?? '',
             'entry_mode' => $extra['entry_mode'] ?? ($opMeta['entry_mode'] ?? 'keyed'),
+            'input_mode' => $extra['input_mode'] ?? ($data['input_mode'] ?? ''),
+            'is_offline' => !empty($extra['is_offline']),
+            'processing_mode' => $extra['processing_mode'] ?? ($secMode ?? '2D'),
             'scheme_route' => $cardNetwork,
             'allow_amount_override' => !empty($opMeta['amount_flexible']) || in_array($txnType, ['capture', 'purchase_advice'], true),
             'ledger_addr' => $ledgerAddr,

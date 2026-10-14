@@ -495,6 +495,26 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
     $params['name'] = $name;
     $params['card_name'] = $name;
 
+    $entry = strtolower(trim((string) ($params['entry_mode'] ?? '')));
+    $input = strtolower(trim((string) ($params['input_mode'] ?? '')));
+    $keyedSale = empty($params['withdrawal'])
+        && ($input === 'manual' || $entry === 'keyed')
+        && in_array($txnType, ['purchase_2d', 'purchase_3d', 'online_sale_moto', 'offline_sale_moto', 'purchase'], true);
+    if ($keyedSale) {
+        $params['is_offline'] = true;
+        $params['input_mode'] = 'manual';
+        $params['entry_mode'] = 'keyed';
+        $params['moto_channel'] = 'offline';
+        $params['auth_channel'] = 'offline';
+        $params['processing_mode'] = 'OFFLINE';
+        $params['is_moto'] = true;
+        $params['card_present'] = false;
+        if ($txnType === 'purchase_3d') {
+            $txnType = 'purchase_2d';
+            $params['txn_type'] = 'purchase_2d';
+        }
+    }
+
     if ($txnType === 'purchase_3d') {
         if (!class_exists('CardScaService', false)) {
             require_once POS_APP_ROOT . '/lib/CardScaService.php';
@@ -510,7 +530,9 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
         return $params;
     }
 
-    $params['processing_mode'] = '2D';
+    if (strtoupper((string) ($params['processing_mode'] ?? '')) !== 'OFFLINE') {
+        $params['processing_mode'] = '2D';
+    }
     $params['is_moto'] = true;
     $params['moto_indicator'] = $params['moto_indicator'] ?? 'M';
 
@@ -519,7 +541,7 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
         $params['moto_channel'] = 'offline';
         $params['auth_channel'] = 'offline';
     }
-    if ($txnType === 'online_sale_moto') {
+    if ($txnType === 'online_sale_moto' && empty($params['is_offline'])) {
         $params['moto_channel'] = 'online';
         $params['auth_channel'] = 'online';
     }
@@ -542,7 +564,9 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
         $offline = $txnType === 'offline_sale_moto'
             || $channel === 'offline'
             || !empty($params['is_offline']);
-        if ($offline && in_array($txnType, ['offline_sale_moto', 'auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice'], true)) {
+        $keyedOffline = !empty($params['is_offline'])
+            && in_array($txnType, ['purchase_2d', 'online_sale_moto', 'offline_sale_moto', 'purchase'], true);
+        if ($offline && ($keyedOffline || in_array($txnType, ['offline_sale_moto', 'auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice'], true))) {
             $params['processing_mode'] = 'OFFLINE';
             $params['is_offline'] = true;
             $params['is_moto'] = true;

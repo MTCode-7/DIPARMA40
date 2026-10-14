@@ -1175,7 +1175,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="mode-row" id="cardModeRow" <?=pos_gateway_requires_card($posGw)?'':'style="display:none"'?>>
       <button type="button" class="mode-btn <?=$startMode==='manual'?'active':''?>" id="modeManual" onclick="setInputMode('manual')">
         <strong><i class="fas fa-keyboard"></i> <?=$ar?'مانول':'Manual'?></strong>
-        <span><?=$ar?'رقم البطاقة يدوياً — لا يشترط تمرير الشريحة أو NFC':'Type the card — chip/NFC tap is not required'?></span>
+        <span><?=$ar?'رقم البطاقة يدوياً — أوفلاين مباشر، بلا RRN وبلا موافقة':'Type the card — offline direct sale, no RRN and no approval'?></span>
       </button>
       <button type="button" class="mode-btn <?=$startMode==='physical'?'active':''?>" id="modePhysical" onclick="setInputMode('physical')">
         <strong><i class="fas fa-sim-card"></i> <?=$ar?'فيزيكل':'Physical'?></strong>
@@ -2083,7 +2083,13 @@ function approvalReceiptLabel(code) {
   return s;
 }
 
+function manualDirectSale(type) {
+  return (typeof POS !== 'undefined' && POS.inputMode !== 'physical')
+    && !['capture','refund','avoid','purchase_advice','auth','auth_hold','auth_moto','hold','withdrawal_pos','withdrawal_nfc'].includes(type);
+}
+
 function approvalLenFor(type, chargeMode) {
+  if (manualDirectSale(type)) return null;
   if (chargeMode && CHARGE_MODES[chargeMode]?.approval_len) {
     return CHARGE_MODES[chargeMode].approval_len;
   }
@@ -2095,6 +2101,7 @@ function approvalLenFor(type, chargeMode) {
 }
 
 function needsRrn(type, chargeMode) {
+  if (manualDirectSale(type)) return false;
   if (['auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice', 'offline_sale_moto', 'offline_sales_moto'].includes(type)) return false;
   if (chargeMode === 'offline_sale_moto') return false;
   if (['capture','refund','avoid'].includes(type)) return true;
@@ -2103,6 +2110,7 @@ function needsRrn(type, chargeMode) {
 }
 
 function needsApproval(type, chargeMode) {
+  if (manualDirectSale(type)) return false;
   if (['auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice', 'offline_sale_moto', 'offline_sales_moto'].includes(type)) return false;
   if (chargeMode === 'offline_sale_moto') return false;
   if (type === 'capture') return true;
@@ -2173,7 +2181,7 @@ window.applyOpsLegend = function(type) {
     row.appr = false;
     row.pid = false;
   }
-  if (type === 'offline_sale_moto' || type === 'offline_sales_moto' || cm === 'offline_sale_moto') {
+  if (manualDirectSale(type) || type === 'offline_sale_moto' || type === 'offline_sales_moto' || cm === 'offline_sale_moto') {
     row.rrn = false;
     row.appr = false;
     row.pid = false;
@@ -2265,7 +2273,7 @@ function renderExtraFields(type) {
       <strong style="color:var(--gold)">${escapeHtml(AR?meta.ar:meta.en)}</strong><br>
       ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
       ${type === 'capture' ? '<br>• '+(AR?'مبلغ الإكمال يقبل الأقل والمساوي والأكبر من الحجز. حد البنك: 5,000,000 دولار.':'The completion amount may be lower, equal, or higher than the hold. Bank cap: 5,000,000 USD.') : ''}
-      ${type === 'offline_sale_moto' && POS_GW === 'square' ? '<br>• '+(AR?'بيع مباشر بلا RRN وبلا رمز موافقة. سكوير يخزّن البطاقة على التطبيق أو الجهاز ويرفعها خلال 24 ساعة، وتنتهي بعد 72. الحد 50,000 دولار. الإدخال اليدوي للرقم ليس أوفلاين سكوير.':'Direct sale with no RRN and no approval code. Square stores the card on the app or hardware and uploads it within 24 hours; it expires after 72. Limit 50,000 USD. A typed card number is not Square offline mode.') : ''}
+      ${type === 'offline_sale_moto' && POS_GW === 'square' ? '<br>• '+(AR?'الإدخال اليدوي أوفلاين أيضاً: بيع مباشر بلا RRN وبلا رمز موافقة. سكوير يرفع العملية خلال 24 ساعة، وتنتهي بعد 72. الحد 50,000 دولار.':'Manual entry is offline too: a direct sale with no RRN and no approval code. Square uploads it within 24 hours; it expires after 72. Limit 50,000 USD.') : ''}
       ${type === 'offline_sale_moto' && POS_GW === 'paypal' ? '<br>• '+(AR?'ليس أوفلاين DIPARMA: PayPal Reader فقط، شريحة أو لمس، تخزين على الجهاز، رفع خلال 24 ساعة. الحد 1,000 دولار والمجموع 10,000. إدخال الرقم ممنوع.':'Not DIPARMA offline: PayPal Reader only, chip or contactless, stored on the device, upload within 24 hours. Limit 1,000 USD each and 10,000 queued. Keyed PAN is not allowed.') : ''}
       ${type === 'purchase_advice' ? '<br>• '+(AR?'بدون حجز سابق. المبلغ موجب أو سالب.':'No prior hold. Amount may be positive or negative.') : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز.':'No RRN or approval fields while entering the hold.') : '')}
     </div>`;
@@ -2294,14 +2302,14 @@ function renderExtraFields(type) {
   }
 
   const offlineSale = type === 'offline_sale_moto' || type === 'offline_sales_moto';
-  if (type === 'online_sale_moto' || type === 'purchase_advice' || type === 'capture') {
+  if ((type === 'online_sale_moto' && !manualDirectSale(type)) || type === 'purchase_advice' || type === 'capture') {
     html += `<div class="fld">
       <label>RRN</label>
       <input type="text" id="origRef" maxlength="12" inputmode="numeric" placeholder="000000000000"
         oninput="this.value=this.value.replace(/\\D/g,'').slice(0,12)">
     </div>`;
   }
-  if (type === 'online_sale_moto' || type === 'purchase_advice' || type === 'capture') {
+  if ((type === 'online_sale_moto' && !manualDirectSale(type)) || type === 'purchase_advice' || type === 'capture') {
     html += `<div class="fld">
       <label>APPROVAL CODE</label>
       <input type="text" id="approvalCode" maxlength="6" placeholder="4 or 6"
@@ -2890,7 +2898,11 @@ window.setInputMode = function(mode) {
   }
   setPosStatus(mode === 'physical'
     ? (AR ? 'بانتظار تمرير البطاقة على القارئ' : 'WAITING CARD ON READER')
-    : (AR ? 'مانول — بدون تمرير البطاقة' : 'MANUAL — NO CARD TAP REQUIRED'));
+    : (AR ? 'مانول — أوفلاين مباشر بلا RRN' : 'MANUAL — OFFLINE DIRECT, NO RRN'));
+  if (POS.txnType && typeof renderExtraFields === 'function') {
+    renderExtraFields(POS.txnType);
+    if (typeof applyOpsLegend === 'function') applyOpsLegend(POS.txnType);
+  }
   if (mode === 'physical') {
     const w = document.getElementById('wedgeCapture');
     if (w) {
@@ -2978,11 +2990,13 @@ window.processTransaction = async function() {
   const isPhysical = POS.inputMode === 'physical';
   const useWallet = isPhysical && walletAddr !== '';
 
+  const manualOffline = manualDirectSale(type) || type === 'offline_sale_moto' || type === 'offline_sales_moto';
   const extraData = {
-    processing_mode: meta.security || '2D',
-    sec_mode: meta.security || '2D',
     input_mode: POS.inputMode,
     entry_mode: useWallet ? 'wallet_app' : (isPhysical ? (type === 'withdrawal_nfc' ? 'nfc_contactless' : 'pos_chip') : 'keyed'),
+    is_offline: manualOffline ? true : undefined,
+    processing_mode: manualOffline ? 'OFFLINE' : (meta.security || '2D'),
+    sec_mode: manualOffline ? 'OFFLINE' : (meta.security || '2D'),
     card_present: isPhysical,
     channels: ['pos', 'nfc'],
     channel: meta.channel || 'system_pos',
@@ -3004,7 +3018,7 @@ window.processTransaction = async function() {
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     advice_channel: document.getElementById('adviceChannel')?.value || undefined,
     auth_channel: document.getElementById('authChannel')?.value || undefined,
-    is_moto: ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto') ? true : undefined,
+    is_moto: (manualOffline || (type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto') ? true : undefined,
     moto_indicator: ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto') ? 'M' : undefined,
     payment_id: document.getElementById('paymentId')?.value || (holdPicked ? (function(){ try { return JSON.parse(holdOpt.dataset.hold).payment_id || undefined; } catch (e) { return undefined; } })() : undefined),
     wallet_address: walletAddr || undefined,
@@ -3035,12 +3049,12 @@ window.processTransaction = async function() {
       extraData.nfc = POS.nfcSession;
     }
   }
-  const offlineDirect = type === 'offline_sale_moto' || type === 'offline_sales_moto' || chargeMode === 'offline_sale_moto';
+  const offlineDirect = manualOffline || chargeMode === 'offline_sale_moto';
   if (approval && !offlineDirect) {
     extraData.approval_code = approval;
     extraData.bank_approval_code = approval;
   }
-  if (gwApproval) {
+  if (gwApproval && !offlineDirect) {
     extraData.gateway_approval_code = gwApproval;
     extraData.auth_code = gwApproval;
     extraData.internal_approval_code = gwApproval;
@@ -3113,7 +3127,7 @@ window.processTransaction = async function() {
     squareToken = tok.token;
     const sqCard = (tok.details && tok.details.card) || {};
     squareLast4 = String(sqCard.last4 || sqCard.last_4 || '').replace(/\D/g, '').slice(-4);
-    if (typeof DiparmaSquareSdk.verifyBuyer === 'function') {
+    if (!manualOffline && typeof DiparmaSquareSdk.verifyBuyer === 'function') {
       const v = await DiparmaSquareSdk.verifyBuyer(squareToken, amount, currency, 'CHARGE', {
         name: cardName,
         email: (document.getElementById('posEmail')?.value || '').trim()
