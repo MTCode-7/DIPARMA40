@@ -483,7 +483,7 @@ if ($txnType === 'purchase_advice') {
 } elseif ($amount <= 0 && $txnType !== 'avoid') {
     $errors[] = 'Invalid amount. Must be greater than 0.';
 }
-if ($txnType === 'offline_sale_moto' && function_exists('gateway_offline_daily_limit_usd')) {
+if (($txnType === 'offline_sale_moto' || !empty($manualOffline)) && function_exists('gateway_offline_daily_limit_usd')) {
     $dailyLimit = gateway_offline_daily_limit_usd($posGateway);
     if ($dailyLimit !== null) {
         try {
@@ -520,7 +520,7 @@ if ($txnType === 'capture') {
     }
 }
 // Bank offline (SAF) ceiling: 2,000,000 per sale
-if ($txnType === 'offline_sale_moto') {
+if ($txnType === 'offline_sale_moto' || !empty($manualOffline)) {
     $offlineCap = function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00;
     if ($amount > $offlineCap) {
         $errors[] = 'Offline bank limit: amount cannot exceed ' . number_format($offlineCap, 2, '.', ',') . '.';

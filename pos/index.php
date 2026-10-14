@@ -1230,8 +1230,8 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       <div id="square-card-container" dir="ltr" style="min-height:96px;width:100%;background:rgba(0,0,0,.25);border-radius:10px;padding:8px"></div>
       <div style="font-size:.68rem;color:var(--muted2);line-height:1.55;margin-top:8px">
         <?=$ar
-          ? 'هذه الشاشة تخصم أونلاين عبر Square Web Payments. أوفلاين Square على جهاز Square POS فقط (حد 50,000 دولار، رفع خلال 24 ساعة / انتهاء 72 من أول عملية). المعلّق يظهر في تطبيق Square: Transactions أو More > Transactions. إدخال الرقم يدوياً غير مدعوم أوفلاين.'
-          : 'This screen charges live via Square Web Payments. Square Offline is only on Square POS hardware (50,000 USD max, upload within 24 hours / expires 72 from the first payment). Pending shows only in the Square POS app: Transactions or More > Transactions. Keyed PAN is not available offline.'?>
+          ? 'الإدخال اليدوي أوفلاين: بيع مباشر بلا RRN وبلا رمز موافقة. الحد 50,000 دولار. الرفع خلال 24 ساعة، وتنتهي العملية بعد 72 ساعة من أول عملية.'
+          : 'Manual entry is offline: a direct sale with no RRN and no approval code. Limit 50,000 USD. Upload within 24 hours; it expires 72 hours after the first payment.'?>
       </div>
       <div id="square-error" style="color:var(--red);font-size:.7rem;margin-top:6px"></div>
     </div>
@@ -2274,7 +2274,7 @@ function renderExtraFields(type) {
       ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
       ${type === 'capture' ? '<br>• '+(AR?'مبلغ الإكمال يقبل الأقل والمساوي والأكبر من الحجز. حد البنك: 5,000,000 دولار.':'The completion amount may be lower, equal, or higher than the hold. Bank cap: 5,000,000 USD.') : ''}
       ${type === 'offline_sale_moto' && POS_GW === 'square' ? '<br>• '+(AR?'الإدخال اليدوي أوفلاين أيضاً: بيع مباشر بلا RRN وبلا رمز موافقة. سكوير يرفع العملية خلال 24 ساعة، وتنتهي بعد 72. الحد 50,000 دولار.':'Manual entry is offline too: a direct sale with no RRN and no approval code. Square uploads it within 24 hours; it expires after 72. Limit 50,000 USD.') : ''}
-      ${type === 'offline_sale_moto' && POS_GW === 'paypal' ? '<br>• '+(AR?'ليس أوفلاين DIPARMA: PayPal Reader فقط، شريحة أو لمس، تخزين على الجهاز، رفع خلال 24 ساعة. الحد 1,000 دولار والمجموع 10,000. إدخال الرقم ممنوع.':'Not DIPARMA offline: PayPal Reader only, chip or contactless, stored on the device, upload within 24 hours. Limit 1,000 USD each and 10,000 queued. Keyed PAN is not allowed.') : ''}
+      ${type === 'offline_sale_moto' && POS_GW === 'paypal' ? '<br>• '+(AR?'الإدخال اليدوي أوفلاين مباشر بلا RRN وبلا موافقة. PayPal Reader يخزّن الشريحة أو اللمس على الجهاز ويرفع خلال 24 ساعة. الحد 1,000 دولار والمجموع 10,000.':'Manual entry is an offline direct sale with no RRN and no approval. PayPal Reader stores chip or tap on the device and uploads within 24 hours. Limit 1,000 USD each and 10,000 queued.') : ''}
       ${type === 'purchase_advice' ? '<br>• '+(AR?'بدون حجز سابق. المبلغ موجب أو سالب.':'No prior hold. Amount may be positive or negative.') : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز.':'No RRN or approval fields while entering the hold.') : '')}
     </div>`;
   }

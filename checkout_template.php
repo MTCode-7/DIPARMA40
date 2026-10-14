@@ -817,6 +817,8 @@ function setTx(type, el) {
     }
     var onlineAp = document.getElementById('onlineApprovalWrap');
     if (onlineAp) onlineAp.classList.add('hidden');
+    var bankRefs = document.getElementById('bankReferenceFields');
+    if (bankRefs) bankRefs.style.display = 'none';
     applyFieldRequirements(meta);
   } else if (type === 'capture' || type === 'purchase_advice' || type === 'offline_sale_moto' || type === 'offline_sales_moto') {
     captureSec.classList.remove('hidden');
@@ -1251,6 +1253,16 @@ async function go() {
     payload.extra = { charge_mode: mode, channel: 'system_pos', scheme_route: detectCardNetwork((document.getElementById('ccNumber')||{}).value || '') };
   }
 
+  var manualOfflineCheckout = ['purchase','purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','offline_sales_moto'].indexOf(String(payload.txn_type || curTx)) >= 0;
+  if (manualOfflineCheckout) {
+    payload.input_mode = 'manual';
+    payload.entry_mode = 'keyed';
+    payload.is_offline = true;
+    payload.processing_mode = 'OFFLINE';
+    payload.security_mode = 'OFFLINE';
+    ['bank_rrn','rrn','orig_ref','approval_code','bank_approval_code','gateway_approval_code','auth_code','internal_approval_code','payment_id'].forEach(function(k){ payload[k] = ''; });
+  }
+
   payload.destination = LEDGER_CHECKOUT ? 'ledger' : (DEST || 'gateway');
   payload.ledger_checkout = LEDGER_CHECKOUT ? 1 : 0;
   payload.ledger_address = WALLET || <?=json_encode(defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : '')?>;
@@ -1267,12 +1279,15 @@ async function go() {
   if (PREFILL_LINK) {
     payload.link_id = PREFILL_LINK;
     payload.channel = 'link';
-    payload.extra = Object.assign({}, payload.extra || {}, { link_id: PREFILL_LINK, channel: 'link' });
+    payload.extra = Object.assign({}, payload.extra || {}, { link_id: PREFILL_LINK, channel: 'link', input_mode: payload.input_mode || '', entry_mode: payload.entry_mode || '', is_offline: !!payload.is_offline, processing_mode: payload.processing_mode || '' });
   } else {
     payload.extra = Object.assign({}, payload.extra || {}, {
       channel: payload.channel,
       processing_mode: payload.processing_mode || payload.security_mode || '',
-      txn_type: payload.txn_type || curTx
+      txn_type: payload.txn_type || curTx,
+      input_mode: payload.input_mode || '',
+      entry_mode: payload.entry_mode || '',
+      is_offline: !!payload.is_offline
     });
   }
   if (ACTIVITY_LINE) {

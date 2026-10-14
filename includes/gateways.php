@@ -1507,7 +1507,7 @@ if (!function_exists('square_offline_device_only_message')) {
 function square_offline_device_only_message(): string
 {
     return 'أوفلاين Square يعمل فقط على تطبيق Square POS / Terminal / Register / Handheld / Stand / Reader بعد تفعيله من Dashboard (Settings > Device management > Modes) أو More > Settings > Checkout > Offline payments. '
-        . 'Square لا يدعم إدخال الرقم يدوياً أوفلاين، ولا Tap to Pay ولا بطاقات الهدايا ولا Afterpay ولا Cash App Pay ولا EBT، وDIPARMA لا يخزّن البطاقة محلياً. '
+        . 'إدخال الرقم يدوياً في DIPARMA يُرسل أوفلاين مباشراً بلا RRN وبلا موافقة. Tap to Pay وبطاقات الهدايا وAfterpay وCash App Pay وEBT تبقى غير مدعومة، وDIPARMA لا يخزّن البطاقة محلياً. '
         . 'ارفع خلال 24 ساعة ويُفضَّل ذلك؛ تنتهي المعلّقة بعد 72 ساعة من بدء الجلسة ولا تُستعاد. Readers/Stand: قبول 24 ساعة ثم أعد الاتصال. الحد 1–50,000 دولار. '
         . 'لا تسجّل خروجاً ولا تحذف التطبيق ولا تبدّل الوضع/الموقع ولا تعمل إعادة ضبط أثناء المعلّق. الاسترجاع بعد الرفع فقط. '
         . square_offline_view_message()
@@ -1532,7 +1532,7 @@ if (!function_exists('paypal_offline_device_only_message')) {
 function paypal_offline_device_only_message(): string
 {
     return 'أوفلاين PayPal يعمل فقط على PayPal Reader مع تطبيق PayPal Point of Sale بعد تحديث البرنامج. '
-        . 'الشريحة واللمس فقط: Visa وMastercard وMaestro وAmerican Express وApple Pay وGoogle Pay. المسح المغناطيسي وإدخال الرقم يدوياً غير مدعومين. '
+        . 'على هذه الشاشة الإدخال اليدوي أوفلاين مباشر بلا RRN وبلا موافقة. PayPal Reader نفسه: شريحة ولمس فقط (Visa وMastercard وMaestro وAmerican Express وApple Pay وGoogle Pay). '
         . 'العملية تُخزَّن مشفّرة على الجهاز وتُرسل تفويض حضور البطاقة عند عودة الإنترنت خلال 24 ساعة، وبعدها يتوقف الأوفلاين. '
         . 'الحد 1,000 دولار للعملية و10,000 دولار للمجموع المعلّق، بما فيه البقشيش. العملية غير مفوَّضة لحظة البيع، والتاجر يتحمّل الرفض والنزاع والخسارة. '
         . 'الاسترجاع بعد معالجة العملية المتصلة فقط، وعلى نفس البطاقة خلال 30 يوماً. DIPARMA لا يخزّن البطاقة على هذه الشاشة.';

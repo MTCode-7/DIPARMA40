@@ -35,8 +35,8 @@ function activity_card_present_modes(): array
             'en' => 'No card tap',
             'icon' => 'fa-keyboard',
             'color' => '#F59E0B',
-            'desc_ar' => 'إدخال الرقم يدوياً — لا شريحة ولا NFC',
-            'desc_en' => 'Type the number — no chip and no NFC',
+            'desc_ar' => 'إدخال الرقم يدوياً — أوفلاين مباشر بلا RRN وبلا موافقة',
+            'desc_en' => 'Type the number — offline direct sale, no RRN and no approval',
         ],
     ];
 }

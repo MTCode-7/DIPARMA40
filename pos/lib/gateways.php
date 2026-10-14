@@ -49,8 +49,8 @@ function pos_terminal_gateways(): array
             'color' => '#006AFF',
             'adapter' => 'square',
             'rail' => 'card',
-            'desc_ar' => 'Square عبر Payments API أونلاين (Web Payments). بعد الموافقة يبقى المبلغ على Square. أوفلاين Square فقط على جهاز Square POS: يُخزَّن على الجهاز، رفع خلال 24 ساعة وينتهي بعد 72 من أول عملية. المعلّق يُعرض في تطبيق Square فقط (Transactions). حد العملية 50,000 دولار. إدخال الرقم يدوياً غير مدعوم أوفلاين.',
-            'desc_en' => 'Square via live Payments API (Web Payments). After approval the funds stay on Square. Square Offline is Square POS hardware only: stored on the device, upload within 24 hours (expires 72 from first payment). Pending is visible only in the Square POS app (Transactions). Max 50,000 USD. Keyed PAN is not available offline.',
+            'desc_ar' => 'Square. الإدخال اليدوي أوفلاين مباشر بلا RRN وبلا موافقة سابقة. بعد الموافقة يبقى المبلغ على Square. الرفع خلال 24 ساعة وينتهي بعد 72 من أول عملية. حد العملية 50,000 دولار.',
+            'desc_en' => 'Square. Manual entry is an offline direct sale with no RRN and no prior approval. After approval the funds stay on Square. Upload within 24 hours; it expires 72 hours after the first payment. Max 50,000 USD.',
         ],
         'square_online' => [
             'name' => 'Square 2 · Online',
