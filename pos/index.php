@@ -2189,7 +2189,7 @@ window.applyOpsLegend = function(type) {
     row.appr = false;
     row.pid = false;
   }
-  if (manualDirectSale(type) || type === 'offline_sale_moto' || type === 'offline_sales_moto' || cm === 'offline_sale_moto') {
+  if (manualDirectSale(type) || ['purchase_advice', 'online_sale_moto', 'offline_sale_moto', 'offline_sales_moto'].includes(type) || cm === 'offline_sale_moto') {
     row.rrn = false;
     row.appr = false;
     row.pid = false;

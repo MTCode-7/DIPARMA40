@@ -762,10 +762,7 @@ final class PayPalAdapter implements GatewayAdapterInterface, GatewayCapabilitie
         ) {
             $message = 'حساب PayPal الحي غير مفعّل لمدفوعات البطاقة المباشرة (Advanced Credit and Debit Card Payments). '
                 . 'التفعيل يتم من لوحة PayPal ولا يمكن للكود فتحه.';
-        } elseif (
-            $issue === 'MOTO_NOT_ENABLED'
-            || str_contains(strtolower($message), 'moto')
-        ) {
+        } elseif (in_array($issue, ['MOTO_NOT_ENABLED', 'PAYEE_NOT_ENABLED_FOR_MOTO'], true)) {
             $message = 'حساب PayPal لا يدعم MOTO/OFFLINE. '
                 . 'فعّل Mail Order / Telephone Order من Developer Dashboard.';
         } elseif (in_array($issue, ['THREE_DS_REQUIRED', 'PAYER_ACTION_REQUIRED'], true)) {

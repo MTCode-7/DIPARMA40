@@ -152,12 +152,11 @@ function activity_gateway_checkout_operations(string $code): array
     $standard = [
         'purchase_3d',
         'purchase_2d',
-        'offline_sales_moto',
         'online_sale_moto',
-        'capture',
+        'offline_sale_moto',
         'purchase_advice',
         'auth',
-        'offline_sale_moto',
+        'capture',
     ];
     $code = strtolower(trim($code));
     $overrides = [

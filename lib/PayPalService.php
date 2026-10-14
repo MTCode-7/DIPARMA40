@@ -68,7 +68,7 @@ class PayPalService
         curl_close($ch);
 
         if ($code !== 200) {
-            throw new RuntimeException('PayPal auth failed: ' . $res);
+            throw new RuntimeException('PayPal auth failed (HTTP ' . (int) $code . ')');
         }
 
         $data = json_decode($res, true);
