@@ -332,6 +332,10 @@ html,body{min-height:100vh;font-family:'Cairo',sans-serif;background:var(--bg);c
 </style>
 <style>
 /* ── Keypad ── */
+.pos-cvv{display:grid;grid-template-columns:64px 1fr;align-items:center;gap:8px;margin-top:12px}
+.pos-cvv label{font-family:'Share Tech Mono',monospace;color:rgba(0,255,65,.75);font-size:.78rem;font-weight:800;letter-spacing:.08em}
+.pos-cvv input{width:100%;background:rgba(0,0,0,.45);border:1px solid rgba(0,255,65,.4);color:#00ff41;border-radius:8px;padding:10px 12px;font-family:'Share Tech Mono',monospace;font-size:1.15rem;font-weight:800;letter-spacing:6px;text-align:center}
+.pos-cvv input:focus{outline:none;border-color:#00ff41}
 .pos-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
 .key-btn{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);
   border-radius:10px;padding:14px 8px;color:var(--text);font-family:'Cairo',sans-serif;
@@ -1150,6 +1154,10 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
         <div class="pos-status-dot"></div>
         <span id="posStatusText" style="color:rgba(0,255,65,.6);font-family:'Share Tech Mono',monospace;font-size:.68rem">READY</span>
       </div>
+      <div class="pos-cvv" id="liveCvvWrap">
+        <label for="cardCVV">CVV</label>
+        <input type="password" id="cardCVV" maxlength="4" inputmode="numeric" autocomplete="cc-csc" placeholder="•••">
+      </div>
     </div>
 
     <!-- Keypad -->
@@ -1285,10 +1293,6 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
         <input type="text" id="cardExpiry" maxlength="5" placeholder="MM/YY"
           inputmode="numeric" autocomplete="cc-exp"
           oninput="formatExp(this)">
-      </div>
-      <div class="fld" id="liveCvvWrap">
-        <label>CVV / CVC / CVC2 / CVV2 <span style="color:var(--muted2)">(optional)</span></label>
-        <input type="password" id="cardCVV" maxlength="4" placeholder="•••">
       </div>
     </div>
     <div class="fld" id="cloudTokenField" style="display:none">
@@ -1826,6 +1830,7 @@ function selectPosGateway(code, el) {
   const btn = document.getElementById('processBtn');
   if (btn) btn.disabled = false;
   syncNuveiFxHint();
+  if (typeof applyOpsLegend === 'function') applyOpsLegend(POS.txnType);
   try {
     const u = new URL(location.href);
     u.searchParams.set('gw', code);
@@ -2189,7 +2194,7 @@ window.applyOpsLegend = function(type) {
   if (row.card === true) row.cvv = 'optional';
   const needCard = legendNeed(row.card) || !!meta.requires_card;
   const needExp = legendNeed(row.exp) || !!meta.requires_expiry;
-  const needCvv = !!POS_REQUIRES_CARD && document.getElementById('cardType')?.value !== 'CLOUD';
+  const needCvv = needCard && document.getElementById('cardType')?.value !== 'CLOUD';
   setFieldWrap('livePanWrap', needCard, 'cardNumber');
   setFieldWrap('liveNameWrap', needCard, 'cardName');
   setFieldWrap('liveExpWrap', needExp, 'cardExpiry');
