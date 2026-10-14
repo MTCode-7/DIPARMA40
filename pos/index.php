@@ -2088,7 +2088,8 @@ function approvalLenFor(type, chargeMode) {
     return CHARGE_MODES[chargeMode].approval_len;
   }
   if (type === 'purchase_advice' || chargeMode === 'purchase_advice_offline' || chargeMode === 'purchase_advice_online') return 6;
-  if (type === 'online_sale_moto' || type === 'offline_sale_moto') return 6;
+  if (type === 'online_sale_moto') return 6;
+  if (type === 'offline_sale_moto' || type === 'offline_sales_moto' || chargeMode === 'offline_sale_moto') return null;
   const meta = TXN_META[type] || {};
   return meta.approval_len || null;
 }
@@ -2102,8 +2103,9 @@ function needsRrn(type, chargeMode) {
 }
 
 function needsApproval(type, chargeMode) {
-  if (['auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice'].includes(type)) return false;
-  if (['capture','offline_sale_moto','offline_sales_moto'].includes(type)) return true;
+  if (['auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice', 'offline_sale_moto', 'offline_sales_moto'].includes(type)) return false;
+  if (chargeMode === 'offline_sale_moto') return false;
+  if (type === 'capture') return true;
   if (chargeMode && CHARGE_MODES[chargeMode]) return !!CHARGE_MODES[chargeMode].requires_approval;
   return !!(TXN_META[type]?.requires_approval);
 }
@@ -2171,9 +2173,10 @@ window.applyOpsLegend = function(type) {
     row.appr = false;
     row.pid = false;
   }
-  if (type === 'offline_sale_moto' || type === 'offline_sales_moto') {
+  if (type === 'offline_sale_moto' || type === 'offline_sales_moto' || cm === 'offline_sale_moto') {
     row.rrn = false;
-    row.appr = true;
+    row.appr = false;
+    row.pid = false;
   }
   if (row.card === true) row.cvv = 'optional';
   const needCard = legendNeed(row.card) || !!meta.requires_card;
@@ -2262,7 +2265,7 @@ function renderExtraFields(type) {
       <strong style="color:var(--gold)">${escapeHtml(AR?meta.ar:meta.en)}</strong><br>
       ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
       ${type === 'capture' ? '<br>• '+(AR?'مبلغ الإكمال يقبل الأقل والمساوي والأكبر من الحجز. حد البنك: 5,000,000 دولار.':'The completion amount may be lower, equal, or higher than the hold. Bank cap: 5,000,000 USD.') : ''}
-      ${type === 'offline_sale_moto' && POS_GW === 'square' ? '<br>• '+(AR?'ليس أوفلاين DIPARMA: استخدم تطبيق Square على الجهاز بعد تفعيل Offline payments. رفع خلال 24 ساعة، انتهاء 72، حد 50,000 دولار. إدخال الرقم ممنوع أوفلاين.':'Not DIPARMA offline: use the Square app on the device after enabling Offline payments. Upload within 24 hours, expires 72, max 50,000 USD. Keyed PAN is not allowed offline.') : ''}
+      ${type === 'offline_sale_moto' && POS_GW === 'square' ? '<br>• '+(AR?'بيع مباشر بلا RRN وبلا رمز موافقة. سكوير يخزّن البطاقة على التطبيق أو الجهاز ويرفعها خلال 24 ساعة، وتنتهي بعد 72. الحد 50,000 دولار. الإدخال اليدوي للرقم ليس أوفلاين سكوير.':'Direct sale with no RRN and no approval code. Square stores the card on the app or hardware and uploads it within 24 hours; it expires after 72. Limit 50,000 USD. A typed card number is not Square offline mode.') : ''}
       ${type === 'offline_sale_moto' && POS_GW === 'paypal' ? '<br>• '+(AR?'ليس أوفلاين DIPARMA: PayPal Reader فقط، شريحة أو لمس، تخزين على الجهاز، رفع خلال 24 ساعة. الحد 1,000 دولار والمجموع 10,000. إدخال الرقم ممنوع.':'Not DIPARMA offline: PayPal Reader only, chip or contactless, stored on the device, upload within 24 hours. Limit 1,000 USD each and 10,000 queued. Keyed PAN is not allowed.') : ''}
       ${type === 'purchase_advice' ? '<br>• '+(AR?'بدون حجز سابق. المبلغ موجب أو سالب.':'No prior hold. Amount may be positive or negative.') : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز.':'No RRN or approval fields while entering the hold.') : '')}
     </div>`;
@@ -2298,7 +2301,7 @@ function renderExtraFields(type) {
         oninput="this.value=this.value.replace(/\\D/g,'').slice(0,12)">
     </div>`;
   }
-  if (offlineSale || type === 'online_sale_moto' || type === 'purchase_advice' || type === 'capture') {
+  if (type === 'online_sale_moto' || type === 'purchase_advice' || type === 'capture') {
     html += `<div class="fld">
       <label>APPROVAL CODE</label>
       <input type="text" id="approvalCode" maxlength="6" placeholder="4 or 6"
@@ -3032,7 +3035,8 @@ window.processTransaction = async function() {
       extraData.nfc = POS.nfcSession;
     }
   }
-  if (approval) {
+  const offlineDirect = type === 'offline_sale_moto' || type === 'offline_sales_moto' || chargeMode === 'offline_sale_moto';
+  if (approval && !offlineDirect) {
     extraData.approval_code = approval;
     extraData.bank_approval_code = approval;
   }
@@ -3153,14 +3157,14 @@ window.processTransaction = async function() {
     source_id: squareToken || undefined,
     payment_token: squareToken || cloudToken || undefined,
     verification_token: extraData.verification_token || undefined,
-    orig_ref: origRef,
-    rrn: origRef,
-    bank_rrn: origRef,
-    approval_code: approval,
-    bank_approval_code: approval,
-    gateway_approval_code: gwApproval,
-    auth_code: gwApproval,
-    internal_approval_code: gwApproval,
+    orig_ref: offlineDirect ? '' : origRef,
+    rrn: offlineDirect ? '' : origRef,
+    bank_rrn: offlineDirect ? '' : origRef,
+    approval_code: offlineDirect ? '' : approval,
+    bank_approval_code: offlineDirect ? '' : approval,
+    gateway_approval_code: offlineDirect ? '' : gwApproval,
+    auth_code: offlineDirect ? '' : gwApproval,
+    internal_approval_code: offlineDirect ? '' : gwApproval,
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     email: (document.getElementById('posEmail')?.value || '').trim(),
     ledger_address: POS.ledgerAddress,

@@ -73,7 +73,7 @@ function pos_auth_followup_totals($db, string $paymentId, string $rrn): array
  * - capture (AUTH Capture): مبلغ مساوٍ/أقل/أكثر + RRN(12) + Approval + بطاقة + انتهاء
  * - purchase_advice: غير مرتبط بـ AUTH — فقط RRN(12) + Approval + بطاقة + انتهاء
  * - online_sale_moto: Approval = 4 أرقام
- * - offline_sale_moto: Approval = 6 أرقام + بطاقة + انتهاء
+ * - offline_sale_moto: بيع مباشر — بطاقة + انتهاء، بلا RRN وبلا تفويض سابق
  */
 function pos_operation_catalog(): array
 {
@@ -217,9 +217,9 @@ function pos_operation_catalog(): array
             'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
-            'requires_approval' => true,
+            'requires_approval' => false,
             'requires_payment_id' => false,
-            'approval_len' => 6,
+            'approval_len' => null,
             'linked_to_auth' => false,
             'amount_flexible' => false,
             'method' => 'purchase',
@@ -227,8 +227,8 @@ function pos_operation_catalog(): array
             'moto_channel' => 'offline',
             'charge_as' => 'offline_sale_moto',
             'max_amount' => function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00,
-            'desc_ar' => 'OFFLINE SALES - MOTO. بطاقة ومبلغ وApproval من 4 أو 6 أرقام. RRN غير مطلوب.',
-            'desc_en' => 'OFFLINE SALES - MOTO. Card, amount, and a 4- or 6-digit approval. RRN is not required.',
+            'desc_ar' => 'بيع مباشر. بطاقة ومبلغ فقط. لا RRN ولا تفويض سابق. الموافقة تظهر فقط إذا أعادتها البوابة بعد التنفيذ.',
+            'desc_en' => 'Direct sale. Card and amount only. No RRN and no prior authorization. An approval prints only if the gateway returns one after the charge.',
         ],
         'offline_sale_moto' => [
             'ar' => 'Offline SALE — SAF',
@@ -241,9 +241,9 @@ function pos_operation_catalog(): array
             'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
-            'requires_approval' => true,
+            'requires_approval' => false,
             'requires_payment_id' => false,
-            'approval_len' => 6,
+            'approval_len' => null,
             'linked_to_auth' => false,
             'amount_flexible' => false,
             'method' => 'purchase',
@@ -251,8 +251,8 @@ function pos_operation_catalog(): array
             'moto_channel' => 'offline',
             'saf' => true,
             'max_amount' => function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00,
-            'desc_ar' => 'Offline SALE — SAF على البوابة المختارة فقط. حد 2,000,000. بطاقة + انتهاء. CVV اختياري. Approval من 4 أو 6 أرقام. RRN غير مطلوب. بدون OTP.',
-            'desc_en' => 'Offline SALE — SAF on the selected gateway only. Limit 2,000,000. Card + expiry. CVV optional. Approval is 4 or 6 digits. RRN is not required. No OTP.',
+            'desc_ar' => 'بيع مباشر على البوابة المختارة. بطاقة + انتهاء. CVV اختياري. لا RRN ولا تفويض سابق. بدون OTP.',
+            'desc_en' => 'Direct sale on the selected gateway. Card + expiry. CVV optional. No RRN and no prior authorization. No OTP.',
         ],
         'refund' => [
             'ar' => 'استرداد (Refund)',
@@ -529,9 +529,9 @@ function pos_withdrawal_charge_modes(): array
             'en' => 'Offline SALE MOTO',
             'base' => 'offline_sale_moto',
             'channel' => 'offline',
-            'approval_len' => 6,
+            'approval_len' => null,
             'requires_rrn' => false,
-            'requires_approval' => true,
+            'requires_approval' => false,
             'requires_card' => true,
             'requires_expiry' => true,
         ],
@@ -1029,10 +1029,11 @@ function pos_validate_operation_fields(string $type, array $data): array
     }
 
     $requiresRrn = !empty($meta['requires_rrn']) || !empty($modeMeta['requires_rrn']);
+    $requiresApproval = !empty($meta['requires_approval']) || !empty($modeMeta['requires_approval']);
     if ($type !== 'capture' && ($type === 'offline_sale_moto' || $chargeMode === 'offline_sale_moto')) {
         $requiresRrn = false;
+        $requiresApproval = false;
     }
-    $requiresApproval = !empty($meta['requires_approval']) || !empty($modeMeta['requires_approval']);
     $requiresCard = !empty($meta['requires_card']) || !empty($modeMeta['requires_card']);
     $requiresExpiry = !empty($meta['requires_expiry']) || !empty($modeMeta['requires_expiry']);
     $approvalLen = $modeMeta['approval_len'] ?? ($meta['approval_len'] ?? null);

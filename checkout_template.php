@@ -836,6 +836,9 @@ function setTx(type, el) {
     if (ap) {
       ap.maxLength = 6;
       ap.placeholder = '4 or 6 digits';
+      var apReq = ap.closest('.fld');
+      if (apReq) apReq.style.display = offlineSale ? 'none' : '';
+      if (offlineSale) ap.value = '';
     }
     var capRow = document.getElementById('captureAmountRow');
     var capLabel = document.getElementById('captureAmountLabel');
@@ -1125,8 +1128,10 @@ async function go() {
     } else if ((curTx === 'purchase_advice' || curTx === 'offline_sale_moto' || curTx === 'offline_sales_moto') && !/^\d{12}$/.test(rrn)) {
       rrn = '';
     }
-    if (curTx === 'offline_sale_moto' || curTx === 'offline_sales_moto') {
-      if (!/^\d{4}$|^\d{6}$/.test(apco)) { showToast('APPROVAL CODE must be 4 or 6 digits','error'); btn.disabled=false; resetBtn(); return; }
+    var offlineDirect = curTx === 'offline_sale_moto' || curTx === 'offline_sales_moto';
+    if (offlineDirect) {
+      rrn = '';
+      apco = '';
     } else if (curTx === 'capture' && (!apco || (apco.length !== 4 && apco.length !== 6 && apco.length < 4))) {
       showToast('APPROVAL CODE must be 4 or 6 digits','error'); btn.disabled=false; resetBtn(); return;
     }
@@ -1138,10 +1143,10 @@ async function go() {
     payload.rrn           = rrn;
     payload.orig_ref      = rrn;
     payload.bank_rrn      = rrn;
-    payload.approval_code = apco;
-    payload.bank_approval_code = apco;
-    var gwApproval = document.getElementById('internalApprovalInput').value.trim();
-    payload.payment_id = document.getElementById('paymentIdInput').value.trim();
+    payload.approval_code = offlineDirect ? '' : apco;
+    payload.bank_approval_code = offlineDirect ? '' : apco;
+    var gwApproval = offlineDirect ? '' : document.getElementById('internalApprovalInput').value.trim();
+    payload.payment_id = offlineDirect ? '' : document.getElementById('paymentIdInput').value.trim();
     payload.transaction_id = payload.payment_id;
     payload.gateway_approval_code = gwApproval;
     payload.auth_code = gwApproval;

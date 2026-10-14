@@ -321,6 +321,24 @@ if ($gatewayApprovalCode === '') {
 if ($gatewayApprovalCode === '') {
     $gatewayApprovalCode = $bankApprovalCode;
 }
+if ($txnType === 'offline_sale_moto') {
+    $bankApprovalCode = '';
+    $gatewayApprovalCode = '';
+    $manualApproval = '';
+    $bankRrn = '';
+    $origRef = '';
+    $manualRRN = '';
+    $paymentId = '';
+    unset(
+        $extra['approval_code'],
+        $extra['bank_approval_code'],
+        $extra['gateway_approval_code'],
+        $extra['auth_code'],
+        $extra['internal_approval_code'],
+        $extra['manual_rrn'],
+        $extra['payment_id']
+    );
+}
 if ($paymentId === '') {
     $paymentId = trim((string)($extra['payment_id'] ?? $extra['nuvei_txn_id'] ?? ''));
 }
