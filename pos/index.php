@@ -3429,9 +3429,9 @@ function showResultModal(success, d) {
       <div style="font-weight:900;letter-spacing:.2em;margin-bottom:10px">${escapeHtml(status)}</div>
       <div style="font-size:1.4rem;font-weight:900">${escapeHtml(amt)} ${escapeHtml(cur)}</div>
       <div style="margin-top:10px;font-size:.72rem;font-weight:700;letter-spacing:.04em">${escapeHtml((d && d.operation_name) || '')}</div>
-      ${rrn ? `<div style="margin-top:6px;font-size:.72rem">RRN ${escapeHtml(rrn)}</div>` : ''}
-      ${auth ? `<div style="font-size:.72rem">APPROVAL CODE ${escapeHtml(auth)}</div>` : ''}
-      ${paymentId ? `<div style="font-size:.72rem">PAYMENT / TXN ID ${escapeHtml(paymentId)}</div>` : ''}
+      ${(rrn && rrn !== paymentId) ? `<div style="margin-top:6px;font-size:.72rem;font-family:Consolas,'Courier New',monospace">RRN ${escapeHtml(rrn)}</div>` : ''}
+      ${auth ? `<div style="font-size:.72rem;font-family:Consolas,'Courier New',monospace">APPROVAL CODE ${escapeHtml(auth)}</div>` : ''}
+      ${paymentId ? `<div style="font-size:.72rem;font-family:Consolas,'Courier New',monospace">PAYMENT / TXN ID ${escapeHtml(paymentId)}</div>` : ''}
       ${internalApproval ? `<div style="font-size:.72rem">INTERNAL APPROVAL ${escapeHtml(internalApproval)}</div>` : ''}
       ${(status === 'SUCCESS') ? `<div style="margin-top:10px;font-size:.78rem;font-weight:800;color:#065f46">${escapeHtml(AR ? 'تم السحب بنجاح' : 'Withdrawal completed')}</div>` : ''}
       ${(status === 'APPROVED') ? `<div style="margin-top:10px;font-size:.78rem;font-weight:800;color:#065f46">${escapeHtml(AR ? 'تمت العملية بنجاح' : 'Transaction approved')}</div>` : ''}

@@ -986,9 +986,8 @@ if ($useCardGateway) {
                 ?? ''
             ));
         }
-        if ($rrn === '' && in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold'], true)) {
-            $rrn = trim((string) ($result['transaction_id'] ?? $result['payment_id'] ?? ''));
-        } elseif ($txnType !== 'auth' && $rrn === '') {
+        $offlineDirect = $txnType === 'offline_sale_moto' || !empty($manualOffline);
+        if ($rrn === '' && !$offlineDirect) {
             $rrn = trim((string) ($result['transaction_id'] ?? $result['payment_id'] ?? ''));
         }
         if ($rrn !== '') {
