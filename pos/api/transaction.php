@@ -349,22 +349,24 @@ if ($manualOffline) {
     }
 }
 if ($txnType === 'offline_sale_moto' || $manualOffline) {
-    $bankApprovalCode = '';
-    $gatewayApprovalCode = '';
-    $manualApproval = '';
     $bankRrn = '';
     $origRef = '';
     $manualRRN = '';
-    $paymentId = '';
-    unset(
-        $extra['approval_code'],
-        $extra['bank_approval_code'],
-        $extra['gateway_approval_code'],
-        $extra['auth_code'],
-        $extra['internal_approval_code'],
-        $extra['manual_rrn'],
-        $extra['payment_id']
-    );
+    unset($extra['manual_rrn']);
+    if ($txnType !== 'offline_sale_moto') {
+        $bankApprovalCode = '';
+        $gatewayApprovalCode = '';
+        $manualApproval = '';
+        $paymentId = '';
+        unset(
+            $extra['approval_code'],
+            $extra['bank_approval_code'],
+            $extra['gateway_approval_code'],
+            $extra['auth_code'],
+            $extra['internal_approval_code'],
+            $extra['payment_id']
+        );
+    }
 }
 if ($paymentId === '') {
     $paymentId = trim((string)($extra['payment_id'] ?? $extra['nuvei_txn_id'] ?? ''));
@@ -415,6 +417,32 @@ if ($txnType === 'capture' && $holdId > 0) {
             }
             if ($bankApprovalCode === '' && !empty($holdRow['bank_approval_code'])) {
                 $bankApprovalCode = trim((string) $holdRow['bank_approval_code']);
+            }
+            if ($bankApprovalCode === '' && !empty($holdRow['auth_code'])) {
+                $bankApprovalCode = trim((string) $holdRow['auth_code']);
+            }
+            $holdApprovalStored = trim((string) ($holdRow['bank_approval_code'] ?? ''));
+            if ($holdApprovalStored === '') {
+                $holdApprovalStored = trim((string) ($holdRow['auth_code'] ?? ''));
+            }
+            $bound = pos_bind_capture_pair([
+                'rrn' => (string) ($holdRow['rrn'] ?? ''),
+                'approval_code' => $holdApprovalStored,
+                'auth_code' => (string) ($holdRow['auth_code'] ?? ''),
+                'bank_approval_code' => (string) ($holdRow['bank_approval_code'] ?? ''),
+            ], $origRef, $bankApprovalCode);
+            if (!$bound['ok']) {
+                http_response_code(422);
+                echo json_encode(['success' => false, 'message' => $bound['message']], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            if ($bound['rrn'] !== '') {
+                $bankRrn = $bound['rrn'];
+                $origRef = $bound['rrn'];
+            }
+            if ($bound['approval'] !== '') {
+                $bankApprovalCode = $bound['approval'];
+                $gatewayApprovalCode = $bound['approval'];
             }
         }
     } catch (Throwable $e) {
@@ -485,13 +513,16 @@ $reference = $data['reference'] ?? 'POS-' . strtoupper(substr($txnType, 0, 4)) .
 
 $errors = [];
 
-// بدون حدود مبلغ عامة — فقط أكبر من صفر (ما عدا avoid بدون مبلغ)
-if ($txnType === 'purchase_advice') {
-    if (abs($amount) < 0.01) {
-        $errors[] = 'Invalid amount. Purchase advice accepts a positive or negative amount.';
+// Capture / advice / offline keep a signed amount. Other types stay greater than zero.
+$policyAmount = $amount;
+if ($txnType === 'capture') {
+    $capturePeekEarly = floatval($data['capture_amount'] ?? $extra['capture_amount'] ?? 0);
+    if (abs($capturePeekEarly) >= 0.01) {
+        $policyAmount = $capturePeekEarly;
     }
-} elseif ($amount <= 0 && $txnType !== 'avoid') {
-    $errors[] = 'Invalid amount. Must be greater than 0.';
+}
+foreach (pos_amount_policy_errors($txnType, $policyAmount) as $policyError) {
+    $errors[] = $policyError;
 }
 if (($txnType === 'offline_sale_moto' || !empty($manualOffline)) && function_exists('gateway_offline_daily_limit_usd')) {
     $dailyLimit = gateway_offline_daily_limit_usd($posGateway);
@@ -505,7 +536,7 @@ if (($txnType === 'offline_sale_moto' || !empty($manualOffline)) && function_exi
                 [$posGateway, $txnType, $todayStart]
             );
             $dailyTotal = (float) ($dailyRows[0]['total'] ?? 0);
-            if ($dailyTotal + $amount > $dailyLimit) {
+            if ($dailyTotal + abs($amount) > $dailyLimit) {
                 $errors[] = 'Offline daily limit exceeded for ' . strtoupper($posGateway) . ': ' . number_format($dailyLimit, 2, '.', ',') . ' USD.';
             }
         } catch (Throwable $e) {
@@ -513,26 +544,11 @@ if (($txnType === 'offline_sale_moto' || !empty($manualOffline)) && function_exi
         }
     }
 }
-// Bank account ceiling: Direct Advice / Purchase Advice capped at 5,000,000
-if ($txnType === 'purchase_advice') {
-    $bankCap = function_exists('pos_direct_advice_max_amount') ? pos_direct_advice_max_amount() : 5000000.00;
-    if (abs($amount) > $bankCap) {
-        $errors[] = 'Bank account limit: amount cannot exceed ' . number_format($bankCap, 2, '.', ',') . '.';
-    }
-}
-// Bank lock: AUTH Capture only — 5,000,000 USD
-if ($txnType === 'capture') {
-    $captureCap = function_exists('pos_capture_max_amount') ? pos_capture_max_amount() : 5000000.00;
-    $capturePeek = floatval($data['capture_amount'] ?? $extra['capture_amount'] ?? 0);
-    $captureCheck = $capturePeek > 0 ? $capturePeek : $amount;
-    if ($captureCheck > $captureCap) {
-        $errors[] = 'Bank capture limit: amount cannot exceed ' . number_format($captureCap, 2, '.', ',') . ' USD.';
-    }
-}
-// Bank offline (SAF) ceiling: 2,000,000 per sale
-if ($txnType === 'offline_sale_moto' || !empty($manualOffline)) {
+// Bank ceilings for advice, capture, and offline are inside pos_amount_policy_errors.
+// Keyed sales that are forced offline still use the offline absolute ceiling.
+if (!empty($manualOffline) && $txnType !== 'offline_sale_moto') {
     $offlineCap = function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00;
-    if ($amount > $offlineCap) {
+    if (abs($amount) > $offlineCap) {
         $errors[] = 'Offline bank limit: amount cannot exceed ' . number_format($offlineCap, 2, '.', ',') . '.';
     }
 }
@@ -543,6 +559,9 @@ if ($posGateway === 'square' && function_exists('gateway_max_per_txn_usd')) {
         if ($txnType === 'capture') {
             $capturePeek = floatval($data['capture_amount'] ?? $extra['capture_amount'] ?? 0);
             $squareCheck = $capturePeek > 0 ? $capturePeek : $amount;
+        }
+        if (in_array($txnType, ['capture', 'purchase_advice', 'offline_sale_moto'], true)) {
+            $squareCheck = abs($squareCheck);
         }
         if (in_array($currency, ['USD', 'USDT', 'USDC'], true) && $squareCheck > $squareCap) {
             $errors[] = 'Square limit: amount cannot exceed ' . number_format($squareCap, 2, '.', ',') . ' USD per transaction (offline included).';
@@ -682,15 +701,15 @@ HoldStoreSync::repairOnce(false);
 $captureAmount = floatval($data['capture_amount'] ?? $extra['capture_amount'] ?? 0);
 $refundAmount = floatval($data['refund_amount'] ?? $extra['refund_amount'] ?? 0);
 if ($txnType === 'capture') {
-    if ($captureAmount <= 0 && $refundAmount <= 0) {
+    if (abs($captureAmount) < 0.01 && $refundAmount <= 0) {
         $captureAmount = $amount;
     }
-    if ($captureAmount > 0) {
+    if (abs($captureAmount) >= 0.01) {
         $amount = $captureAmount;
     } elseif ($refundAmount > 0) {
         $amount = $refundAmount;
     }
-} elseif ($txnType === 'purchase_advice' && $captureAmount > 0) {
+} elseif ($txnType === 'purchase_advice' && $captureAmount > 0 && $amount >= 0) {
     $amount = $captureAmount;
 }
 
@@ -734,7 +753,33 @@ if ($txnType === 'capture' && ($origRef !== '' || $paymentId !== '' || $approval
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
-    if (!empty($original['amount'])) {
+        $storedHold = is_array($original) ? $original : [];
+        if (is_array($holdRow ?? null)) {
+            $storedHold = array_merge($storedHold, array_filter([
+                'rrn' => $holdRow['rrn'] ?? '',
+                'approval_code' => $holdRow['approval_code'] ?? '',
+                'auth_code' => $holdRow['auth_code'] ?? '',
+                'bank_approval_code' => $holdRow['bank_approval_code'] ?? '',
+            ], static function ($value) {
+                return trim((string) $value) !== '';
+            }));
+        }
+        $boundLater = pos_bind_capture_pair($storedHold, $origRef, $approvalLookup);
+        if (!$boundLater['ok']) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => $boundLater['message']], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        if ($boundLater['rrn'] !== '') {
+            $origRef = $boundLater['rrn'];
+            $bankRrn = $boundLater['rrn'];
+        }
+        if ($boundLater['approval'] !== '') {
+            $bankApprovalCode = $boundLater['approval'];
+            $gatewayApprovalCode = $boundLater['approval'];
+            $approvalLookup = $boundLater['approval'];
+        }
+        if (!empty($original['amount'])) {
         $authorizedAmount = (float) $original['amount'];
         $authGateway = strtolower(trim((string) ($original['gateway'] ?? '')));
         if ($authGateway !== '' && $authGateway !== strtolower(trim($posGateway))) {
@@ -847,6 +892,8 @@ if ($useCardGateway) {
             'processing_mode' => $extra['processing_mode'] ?? ($secMode ?? '2D'),
             'scheme_route' => $cardNetwork,
             'allow_amount_override' => !empty($opMeta['amount_flexible']) || in_array($txnType, ['capture', 'purchase_advice'], true),
+            'amount_sign' => $amount < 0 ? 'minus' : 'plus',
+            'signed_amount' => $amount,
             'ledger_addr' => $ledgerAddr,
             'ledger_address' => $ledgerAddr,
             'destination' => 'gateway',
@@ -918,19 +965,28 @@ if ($useCardGateway) {
             $params['linked_to_auth'] = ($paymentId !== '' || $origRef !== '');
             $params['allow_amount_override'] = true;
         }
+        if (in_array($txnType, ['capture', 'purchase_advice', 'offline_sale_moto'], true) && $amount < 0) {
+            $params['amount'] = pos_host_debit_amount($txnType, $amount);
+            $params['capture_amount'] = $txnType === 'capture' ? $params['amount'] : ($params['capture_amount'] ?? null);
+        }
         if ($txnType === 'capture') {
-            $params['capture_amount'] = $captureAmount;
+            $params['capture_amount'] = abs($captureAmount) >= 0.01 ? pos_host_debit_amount('capture', $captureAmount) : ($params['capture_amount'] ?? 0);
             $params['refund_amount'] = $refundAmount;
             $params['linked_to_auth'] = true;
+            $params['rrn'] = $origRef;
+            $params['orig_ref'] = $origRef;
+            $params['approval_code'] = $bankApprovalCode;
+            $params['auth_code'] = $gatewayApprovalCode !== '' ? $gatewayApprovalCode : $bankApprovalCode;
             $capOk = true;
             $refOk = true;
             $result = ['success' => false, 'message' => 'Enter withdraw and/or refund amount'];
-            if ($captureAmount > 0 && $refundAmount <= 0) {
-                $params['amount'] = $captureAmount;
+            $captureSends = abs($captureAmount) >= 0.01;
+            if ($captureSends && $refundAmount <= 0) {
+                $params['amount'] = pos_host_debit_amount('capture', $captureAmount);
                 $result = pos_run_payment_orchestrator($posGateway, 'capture', $params);
                 $capOk = !empty($result['success']);
-            } elseif ($captureAmount > 0) {
-                $params['amount'] = $captureAmount;
+            } elseif ($captureSends) {
+                $params['amount'] = pos_host_debit_amount('capture', $captureAmount);
                 $result = pos_run_standalone_gateway($posGateway, 'capture', $params);
                 $capOk = !empty($result['success']);
             }
@@ -952,11 +1008,11 @@ if ($useCardGateway) {
                     $result['message'] = 'CAPTURED + REFUND';
                 }
             }
-            if ($captureAmount > 0 && !$capOk) {
+            if ($captureSends && !$capOk) {
                 $result['success'] = false;
-            } elseif ($captureAmount <= 0 && $refundAmount > 0) {
+            } elseif (!$captureSends && $refundAmount > 0) {
                 $result['success'] = $refOk;
-            } elseif ($captureAmount > 0 && $refundAmount > 0) {
+            } elseif ($captureSends && $refundAmount > 0) {
                 $result['success'] = $capOk && $refOk;
             }
         } else {
@@ -1014,6 +1070,24 @@ if ($useCardGateway) {
         if ($approvalCode !== '') {
             $result['approval_code'] = $approvalCode;
             $result['auth_code'] = $result['auth_code'] ?? $approvalCode;
+        }
+        if ($success && empty($result['requires_3ds']) && $txnType === 'auth') {
+            $pair = pos_auth_receipt_pair(is_array($result) ? $result : [], (string) $stan, (string) $reference);
+            if (!pos_is_valid_rrn(pos_normalize_rrn($rrn))) {
+                $rrn = $pair['rrn'];
+            } else {
+                $rrn = pos_normalize_rrn($rrn);
+            }
+            if ($approvalCode === '' || !pos_is_valid_approval($approvalCode, null)) {
+                $approvalCode = $pair['approval_code'];
+            }
+            $bankApprovalCode = $approvalCode;
+            $result['rrn'] = $rrn;
+            $result['approval_code'] = $approvalCode;
+            $result['auth_code'] = $approvalCode;
+            $result['bank_approval_code'] = $approvalCode;
+            $receiptIds['rrn'] = $rrn;
+            $receiptIds['approval_code'] = $approvalCode;
         }
         $cardLast4 = preg_replace('/\D+/', '', (string) ($result['card_last4'] ?? '')) ?? '';
         if ($cardLast4 === '' && $cardNumber !== '') {

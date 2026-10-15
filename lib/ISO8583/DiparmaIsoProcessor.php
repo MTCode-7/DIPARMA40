@@ -414,24 +414,22 @@ class DiparmaIsoProcessor
             return self::row($type, '0200', 'purchase', '000000', $entry, $amount);
         }
         if (in_array($type, $offline, true)) {
-            if ($amount <= 0) {
-                return ['error' => self::fail('Offline sale amount must be greater than zero')];
+            if ($amount == 0.0) {
+                return ['error' => self::fail('Offline sale amount must not be zero')];
             }
-            return self::row($type, '0220', 'offline', '000000', $entry, $amount);
+            return self::row($type, '0220', 'offline', '000000', $entry, abs($amount));
         }
         if ($type === 'purchase_advice') {
             if ($amount == 0.0) {
                 return ['error' => self::fail('Purchase advice amount must not be zero')];
             }
-            $processing = $amount < 0 ? '200000' : '000000';
-            $role = $amount < 0 ? 'advice_credit' : 'advice_debit';
-            return self::row($type, '0220', $role, $processing, $entry, $amount);
+            return self::row($type, '0220', 'advice_debit', '000000', $entry, abs($amount));
         }
         if (in_array($type, $capture, true)) {
-            if ($amount <= 0) {
-                return ['error' => self::fail('Capture amount must be greater than zero')];
+            if ($amount == 0.0) {
+                return ['error' => self::fail('Capture amount must not be zero')];
             }
-            return self::row($type, '0220', 'completion', '000000', $entry, $amount);
+            return self::row($type, '0220', 'completion', '000000', $entry, abs($amount));
         }
         if ($type === 'refund') {
             if ($amount <= 0) {

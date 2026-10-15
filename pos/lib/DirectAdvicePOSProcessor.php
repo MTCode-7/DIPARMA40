@@ -42,7 +42,7 @@ class DirectAdvicePOSProcessor
     {
         $maxAllowedLimit = 5000000.00; // الحد الأقصى — قيد حساب البنك
 
-        if ($amount > $maxAllowedLimit) {
+        if (abs((float) $amount) > $maxAllowedLimit) {
             return [
                 'status' => 'DECLINED',
                 'message' => 'خطأ: المبلغ يتجاوز حد السحب المسموح للعمليات المباشرة (5,000,000).',
@@ -71,6 +71,9 @@ class DirectAdvicePOSProcessor
         }
 
         $this->cardToken = $cardToken;
+        if ((float) $amount < 0) {
+            $amount = abs((float) $amount);
+        }
 
         $advicePayload = [
             'mti' => '0220',

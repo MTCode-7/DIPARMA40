@@ -688,8 +688,9 @@ function pos_run_isolated_card_gateway(string $gateway, string $adapter, string 
     }
 
     if (in_array($effective, ['capture', 'auth_complete', 'auth_capture'], true)) {
+        $captureHost = $amount < 0 ? abs($amount) : $amount;
         if ($adapter === 'nuvei') {
-            return pos_format_gateway_result($obj->capture($params, $amount > 0 ? $amount : null), 'DECLINED', $gateway);
+            return pos_format_gateway_result($obj->capture($params, $captureHost >= 0.01 ? $captureHost : null), 'DECLINED', $gateway);
         }
         $id = ($adapter === 'paypal' && function_exists('pos_paypal_host_id'))
             ? pos_paypal_host_id($params, 'authorization')
@@ -697,7 +698,7 @@ function pos_run_isolated_card_gateway(string $gateway, string $adapter, string 
         if ($id === '') {
             return ['success' => false, 'message' => 'Original payment id required for capture on ' . $gateway, 'gateway' => $gateway];
         }
-        return pos_format_gateway_result($obj->capture($id, $amount > 0 ? $amount : null), 'DECLINED', $gateway);
+        return pos_format_gateway_result($obj->capture($id, $captureHost >= 0.01 ? $captureHost : null), 'DECLINED', $gateway);
     }
 
     if ($effective === 'refund') {

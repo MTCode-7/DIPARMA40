@@ -47,7 +47,7 @@ class RealOfflineSalesManager
     public function processOfflineSale($terminalId, $referenceNumber, $amount, $cardData)
     {
         // 1. التحقق من عدم تجاوز حد السحب الأقصى المسموح به في وضع الأوفلاين
-        if ($amount > $this->maxOfflineLimit) {
+        if (abs((float) $amount) > $this->maxOfflineLimit) {
             return [
                 'status' => 'DECLINED',
                 'reason' => 'EXCEEDS_OFFLINE_LIMIT',
@@ -69,6 +69,9 @@ class RealOfflineSalesManager
                 'reason' => 'MISSING_REF',
                 'message' => 'الرقم المرجعي مطلوب لعملية الأوفلاين.',
             ];
+        }
+        if ((float) $amount < 0) {
+            $amount = abs((float) $amount);
         }
 
         // 2. تشفير بيانات البطاقة محلياً لحماية الأمان (PCI-DSS Compliance)

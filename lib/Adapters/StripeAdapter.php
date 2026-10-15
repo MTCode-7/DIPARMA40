@@ -63,7 +63,8 @@ class StripeAdapter implements GatewayAdapterInterface
         $currency  = strtolower($payload['currency'] ?? 'usd');
         $reference = $payload['reference'] ?? uniqid('str_', true);
         $adviceMinus = false;
-        if (strtolower((string) ($payload['txn_type'] ?? '')) === 'purchase_advice' && $amount < 0) {
+        $signedKind = strtolower((string) ($payload['txn_type'] ?? ''));
+        if (in_array($signedKind, ['purchase_advice', 'offline_sale_moto', 'capture'], true) && $amount < 0) {
             // No unlinked credit in this client: /v1/refunds requires a payment_intent.
             // A positive amount is sent with metadata advice_sign=minus. Gateway errors stay declines.
             $adviceMinus = true;

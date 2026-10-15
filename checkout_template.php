@@ -428,12 +428,12 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     <div class="fld-row" id="captureAmountRow">
       <div class="fld">
         <label id="captureAmountLabel"><?=$ar?'مبلغ الإكمال بعد الحجز':'Completion amount after the hold'?> <span class="req">*</span></label>
-        <input type="number" id="captureAmt" min="0.01" step="0.01" placeholder="0.00" oninput="calcP()"
+        <input type="number" id="captureAmt" step="0.01" placeholder="0.00" oninput="calcP()"
                value="<?=!empty($prefillAmount)?htmlspecialchars((string)$prefillAmount):''?>">
         <div class="opt" id="captureAmountNote" style="display:block;margin-top:5px">
           <?=$ar
-            ? 'أدخل مبلغاً أقل من الحجز أو مساوياً له أو أكبر منه. سقف البنك يبقى 5,000,000 دولار.'
-            : 'Enter an amount lower than, equal to, or higher than the hold. The bank cap stays 5,000,000 USD.'?>
+            ? 'أدخل مبلغاً أقل أو مساوياً أو أكبر أو سالباً. سقف البنك 5,000,000 على القيمة المطلقة.'
+            : 'Enter an amount lower than, equal to, higher than, or negative. The bank cap is 5,000,000 on the absolute value.'?>
         </div>
       </div>
       <div class="fld">
@@ -834,13 +834,15 @@ function setTx(type, el) {
         rrnReq.style.opacity = offlineSale ? '' : ((meta.requires_rrn || type === 'capture') ? '1' : '.5');
       }
       if (offlineSale) rrn.value = '';
+      if (rrn) rrn.readOnly = type === 'capture';
     }
     if (ap) {
       ap.maxLength = 6;
       ap.placeholder = '4 or 6 digits';
       var apReq = ap.closest('.fld');
-      if (apReq) apReq.style.display = offlineSale ? 'none' : '';
-      if (offlineSale) ap.value = '';
+      if (apReq) apReq.style.display = '';
+      ap.readOnly = type === 'capture';
+      if (offlineSale) ap.required = true;
     }
     var capRow = document.getElementById('captureAmountRow');
     var capLabel = document.getElementById('captureAmountLabel');
@@ -1127,17 +1129,20 @@ async function go() {
         showToast('RRN must be 12 digits, or pick the hold from the list','error'); btn.disabled=false; resetBtn(); return;
       }
       if (!/^\d{12}$/.test(rrn)) rrn = '';
-    } else if ((curTx === 'purchase_advice' || curTx === 'offline_sale_moto' || curTx === 'offline_sales_moto') && !/^\d{12}$/.test(rrn)) {
+    } else if (curTx === 'purchase_advice' && !/^\d{12}$/.test(rrn)) {
+      showToast('<?=$ar?'RRN يجب أن يكون 12 رقماً':'RRN must be exactly 12 digits'?>','error'); btn.disabled=false; resetBtn(); return;
+    } else if ((curTx === 'offline_sale_moto' || curTx === 'offline_sales_moto') && !/^\d{12}$/.test(rrn)) {
       rrn = '';
     }
     var offlineDirect = curTx === 'offline_sale_moto' || curTx === 'offline_sales_moto';
     if (offlineDirect) {
       rrn = '';
-      apco = '';
-    } else if (curTx === 'capture' && (!apco || (apco.length !== 4 && apco.length !== 6 && apco.length < 4))) {
+    }
+    if ((curTx === 'capture' || curTx === 'purchase_advice' || offlineDirect) && (!apco || (apco.length !== 4 && apco.length !== 6 && apco.length < 4))) {
       showToast('APPROVAL CODE must be 4 or 6 digits','error'); btn.disabled=false; resetBtn(); return;
     }
-    if (ma <= 0){ showToast('<?=$ar?'أدخل مبلغاً صحيحاً':'Enter valid amount'?>','error'); btn.disabled=false; resetBtn(); return; }
+    var signedAmt = curTx === 'capture' || curTx === 'purchase_advice' || offlineDirect;
+    if (!isFinite(ma) || ma === 0 || (!signedAmt && ma <= 0)){ showToast('<?=$ar?'أدخل مبلغاً موجباً أو سالباً':'Enter a positive or negative amount'?>','error'); btn.disabled=false; resetBtn(); return; }
     if (!squareTokPresent && (!mn || !mexp)) {
       showToast('<?=$ar?'رقم البطاقة وتاريخ الانتهاء مطلوبان':'Card number and expiry required'?>','error');
       btn.disabled=false; resetBtn(); return;
@@ -1145,8 +1150,8 @@ async function go() {
     payload.rrn           = rrn;
     payload.orig_ref      = rrn;
     payload.bank_rrn      = rrn;
-    payload.approval_code = offlineDirect ? '' : apco;
-    payload.bank_approval_code = offlineDirect ? '' : apco;
+    payload.approval_code = apco;
+    payload.bank_approval_code = apco;
     var gwApproval = offlineDirect ? '' : document.getElementById('internalApprovalInput').value.trim();
     payload.payment_id = offlineDirect ? '' : document.getElementById('paymentIdInput').value.trim();
     payload.transaction_id = payload.payment_id;

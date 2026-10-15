@@ -9,7 +9,18 @@
 
 // ============================================================
 // 1. استيراد الملفات الأساسية
+// معاينة إيصال PayPal بلا دخول: ?preview=paypal&op=auth|capture|purchase_advice|offline_sale_moto|all
+// العينات ثابتة ولا تقرأ قاعدة البيانات.
 // ============================================================
+
+if (($_GET['preview'] ?? '') === 'paypal') {
+    $previewLang = (string) ($_GET['lang'] ?? ($_COOKIE['di_parma_lang'] ?? 'en'));
+    $previewAr = $previewLang === 'ar';
+    require_once __DIR__ . '/pos/lib/operations.php';
+    require_once __DIR__ . '/pos/lib/paypal_merchant_receipt.php';
+    echo pos_paypal_merchant_receipt_preview((string) ($_GET['op'] ?? 'all'), $previewAr);
+    exit;
+}
 
 require_once __DIR__ . '/includes/auth_check.php';
 require_once __DIR__ . '/includes/database.php';
@@ -616,7 +627,14 @@ if (function_exists('redact_protocol_numbers')) {
 
 // ============================================================
 // 7. عرض الإيصال الحقيقي
+// PayPal POS: نسخة التاجر الحرارية. باقي البوابات تبقى على الإيصال العام.
 // ============================================================
+
+if ($txnGateway === 'paypal') {
+    require_once __DIR__ . '/pos/lib/paypal_merchant_receipt.php';
+    echo pos_paypal_merchant_receipt_document($txn, is_array($gwResp) ? $gwResp : [], $ar, $ref);
+    exit;
+}
 
 ?>
 <!DOCTYPE html>
@@ -1129,6 +1147,38 @@ if (function_exists('redact_protocol_numbers')) {
             <?php endif; ?>
         </div>
 
+        <?php
+            $slipRrn = trim((string) ($txn['rrn'] ?? ''));
+            if ($slipRrn === '' || $slipRrn === '—') {
+                $slipRrn = trim((string) ($rrn ?? ''));
+            }
+            if ($slipRrn === '—') {
+                $slipRrn = '';
+            }
+            $slipApprovalRaw = trim((string) ($txn['approval_code'] ?? $txn['auth_code'] ?? ''));
+            if ($slipApprovalRaw === '' || $slipApprovalRaw === '—') {
+                $slipApprovalRaw = ($authCode ?? '') === '—' ? '' : trim((string) ($authCode ?? ''));
+            }
+            $slipApproval = function_exists('pos_approval_receipt_label')
+                ? pos_approval_receipt_label($slipApprovalRaw)
+                : $slipApprovalRaw;
+            if ($slipApproval === '—') {
+                $slipApproval = '';
+            }
+            $showSlipIds = $slipRrn !== '' || $slipApproval !== '';
+        ?>
+        <?php if ($showSlipIds): ?>
+        <div class="section">
+            <div class="row">
+                <span class="label">RRN</span>
+                <span class="value small"><?=htmlspecialchars($slipRrn)?></span>
+            </div>
+            <div class="row">
+                <span class="label">APPROVAL CODE</span>
+                <span class="value highlight"><?=htmlspecialchars($slipApproval)?></span>
+            </div>
+        </div>
+        <?php endif; ?>
         <?php if ($showOperatorRefs): ?>
         <div class="section">
             <div class="divider">— <?=$ar?'البنك':'BANK'?> —</div>

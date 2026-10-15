@@ -335,6 +335,9 @@ final class PayPalAdapter implements GatewayAdapterInterface, GatewayCapabilitie
         }
 
         $captureAmount = $amount ?? $authAmount;
+        if ($captureAmount < 0) {
+            $captureAmount = abs($captureAmount);
+        }
 
         if ($captureAmount <= 0) {
             return GatewayErrorMapper::buildErrorResponse(
@@ -504,8 +507,9 @@ final class PayPalAdapter implements GatewayAdapterInterface, GatewayCapabilitie
     {
         $txn = strtolower(trim((string) ($payload['txn_type'] ?? '')));
         $amount = (float) ($payload['amount'] ?? 0);
-        if ($txn === 'purchase_advice' && $amount < 0) {
+        if (in_array($txn, ['purchase_advice', 'offline_sale_moto', 'capture'], true) && $amount < 0) {
             $payload['advice_sign'] = 'minus';
+            $payload['amount_sign'] = 'minus';
             $payload['amount'] = abs($amount);
         }
         return $payload;

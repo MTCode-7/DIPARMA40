@@ -18,6 +18,163 @@ function pos_capture_max_amount(): float
     return 5000000.00;
 }
 
+/**
+ * Amount rules for the live POS charge.
+ * Capture, purchase advice, and offline sale accept a negative amount.
+ * Bank ceilings apply to the absolute value. Capture is not rejected for
+ * being under or over the original hold.
+ *
+ * @return list<string>
+ */
+function pos_amount_policy_errors(string $type, float $amount): array
+{
+    $type = pos_normalize_operation($type);
+    if ($type === 'avoid') {
+        return [];
+    }
+    $abs = abs($amount);
+    if ($type === 'capture') {
+        $errors = [];
+        if ($abs < 0.01) {
+            $errors[] = 'Invalid amount. Capture accepts a lower, equal, higher, or negative amount.';
+        }
+        $cap = pos_capture_max_amount();
+        if ($abs > $cap) {
+            $errors[] = 'Bank capture limit: amount cannot exceed ' . number_format($cap, 2, '.', ',') . ' USD.';
+        }
+        return $errors;
+    }
+    if ($type === 'purchase_advice') {
+        $errors = [];
+        if ($abs < 0.01) {
+            $errors[] = 'Invalid amount. Purchase advice accepts a positive or negative amount.';
+        }
+        $cap = function_exists('pos_direct_advice_max_amount') ? pos_direct_advice_max_amount() : 5000000.00;
+        if ($abs > $cap) {
+            $errors[] = 'Bank account limit: amount cannot exceed ' . number_format($cap, 2, '.', ',') . '.';
+        }
+        return $errors;
+    }
+    if ($type === 'offline_sale_moto') {
+        $errors = [];
+        if ($abs < 0.01) {
+            $errors[] = 'Invalid amount. Offline sale accepts a positive or negative amount.';
+        }
+        $cap = function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00;
+        if ($abs > $cap) {
+            $errors[] = 'Offline bank limit: amount cannot exceed ' . number_format($cap, 2, '.', ',') . '.';
+        }
+        return $errors;
+    }
+    if ($amount <= 0) {
+        return ['Invalid amount. Must be greater than 0.'];
+    }
+    return [];
+}
+
+/** Host debit uses the absolute value. The POS record keeps the signed amount. */
+function pos_host_debit_amount(string $type, float $amount): float
+{
+    $type = pos_normalize_operation($type);
+    if (in_array($type, ['capture', 'purchase_advice', 'offline_sale_moto'], true) && $amount < 0) {
+        return abs($amount);
+    }
+    return $amount;
+}
+
+/**
+ * RRN + approval printed on a successful AUTH and stored for later capture.
+ * Host values win. A missing value is filled with the 12-digit RRN (ymd + STAN)
+ * and a 6-digit approval the hold store already accepts.
+ *
+ * @param array<string,mixed> $host
+ * @return array{rrn:string,approval_code:string}
+ */
+function pos_auth_receipt_pair(array $host, string $stan = '', string $reference = ''): array
+{
+    $ids = pos_gateway_receipt_identifiers($host);
+    $rrn = pos_normalize_rrn($ids['rrn']);
+    if (!pos_is_valid_rrn($rrn)) {
+        $rrn = '';
+    }
+    $approval = strtoupper(preg_replace('/[^0-9A-Za-z]/', '', $ids['approval_code']) ?? '');
+    if ($approval === '' || !pos_is_valid_approval($approval, null)) {
+        $approval = '';
+    }
+    $stanDigits = preg_replace('/\D/', '', $stan) ?? '';
+    $stan6 = str_pad(substr($stanDigits !== '' ? $stanDigits : date('His'), -6), 6, '0', STR_PAD_LEFT);
+    if ($rrn === '') {
+        $rrn = date('ymd') . $stan6;
+    }
+    if ($approval === '') {
+        $seed = hash('crc32b', 'diparma-hold-approval|' . $rrn . '|' . $stan6 . '|' . $reference);
+        $n = hexdec(substr($seed, 0, 6)) % 1000000;
+        if ($n < 1000) {
+            $n += 100000;
+        }
+        $approval = str_pad((string) $n, 6, '0', STR_PAD_LEFT);
+    }
+    return [
+        'rrn' => $rrn,
+        'approval_code' => $approval,
+    ];
+}
+
+/**
+ * Capture must reuse the AUTH receipt pair. An empty entry is filled from the hold.
+ * A different pair is rejected.
+ *
+ * @param array<string,mixed> $stored
+ * @return array{ok:bool,message:string,rrn:string,approval:string}
+ */
+function pos_bind_capture_pair(array $stored, string $enteredRrn, string $enteredApproval): array
+{
+    $storedRrn = pos_first_rrn([
+        (string) ($stored['rrn'] ?? ''),
+        (string) ($stored['bank_rrn'] ?? ''),
+    ]);
+    $rawStoredRrn = trim((string) ($stored['rrn'] ?? ''));
+    if ($storedRrn === '' && $rawStoredRrn !== '') {
+        $storedRrn = $rawStoredRrn;
+    }
+    $storedApproval = '';
+    foreach (['approval_code', 'auth_code', 'bank_approval_code', 'bank_approval', 'gateway_approval'] as $key) {
+        $value = trim((string) ($stored[$key] ?? ''));
+        if ($value !== '') {
+            $storedApproval = $value;
+            break;
+        }
+    }
+    $enteredNorm = pos_normalize_rrn($enteredRrn);
+    $storedNorm = pos_normalize_rrn($storedRrn);
+    $enteredApproval = trim($enteredApproval);
+    if ($storedNorm !== '' && $enteredNorm !== '' && $enteredNorm !== $storedNorm) {
+        return [
+            'ok' => false,
+            'message' => 'Capture RRN must match the AUTH receipt.',
+            'rrn' => pos_is_valid_rrn($storedNorm) ? $storedNorm : $storedRrn,
+            'approval' => $storedApproval,
+        ];
+    }
+    if ($storedApproval !== '' && $enteredApproval !== '' && !pos_approval_codes_match($storedApproval, $enteredApproval)) {
+        return [
+            'ok' => false,
+            'message' => 'Capture approval code must match the AUTH receipt.',
+            'rrn' => pos_is_valid_rrn($storedNorm) ? $storedNorm : $storedRrn,
+            'approval' => $storedApproval,
+        ];
+    }
+    $rrn = $storedNorm !== ''
+        ? (pos_is_valid_rrn($storedNorm) ? $storedNorm : $storedRrn)
+        : $enteredNorm;
+    return [
+        'ok' => true,
+        'message' => '',
+        'rrn' => $rrn,
+        'approval' => $storedApproval !== '' ? $storedApproval : $enteredApproval,
+    ];
+}
+
 function pos_gateway_allows_overcapture(string $gateway): bool
 {
     return class_exists('HoldCaptureService', false)
@@ -70,10 +227,10 @@ function pos_auth_followup_totals($db, string $paymentId, string $rrn): array
  * أنواع العمليات المعيارية.
  *
  * قواعد الحقول:
- * - capture (AUTH Capture): مبلغ مساوٍ/أقل/أكثر + RRN(12) + Approval + بطاقة + انتهاء
- * - purchase_advice: غير مرتبط بـ AUTH — فقط RRN(12) + Approval + بطاقة + انتهاء
+ * - capture (AUTH Capture): نفس RRN + Approval من إيصال الحجز، والمبلغ أقل/مساوٍ/أكبر/سالب
+ * - purchase_advice: تسوية مباشرة MTI 0220 بلا حجز — RRN(12) + Approval، والمبلغ موجب أو سالب
  * - online_sale_moto: Approval = 4 أرقام
- * - offline_sale_moto: بيع مباشر — بطاقة + انتهاء، بلا RRN وبلا تفويض سابق
+ * - offline_sale_moto: شحن أوفلاين — Approval مطلوب، بلا RRN، والمبلغ موجب أو سالب
  */
 function pos_operation_catalog(): array
 {
@@ -155,8 +312,9 @@ function pos_operation_catalog(): array
             'max_amount' => function_exists('pos_capture_max_amount') ? pos_capture_max_amount() : 5000000.00,
             'max_currency' => 'USD',
             'method' => 'capture',
-            'desc_ar' => 'أكمل حجز AUTH على نفس البوابة. المبلغ يمكن أن يكون أقل أو مساوياً أو أكبر من الحجز عبر PayPal وStripe وSquare 1 وSquare 2 وNuvei. حد البنك 5,000,000 دولار. RRN وApproval من إيصال الحجز. CVV اختياري.',
-            'desc_en' => 'Complete an AUTH hold on the same gateway. The amount may be lower, equal, or higher than the hold on PayPal, Stripe, Square 1, Square 2, and Nuvei. Bank cap 5,000,000 USD. RRN and approval come from the hold receipt. CVV is optional.',
+            'amount_signed' => true,
+            'desc_ar' => 'أكمل حجز AUTH على نفس البوابة. RRN وApproval يُملآن من إيصال الحجز ولا يُغيَّران. المبلغ يمكن أن يكون أقل أو مساوياً أو أكبر أو سالباً. حد البنك 5,000,000 دولار على القيمة المطلقة. CVV اختياري.',
+            'desc_en' => 'Complete an AUTH hold on the same gateway. RRN and approval are filled from the hold receipt and stay locked. The amount may be lower, equal, higher, or negative. Bank cap 5,000,000 USD on the absolute value. CVV is optional.',
         ],
         'purchase_advice' => [
             'ar' => 'PURCHASE ADVICE - MOTO',
@@ -168,8 +326,8 @@ function pos_operation_catalog(): array
             'requires_card' => true,
             'requires_cvv' => false,
             'requires_expiry' => true,
-            'requires_rrn' => false,
-            'requires_approval' => false,
+            'requires_rrn' => true,
+            'requires_approval' => true,
             'requires_payment_id' => false,
             'approval_len' => null,
             'linked_to_auth' => false,
@@ -180,8 +338,8 @@ function pos_operation_catalog(): array
             'mti' => '0220',
             'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
             'max_amount' => function_exists('pos_direct_advice_max_amount') ? pos_direct_advice_max_amount() : 5000000.00,
-            'desc_ar' => 'سحب مباشر بدون حجز سابق وبدون RRN أو Approval من حجز. المبلغ يُخصم فوراً ويمكن أن يكون موجباً أو سالباً. بطاقة + انتهاء. CVV اختياري.',
-            'desc_en' => 'Direct charge with no prior hold and no RRN or approval from a hold. The entered amount is charged immediately and may be positive or negative. Card + expiry. CVV optional.',
+            'desc_ar' => 'تسوية مباشرة (MTI 0220) بدون حجز سابق. RRN وApproval مطلوبان لهذه العملية وليسا من حجز. المبلغ يُخصم على شبكة البطاقة ويمكن أن يكون موجباً أو سالباً. بطاقة + انتهاء. CVV اختياري.',
+            'desc_en' => 'Direct settlement (MTI 0220) with no prior hold. RRN and approval are required on this operation and do not come from a hold. The amount posts to the card scheme and may be positive or negative. Card + expiry. CVV optional.',
         ],
         'online_sale_moto' => [
             'ar' => 'ONLINE SALES - MOTO',
@@ -217,18 +375,20 @@ function pos_operation_catalog(): array
             'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
-            'requires_approval' => false,
+            'requires_approval' => true,
             'requires_payment_id' => false,
             'approval_len' => null,
             'linked_to_auth' => false,
             'amount_flexible' => false,
+            'amount_signed' => true,
             'method' => 'purchase',
             'is_moto' => true,
             'moto_channel' => 'offline',
             'charge_as' => 'offline_sale_moto',
+            'saf' => true,
             'max_amount' => function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00,
-            'desc_ar' => 'بيع مباشر. بطاقة ومبلغ فقط. لا RRN ولا تفويض سابق. الموافقة تظهر فقط إذا أعادتها البوابة بعد التنفيذ.',
-            'desc_en' => 'Direct sale. Card and amount only. No RRN and no prior authorization. An approval prints only if the gateway returns one after the charge.',
+            'desc_ar' => 'شحن البطاقة أوفلاين (SAF). Approval Code مطلوب. لا يُطلب RRN. المبلغ يمكن أن يكون موجباً أو سالباً. حد البنك 2,000,000 على القيمة المطلقة.',
+            'desc_en' => 'Offline card charge (SAF). Approval code is required. RRN is not required. The amount may be positive or negative. Bank cap 2,000,000 on the absolute value.',
         ],
         'offline_sale_moto' => [
             'ar' => 'Offline SALE — SAF',
@@ -241,18 +401,19 @@ function pos_operation_catalog(): array
             'requires_cvv' => false,
             'requires_expiry' => true,
             'requires_rrn' => false,
-            'requires_approval' => false,
+            'requires_approval' => true,
             'requires_payment_id' => false,
             'approval_len' => null,
             'linked_to_auth' => false,
             'amount_flexible' => false,
+            'amount_signed' => true,
             'method' => 'purchase',
             'is_moto' => true,
             'moto_channel' => 'offline',
             'saf' => true,
             'max_amount' => function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00,
-            'desc_ar' => 'بيع مباشر على البوابة المختارة. بطاقة + انتهاء. CVV اختياري. لا RRN ولا تفويض سابق. بدون OTP.',
-            'desc_en' => 'Direct sale on the selected gateway. Card + expiry. CVV optional. No RRN and no prior authorization. No OTP.',
+            'desc_ar' => 'شحن البطاقة أوفلاين (SAF) على البوابة المختارة. Approval Code مطلوب. لا RRN. المبلغ موجب أو سالب. حد البنك 2,000,000 على القيمة المطلقة. بدون OTP.',
+            'desc_en' => 'Offline card charge (SAF) on the selected gateway. Approval code is required. No RRN. Amount may be positive or negative. Bank cap 2,000,000 on the absolute value. No OTP.',
         ],
         'refund' => [
             'ar' => 'استرداد (Refund)',
@@ -475,8 +636,8 @@ function pos_withdrawal_charge_modes(): array
             'base' => 'purchase_advice',
             'channel' => 'offline',
             'approval_len' => null,
-            'requires_rrn' => false,
-            'requires_approval' => false,
+            'requires_rrn' => true,
+            'requires_approval' => true,
             'requires_card' => true,
             'requires_expiry' => true,
         ],
@@ -486,8 +647,8 @@ function pos_withdrawal_charge_modes(): array
             'base' => 'purchase_advice',
             'channel' => 'online',
             'approval_len' => null,
-            'requires_rrn' => false,
-            'requires_approval' => false,
+            'requires_rrn' => true,
+            'requires_approval' => true,
             'requires_card' => true,
             'requires_expiry' => true,
         ],
@@ -531,7 +692,7 @@ function pos_withdrawal_charge_modes(): array
             'channel' => 'offline',
             'approval_len' => null,
             'requires_rrn' => false,
-            'requires_approval' => false,
+            'requires_approval' => true,
             'requires_card' => true,
             'requires_expiry' => true,
         ],
@@ -1061,9 +1222,9 @@ function pos_validate_operation_fields(string $type, array $data): array
 
     $requiresRrn = !empty($meta['requires_rrn']) || !empty($modeMeta['requires_rrn']);
     $requiresApproval = !empty($meta['requires_approval']) || !empty($modeMeta['requires_approval']);
-    if ($type !== 'capture' && ($type === 'offline_sale_moto' || $chargeMode === 'offline_sale_moto')) {
+    if ($type === 'offline_sale_moto' || $chargeMode === 'offline_sale_moto') {
         $requiresRrn = false;
-        $requiresApproval = false;
+        $requiresApproval = true;
     }
     $requiresCard = !empty($meta['requires_card']) || !empty($modeMeta['requires_card']);
     $requiresExpiry = !empty($meta['requires_expiry']) || !empty($modeMeta['requires_expiry']);

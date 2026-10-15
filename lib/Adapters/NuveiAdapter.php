@@ -144,6 +144,12 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $amount    = floatval($payload['amount'] ?? 0);
         $currency  = strtoupper($payload['currency'] ?? 'USD');
 
+        $txnKind = strtolower(trim((string) ($payload['txn_type'] ?? '')));
+        if ($amount < 0 && in_array($txnKind, ['offline_sale_moto', 'purchase_advice', 'capture'], true)) {
+            $payload['amount_sign'] = 'minus';
+            $amount = abs($amount);
+            $payload['amount'] = $amount;
+        }
         if ($amount <= 0) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, $currency, 'المبلغ غير صالح');
         }
@@ -421,8 +427,13 @@ class NuveiAdapter implements GatewayAdapterInterface {
         if ($relatedId === '') {
             return ['success' => false, 'message' => 'Nuvei Transaction ID (Payment ID) is required for capture'];
         }
-        if ($amountRaw <= 0) {
-            return ['success' => false, 'message' => 'Capture amount must be greater than 0'];
+        if (abs($amountRaw) < 0.01) {
+            return ['success' => false, 'message' => 'Capture amount is required'];
+        }
+        if ($amountRaw < 0) {
+            $params['amount_sign'] = 'minus';
+            $amountRaw = abs($amountRaw);
+            $amount = number_format($amountRaw, 2, '.', '');
         }
         if ($authCode === '') {
             return ['success' => false, 'message' => 'Nuvei Auth Code is required for capture'];
@@ -825,8 +836,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
     }
 
     /**
-     * Purchase Advice — immediate Sale/Credit. No prior auth, RRN, or approval is required.
-     * A negative amount uses Nuvei's Credit transaction with the documented positive decimal.
+     * Purchase Advice — direct Sale (MTI 0220). No prior hold.
+     * A negative amount is still sent as a card debit of the absolute value.
      */
     public function purchaseAdvice(array $params): array
     {
@@ -844,13 +855,12 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $params['is_moto'] = true;
         $params['txn_type'] = 'purchase_advice';
         if ($amountRaw < 0) {
-            $params['amount'] = abs($amountRaw);
-            $params['transactionType'] = 'Credit';
             $params['advice_sign'] = 'minus';
-        } else {
-            $params['amount'] = $amountRaw;
-            $params['transactionType'] = 'Sale';
+            $params['amount_sign'] = 'minus';
+            $amountRaw = abs($amountRaw);
         }
+        $params['amount'] = $amountRaw;
+        $params['transactionType'] = 'Sale';
 
         $normalized = $this->purchase($params);
         $normalized['mti'] = '0220';

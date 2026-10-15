@@ -1324,7 +1324,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     </div>
     <div id="captureCompareBox" style="display:none;background:rgba(159,232,112,.06);border:1px solid rgba(159,232,112,.28);border-radius:12px;padding:12px;margin-bottom:12px">
       <div style="font-weight:800;color:#9fe870;margin-bottom:4px"><?=$ar?'تكملة الحجز — إيجار منزل / سيارة / فندق':'Complete hold — home / car / hotel rental'?></div>
-      <div style="font-size:.7rem;color:var(--muted2);line-height:1.55;margin-bottom:8px"><?=$ar?'مبلغ الإكمال يقبل الأقل والمساوي والأكبر من الحجز. الحد 5,000,000 دولار.':'The completion amount may be lower, equal, or higher than the hold. Bank cap: 5,000,000 USD.'?></div>
+      <div style="font-size:.7rem;color:var(--muted2);line-height:1.55;margin-bottom:8px"><?=$ar?'مبلغ الإكمال يقبل الأقل والمساوي والأكبر والسالب. الحد 5,000,000 دولار على القيمة المطلقة.':'The completion amount may be lower, equal, higher, or negative. Bank cap: 5,000,000 USD on the absolute value.'?></div>
       <div id="holdAmtLine" style="font-size:.75rem;color:var(--muted2);margin-bottom:8px"><?=$ar?'اختر حجز AUTH أولاً ليظهر مبلغ الحجز.':'Pick an AUTH hold first to show the hold amount.'?></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
         <button type="button" class="cap-cmp" data-cap-cmp="less" onclick="setCaptureCompare('less')"><?=$ar?'نقص (خروج مبكر)':'Less (early return)'?></button>
@@ -1443,6 +1443,8 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="receipt-row"><span>PAN</span><span id="rCard">************</span></div>
     <div class="receipt-row"><span>AMOUNT</span><span id="rAmount">—</span></div>
     <div class="receipt-row"><span>CURR</span><span id="rCurrency">—</span></div>
+    <div class="receipt-row" id="rRrnRow" style="display:none"><span>RRN</span><span id="rRrn"></span></div>
+    <div class="receipt-row" id="rApprovalRow" style="display:none"><span>APPROVAL CODE</span><span id="rApproval"></span></div>
     <div class="receipt-banner" id="rBanner">PENDING</div>
     <div class="receipt-reason" id="rReason" style="display:none"></div>
     <div class="receipt-advice" id="rAdvice" style="display:none"></div>
@@ -1516,10 +1518,13 @@ const POS = {
 };
 
 // Amount editors must bind before any later ReferenceError (POS_GW / CARD_NETWORKS)
+function signedAmountType(type) {
+  const t = type || ((typeof POS !== 'undefined' && POS.txnType) || '');
+  return t === 'purchase_advice' || t === 'capture' || t === 'offline_sale_moto' || t === 'offline_sales_moto';
+}
 function sanitizeAmt(val) {
   const raw = String(val ?? '');
-  const advice = typeof POS !== 'undefined' && POS.txnType === 'purchase_advice';
-  const neg = advice && /^\s*-/.test(raw);
+  const neg = signedAmountType() && /^\s*-/.test(raw);
   let s = raw.replace(/[^\d.]/g, '');
   const dot = s.indexOf('.');
   if (dot !== -1) s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, '');
@@ -2109,18 +2114,20 @@ function approvalLenFor(type, chargeMode) {
 }
 
 function needsRrn(type, chargeMode) {
+  if (type === 'offline_sale_moto' || type === 'offline_sales_moto' || chargeMode === 'offline_sale_moto') return false;
+  if (type === 'purchase_advice' || chargeMode === 'purchase_advice_offline' || chargeMode === 'purchase_advice_online') return true;
+  if (['auth', 'auth_hold', 'auth_moto', 'hold'].includes(type)) return false;
   if (manualDirectSale(type)) return false;
-  if (['auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice', 'offline_sale_moto', 'offline_sales_moto'].includes(type)) return false;
-  if (chargeMode === 'offline_sale_moto') return false;
   if (['capture','refund','avoid'].includes(type)) return true;
   if (chargeMode && CHARGE_MODES[chargeMode]) return !!CHARGE_MODES[chargeMode].requires_rrn;
   return !!(TXN_META[type]?.requires_rrn);
 }
 
 function needsApproval(type, chargeMode) {
+  if (type === 'offline_sale_moto' || type === 'offline_sales_moto' || chargeMode === 'offline_sale_moto') return true;
+  if (type === 'purchase_advice' || chargeMode === 'purchase_advice_offline' || chargeMode === 'purchase_advice_online') return true;
+  if (['auth', 'auth_hold', 'auth_moto', 'hold'].includes(type)) return false;
   if (manualDirectSale(type)) return false;
-  if (['auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice', 'offline_sale_moto', 'offline_sales_moto'].includes(type)) return false;
-  if (chargeMode === 'offline_sale_moto') return false;
   if (type === 'capture') return true;
   if (chargeMode && CHARGE_MODES[chargeMode]) return !!CHARGE_MODES[chargeMode].requires_approval;
   return !!(TXN_META[type]?.requires_approval);
@@ -2189,7 +2196,15 @@ window.applyOpsLegend = function(type) {
     row.appr = false;
     row.pid = false;
   }
-  if (manualDirectSale(type) || ['purchase_advice', 'online_sale_moto', 'offline_sale_moto', 'offline_sales_moto'].includes(type) || cm === 'offline_sale_moto') {
+  if (type === 'purchase_advice' || cm === 'purchase_advice_offline' || cm === 'purchase_advice_online') {
+    row.rrn = true;
+    row.appr = true;
+    row.pid = false;
+  } else if (type === 'offline_sale_moto' || type === 'offline_sales_moto' || cm === 'offline_sale_moto') {
+    row.rrn = false;
+    row.appr = true;
+    row.pid = false;
+  } else if (manualDirectSale(type) || type === 'online_sale_moto') {
     row.rrn = false;
     row.appr = false;
     row.pid = false;
@@ -2244,7 +2259,7 @@ window.selectTxnType = function(type, el) {
   if (pbt) pbt.textContent = (AR ? 'تنفيذ ' + label.ar : 'Process ' + label.en);
 
   const amtLbl = document.getElementById('txnAmountLabel');
-  if (amtLbl) amtLbl.textContent = type === 'purchase_advice'
+  if (amtLbl) amtLbl.textContent = signedAmountType(type)
     ? (AR ? 'المبلغ (+ أو −)' : 'Amount (+ or −)')
     : (AR ? 'المبلغ' : 'Amount');
   const amtWrap = document.getElementById('txnAmountFieldWrap');
@@ -2280,10 +2295,9 @@ function renderExtraFields(type) {
     html += `<div class="info-banner" style="background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.18);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.72rem;color:var(--muted2);line-height:1.7">
       <strong style="color:var(--gold)">${escapeHtml(AR?meta.ar:meta.en)}</strong><br>
       ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
-      ${type === 'capture' ? '<br>• '+(AR?'مبلغ الإكمال يقبل الأقل والمساوي والأكبر من الحجز. حد البنك: 5,000,000 دولار.':'The completion amount may be lower, equal, or higher than the hold. Bank cap: 5,000,000 USD.') : ''}
-      ${type === 'offline_sale_moto' && POS_GW === 'square' ? '<br>• '+(AR?'الإدخال اليدوي أوفلاين أيضاً: بيع مباشر بلا RRN وبلا رمز موافقة. سكوير يرفع العملية خلال 24 ساعة، وتنتهي بعد 72. الحد 50,000 دولار.':'Manual entry is offline too: a direct sale with no RRN and no approval code. Square uploads it within 24 hours; it expires after 72. Limit 50,000 USD.') : ''}
-      ${type === 'offline_sale_moto' && POS_GW === 'paypal' ? '<br>• '+(AR?'الإدخال اليدوي أوفلاين مباشر بلا RRN وبلا موافقة. PayPal Reader يخزّن الشريحة أو اللمس على الجهاز ويرفع خلال 24 ساعة. الحد 1,000 دولار والمجموع 10,000.':'Manual entry is an offline direct sale with no RRN and no approval. PayPal Reader stores chip or tap on the device and uploads within 24 hours. Limit 1,000 USD each and 10,000 queued.') : ''}
-      ${type === 'purchase_advice' ? '<br>• '+(AR?'بدون حجز سابق. المبلغ موجب أو سالب.':'No prior hold. Amount may be positive or negative.') : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز.':'No RRN or approval fields while entering the hold.') : '')}
+      ${type === 'capture' ? '<br>• '+(AR?'RRN وApproval من إيصال الحجز. المبلغ أقل أو مساوٍ أو أكبر أو سالب. حد البنك 5,000,000 على القيمة المطلقة.':'RRN and approval come from the hold receipt. Amount may be lower, equal, higher, or negative. Bank cap 5,000,000 on the absolute value.') : ''}
+      ${(type === 'offline_sale_moto' || type === 'offline_sales_moto') ? '<br>• '+(AR?'Approval Code مطلوب. لا RRN. الشحن يبقى أوفلاين حتى لو كان المبلغ سالباً. حد البنك 2,000,000 على القيمة المطلقة.':'Approval code is required. No RRN. The charge stays offline even when the amount is negative. Bank cap 2,000,000 on the absolute value.') : ''}
+      ${type === 'purchase_advice' ? '<br>• '+(AR?'بدون حجز سابق. RRN وApproval مطلوبان. المبلغ موجب أو سالب ويُخصم على شبكة البطاقة.':'No prior hold. RRN and approval are required. Amount may be positive or negative and posts to the card scheme.') : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز. بعد الموافقة يظهران في الإيصال.':'No RRN or approval fields while entering the hold. After approval they print on the receipt.') : '')}
     </div>`;
   }
 
@@ -2303,26 +2317,30 @@ function renderExtraFields(type) {
     html += `<div class="fld">
       <label><i class="fas fa-lock"></i> ${AR?'الحجوزات (AUTH) — تبقى بعد الكابتشر':'AUTH holds — remain after capture'}</label>
       <select id="openHoldSelect" onchange="applyOpenHold(this)">
-        <option value="">${AR?'— اختر حجزاً أو أدخل المراجع يدوياً —':'— Pick a hold or enter refs —'}</option>
+        <option value="">${AR?'— اختر حجز AUTH —':'— Pick an AUTH hold —'}</option>
       </select>
-      <div style="font-size:.62rem;color:var(--muted2);margin-top:4px">${AR?'الحجز لا يُغلق بعد أول كابتشر. يمكن الكابتشر أو الإشعار أكثر من مرة على نفس الحجز.':'The hold stays open after the first capture. Capture or advice can run again on the same hold.'}</div>
+      <div style="font-size:.62rem;color:var(--muted2);margin-top:4px">${AR?'اختر الحجز. RRN وApproval يُقفلان على زوج الإيصال ولا يُكتبان يدوياً.':'Pick the hold. RRN and approval lock to the receipt pair and are not typed by hand.'}</div>
     </div>`;
   }
 
   const offlineSale = type === 'offline_sale_moto' || type === 'offline_sales_moto';
-  if ((type === 'online_sale_moto' && !manualDirectSale(type)) || type === 'purchase_advice' || type === 'capture') {
+  const showRrn = ((type === 'online_sale_moto' && !manualDirectSale(type)) || type === 'purchase_advice' || type === 'capture');
+  const showApproval = showRrn || offlineSale;
+  if (showRrn) {
+    const lock = type === 'capture' ? ' readonly' : '';
     html += `<div class="fld">
-      <label>RRN</label>
-      <input type="text" id="origRef" maxlength="12" inputmode="numeric" placeholder="000000000000"
-        oninput="this.value=this.value.replace(/\\D/g,'').slice(0,12)">
+      <label>RRN ${type === 'capture' ? '<span style="color:var(--muted);font-weight:600">('+(AR?'من إيصال الحجز':'from the hold receipt')+')</span>' : '<span style="color:var(--red)">*</span>'}</label>
+      <input type="text" id="origRef" maxlength="12" inputmode="numeric" placeholder="000000000000"${lock}
+        oninput="if(!this.readOnly)this.value=this.value.replace(/\\D/g,'').slice(0,12)">
     </div>`;
   }
-  if ((type === 'online_sale_moto' && !manualDirectSale(type)) || type === 'purchase_advice' || type === 'capture') {
+  if (showApproval) {
+    const lock = type === 'capture' ? ' readonly' : '';
     html += `<div class="fld">
-      <label>APPROVAL CODE</label>
-      <input type="text" id="approvalCode" maxlength="6" placeholder="4 or 6"
+      <label>APPROVAL CODE <span style="color:var(--red)">*</span></label>
+      <input type="text" id="approvalCode" maxlength="6" placeholder="4 or 6"${lock}
         style="letter-spacing:4px;font-weight:800;text-align:center"
-        oninput="this.value=this.value.replace(/[^0-9A-Za-z]/g,'').slice(0,6)">
+        oninput="if(!this.readOnly)this.value=this.value.replace(/[^0-9A-Za-z]/g,'').slice(0,6)">
     </div>`;
   }
 
@@ -2447,8 +2465,9 @@ window.captureCompareMode = function() {
 };
 
 window.resolveCaptureAmount = function() {
-  const typed = parseFloat(document.getElementById('captureCustomAmt')?.value || 0) || 0;
-  if (typed > 0) return typed;
+  const raw = String(document.getElementById('captureCustomAmt')?.value || '').trim();
+  const typed = parseFloat(raw);
+  if (isFinite(typed) && typed !== 0) return typed;
   const hold = parseFloat(POS.holdAmount || 0) || 0;
   return (POS.captureMode === 'same') ? hold : 0;
 };
@@ -2472,12 +2491,13 @@ window.setCaptureCompare = function(mode) {
       inp.value = hold.toFixed(2);
     }
   }
-  const cap = parseFloat(inp?.value || '') || (mode === 'same' ? hold : 0);
+  const cap = parseFloat(inp?.value || '');
+  const capN = isFinite(cap) && cap !== 0 ? cap : (mode === 'same' ? hold : 0);
   const amtEl = document.getElementById('txnAmount');
   const hid = document.getElementById('captureAmt');
-  if (amtEl) amtEl.value = cap > 0 ? cap.toFixed(2) : '';
-  if (hid) hid.value = cap > 0 ? cap.toFixed(2) : '';
-  if (typeof syncAmount === 'function' && cap > 0) syncAmount(cap.toFixed(2), 'txnAmount');
+  if (amtEl) amtEl.value = capN !== 0 ? capN.toFixed(2) : '';
+  if (hid) hid.value = capN !== 0 ? capN.toFixed(2) : '';
+  if (typeof syncAmount === 'function' && capN !== 0) syncAmount(capN.toFixed(2), 'txnAmount');
   if (typeof syncCaptureSplit === 'function') syncCaptureSplit();
 };
 
@@ -2485,11 +2505,11 @@ window.onCaptureCustomAmt = function() {
   const inp = document.getElementById('captureCustomAmt');
   const raw = sanitizeAmt(inp?.value || '');
   if (inp && inp.value !== raw) inp.value = raw;
-  const n = parseFloat(raw) || 0;
+  const n = parseFloat(raw);
   const amtEl = document.getElementById('txnAmount');
   const hid = document.getElementById('captureAmt');
-  if (amtEl) amtEl.value = n > 0 ? n.toFixed(2) : raw;
-  if (hid) hid.value = n > 0 ? n.toFixed(2) : '';
+  if (amtEl) amtEl.value = isFinite(n) ? raw : '';
+  if (hid) hid.value = isFinite(n) && n !== 0 ? n.toFixed(2) : '';
   if (typeof syncAmount === 'function') syncAmount(raw, 'captureCustomAmt');
   if (typeof syncCaptureSplit === 'function') syncCaptureSplit();
 };
@@ -2504,7 +2524,7 @@ window.syncCaptureSplit = function() {
   const cap = window.resolveCaptureAmount();
   const ref = parseFloat(document.getElementById('refundAmt')?.value) || 0;
   const hid = document.getElementById('captureAmt');
-  if (hid) hid.value = cap > 0 ? cap.toFixed(2) : '';
+  if (hid) hid.value = cap !== 0 ? Number(cap).toFixed(2) : '';
   document.querySelectorAll('.cap-cmp').forEach(b => {
     b.classList.toggle('is-on', b.getAttribute('data-cap-cmp') === mode);
   });
@@ -2533,10 +2553,10 @@ window.syncCaptureSplit = function() {
       : `Equal to hold ${hold.toFixed(2)} ${cur}. You can run this again on the same hold.`;
     return;
   }
-  if (cap <= 0) {
+  if (!isFinite(cap) || cap === 0) {
     hint.textContent = AR
-      ? 'أدخل المبلغ النهائي. الزيادة متاحة فقط عبر Square وPayPal وStripe وNuvei وبحسب موافقة الجهة المصدرة.'
-      : 'Enter the final amount. Higher AUTH Capture is enabled only for Square, PayPal, Stripe, and Nuvei, subject to issuer approval.';
+      ? 'أدخل مبلغ الإكمال: أقل أو مساوٍ أو أكبر أو سالب. سقف البنك 5,000,000 على القيمة المطلقة.'
+      : 'Enter the completion amount: lower, equal, higher, or negative. Bank cap is 5,000,000 on the absolute value.';
     return;
   }
   if (ref > 0) {
@@ -2570,7 +2590,7 @@ window.loadOpenHolds = async function() {
     const r = await fetch('api/auth_holds.php?gateway=' + encodeURIComponent(POS_GW || ''), { credentials: 'same-origin' });
     const d = await r.json();
     const holds = Array.isArray(d.holds) ? d.holds : [];
-    sel.innerHTML = `<option value="">${AR?'— اختر حجزاً أو أدخل المراجع يدوياً —':'— Pick a hold or enter refs —'}</option>`;
+    sel.innerHTML = `<option value="">${AR?'— اختر حجز AUTH —':'— Pick an AUTH hold —'}</option>`;
     holds.forEach((h, i) => {
       const last4 = h.card_last4 ? ('****' + h.card_last4) : '';
       const amt = Number(h.amount || 0).toFixed(2) + ' ' + (h.currency || '');
@@ -2606,9 +2626,10 @@ window.applyOpenHold = function(sel) {
   const pid = document.getElementById('paymentId');
   const gwAp = document.getElementById('gatewayApprovalCode');
   const holdRrn = String(h.rrn || '').replace(/\D/g, '');
-  if (rrn && /^\d{12}$/.test(holdRrn)) rrn.value = holdRrn;
-  if (ap && h.bank_approval) ap.value = String(h.bank_approval);
-  if (gwAp && h.gateway_approval) gwAp.value = String(h.gateway_approval);
+  const holdApproval = String(h.bank_approval || h.gateway_approval || h.approval_code || h.auth_code || '');
+  if (rrn) rrn.value = /^\d{12}$/.test(holdRrn) ? holdRrn : String(h.rrn || '');
+  if (ap) ap.value = approvalReceiptLabel(holdApproval);
+  if (gwAp && holdApproval) gwAp.value = holdApproval;
   if (pid) pid.value = h.payment_id || h.reference || '';
   const curSel = document.getElementById('txnCurrency');
   if (curSel && h.currency) {
@@ -2940,19 +2961,24 @@ window.processTransaction = async function() {
   let captureAmt = parseFloat(document.getElementById('captureAmt')?.value) || 0;
   let amount   = parseFloat(document.getElementById('txnAmount').value) || parseFloat(POS.amount) || 0;
   if (type === 'capture') {
-    captureAmt = parseFloat(document.getElementById('captureCustomAmt')?.value) || captureAmt || amount;
-    if (captureAmt <= 0 && refundAmt <= 0) {
+    const typedCap = parseFloat(document.getElementById('captureCustomAmt')?.value);
+    captureAmt = isFinite(typedCap) ? typedCap : (captureAmt || amount);
+    if ((!isFinite(captureAmt) || captureAmt === 0) && refundAmt <= 0) {
       toast(AR ? 'أدخل مبلغ الإكمال بعد الحجز' : 'Enter the completion amount after the hold', 'error');
       document.getElementById('captureCustomAmt')?.focus();
       return;
     }
-    amount = captureAmt > 0 ? captureAmt : refundAmt;
+    amount = captureAmt !== 0 ? captureAmt : refundAmt;
     const capMax = Number((TXN_META.capture && TXN_META.capture.max_amount) || 5000000);
-    if (amount > capMax) {
+    if (Math.abs(amount) > capMax) {
       toast(AR ? 'حد البنك للكابتشر 5,000,000 دولار' : 'Bank capture limit is 5,000,000 USD', 'error');
       document.getElementById('captureCustomAmt')?.focus();
       return;
     }
+  }
+  if ((type === 'offline_sale_moto' || type === 'offline_sales_moto') && Math.abs(amount) > Number((TXN_META.offline_sale_moto && TXN_META.offline_sale_moto.max_amount) || 2000000)) {
+    toast(AR ? 'حد الأوفلاين 2,000,000 على القيمة المطلقة' : 'Offline bank limit is 2,000,000 on the absolute value', 'error');
+    return;
   }
   if (isSquarePosFamily(POS_GW) && Number(amount) > 50000) {
     toast(AR ? 'حد Square 50,000 دولار لكل عملية بما فيها الأوفلاين' : 'Square limit is 50,000 USD per transaction, including offline', 'error');
@@ -3061,8 +3087,9 @@ window.processTransaction = async function() {
       extraData.nfc = POS.nfcSession;
     }
   }
-  const offlineDirect = manualOffline || chargeMode === 'offline_sale_moto';
-  if (approval && !offlineDirect) {
+  const offlineSale = type === 'offline_sale_moto' || type === 'offline_sales_moto' || chargeMode === 'offline_sale_moto';
+  const offlineDirect = (manualOffline || chargeMode === 'offline_sale_moto') && !offlineSale;
+  if (approval && (!offlineDirect || offlineSale)) {
     extraData.approval_code = approval;
     extraData.bank_approval_code = approval;
   }
@@ -3072,10 +3099,10 @@ window.processTransaction = async function() {
     extraData.internal_approval_code = gwApproval;
   }
 
-  if (type === 'capture' && captureAmt <= 0 && refundAmt <= 0) {
+  if (type === 'capture' && captureAmt === 0 && refundAmt <= 0) {
     toast(AR?'أدخل مبلغ السحب و/أو مبلغ الاسترجاع':'Enter withdraw amount and/or refund amount', 'error'); return;
   }
-  if (type === 'purchase_advice') {
+  if (type === 'purchase_advice' || type === 'offline_sale_moto' || type === 'offline_sales_moto') {
     if (!isFinite(amount) || amount === 0) {
       toast(AR?'أدخل مبلغاً موجباً أو سالباً':'Enter a positive or negative amount', 'error'); return;
     }
@@ -3085,8 +3112,14 @@ window.processTransaction = async function() {
   if (POS_REQUIRES_CARD && (type === 'withdrawal_pos' || type === 'withdrawal_nfc') && !chargeMode) {
     toast(AR?'اختر وضع التنفيذ داخل السحب':'Select withdrawal charge mode', 'error'); return;
   }
-  if (type === 'capture' && !/^\d{12}$/.test(origRef) && !holdPicked) {
-    toast(AR?'RRN يجب أن يكون 12 رقماً أو اختر الحجز من القائمة':'RRN must be 12 digits, or pick the hold from the list', 'error'); return;
+  if (type === 'capture' && !holdPicked) {
+    toast(AR?'اختر حجز AUTH حتى يُقفل RRN وApproval من الإيصال':'Pick the AUTH hold so RRN and approval stay locked to the receipt', 'error'); return;
+  }
+  if (type === 'capture' && !/^\d{12}$/.test(origRef)) {
+    toast(AR?'إيصال الحجز لا يحتوي RRN من 12 رقماً':'The hold receipt has no 12-digit RRN', 'error'); return;
+  }
+  if (type === 'capture' && !String(approval || '').trim()) {
+    toast(AR?'إيصال الحجز لا يحتوي Approval Code':'The hold receipt has no approval code', 'error'); return;
   }
   if (type !== 'capture' && POS_REQUIRES_CARD && needsRrn(type, chargeMode) && !/^\d{12}$/.test(bankRrnDigits)) {
     toast(AR?'RRN يجب أن يكون 12 رقماً':'RRN must be exactly 12 digits', 'error'); return;
@@ -3183,13 +3216,13 @@ window.processTransaction = async function() {
     source_id: squareToken || undefined,
     payment_token: squareToken || cloudToken || undefined,
     verification_token: extraData.verification_token || undefined,
-    orig_ref: offlineDirect ? '' : origRef,
-    rrn: offlineDirect ? '' : origRef,
-    bank_rrn: offlineDirect ? '' : origRef,
+    orig_ref: (offlineDirect || offlineSale) ? '' : origRef,
+    rrn: (offlineDirect || offlineSale) ? '' : origRef,
+    bank_rrn: (offlineDirect || offlineSale) ? '' : origRef,
     approval_code: offlineDirect ? '' : approval,
     bank_approval_code: offlineDirect ? '' : approval,
-    gateway_approval_code: offlineDirect ? '' : gwApproval,
-    auth_code: offlineDirect ? '' : gwApproval,
+    gateway_approval_code: offlineDirect ? '' : (offlineSale ? approval : gwApproval),
+    auth_code: offlineDirect ? '' : (offlineSale ? approval : gwApproval),
     internal_approval_code: offlineDirect ? '' : gwApproval,
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     email: (document.getElementById('posEmail')?.value || '').trim(),
@@ -3220,7 +3253,7 @@ window.processTransaction = async function() {
     hold_id: holdPicked ? (holdOpt.value || undefined) : undefined,
   };
   if (type === 'capture' || type === 'purchase_advice') {
-    if (type === 'capture' || captureAmt > 0) {
+    if (type === 'capture' || (isFinite(captureAmt) && captureAmt !== 0 && type !== 'purchase_advice')) {
       payload.capture_amount = captureAmt;
       payload.extra.capture_amount = captureAmt;
     }
@@ -3360,8 +3393,16 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   set('rType', slipType || 'SALE');
   set('rEntry', clearDash(String(entry).replace(/moto/ig, '').replace(/\s+/g, ' ').trim() || 'MANUAL'));
   set('rCard', pan);
-  set('rAmount', parseFloat(amount || 0).toFixed(2));
+  set('rAmount', (isFinite(parseFloat(amount)) ? parseFloat(amount) : 0).toFixed(2));
   set('rCurrency', currency || 'USD');
+  const slipRrn = String((d && (d.rrn || d.gateway_rrn || d.original_rrn)) || '').trim();
+  const slipAuth = approvalReceiptLabel(String((d && (d.gateway_approval_code || d.approval_code || d.bank_approval_code)) || '').trim());
+  const rrnRow = document.getElementById('rRrnRow');
+  const apprRow = document.getElementById('rApprovalRow');
+  if (rrnRow) rrnRow.style.display = slipRrn ? '' : 'none';
+  if (apprRow) apprRow.style.display = slipAuth ? '' : 'none';
+  set('rRrn', slipRrn);
+  set('rApproval', slipAuth);
   set('rRc', clearDash(d.response_code || (status === 'APPROVED' || status === 'AUTHORIZED' ? '00' : '05')));
   const merch = document.getElementById('rMerchantSeal');
   if (merch) merch.textContent = (POS_MERCHANT && (POS_MERCHANT.legal_name || POS_MERCHANT.brand)) || 'DIPARMA';
@@ -3441,7 +3482,7 @@ function showResultModal(success, d) {
       <div style="font-weight:900;letter-spacing:.2em;margin-bottom:10px">${escapeHtml(status)}</div>
       <div style="font-size:1.4rem;font-weight:900">${escapeHtml(amt)} ${escapeHtml(cur)}</div>
       <div style="margin-top:10px;font-size:.72rem;font-weight:700;letter-spacing:.04em">${escapeHtml((d && d.operation_name) || '')}</div>
-      ${(rrn && rrn !== paymentId) ? `<div style="margin-top:6px;font-size:.72rem;font-family:Consolas,'Courier New',monospace">RRN ${escapeHtml(rrn)}</div>` : ''}
+      ${rrn ? `<div style="margin-top:6px;font-size:.72rem;font-family:Consolas,'Courier New',monospace">RRN ${escapeHtml(rrn)}</div>` : ''}
       ${auth ? `<div style="font-size:.72rem;font-family:Consolas,'Courier New',monospace">APPROVAL CODE ${escapeHtml(auth)}</div>` : ''}
       ${paymentId ? `<div style="font-size:.72rem;font-family:Consolas,'Courier New',monospace">PAYMENT / TXN ID ${escapeHtml(paymentId)}</div>` : ''}
       ${internalApproval ? `<div style="font-size:.72rem">INTERNAL APPROVAL ${escapeHtml(internalApproval)}</div>` : ''}

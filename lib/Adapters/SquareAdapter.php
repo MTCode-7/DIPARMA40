@@ -298,6 +298,9 @@ final class SquareAdapter implements GatewayAdapterInterface, GatewayCapabilitie
         }
 
         $body = [];
+        if ($amount !== null && $amount < 0) {
+            $amount = abs($amount);
+        }
         if ($amount !== null && $amount > 0) {
             $body['amount_money'] = [
                 'amount'   => $this->toMinorUnits($amount),
@@ -508,7 +511,8 @@ final class SquareAdapter implements GatewayAdapterInterface, GatewayCapabilitie
         $amount    = (float)  ($payload['amount']    ?? 0);
         $currency  = strtoupper((string) ($payload['currency'] ?? 'USD'));
         $operation = $autocomplete ? 'CHARGE' : 'HOLD';
-        if (strtolower((string) ($payload['txn_type'] ?? '')) === 'purchase_advice' && $amount < 0) {
+        $signedKind = strtolower((string) ($payload['txn_type'] ?? ''));
+        if (in_array($signedKind, ['purchase_advice', 'offline_sale_moto', 'capture'], true) && $amount < 0) {
             // /v2/refunds requires a payment_id, so there is no unlinked credit here.
             // A positive CreatePayment is sent with note MINUS. A Square error is a decline.
             $payload['advice_sign'] = 'minus';
