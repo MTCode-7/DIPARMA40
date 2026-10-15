@@ -734,6 +734,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $txnType   = $this->saleOrAuth($params);
 
         $init3d = [];
+        $initTxnId = '';
         require_once __DIR__ . '/../CardScaService.php';
         $threeDSale = $mode === '3D' || strtolower((string) ($params['txn_type'] ?? '')) === 'purchase_3d';
         $need3ds = $threeDSale && !$isMoto && CardScaService::shouldChallenge($params);
@@ -743,22 +744,16 @@ class NuveiAdapter implements GatewayAdapterInterface {
                 'client_request_id' => $clientReqId,
                 'reference' => $reference,
             ]));
-            $init3d = is_array($init['three_d'] ?? null) ? $init['three_d'] : [];
-            $initRedirect = $this->nuveiRedirectUrl(is_array($init['raw'] ?? null) ? $init['raw'] : []);
-            if ($initRedirect === '') {
-                $initRedirect = trim((string) ($init3d['acsUrl'] ?? $init3d['acsurl'] ?? ''));
-            }
-            if ($initRedirect !== '') {
+            if (($init['success'] ?? false) !== true) {
                 return [
                     'success' => false,
-                    'requires_3ds' => true,
-                    'redirect_url' => $initRedirect,
-                    'transaction_id' => $init['transaction_id'] ?? '',
+                    'message' => (string) ($init['message'] ?? 'initPayment failed'),
                     'reference' => $reference,
-                    'message' => '3DS_REQUIRED',
                     'raw' => $init['raw'] ?? $init,
                 ];
             }
+            $init3d = is_array($init['three_d'] ?? null) ? $init['three_d'] : [];
+            $initTxnId = trim((string) ($init['transaction_id'] ?? ''));
         }
 
         // Nuvei checksum: merchantId + merchantSiteId + clientRequestId + amount + currency + timeStamp + secretKey
@@ -796,6 +791,9 @@ class NuveiAdapter implements GatewayAdapterInterface {
                 'customField4' => $offline ? 'OFFLINE' : ($isMoto ? 'MOTO' : (!empty($params['card_present']) ? 'CARD' : 'ECOM')),
             ],
         ];
+        if ($initTxnId !== '') {
+            $body['relatedTransactionId'] = $initTxnId;
+        }
         $authCode = trim((string)($params['auth_code'] ?? $params['approval_code'] ?? ''));
         if ($authCode !== '') {
             $body['authCode'] = $authCode;
