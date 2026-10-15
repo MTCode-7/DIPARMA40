@@ -845,14 +845,22 @@ if ($useCardGateway) {
 
         $runType = $txnType;
         if ($txnType === 'auth') {
-            $params['is_moto'] = true;
-            $params['moto_indicator'] = 'M';
             $params['card_cvv'] = '';
-            $params['entry_mode'] = 'keyed';
-            $params['card_present'] = false;
-            $params['auth_channel'] = strtolower((string) ($extra['auth_channel'] ?? $data['auth_channel'] ?? 'online'));
-            if ($params['auth_channel'] === 'offline') {
-                $params['is_offline'] = true;
+            if (pos_entry_is_present($params)) {
+                $params['is_moto'] = false;
+                $params['card_present'] = true;
+                $params['is_offline'] = false;
+                $params['processing_mode'] = '2D';
+                unset($params['moto_indicator'], $params['moto_channel']);
+            } else {
+                $params['is_moto'] = true;
+                $params['moto_indicator'] = 'M';
+                $params['entry_mode'] = 'keyed';
+                $params['card_present'] = false;
+                $params['auth_channel'] = strtolower((string) ($extra['auth_channel'] ?? $data['auth_channel'] ?? 'online'));
+                if ($params['auth_channel'] === 'offline') {
+                    $params['is_offline'] = true;
+                }
             }
         }
         if (in_array($txnType, ['withdrawal_pos', 'withdrawal_nfc'], true)) {

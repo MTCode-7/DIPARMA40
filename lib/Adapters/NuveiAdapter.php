@@ -172,13 +172,20 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $payload['transactionType'] = 'Auth';
         $mode = strtoupper(trim((string) ($payload['processing_mode'] ?? $payload['mode'] ?? '')));
         $channel = strtolower(trim((string) ($payload['auth_channel'] ?? $payload['moto_channel'] ?? '')));
+        $present = function_exists('pos_entry_is_present') && pos_entry_is_present($payload);
         if ($channel === 'offline' || !empty($payload['is_offline']) || $mode === 'OFFLINE') {
             $payload['processing_mode'] = 'OFFLINE';
             $payload['is_offline'] = true;
             $payload['is_moto'] = true;
-        } elseif ($channel === 'ecom' || $mode === '3D') {
+        } elseif ($mode === '3D') {
             $payload['processing_mode'] = '3D';
             $payload['is_moto'] = false;
+        } elseif ($channel === 'ecom' || $present) {
+            $payload['processing_mode'] = '2D';
+            $payload['is_moto'] = false;
+            if ($present) {
+                $payload['card_present'] = true;
+            }
         } else {
             $payload['processing_mode'] = 'MOTO';
             $payload['is_moto'] = true;
@@ -728,7 +735,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
         $init3d = [];
         require_once __DIR__ . '/../CardScaService.php';
-        $need3ds = !$isMoto && CardScaService::shouldChallenge($params);
+        $threeDSale = $mode === '3D' || strtolower((string) ($params['txn_type'] ?? '')) === 'purchase_3d';
+        $need3ds = $threeDSale && !$isMoto && CardScaService::shouldChallenge($params);
         if ($need3ds) {
             $init = $this->initPayment(array_merge($params, [
                 'sessionToken' => $sessionToken,
@@ -785,7 +793,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
                 'customField1' => 'TRANSCENDIO_FZ_LLC',
                 'customField2' => $params['ledger_addr'] ?? $params['ledger_address'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
                 'customField3' => $params['pos_device'] ?? 'BITEL_IC3600',
-                'customField4' => $offline ? 'OFFLINE' : ($isMoto ? 'MOTO' : 'ECOM'),
+                'customField4' => $offline ? 'OFFLINE' : ($isMoto ? 'MOTO' : (!empty($params['card_present']) ? 'CARD' : 'ECOM')),
             ],
         ];
         $authCode = trim((string)($params['auth_code'] ?? $params['approval_code'] ?? ''));
@@ -883,83 +891,18 @@ class NuveiAdapter implements GatewayAdapterInterface {
     public function purchase3D(array $params): array
     {
         require_once __DIR__ . '/../CardScaService.php';
+        $params['processing_mode'] = '3D';
+        $params['txn_type'] = 'purchase_3d';
+        $params['is_moto'] = false;
+        $params['is_offline'] = false;
+        $params['direct_advice'] = false;
+        $params['transactionType'] = 'Sale';
         if (!CardScaService::shouldChallenge($params)) {
+            $params['processing_mode'] = '2D';
+            $params['txn_type'] = 'purchase_2d';
             return $this->purchase2D($params);
         }
-        $ident = $this->missingPayerIdentity($params);
-        if ($ident !== null) {
-            return $ident;
-        }
-        $sessionRes = $this->getSessionToken();
-        if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
-            return ['success' => false, 'message' => 'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')];
-        }
-        $sessionToken = $sessionRes['sessionToken'];
-
-        $ts          = date('YmdHis');
-        $clientReqId = 'DP3D-' . strtoupper(substr(uniqid(), 0, 8));
-        $amount      = number_format((float)$params['amount'], 2, '.', '');
-        $currency    = $params['currency'] ?? 'USD';
-        $userToken   = $this->identifiedEmail($params) ?: (string) ($params['user_token_id'] ?? '');
-        $reference   = $params['reference'] ?? $clientReqId;
-        $siteUrl     = $this->publicSiteUrl();
-
-        $checksum = $this->buildChecksum([
-            $this->merchantId,
-            $this->siteId,
-            $clientReqId,
-            $amount,
-            $currency,
-            $ts,
-            $this->secretKey,
-        ]);
-
-        $body = [
-            'sessionToken'    => $sessionToken,
-            'merchantId'      => $this->merchantId,
-            'merchantSiteId'  => $this->siteId,
-            'clientRequestId' => $clientReqId,
-            'clientUniqueId'  => $reference,
-            'amount'          => $amount,
-            'currency'        => $currency,
-            'userTokenId'     => $userToken,
-            'transactionType' => 'Sale',
-            'billingAddress'  => $this->buildBillingAddress($params),
-            'timeStamp'       => $ts,
-            'checksum'        => $checksum,
-            'urlDetails'      => $this->restUrlDetails($reference),
-            'deviceDetails'   => $this->buildDeviceDetails($params),
-            'paymentOption'   => $this->buildCardPaymentOption($params),
-            'threeD'          => $this->buildThreeDSDetails($params, $siteUrl),
-            'merchantDetails' => [
-                'customField1' => $reference,
-                'customField2' => $params['ledger_addr'] ?? (defined('LEDGER_TRC20_ADDRESS') ? LEDGER_TRC20_ADDRESS : ''),
-            ],
-        ];
-
-        $result = $this->request('openOrder', $body);
-
-        if (($result['status'] ?? '') === 'SUCCESS' && !empty($result['sessionToken'])) {
-            $payUrl = $this->hostedPayUrl((string) $result['sessionToken']);
-
-            return [
-                'success'       => false,
-                'requires_3ds'  => true,
-                'redirect_url'  => $payUrl,
-                'session_token' => $result['sessionToken'],
-                'reference'     => $reference,
-                'client_req_id' => $clientReqId,
-                'amount'        => $amount,
-                'currency'      => $currency,
-                'message'       => '3DS_REQUIRED',
-            ];
-        }
-
-        return [
-            'success' => false,
-            'message' => '3D order failed: ' . ($result['reason'] ?? ($result['status'] ?? 'Unknown')),
-            'raw'     => $result,
-        ];
+        return $this->purchase($params);
     }
 
     /**

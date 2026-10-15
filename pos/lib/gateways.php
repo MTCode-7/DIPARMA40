@@ -522,10 +522,15 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
         if (!CardScaService::shouldChallenge($params)) {
             $params['processing_mode'] = '2D';
             $params['txn_type'] = 'purchase_2d';
-            $params['is_moto'] = true;
+            $repeatPresent = function_exists('pos_entry_is_present') && pos_entry_is_present($params);
+            $params['is_moto'] = !$repeatPresent;
+            if ($repeatPresent) {
+                $params['card_present'] = true;
+            }
         } else {
             $params['processing_mode'] = '3D';
             $params['is_moto'] = false;
+            $params['card_present'] = function_exists('pos_entry_is_present') && pos_entry_is_present($params);
         }
         return $params;
     }
@@ -533,8 +538,16 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
     if (strtoupper((string) ($params['processing_mode'] ?? '')) !== 'OFFLINE') {
         $params['processing_mode'] = '2D';
     }
-    $params['is_moto'] = true;
-    $params['moto_indicator'] = $params['moto_indicator'] ?? 'M';
+    $cardPresent = function_exists('pos_entry_is_present') && pos_entry_is_present($params);
+    $inherentMoto = in_array($txnType, ['online_sale_moto', 'offline_sale_moto', 'purchase_advice'], true);
+    if ($cardPresent && !$inherentMoto) {
+        $params['is_moto'] = false;
+        $params['card_present'] = true;
+        unset($params['moto_indicator'], $params['moto_channel'], $params['moto_type']);
+    } else {
+        $params['is_moto'] = true;
+        $params['moto_indicator'] = $params['moto_indicator'] ?? 'M';
+    }
 
     if ($txnType === 'offline_sale_moto') {
         $params['is_offline'] = true;
@@ -574,8 +587,13 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
         } elseif (
             $txnType === 'online_sale_moto'
             || $txnType === 'purchase_advice'
-            || ($channel === 'online')
-            || (in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold'], true) && $channel !== 'ecom')
+            || (
+                !$cardPresent
+                && (
+                    $channel === 'online'
+                    || (in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold'], true) && $channel !== 'ecom')
+                )
+            )
         ) {
             $params['processing_mode'] = 'MOTO';
             $params['is_moto'] = true;

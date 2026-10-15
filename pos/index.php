@@ -3026,7 +3026,7 @@ window.processTransaction = async function() {
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     advice_channel: document.getElementById('adviceChannel')?.value || undefined,
     auth_channel: document.getElementById('authChannel')?.value || undefined,
-    is_moto: (manualOffline || (type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto') ? true : undefined,
+    is_moto: (manualOffline || (!isPhysical && type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto' || type === 'purchase_advice') ? true : undefined,
     moto_indicator: ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto') ? 'M' : undefined,
     payment_id: document.getElementById('paymentId')?.value || (holdPicked ? (function(){ try { return JSON.parse(holdOpt.dataset.hold).payment_id || undefined; } catch (e) { return undefined; } })() : undefined),
     wallet_address: walletAddr || undefined,

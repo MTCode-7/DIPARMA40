@@ -289,6 +289,30 @@ foreach (['wise', 'adyen', 'klarna', 'sofort', 'alipay', 'razorpay', 'bank_trans
 check(!dp_gateway_is_live_for_fulfillment(['code' => 'square', 'status' => 'active', 'connection_status' => 'verified', 'credentials' => '{"access_token":"token","location_id":"loc","site_id":"site"}']), 'Square 1 credentials cannot enable Square 2 fulfillment');
 check(dp_gateway_is_live_for_fulfillment(['code' => 'square_online', 'status' => 'active', 'connection_status' => 'verified', 'credentials' => '{"access_token":"token","location_id":"loc","site_id":"site"}']), 'Square 2 fulfillment requires its own verified connection');
 check(activity_gateway_checkout_operations('stripe') === ['purchase_3d', 'purchase_2d', 'online_sale_moto', 'offline_sale_moto', 'purchase_advice', 'auth', 'capture'], 'Card gateway operations match the POS charge contract');
+$nuveiRoute = static function (string $type, array $entry): array {
+    $prepared = pos_prepare_operation_payload($type, array_merge($entry, [
+        'gateway' => 'nuvei',
+        'provider' => 'nuvei',
+        'amount' => 1,
+        'currency' => 'USD',
+    ]));
+    return [
+        'type' => strtolower((string) ($prepared['txn_type'] ?? $type)),
+        'mode' => strtoupper((string) ($prepared['processing_mode'] ?? '')),
+        'moto' => !empty($prepared['is_moto']),
+        'offline' => !empty($prepared['is_offline']),
+    ];
+};
+$chip = ['input_mode' => 'physical', 'entry_mode' => 'pos_chip', 'card_present' => true];
+$keyed = ['input_mode' => 'manual', 'entry_mode' => 'keyed'];
+check($nuveiRoute('purchase_2d', $chip) === ['type' => 'purchase_2d', 'mode' => '2D', 'moto' => false, 'offline' => false], 'Chip purchase 2D is a card-present sale');
+check($nuveiRoute('purchase_3d', $chip)['mode'] === '3D' && $nuveiRoute('purchase_3d', $chip)['moto'] === false, 'Chip purchase 3D stays on the server 3DS path');
+check($nuveiRoute('auth', $chip) === ['type' => 'auth', 'mode' => '2D', 'moto' => false, 'offline' => false], 'Chip auth is a card-present hold');
+check($nuveiRoute('purchase_2d', $keyed)['offline'] === true && $nuveiRoute('purchase_2d', $keyed)['moto'] === true, 'Keyed purchase 2D stays an offline direct sale');
+check($nuveiRoute('purchase_3d', $keyed)['type'] === 'purchase_2d' && $nuveiRoute('purchase_3d', $keyed)['offline'] === true, 'Keyed purchase 3D is an offline direct sale');
+check($nuveiRoute('purchase_advice', $chip)['mode'] === 'MOTO' && $nuveiRoute('purchase_advice', $chip)['offline'] === false, 'Purchase advice stays a direct MOTO sale');
+check($nuveiRoute('offline_sale_moto', $chip)['offline'] === true, 'Offline sale stays offline on the chip path');
+check($nuveiRoute('online_sale_moto', $chip)['mode'] === 'MOTO' && $nuveiRoute('online_sale_moto', $chip)['offline'] === false, 'Chip online sale stays MOTO');
 $stickerRows = pos_ops_sticker_rows();
 check(count(array_filter($stickerRows, static fn($row) => !empty($row['card']) && $row['cvv'] !== 'optional')) === 0, 'CVV is optional on every card operation');
 check(count(array_filter($stickerRows, static fn($row) => empty($row['card']) && $row['cvv'] !== false)) === 0, 'Non-card operations do not request CVV');

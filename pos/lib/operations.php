@@ -817,6 +817,23 @@ function pos_parse_channels(array $data, string $txnType = ''): array
     return $out;
 }
 
+function pos_entry_is_present(array $params): bool
+{
+    if (!empty($params['card_present']) || !empty($params['is_physical'])) {
+        return true;
+    }
+    $input = strtolower(trim((string) ($params['input_mode'] ?? '')));
+    if ($input === 'physical') {
+        return true;
+    }
+    $entry = strtolower(trim((string) ($params['entry_mode'] ?? '')));
+    return in_array($entry, [
+        'pos_chip', 'chip', 'insert',
+        'nfc_contactless', 'nfc', 'contactless', 'tap',
+        'pos_and_nfc', 'wallet_app',
+    ], true);
+}
+
 function pos_channels_entry_mode(array $channels): string
 {
     $hasPos = in_array('pos', $channels, true);
