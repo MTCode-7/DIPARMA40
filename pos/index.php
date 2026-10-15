@@ -1183,7 +1183,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="mode-row" id="cardModeRow" <?=pos_gateway_requires_card($posGw)?'':'style="display:none"'?>>
       <button type="button" class="mode-btn <?=$startMode==='manual'?'active':''?>" id="modeManual" onclick="setInputMode('manual')">
         <strong><i class="fas fa-keyboard"></i> <?=$ar?'مانول':'Manual'?></strong>
-        <span><?=$ar?'رقم البطاقة يدوياً — أوفلاين مباشر، بلا RRN وبلا موافقة':'Type the card — offline direct sale, no RRN and no approval'?></span>
+        <span><?=$ar?'رقم البطاقة يدوياً. أوفلاين يبقي رمز الموافقة. البيع الثنائي والتسوية لا يتحولان إلى 3DS.':'Type the card. Offline keeps the approval code. 2D and advice are not switched to 3DS.'?></span>
       </button>
       <button type="button" class="mode-btn <?=$startMode==='physical'?'active':''?>" id="modePhysical" onclick="setInputMode('physical')">
         <strong><i class="fas fa-sim-card"></i> <?=$ar?'فيزيكل':'Physical'?></strong>
@@ -1238,8 +1238,8 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       <div id="square-card-container" dir="ltr" style="min-height:96px;width:100%;background:rgba(0,0,0,.25);border-radius:10px;padding:8px"></div>
       <div style="font-size:.68rem;color:var(--muted2);line-height:1.55;margin-top:8px">
         <?=$ar
-          ? 'الإدخال اليدوي أوفلاين: بيع مباشر بلا RRN وبلا رمز موافقة. الحد 50,000 دولار. الرفع خلال 24 ساعة، وتنتهي العملية بعد 72 ساعة من أول عملية.'
-          : 'Manual entry is offline: a direct sale with no RRN and no approval code. Limit 50,000 USD. Upload within 24 hours; it expires 72 hours after the first payment.'?>
+          ? 'الإدخال اليدوي يُرسل كما اخترت العملية. أوفلاين يبقي رمز الموافقة وبلا RRN. حد Square 50,000 دولار.'
+          : 'Manual entry is sent as the operation you picked. Offline keeps the approval code and does not need an RRN. Square limit 50,000 USD.'?>
       </div>
       <div id="square-error" style="color:var(--red);font-size:.7rem;margin-top:6px"></div>
     </div>
@@ -2985,16 +2985,7 @@ window.processTransaction = async function() {
     return;
   }
   const currency = document.getElementById('txnCurrency').value;
-  const nuveiLargeUsd = POS_GW === 'nuvei'
-    && String(currency).toUpperCase() === 'USD'
-    && Number(amount) >= 100
-    && ['purchase','purchase_2d','purchase_3d','online_sale_moto'].includes(type);
-  if (nuveiLargeUsd) {
-    toast(AR
-      ? 'دولار كبير على Nuvei: العملية ستكمل 3DS بدل البيع المباشر.'
-      : 'Large USD on Nuvei: this sale continues with 3DS instead of a direct sale.',
-      'info');
-  }
+  const nuveiLargeUsd = false;
   const cardNum  = document.getElementById('cardNumber').value.replace(/\s/g,'');
   const cardName = document.getElementById('cardName').value.trim();
   const expiry   = document.getElementById('cardExpiry').value;
@@ -3028,7 +3019,7 @@ window.processTransaction = async function() {
   const isPhysical = POS.inputMode === 'physical';
   const useWallet = isPhysical && walletAddr !== '';
 
-  const manualOffline = !nuveiLargeUsd && (manualDirectSale(type) || type === 'offline_sale_moto' || type === 'offline_sales_moto');
+  const manualOffline = type === 'offline_sale_moto' || type === 'offline_sales_moto';
   const extraData = {
     input_mode: POS.inputMode,
     entry_mode: useWallet ? 'wallet_app' : (isPhysical ? (type === 'withdrawal_nfc' ? 'nfc_contactless' : 'pos_chip') : 'keyed'),

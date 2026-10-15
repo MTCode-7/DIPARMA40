@@ -482,6 +482,21 @@ final class PayPalAdapter implements GatewayAdapterInterface, GatewayCapabilitie
             || $channel === 'offline'
             || !empty($payload['is_offline'])
         ) {
+            if ($txn === 'offline_sale_moto') {
+                return self::MODE_OFFLINE;
+            }
+            if (!$this->isModeEnabled(self::MODE_OFFLINE)) {
+                $fallback = function_exists('pos_paypal_charge_mode')
+                    ? pos_paypal_charge_mode($txn, self::MODE_OFFLINE, false)
+                    : ($txn === 'online_sale_moto' || $txn === 'purchase_advice' ? self::MODE_MOTO : self::MODE_2D);
+                if ($fallback === self::MODE_3D) {
+                    return self::MODE_3D;
+                }
+                if ($fallback === self::MODE_MOTO && $this->isModeEnabled(self::MODE_MOTO)) {
+                    return self::MODE_MOTO;
+                }
+                return self::MODE_2D;
+            }
             return self::MODE_OFFLINE;
         }
         if (

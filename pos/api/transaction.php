@@ -324,17 +324,7 @@ if ($gatewayApprovalCode === '') {
 $inputMode = strtolower(trim((string) ($extra['input_mode'] ?? $data['input_mode'] ?? '')));
 $entryMode = strtolower(trim((string) ($extra['entry_mode'] ?? $data['entry_mode'] ?? '')));
 $manualKeyed = $inputMode === 'manual' || $entryMode === 'keyed';
-$nuveiLargeUsd = pos_nuvei_large_usd_sale($posGateway, $txnType, (float) $amount, (string) $currency);
-if ($nuveiLargeUsd) {
-    $txnType = 'purchase_3d';
-    $opMeta = pos_operation_meta($txnType) ?? $opMeta;
-    $extra['is_offline'] = false;
-    $extra['is_moto'] = false;
-    $extra['processing_mode'] = '3D';
-    $extra['sec_mode'] = '3D';
-    unset($extra['moto_channel'], $extra['auth_channel'], $extra['moto_indicator']);
-}
-$manualOffline = !$nuveiLargeUsd && $manualKeyed && in_array($txnType, ['purchase_2d', 'purchase_3d', 'online_sale_moto', 'offline_sale_moto', 'purchase'], true);
+$manualOffline = $manualKeyed && pos_keyed_entry_forces_offline($txnType);
 if ($manualOffline) {
     $extra['is_offline'] = true;
     $extra['input_mode'] = 'manual';

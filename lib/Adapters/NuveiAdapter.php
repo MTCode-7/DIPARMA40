@@ -1161,6 +1161,16 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     private function missingPayerIdentity(array $p): ?array
     {
+        $txn = strtolower(trim((string) ($p['txn_type'] ?? '')));
+        $mode = strtoupper(trim((string) ($p['processing_mode'] ?? '')));
+        $schemeKeyed = !empty($p['direct_advice'])
+            || !empty($p['is_offline'])
+            || !empty($p['is_moto'])
+            || in_array($mode, ['MOTO', 'OFFLINE'], true)
+            || in_array($txn, ['purchase_advice', 'offline_sale_moto', 'online_sale_moto', 'purchase_2d', 'auth', 'capture'], true);
+        if ($schemeKeyed) {
+            return null;
+        }
         if ($this->identifiedCardName($p) === '' || $this->identifiedEmail($p) === '') {
             return [
                 'success' => false,

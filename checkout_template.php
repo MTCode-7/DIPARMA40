@@ -1258,14 +1258,15 @@ async function go() {
     payload.extra = { charge_mode: mode, channel: 'system_pos', scheme_route: detectCardNetwork((document.getElementById('ccNumber')||{}).value || '') };
   }
 
-  var manualOfflineCheckout = ['purchase','purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','offline_sales_moto'].indexOf(String(payload.txn_type || curTx)) >= 0;
-  if (manualOfflineCheckout) {
+  var explicitOfflineCheckout = ['offline_sale_moto','offline_sales_moto'].indexOf(String(payload.txn_type || curTx)) >= 0;
+  if (explicitOfflineCheckout) {
+    payload.txn_type = 'offline_sale_moto';
     payload.input_mode = 'manual';
     payload.entry_mode = 'keyed';
     payload.is_offline = true;
     payload.processing_mode = 'OFFLINE';
     payload.security_mode = 'OFFLINE';
-    ['bank_rrn','rrn','orig_ref','approval_code','bank_approval_code','gateway_approval_code','auth_code','internal_approval_code','payment_id'].forEach(function(k){ payload[k] = ''; });
+    ['bank_rrn','rrn','orig_ref','payment_id'].forEach(function(k){ payload[k] = ''; });
   }
 
   payload.destination = LEDGER_CHECKOUT ? 'ledger' : (DEST || 'gateway');

@@ -49,8 +49,8 @@ function pos_terminal_gateways(): array
             'color' => '#006AFF',
             'adapter' => 'square',
             'rail' => 'card',
-            'desc_ar' => 'Square. الإدخال اليدوي أوفلاين مباشر بلا RRN وبلا موافقة سابقة. بعد الموافقة يبقى المبلغ على Square. الرفع خلال 24 ساعة وينتهي بعد 72 من أول عملية. حد العملية 50,000 دولار.',
-            'desc_en' => 'Square. Manual entry is an offline direct sale with no RRN and no prior approval. After approval the funds stay on Square. Upload within 24 hours; it expires 72 hours after the first payment. Max 50,000 USD.',
+            'desc_ar' => 'Square. الإدخال اليدوي يُرسل كما اخترت العملية. أوفلاين يبقي رمز الموافقة ولا يطلب RRN. بعد الموافقة يبقى المبلغ على Square. حد العملية 50,000 دولار.',
+            'desc_en' => 'Square. Manual entry is sent as the operation you picked. Offline keeps the approval code and does not need an RRN. After approval the funds stay on Square. Max 50,000 USD.',
         ],
         'square_online' => [
             'name' => 'Square 2 · Online',
@@ -495,39 +495,21 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
     $params['name'] = $name;
     $params['card_name'] = $name;
 
-    $entry = strtolower(trim((string) ($params['entry_mode'] ?? '')));
-    $input = strtolower(trim((string) ($params['input_mode'] ?? '')));
-    $nuveiLargeUsd = function_exists('pos_nuvei_large_usd_sale') && pos_nuvei_large_usd_sale(
-        (string) ($params['gateway'] ?? $params['provider'] ?? ''),
-        $txnType,
-        (float) ($params['amount'] ?? 0),
-        (string) ($params['currency'] ?? '')
-    );
-    if ($nuveiLargeUsd) {
-        $txnType = 'purchase_3d';
-        $params['txn_type'] = 'purchase_3d';
-        $params['is_offline'] = false;
-        $params['is_moto'] = false;
-        $params['processing_mode'] = '3D';
-        unset($params['moto_channel'], $params['auth_channel'], $params['moto_indicator'], $params['moto_type']);
-    }
-    $keyedSale = !$nuveiLargeUsd
-        && empty($params['withdrawal'])
-        && ($input === 'manual' || $entry === 'keyed')
-        && in_array($txnType, ['purchase_2d', 'purchase_3d', 'online_sale_moto', 'offline_sale_moto', 'purchase'], true);
-    if ($keyedSale) {
+    $params = function_exists('pos_release_forced_offline')
+        ? pos_release_forced_offline($txnType, $params)
+        : $params;
+    $txnType = strtolower((string) ($params['txn_type'] ?? $txnType));
+    $explicitOffline = function_exists('pos_keyed_entry_forces_offline')
+        ? pos_keyed_entry_forces_offline($txnType)
+        : $txnType === 'offline_sale_moto';
+    if ($explicitOffline && empty($params['withdrawal'])) {
         $params['is_offline'] = true;
-        $params['input_mode'] = 'manual';
-        $params['entry_mode'] = 'keyed';
         $params['moto_channel'] = 'offline';
         $params['auth_channel'] = 'offline';
         $params['processing_mode'] = 'OFFLINE';
         $params['is_moto'] = true;
-        $params['card_present'] = false;
-        if ($txnType === 'purchase_3d') {
-            $txnType = 'purchase_2d';
-            $params['txn_type'] = 'purchase_2d';
-        }
+        $params['txn_type'] = 'offline_sale_moto';
+        $txnType = 'offline_sale_moto';
     }
 
     if ($txnType === 'purchase_3d') {
@@ -590,11 +572,8 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
     } elseif (in_array($gw, ['paypal', 'stripe', 'square', 'square_online', 'nuvei'], true)) {
         $channel = strtolower(trim((string) ($params['auth_channel'] ?? $params['moto_channel'] ?? '')));
         $offline = $txnType === 'offline_sale_moto'
-            || $channel === 'offline'
-            || !empty($params['is_offline']);
-        $keyedOffline = !empty($params['is_offline'])
-            && in_array($txnType, ['purchase_2d', 'online_sale_moto', 'offline_sale_moto', 'purchase'], true);
-        if ($offline && ($keyedOffline || in_array($txnType, ['offline_sale_moto', 'auth', 'auth_hold', 'auth_moto', 'hold', 'purchase_advice'], true))) {
+            || ($channel === 'offline' && in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold'], true));
+        if ($offline) {
             $params['processing_mode'] = 'OFFLINE';
             $params['is_offline'] = true;
             $params['is_moto'] = true;

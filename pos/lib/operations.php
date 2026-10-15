@@ -978,18 +978,86 @@ function pos_parse_channels(array $data, string $txnType = ''): array
     return $out;
 }
 
-/** Large USD on Transcendio completes 3DS. Offline Sales stay a direct offline sale. */
+/**
+ * Never rewrite the operation the operator chose.
+ * A 2D, online MOTO, purchase advice, or offline sale stays on that path
+ * even when Nuvei, USD, and the amount are 100 or more.
+ * purchase_3d still challenges on its own path; this function does not force it.
+ */
 function pos_nuvei_large_usd_sale(string $gateway, string $txnType, float $amount, string $currency): bool
 {
-    if (strtolower(trim($gateway)) !== 'nuvei') {
-        return false;
+    unset($gateway, $txnType, $amount, $currency);
+    return false;
+}
+
+/** Only an explicit offline sale is forced onto the offline path. Keyed 2D, online, and advice are not. */
+function pos_keyed_entry_forces_offline(string $txnType): bool
+{
+    return pos_normalize_operation($txnType) === 'offline_sale_moto';
+}
+
+/**
+ * Drop a forced OFFLINE flag from a charge the operator did not mark as offline.
+ * offline_sale_moto stays offline. An AUTH whose channel is offline stays offline.
+ *
+ * @param array<string,mixed> $params
+ * @return array<string,mixed>
+ */
+function pos_release_forced_offline(string $txnType, array $params): array
+{
+    $type = pos_normalize_operation($txnType);
+    if ($type === 'offline_sale_moto') {
+        $params['is_offline'] = true;
+        $params['processing_mode'] = 'OFFLINE';
+        $params['moto_channel'] = 'offline';
+        $params['auth_channel'] = 'offline';
+        return $params;
     }
-    if (strtoupper(trim($currency)) !== 'USD' || $amount < 100) {
-        return false;
+    $channel = strtolower(trim((string) ($params['auth_channel'] ?? $params['moto_channel'] ?? '')));
+    if (in_array($type, ['auth', 'auth_hold', 'auth_moto', 'hold'], true) && $channel === 'offline') {
+        return $params;
     }
-    return in_array(strtolower(trim($txnType)), [
-        'purchase', 'purchase_2d', 'purchase_3d', 'online_sale_moto',
-    ], true);
+    $forced = !empty($params['is_offline'])
+        || strtoupper(trim((string) ($params['processing_mode'] ?? ''))) === 'OFFLINE'
+        || strtolower(trim((string) ($params['moto_channel'] ?? ''))) === 'offline'
+        || strtolower(trim((string) ($params['auth_channel'] ?? ''))) === 'offline';
+    if (!$forced) {
+        return $params;
+    }
+    $params['is_offline'] = false;
+    if (strtoupper(trim((string) ($params['processing_mode'] ?? ''))) === 'OFFLINE') {
+        $params['processing_mode'] = $type === 'purchase_3d' ? '3D' : '2D';
+    }
+    if (strtolower(trim((string) ($params['moto_channel'] ?? ''))) === 'offline') {
+        unset($params['moto_channel']);
+    }
+    if (strtolower(trim((string) ($params['auth_channel'] ?? ''))) === 'offline') {
+        unset($params['auth_channel']);
+    }
+    return $params;
+}
+
+/**
+ * PayPal keyed 2D / online / advice must still be sent when offline mode is off.
+ * An explicit offline sale stays OFFLINE so the account flag can reject that path.
+ */
+function pos_paypal_charge_mode(string $txnType, string $mode, bool $offlineEnabled): string
+{
+    $type = pos_normalize_operation($txnType);
+    $mode = strtoupper(trim($mode));
+    if ($type === 'offline_sale_moto') {
+        return 'OFFLINE';
+    }
+    if ($mode !== 'OFFLINE' || $offlineEnabled) {
+        return $mode !== '' ? $mode : '2D';
+    }
+    if (in_array($type, ['online_sale_moto', 'purchase_advice'], true)) {
+        return 'MOTO';
+    }
+    if ($type === 'purchase_3d') {
+        return '3D';
+    }
+    return '2D';
 }
 
 function pos_entry_is_present(array $params): bool

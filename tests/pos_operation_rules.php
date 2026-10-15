@@ -58,4 +58,58 @@ $locked = pos_bind_capture_pair(['rrn' => '111122223333', 'approval_code' => '65
 check($locked['ok'] === true && $locked['rrn'] === '111122223333' && $locked['approval'] === '654321', 'capture refills the stored AUTH pair');
 check(pos_host_debit_amount('capture', -10) === 10.0 && pos_host_debit_amount('offline_sale_moto', -10) === 10.0, 'negative capture and offline still debit the absolute amount');
 
+foreach (['purchase_2d', 'online_sale_moto', 'purchase_advice', 'offline_sale_moto', 'purchase_3d', 'auth'] as $nuveiType) {
+    check(pos_nuvei_large_usd_sale('nuvei', $nuveiType, 150.0, 'USD') === false, 'nuvei does not force 3DS on ' . $nuveiType);
+}
+check(pos_keyed_entry_forces_offline('purchase_2d') === false, 'keyed 2D is not forced offline');
+check(pos_keyed_entry_forces_offline('online_sale_moto') === false, 'keyed online sale is not forced offline');
+check(pos_keyed_entry_forces_offline('purchase_advice') === false, 'advice is not forced offline');
+check(pos_keyed_entry_forces_offline('offline_sale_moto') === true, 'explicit offline stays offline');
+check(pos_paypal_charge_mode('purchase_2d', 'OFFLINE', false) === '2D', 'PayPal sends keyed 2D when offline mode is off');
+check(pos_paypal_charge_mode('purchase_advice', 'OFFLINE', false) === 'MOTO', 'PayPal sends advice when offline mode is off');
+check(pos_paypal_charge_mode('offline_sale_moto', 'OFFLINE', false) === 'OFFLINE', 'explicit PayPal offline stays on the offline path');
+check(pos_amount_policy_errors('capture', 0.0) !== [], 'zero capture stays rejected');
+check(pos_amount_policy_errors('purchase_advice', 0.0) !== [], 'zero advice stays rejected');
+check(pos_amount_policy_errors('offline_sale_moto', 0.0) !== [], 'zero offline stays rejected');
+check(pos_is_blocked_test_card('4111111111111111'), 'test card fixture stays blocked');
+$blocked = pos_validate_operation_fields('purchase_2d', [
+    'card_number' => '4111111111111111',
+    'card_expiry' => '12/30',
+]);
+check(in_array('Test and dummy cards are blocked. Use a real card.', $blocked, true), 'validator still blocks the test card');
+
+$released2d = pos_release_forced_offline('purchase_2d', [
+    'is_offline' => true,
+    'processing_mode' => 'OFFLINE',
+    'moto_channel' => 'offline',
+    'approval_code' => '123456',
+]);
+check(empty($released2d['is_offline']) && strtoupper((string) $released2d['processing_mode']) !== 'OFFLINE', 'forced offline flag is dropped from a 2D sale');
+$releasedAdvice = pos_release_forced_offline('purchase_advice', [
+    'is_offline' => true,
+    'processing_mode' => 'OFFLINE',
+    'rrn' => '123456789012',
+    'approval_code' => '123456',
+]);
+check(empty($releasedAdvice['is_offline']) && ($releasedAdvice['approval_code'] ?? '') === '123456' && ($releasedAdvice['rrn'] ?? '') === '123456789012', 'advice keeps RRN and approval and is not held offline');
+$releasedOffline = pos_release_forced_offline('offline_sale_moto', [
+    'approval_code' => '654321',
+    'rrn' => '123456789012',
+]);
+check(!empty($releasedOffline['is_offline']) && ($releasedOffline['approval_code'] ?? '') === '654321', 'offline stays offline and keeps the approval code');
+
+$traces = [
+    'auth' => $card + ['amount' => 25.0],
+    'capture' => $card + ['rrn' => '123456789012', 'approval_code' => '654321', 'amount' => 80.0],
+    'purchase_advice' => $card + ['rrn' => '123456789012', 'approval_code' => '123456', 'amount' => -40.0],
+    'offline_sale_moto' => $card + ['approval_code' => '654321', 'amount' => -15.0],
+];
+foreach ($traces as $type => $payload) {
+    $fieldErrors = pos_validate_operation_fields($type, $payload);
+    $amountErrors = pos_amount_policy_errors($type, (float) $payload['amount']);
+    $local = array_merge($fieldErrors, $amountErrors);
+    check($local === [], 'trace ' . $type . ' is not rejected locally');
+    echo 'TRACE ' . $type . ' amount=' . $payload['amount'] . ' local=' . ($local === [] ? 'PASS' : implode(' | ', $local)) . PHP_EOL;
+}
+
 exit($fail === 0 ? 0 : 1);
