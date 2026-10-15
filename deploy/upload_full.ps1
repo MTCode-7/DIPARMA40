@@ -27,7 +27,7 @@ $sshOpts = @('-i', $KEY, '-o', 'StrictHostKeyChecking=accept-new', '-o', 'Server
 scp.exe @sshOpts $bundle "${REMOTE}:/tmp/diparma-full.tar.gz"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-ssh.exe @sshOpts $REMOTE "bash -s" -- @'
+$remoteScript = @'
 set -e
 STAMP=$(date +%F-%H%M%S)
 mkdir -p /tmp/diparma-full-extract
@@ -64,3 +64,9 @@ sudo systemctl reload apache2 2>/dev/null || sudo systemctl reload nginx 2>/dev/
 rm -rf /tmp/diparma-full-extract /tmp/diparma-full.tar.gz
 echo UPLOAD_OK
 '@
+$remoteSh = Join-Path $env:TEMP "diparma-remote-$stamp.sh"
+[System.IO.File]::WriteAllText($remoteSh, ($remoteScript -replace "`r`n","`n"))
+scp.exe @sshOpts $remoteSh "${REMOTE}:/tmp/diparma-remote.sh"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+ssh.exe @sshOpts $REMOTE "bash /tmp/diparma-remote.sh"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
