@@ -290,12 +290,12 @@ check(!dp_gateway_is_live_for_fulfillment(['code' => 'square', 'status' => 'acti
 check(dp_gateway_is_live_for_fulfillment(['code' => 'square_online', 'status' => 'active', 'connection_status' => 'verified', 'credentials' => '{"access_token":"token","location_id":"loc","site_id":"site"}']), 'Square 2 fulfillment requires its own verified connection');
 check(activity_gateway_checkout_operations('stripe') === ['purchase_3d', 'purchase_2d', 'online_sale_moto', 'offline_sale_moto', 'purchase_advice', 'auth', 'capture'], 'Card gateway operations match the POS charge contract');
 $nuveiRoute = static function (string $type, array $entry): array {
-    $prepared = pos_prepare_operation_payload($type, array_merge($entry, [
+    $prepared = pos_prepare_operation_payload($type, array_merge([
         'gateway' => 'nuvei',
         'provider' => 'nuvei',
         'amount' => 1,
         'currency' => 'USD',
-    ]));
+    ], $entry));
     return [
         'type' => strtolower((string) ($prepared['txn_type'] ?? $type)),
         'mode' => strtoupper((string) ($prepared['processing_mode'] ?? '')),
@@ -309,6 +309,12 @@ check($nuveiRoute('purchase_2d', $chip) === ['type' => 'purchase_2d', 'mode' => 
 check($nuveiRoute('purchase_3d', $chip)['mode'] === '3D' && $nuveiRoute('purchase_3d', $chip)['moto'] === false, 'Chip purchase 3D stays on the server 3DS path');
 check($nuveiRoute('auth', $chip) === ['type' => 'auth', 'mode' => '2D', 'moto' => false, 'offline' => false], 'Chip auth is a card-present hold');
 check($nuveiRoute('purchase_2d', $keyed)['offline'] === true && $nuveiRoute('purchase_2d', $keyed)['moto'] === true, 'Keyed purchase 2D stays an offline direct sale');
+$largeUsd = static function (string $type) use ($nuveiRoute, $keyed): array {
+    return $nuveiRoute($type, $keyed + ['amount' => 1000, 'currency' => 'USD']);
+};
+check($largeUsd('purchase_2d') === ['type' => 'purchase_3d', 'mode' => '3D', 'moto' => false, 'offline' => false], 'Nuvei large USD sale completes 3DS');
+check($largeUsd('offline_sale_moto')['type'] === 'purchase_3d' && $largeUsd('offline_sale_moto')['offline'] === false, 'Nuvei large USD offline sale is promoted to 3DS');
+check($nuveiRoute('purchase_2d', $keyed + ['amount' => 1000, 'currency' => 'AED'])['offline'] === true, 'Nuvei large AED sale stays an offline direct sale');
 check($nuveiRoute('purchase_3d', $keyed)['type'] === 'purchase_2d' && $nuveiRoute('purchase_3d', $keyed)['offline'] === true, 'Keyed purchase 3D is an offline direct sale');
 check($nuveiRoute('purchase_advice', $chip)['mode'] === 'MOTO' && $nuveiRoute('purchase_advice', $chip)['offline'] === false, 'Purchase advice stays a direct MOTO sale');
 check($nuveiRoute('offline_sale_moto', $chip)['offline'] === true, 'Offline sale stays offline on the chip path');

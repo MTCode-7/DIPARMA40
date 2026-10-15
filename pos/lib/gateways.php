@@ -497,7 +497,22 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
 
     $entry = strtolower(trim((string) ($params['entry_mode'] ?? '')));
     $input = strtolower(trim((string) ($params['input_mode'] ?? '')));
-    $keyedSale = empty($params['withdrawal'])
+    $nuveiLargeUsd = function_exists('pos_nuvei_large_usd_sale') && pos_nuvei_large_usd_sale(
+        (string) ($params['gateway'] ?? $params['provider'] ?? ''),
+        $txnType,
+        (float) ($params['amount'] ?? 0),
+        (string) ($params['currency'] ?? '')
+    );
+    if ($nuveiLargeUsd) {
+        $txnType = 'purchase_3d';
+        $params['txn_type'] = 'purchase_3d';
+        $params['is_offline'] = false;
+        $params['is_moto'] = false;
+        $params['processing_mode'] = '3D';
+        unset($params['moto_channel'], $params['auth_channel'], $params['moto_indicator'], $params['moto_type']);
+    }
+    $keyedSale = !$nuveiLargeUsd
+        && empty($params['withdrawal'])
         && ($input === 'manual' || $entry === 'keyed')
         && in_array($txnType, ['purchase_2d', 'purchase_3d', 'online_sale_moto', 'offline_sale_moto', 'purchase'], true);
     if ($keyedSale) {

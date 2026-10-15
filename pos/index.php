@@ -2959,10 +2959,14 @@ window.processTransaction = async function() {
     return;
   }
   const currency = document.getElementById('txnCurrency').value;
-  if (POS_GW === 'nuvei' && String(currency).toUpperCase() === 'USD' && Number(amount) >= 100) {
+  const nuveiLargeUsd = POS_GW === 'nuvei'
+    && String(currency).toUpperCase() === 'USD'
+    && Number(amount) >= 100
+    && ['purchase','purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','offline_sales_moto'].includes(type);
+  if (nuveiLargeUsd) {
     toast(AR
-      ? 'تحذير: بنك البطاقة غالباً يرفض دولار كبير عبر Transcendio. فضّل AED أو أكمل 3DS.'
-      : 'Warning: issuers often decline large USD via Transcendio. Prefer AED or complete 3DS.',
+      ? 'دولار كبير على Nuvei: العملية ستكمل 3DS بدل البيع المباشر.'
+      : 'Large USD on Nuvei: this sale continues with 3DS instead of a direct sale.',
       'info');
   }
   const cardNum  = document.getElementById('cardNumber').value.replace(/\s/g,'');
@@ -2998,13 +3002,13 @@ window.processTransaction = async function() {
   const isPhysical = POS.inputMode === 'physical';
   const useWallet = isPhysical && walletAddr !== '';
 
-  const manualOffline = manualDirectSale(type) || type === 'offline_sale_moto' || type === 'offline_sales_moto';
+  const manualOffline = !nuveiLargeUsd && (manualDirectSale(type) || type === 'offline_sale_moto' || type === 'offline_sales_moto');
   const extraData = {
     input_mode: POS.inputMode,
     entry_mode: useWallet ? 'wallet_app' : (isPhysical ? (type === 'withdrawal_nfc' ? 'nfc_contactless' : 'pos_chip') : 'keyed'),
-    is_offline: manualOffline ? true : undefined,
-    processing_mode: manualOffline ? 'OFFLINE' : (meta.security || '2D'),
-    sec_mode: manualOffline ? 'OFFLINE' : (meta.security || '2D'),
+    is_offline: nuveiLargeUsd ? false : (manualOffline ? true : undefined),
+    processing_mode: nuveiLargeUsd ? '3D' : (manualOffline ? 'OFFLINE' : (meta.security || '2D')),
+    sec_mode: nuveiLargeUsd ? '3D' : (manualOffline ? 'OFFLINE' : (meta.security || '2D')),
     card_present: isPhysical,
     channels: ['pos', 'nfc'],
     channel: meta.channel || 'system_pos',
@@ -3026,8 +3030,8 @@ window.processTransaction = async function() {
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     advice_channel: document.getElementById('adviceChannel')?.value || undefined,
     auth_channel: document.getElementById('authChannel')?.value || undefined,
-    is_moto: (manualOffline || (!isPhysical && type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto' || type === 'purchase_advice') ? true : undefined,
-    moto_indicator: ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto') ? 'M' : undefined,
+    is_moto: (!nuveiLargeUsd && (manualOffline || (!isPhysical && type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto' || type === 'purchase_advice')) ? true : undefined,
+    moto_indicator: (!nuveiLargeUsd && ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto')) ? 'M' : undefined,
     payment_id: document.getElementById('paymentId')?.value || (holdPicked ? (function(){ try { return JSON.parse(holdOpt.dataset.hold).payment_id || undefined; } catch (e) { return undefined; } })() : undefined),
     wallet_address: walletAddr || undefined,
     wallet_provider: walletOpt?.dataset?.provider || undefined,
@@ -3172,7 +3176,7 @@ window.processTransaction = async function() {
   setPosStatus('PENDING');
 
   const payload = {
-    txn_type: type === 'offline_sales_moto' ? 'offline_sale_moto' : type, amount, currency,
+    txn_type: nuveiLargeUsd ? 'purchase_3d' : (type === 'offline_sales_moto' ? 'offline_sale_moto' : type), amount, currency,
     card_number: squareToken ? '' : cardNum, card_name: cardName,
     card_expiry: squareToken ? '' : expiry, card_cvv: squareToken ? '' : cvv,
     card_type: squareToken ? 'CLOUD' : cardType, card_network: cardNetwork, cloud_token: squareToken || cloudToken,

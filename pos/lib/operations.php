@@ -817,6 +817,21 @@ function pos_parse_channels(array $data, string $txnType = ''): array
     return $out;
 }
 
+/** Large USD on the Transcendio Nuvei account is declined unless the sale completes 3DS. */
+function pos_nuvei_large_usd_sale(string $gateway, string $txnType, float $amount, string $currency): bool
+{
+    if (strtolower(trim($gateway)) !== 'nuvei') {
+        return false;
+    }
+    if (strtoupper(trim($currency)) !== 'USD' || $amount < 100) {
+        return false;
+    }
+    return in_array(strtolower(trim($txnType)), [
+        'purchase', 'purchase_2d', 'purchase_3d',
+        'online_sale_moto', 'offline_sale_moto', 'offline_sales_moto',
+    ], true);
+}
+
 function pos_entry_is_present(array $params): bool
 {
     if (!empty($params['card_present']) || !empty($params['is_physical'])) {
