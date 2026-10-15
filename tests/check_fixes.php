@@ -313,7 +313,7 @@ $largeUsd = static function (string $type) use ($nuveiRoute, $keyed): array {
     return $nuveiRoute($type, $keyed + ['amount' => 1000, 'currency' => 'USD']);
 };
 check($largeUsd('purchase_2d') === ['type' => 'purchase_3d', 'mode' => '3D', 'moto' => false, 'offline' => false], 'Nuvei large USD sale completes 3DS');
-check($largeUsd('offline_sale_moto')['type'] === 'purchase_3d' && $largeUsd('offline_sale_moto')['offline'] === false, 'Nuvei large USD offline sale is promoted to 3DS');
+check($largeUsd('offline_sale_moto')['type'] === 'offline_sale_moto' && $largeUsd('offline_sale_moto')['offline'] === true, 'Nuvei large USD offline sale stays a direct offline sale');
 check($nuveiRoute('purchase_2d', $keyed + ['amount' => 1000, 'currency' => 'AED'])['offline'] === true, 'Nuvei large AED sale stays an offline direct sale');
 check($nuveiRoute('purchase_3d', $keyed)['type'] === 'purchase_2d' && $nuveiRoute('purchase_3d', $keyed)['offline'] === true, 'Keyed purchase 3D is an offline direct sale');
 check($nuveiRoute('purchase_advice', $chip)['mode'] === 'MOTO' && $nuveiRoute('purchase_advice', $chip)['offline'] === false, 'Purchase advice stays a direct MOTO sale');

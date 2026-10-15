@@ -2962,7 +2962,7 @@ window.processTransaction = async function() {
   const nuveiLargeUsd = POS_GW === 'nuvei'
     && String(currency).toUpperCase() === 'USD'
     && Number(amount) >= 100
-    && ['purchase','purchase_2d','purchase_3d','online_sale_moto','offline_sale_moto','offline_sales_moto'].includes(type);
+    && ['purchase','purchase_2d','purchase_3d','online_sale_moto'].includes(type);
   if (nuveiLargeUsd) {
     toast(AR
       ? 'دولار كبير على Nuvei: العملية ستكمل 3DS بدل البيع المباشر.'
