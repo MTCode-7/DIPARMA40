@@ -219,12 +219,15 @@ class PaymentOrchestrator
         }
 
         require_once __DIR__ . '/CardScaService.php';
-        CardScaService::markCompleted(
-            (string) ($input['cc_number'] ?? $input['card_number'] ?? ''),
-            (string) ($input['cc_expiry'] ?? $input['card_expiry'] ?? ''),
-            (string) ($input['card_last4'] ?? ''),
-            $reference
-        );
+        $challengePerformed = $orch3ds && CardScaService::shouldChallenge($input);
+        if (CardScaService::shouldRecordCompletedChallenge($challengePerformed, !empty($paymentResult['success']))) {
+            CardScaService::markCompleted(
+                (string) ($input['cc_number'] ?? $input['card_number'] ?? ''),
+                (string) ($input['cc_expiry'] ?? $input['card_expiry'] ?? ''),
+                (string) ($input['card_last4'] ?? ''),
+                $reference
+            );
+        }
 
         // نشر حدث: payment.created
         EventBus::getInstance()->publish('payment.created', [

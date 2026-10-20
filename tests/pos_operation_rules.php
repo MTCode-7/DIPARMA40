@@ -3,6 +3,7 @@
  * Live POS rules: capture sign/over-capture, advice RRN+approval, offline approval, auth receipt pair.
  */
 require_once __DIR__ . '/../pos/lib/operations.php';
+require_once __DIR__ . '/../pos/lib/gateways.php';
 require_once __DIR__ . '/../pos/lib/DirectAdvicePOSProcessor.php';
 require_once __DIR__ . '/../pos/lib/RealOfflineSalesManager.php';
 
@@ -39,6 +40,18 @@ $adviceOk = pos_validate_operation_fields('purchase_advice', $card + ['rrn' => '
 check($adviceOk === [], 'advice with RRN and approval passes');
 $adviceMeta = pos_operation_meta('purchase_advice');
 check(!empty($adviceMeta['requires_rrn']) && !empty($adviceMeta['requires_approval']) && empty($adviceMeta['linked_to_auth']) && !empty($adviceMeta['direct_advice']), 'advice stays a direct settlement');
+$swipedAdvice = pos_prepare_operation_payload('purchase_advice', [
+    'gateway' => 'nuvei',
+    'input_mode' => 'physical',
+    'entry_mode' => 'pos_magstripe',
+]);
+check(empty($swipedAdvice['is_moto']) && !empty($swipedAdvice['card_present']), 'swiped advice is treated as card present, not keyed MOTO');
+$keyedAdvice = pos_prepare_operation_payload('purchase_advice', [
+    'gateway' => 'nuvei',
+    'input_mode' => 'manual',
+    'entry_mode' => 'keyed',
+]);
+check(!empty($keyedAdvice['is_moto']) && empty($keyedAdvice['card_present']), 'manual advice stays keyed MOTO');
 
 $offlineMissing = pos_validate_operation_fields('offline_sale_moto', $card);
 check($offlineMissing !== [] && !in_array('RRN must be exactly 12 digits.', $offlineMissing, true), 'offline requires approval and not RRN');

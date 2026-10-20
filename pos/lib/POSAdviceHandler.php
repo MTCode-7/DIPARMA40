@@ -37,8 +37,19 @@ class POSAdviceHandler
         $pan = preg_replace('/\D/', '', (string) ($transactionData['card_number'] ?? $transactionData['pan'] ?? '')) ?? '';
         $rrn = self::padRrn((string) ($transactionData['rrn'] ?? $transactionData['reference'] ?? $transactionData['reference_number'] ?? ''));
         $stan = self::padStan((string) ($transactionData['stan'] ?? ''));
-        $amount = self::padAmount((float) ($transactionData['amount'] ?? 0));
-        $proc = str_pad(substr(preg_replace('/\D/', '', (string) ($transactionData['processing_code'] ?? '000000')) ?? '000000', 0, 6), 6, '0');
+        $amountValue = (float) ($transactionData['amount'] ?? 0);
+        $amount = self::padAmount(abs($amountValue));
+        $proc = $amountValue < 0
+            ? '200000'
+            : str_pad(substr(preg_replace('/\D/', '', (string) ($transactionData['processing_code'] ?? '000000')) ?? '000000', 0, 6), 6, '0');
+        $entry = strtolower(trim((string) ($transactionData['entry_mode'] ?? $transactionData['input_mode'] ?? '')));
+        $entryMode = in_array($entry, ['physical', 'pos_magstripe', 'magstripe', 'swipe', 'track2', '90'], true)
+            ? '901'
+            : (in_array($entry, ['pos_chip', 'chip', 'insert'], true) ? '051' : '012');
+        $expiryDigits = preg_replace('/\D/', '', (string) ($transactionData['card_expiry'] ?? '')) ?? '';
+        $expiry = strlen($expiryDigits) === 4
+            ? substr($expiryDigits, 2, 2) . substr($expiryDigits, 0, 2)
+            : '';
         $now = date('mdHis');
         $auth = strtoupper(trim((string) ($transactionData['auth_code'] ?? $transactionData['approval_code'] ?? '')));
         $tid = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', (string) ($transactionData['terminal_id'] ?? $transactionData['tid'] ?? '')) ?? '');
@@ -50,9 +61,13 @@ class POSAdviceHandler
         }
         $fields['3'] = $proc;
         $fields['4'] = $amount;
+        $fields['22'] = $entryMode;
         $fields['11'] = $stan;
         $fields['12'] = substr($now, 4, 6);
         $fields['13'] = substr($now, 0, 4);
+        if ($expiry !== '' && (int) substr($expiry, 2, 2) >= 1 && (int) substr($expiry, 2, 2) <= 12) {
+            $fields['14'] = $expiry;
+        }
         if ($rrn !== '') {
             $fields['37'] = $rrn;
         }
@@ -96,6 +111,8 @@ class POSAdviceHandler
             '2_pan' => isset($fields['2']) ? self::maskPan($fields['2']) : '',
             '3_proc_code' => $fields['3'],
             '4_amount' => $fields['4'],
+            '22_entry_mode' => $fields['22'],
+            '14_expiry' => $fields['14'] ?? '',
             '11_stan' => $fields['11'],
             '12_time' => $fields['12'],
             '13_date' => $fields['13'],
@@ -148,18 +165,15 @@ class POSAdviceHandler
         }
 
         $mti = self::normalizeMti((string) ($response['mti'] ?? $response['MTI'] ?? ''), false);
-        if ($mti === '0000' || $mti === '') {
-            $mti = self::MTI_FINANCIAL_ADVICE_RESPONSE;
-        }
-        $code = (string) (
+        $rawCode = trim((string) (
             $response['39']
             ?? $response['39_response_code']
             ?? $response['DE39']
             ?? $response['response_code']
             ?? $response['ResponseCode']
             ?? ''
-        );
-        $code = str_pad(substr($code, 0, 2), 2, '0', STR_PAD_LEFT);
+        ));
+        $code = $rawCode !== '' ? str_pad(substr($rawCode, 0, 2), 2, '0', STR_PAD_LEFT) : '96';
 
         if ($mti !== self::MTI_FINANCIAL_ADVICE_RESPONSE && $mti !== self::MTI_AUTH_ADVICE_RESPONSE) {
             return [
@@ -169,6 +183,16 @@ class POSAdviceHandler
                 'rrn' => $response['37'] ?? $response['37_rrn'] ?? $response['rrn'] ?? null,
                 'mti' => $mti,
                 'message' => 'Unexpected MTI (expected 0230 or 0130): ' . ($mti !== '' ? $mti : 'missing'),
+            ];
+        }
+        if ($rawCode === '') {
+            return [
+                'success' => false,
+                'response_code' => '96',
+                'auth_code' => $response['38'] ?? $response['38_auth_code'] ?? $response['auth_code'] ?? null,
+                'rrn' => $response['37'] ?? $response['37_rrn'] ?? $response['rrn'] ?? null,
+                'mti' => $mti,
+                'message' => 'Missing response code (DE 39) in Advice response.',
             ];
         }
 

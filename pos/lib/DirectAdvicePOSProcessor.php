@@ -4,8 +4,7 @@
  * يدعم المبالغ الكبيرة (مثل حد 5,000,000) بناءً على تعليمات البنك
  *
  * حساب التاجر مقيّد من البنك بـ 5,000,000 فقط.
- * البوابة = اختيار المستخدم (ليست ثابتة على Nuvei).
- * ليس وهمياً: لا تُعاد SUCCESS إلا من المضيف/البوابة المختارة.
+ * لا تُعاد SUCCESS إلا من مضيف Advice البنكي الفعلي.
  */
 if (defined('DI_PARMA_DIRECT_ADVICE_POS')) {
     return;
@@ -63,6 +62,24 @@ class DirectAdvicePOSProcessor
             ];
         }
 
+        $originalDate = is_array($cardToken)
+            ? trim((string) ($cardToken['original_transaction_date'] ?? ''))
+            : '';
+        $dateParts = preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $originalDate, $dateMatch)
+            ? array_map('intval', array_slice($dateMatch, 1))
+            : [];
+        if (count($dateParts) !== 3 || !checkdate($dateParts[1], $dateParts[2], $dateParts[0])) {
+            return [
+                'status' => 'DECLINED',
+                'success' => false,
+                'response_code' => '96',
+                'reference_number' => $referenceNumber,
+                'charged_amount' => abs((float) $amount),
+                'message' => 'A valid original transaction date is required for Purchase Advice.',
+                'gateway' => $this->gateway,
+            ];
+        }
+
         if ($this->gateway === '') {
             return [
                 'status' => 'DECLINED',
@@ -71,9 +88,8 @@ class DirectAdvicePOSProcessor
         }
 
         $this->cardToken = $cardToken;
-        if ((float) $amount < 0) {
-            $amount = abs((float) $amount);
-        }
+        $isCredit = (float) $amount < 0;
+        $amount = abs((float) $amount);
 
         $advicePayload = [
             'mti' => '0220',
@@ -81,7 +97,8 @@ class DirectAdvicePOSProcessor
             'tid' => $this->tid,
             'reference_number' => $referenceNumber,
             'amount' => $amount,
-            'processing_code' => '000000',
+            'processing_code' => $isCredit ? '200000' : '000000',
+            'original_transaction_date' => $originalDate,
             'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
             'timestamp' => date('Y-m-d H:i:s'),
             'gateway' => $this->gateway,
@@ -90,10 +107,7 @@ class DirectAdvicePOSProcessor
         return $this->sendToBankHost($advicePayload);
     }
 
-    /**
-     * إرسال Advice — BANK_ADVICE_HOST إن وُجد، وإلا البوابة المختارة.
-     * SUCCESS فقط من رد المضيف/البوابة (ليس محلياً).
-     */
+    /** Send an ISO 0220 Advice request to the configured bank host only. */
     private function sendToBankHost($payload)
     {
         $cardParams = is_array($this->cardToken)
@@ -122,97 +136,28 @@ class DirectAdvicePOSProcessor
         }
 
         $bankUrl = trim((string) (getenv('BANK_ADVICE_HOST') ?: getenv('DIRECT_ADVICE_HOST') ?: ''));
-        if ($bankUrl !== '') {
-            $iso = POSAdviceHandler::buildAdviceRequest(array_merge($cardParams, [
-                'card_number' => $pan,
-                'amount' => $payload['amount'],
-                'rrn' => $payload['reference_number'],
-                'stan' => $cardParams['stan'] ?? '',
-                'processing_code' => $payload['processing_code'] ?? '000000',
-                'auth_code' => $approval,
-                'terminal_id' => $payload['tid'],
-                'merchant_id' => $payload['mid'],
-            ]), (string) ($payload['mti'] ?? '0220'));
-
-            $body = array_merge($payload, [
-                'card_token' => $tokenStr,
-                'card_expiry' => $cardParams['card_expiry'] ?? '',
-                'auth_code' => $approval,
-                'currency' => $currency,
-                'iso_frame' => $iso['iso_frame'] ?? '',
-                'iso_bitmap' => $iso['bitmap'] ?? '',
-                'iso_fields' => $iso['named'] ?? [],
-            ]);
-
-            $ch = curl_init(rtrim($bankUrl, '/'));
-            curl_setopt_array($ch, [
-                CURLOPT_POST => true,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: application/json',
-                    'Accept: application/json',
-                    'X-MTI: ' . ($iso['mti'] ?? '0220'),
-                    'X-Auth-Type: DIRECT_ADVICE_NO_PRE_AUTH',
-                ],
-                CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
-                CURLOPT_TIMEOUT => 90,
-                CURLOPT_CONNECTTIMEOUT => 20,
-                CURLOPT_SSL_VERIFYPEER => true,
-            ]);
-            $raw = curl_exec($ch);
-            $errno = curl_errno($ch);
-            $err = curl_error($ch);
-            $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            if ($errno || $raw === false) {
-                return [
-                    'status' => 'DECLINED',
-                    'response_code' => '91',
-                    'reference_number' => $payload['reference_number'],
-                    'charged_amount' => $payload['amount'],
-                    'message' => 'فشل الاتصال بمضيف البنك: ' . ($err !== '' ? $err : ('curl ' . $errno)),
-                    'live' => true,
-                    'gateway' => $this->gateway,
-                ];
-            }
-
-            $adviceAck = POSAdviceHandler::handleAdviceResponse((string) $raw);
-            $res = json_decode((string) $raw, true);
-            if (!is_array($res)) {
-                $res = ['raw' => (string) $raw];
-            }
-            $code = (string) ($adviceAck['response_code'] ?? $res['response_code'] ?? $res['ResponseCode'] ?? $res['code'] ?? '');
-            $ok = !empty($adviceAck['success']) || $code === '00';
-
-            $out = [
-                'status' => $ok ? 'SUCCESS' : 'DECLINED',
-                'response_code' => $ok ? '00' : ($code !== '' ? $code : '05'),
-                'reference_number' => $adviceAck['rrn'] ?? $res['reference_number'] ?? $payload['reference_number'],
-                'charged_amount' => $res['charged_amount'] ?? $payload['amount'],
-                'transaction_id' => $res['transaction_id'] ?? $res['transactionId'] ?? '',
-                'approval_code' => $adviceAck['auth_code'] ?? $res['approval_code'] ?? $res['authCode'] ?? $approval,
-                'message' => $adviceAck['message'] ?? $res['message'] ?? ($ok
-                    ? 'تم تنفيذ عملية السحب المباشر بالرقم المرجعي وإرسال الـ Advice بنجاح.'
-                    : 'رفض مضيف البنك عملية الـ Advice.'),
-                'success' => $ok,
-                'live' => true,
-                'gateway' => $this->gateway,
-                'mti' => $adviceAck['mti'] ?? '0230',
-                'iso_frame' => $iso['iso_frame'] ?? '',
-                'gateway_response' => $res,
-            ];
-            $this->recordIso($payload, $iso, $out, (string) ($out['mti'] ?? '0230'));
-            return $out;
-        }
-
-        if ($approval === '' && $tokenStr === '' && strlen($pan) < 13) {
+        if ($bankUrl === '') {
             return [
                 'status' => 'DECLINED',
-                'response_code' => '14',
+                'success' => false,
+                'response_code' => '96',
                 'reference_number' => $payload['reference_number'],
                 'charged_amount' => $payload['amount'],
-                'message' => 'خطأ: يلزم بطاقة/توكن حقيقي ورمز موافقة البنك لإرسال Advice.',
+                'message' => 'BANK_ADVICE_HOST is not configured. No card sale was sent.',
+                'gateway' => $this->gateway,
+            ];
+        }
+        $bankUrlParts = parse_url($bankUrl);
+        if (!is_array($bankUrlParts)
+            || strtolower((string) ($bankUrlParts['scheme'] ?? '')) !== 'https'
+            || empty($bankUrlParts['host'])) {
+            return [
+                'status' => 'DECLINED',
+                'success' => false,
+                'response_code' => '96',
+                'reference_number' => $payload['reference_number'],
+                'charged_amount' => $payload['amount'],
+                'message' => 'BANK_ADVICE_HOST must be a valid HTTPS URL. No card sale was sent.',
                 'gateway' => $this->gateway,
             ];
         }
@@ -228,60 +173,85 @@ class DirectAdvicePOSProcessor
             'merchant_id' => $payload['mid'],
         ]), (string) ($payload['mti'] ?? '0220'));
 
-        $params = array_merge($cardParams, [
-            'amount' => $payload['amount'],
-            'currency' => $currency,
-            'merchant_id' => $payload['mid'],
-            'terminal_id' => $payload['tid'],
-            'reference' => $payload['reference_number'],
-            'client_unique_id' => $payload['reference_number'],
-            'rrn' => $payload['reference_number'],
-            'orig_ref' => $payload['reference_number'],
+        $body = array_merge($payload, [
+            'card_token' => $tokenStr,
+            'card_expiry' => $cardParams['card_expiry'] ?? '',
             'auth_code' => $approval,
-            'approval_code' => $approval,
-            'card_cvv' => '',
-            'is_moto' => false,
-            'txn_type' => 'purchase_advice',
-            'mti' => $payload['mti'],
-            'processing_code' => $payload['processing_code'],
-            'auth_type' => $payload['auth_type'],
-            'direct_advice' => true,
-            'gateway' => $this->gateway,
+            'currency' => $currency,
             'iso_frame' => $iso['iso_frame'] ?? '',
             'iso_bitmap' => $iso['bitmap'] ?? '',
+            'iso_fields' => $iso['named'] ?? [],
         ]);
 
-        if (!function_exists('pos_dispatch_direct_advice_to_gateway')) {
+        $ch = curl_init(rtrim($bankUrl, '/'));
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'X-MTI: ' . ($iso['mti'] ?? '0220'),
+                'X-Auth-Type: DIRECT_ADVICE_NO_PRE_AUTH',
+            ],
+            CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
+            CURLOPT_TIMEOUT => 90,
+            CURLOPT_CONNECTTIMEOUT => 20,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        $raw = curl_exec($ch);
+        $errno = curl_errno($ch);
+        $err = curl_error($ch);
+        $http = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($errno || $raw === false) {
             return [
                 'status' => 'DECLINED',
-                'response_code' => '96',
+                'response_code' => '91',
                 'reference_number' => $payload['reference_number'],
                 'charged_amount' => $payload['amount'],
-                'message' => 'خطأ: مُرسل البوابة غير جاهز.',
+                'message' => 'فشل الاتصال بمضيف البنك: ' . ($err !== '' ? $err : ('curl ' . $errno)),
+                'live' => true,
+                'gateway' => $this->gateway,
+            ];
+        }
+        if ($http < 200 || $http >= 300) {
+            return [
+                'status' => 'DECLINED',
+                'response_code' => '91',
+                'reference_number' => $payload['reference_number'],
+                'charged_amount' => $payload['amount'],
+                'message' => 'Bank Advice host returned HTTP ' . $http . '.',
+                'live' => true,
                 'gateway' => $this->gateway,
             ];
         }
 
-        $gw = pos_dispatch_direct_advice_to_gateway($this->gateway, $params);
-        $hostTxn = trim((string) ($gw['transaction_id'] ?? $gw['payment_id'] ?? ''));
-        $ok = !empty($gw['success']) && $hostTxn !== '';
+        $adviceAck = POSAdviceHandler::handleAdviceResponse((string) $raw);
+        $res = json_decode((string) $raw, true);
+        if (!is_array($res)) {
+            $res = ['raw' => (string) $raw];
+        }
+        $code = (string) ($adviceAck['response_code'] ?? '');
+        $ok = !empty($adviceAck['success']);
 
         $out = [
             'status' => $ok ? 'SUCCESS' : 'DECLINED',
-            'response_code' => $ok ? '00' : (string) ($gw['response_code'] ?? $gw['decline_code'] ?? '05'),
-            'reference_number' => $gw['reference'] ?? $payload['reference_number'],
-            'charged_amount' => $gw['amount'] ?? $payload['amount'],
-            'transaction_id' => $hostTxn,
-            'approval_code' => $gw['approval_code'] ?? $approval,
-            'message' => $gw['message'] ?? ($ok
+            'response_code' => $ok ? '00' : ($code !== '' ? $code : '05'),
+            'reference_number' => $adviceAck['rrn'] ?? $res['reference_number'] ?? $payload['reference_number'],
+            'charged_amount' => $res['charged_amount'] ?? $payload['amount'],
+            'transaction_id' => $res['transaction_id'] ?? $res['transactionId'] ?? '',
+            'approval_code' => $adviceAck['auth_code'] ?? $res['approval_code'] ?? $res['authCode'] ?? $approval,
+            'message' => $adviceAck['message'] ?? $res['message'] ?? ($ok
                 ? 'تم تنفيذ عملية السحب المباشر بالرقم المرجعي وإرسال الـ Advice بنجاح.'
-                : 'رفضت البوابة المختارة عملية السحب المباشر بالرقم المرجعي.'),
+                : 'رفض مضيف البنك عملية الـ Advice.'),
             'success' => $ok,
             'live' => true,
             'gateway' => $this->gateway,
-            'gateway_response' => $gw,
+            'mti' => $adviceAck['mti'] ?? '0230',
+            'gateway_response' => $res,
         ];
-        $this->recordIso($payload, $iso, $out, $ok ? '0230' : '0220');
+        $this->recordIso($payload, $iso, $out, (string) ($out['mti'] ?? '0230'));
         return $out;
     }
 

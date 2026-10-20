@@ -864,6 +864,11 @@ window.applyOpsLegend = function(type) {
     el.innerHTML = '';
     return;
   }
+  if (type === 'purchase_advice' && (cardType === 'CLOUD' || cardNum.length < 13)) {
+    toast(AR ? 'أدخل رقم البطاقة الحقيقي يدوياً أو امسحه من قارئ متصل' : 'Enter a real card number manually or swipe it through a connected reader', 'error');
+    document.getElementById('cardNumber')?.focus();
+    return;
+  }
   el.innerHTML = [
     legendChipHtml(row.card, AR ? 'بطاقة' : 'PAN', AR ? 'بطاقة' : 'PAN'),
     legendChipHtml(row.exp, AR ? 'انتهاء' : 'Exp', AR ? 'انتهاء' : 'Exp'),
@@ -1175,6 +1180,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
   </div>
 
   <!-- Card Details Form -->
+  <span id="cardSectionHome"></span>
   <div class="form-section" id="cardSection">
     <div class="form-title"><i class="fas fa-credit-card" id="cardFormIcon"></i>
       <span id="cardFormTitle"><?=$ar?'بيانات البطاقة':'Card Details'?></span>
@@ -1187,7 +1193,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       </button>
       <button type="button" class="mode-btn <?=$startMode==='physical'?'active':''?>" id="modePhysical" onclick="setInputMode('physical')">
         <strong><i class="fas fa-sim-card"></i> <?=$ar?'فيزيكل':'Physical'?></strong>
-        <span><?=$ar?'تمرير الشريحة في POS أو لمس NFC':'Insert chip on POS or tap NFC'?></span>
+        <span><?=$ar?'تمرير البطاقة من قارئ متصل':'Swipe card using a connected reader'?></span>
       </button>
     </div>
 
@@ -1196,8 +1202,8 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
         <div style="font-size:1.6rem;margin-bottom:8px"><i class="fas fa-credit-card" style="color:var(--green)"></i></div>
         <div style="font-weight:800;color:var(--green);margin-bottom:6px" id="physTitle"><?=$ar?'قارئ POS الحقيقي مطلوب':'A real POS reader is required'?></div>
         <div style="font-size:.74rem;color:var(--muted2)" id="physHint"><?=$ar
-          ? ('لا محاكاة — الشريحة أو المغناطيس من '.htmlspecialchars($posDevice['label']).'. مرّر البطاقة الآن. TID حقيقي مطلوب — ليس الرقم التسلسلي.')
-          : ('No simulation — chip/magstripe from '.htmlspecialchars($posDevice['label']).'. Swipe now. Use a real TID — not the device serial.')?></div>
+          ? ('مرّر البطاقة عبر قارئ مغناطيسي متصل. الشريحة أو NFC لا تنقل PAN إلى المتصفح. TID حقيقي مطلوب.')
+          : ('Swipe through a connected magstripe reader. Chip/NFC does not pass PAN to the browser. A real TID is required.')?></div>
         <input id="wedgeCapture" type="text" inputmode="none" autocomplete="off" autocapitalize="off" spellcheck="false"
           style="margin-top:12px;width:100%;background:#020508;border:1px dashed rgba(16,185,129,.45);color:var(--green);border-radius:10px;padding:12px;font-weight:800;letter-spacing:.04em"
           placeholder="<?=$ar?'مرّر البطاقة هنا':'Swipe the card here'?>">
@@ -1301,6 +1307,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     </div>
     </div>
 
+    <span id="txnAmountHome"></span>
     <div class="fld-row" id="txnAmountRow">
       <div class="fld" id="txnAmountFieldWrap">
         <label id="txnAmountLabel"><?=$ar?'المبلغ':'Amount'?></label>
@@ -2244,6 +2251,13 @@ window.applyOpsLegend = function(type) {
 
 window.selectTxnType = function(type, el) {
   POS.txnType = type;
+  const cloudCardOption = document.getElementById('optCloudGw');
+  if (cloudCardOption) cloudCardOption.disabled = type === 'purchase_advice';
+  if (type === 'purchase_advice') {
+    const cardType = document.getElementById('cardType');
+    if (cardType) cardType.value = 'LIVE';
+    toggleCloudCard();
+  }
   document.querySelectorAll('.txn-btn').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-type') === type);
   });
@@ -2278,9 +2292,30 @@ window.selectTxnType = function(type, el) {
   }
 
   renderExtraFields(type);
+  arrangeAdviceSteps(type);
   applyOpsLegend(type);
   if ((type === 'capture' || type === 'purchase_advice') && typeof syncCaptureSplit === 'function') syncCaptureSplit();
 };
+
+function arrangeAdviceSteps(type) {
+  const cardHome = document.getElementById('cardSectionHome');
+  const amountHome = document.getElementById('txnAmountHome');
+  const card = document.getElementById('cardSection');
+  const amount = document.getElementById('txnAmountRow');
+  const extra = document.getElementById('extraFields');
+  if (!cardHome || !amountHome || !card || !amount || !extra) return;
+  if (type === 'purchase_advice') {
+    extra.insertAdjacentElement('afterend', amount);
+    amount.insertAdjacentElement('afterend', card);
+  } else {
+    cardHome.insertAdjacentElement('afterend', card);
+    amountHome.insertAdjacentElement('afterend', amount);
+  }
+  const title = document.getElementById('cardFormTitle');
+  if (title) title.textContent = type === 'purchase_advice'
+    ? (AR ? 'الخطوة الأخيرة: إدخال البطاقة' : 'Final step: enter the card')
+    : (AR ? 'بيانات البطاقة' : 'Card Details');
+}
 
 function renderExtraFields(type) {
   const el = document.getElementById('extraFields');
@@ -2326,12 +2361,29 @@ function renderExtraFields(type) {
   const offlineSale = type === 'offline_sale_moto' || type === 'offline_sales_moto';
   const showRrn = ((type === 'online_sale_moto' && !manualDirectSale(type)) || type === 'purchase_advice' || type === 'capture');
   const showApproval = showRrn || offlineSale;
+  if (type === 'purchase_advice') {
+    html += `<div class="info-banner" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.74rem;line-height:1.7">
+      <strong style="color:#fbbf24">${AR ? 'خطوات Purchase Advice' : 'Purchase Advice steps'}</strong>
+      <ol style="margin:6px 0 0;padding-inline-start:22px">
+        <li>${AR ? 'أدخل رقم العملية الأصلية (RRN) وتاريخها ورمز الموافقة.' : 'Enter the original transaction RRN, date, and approval code.'}</li>
+        <li>${AR ? 'أدخل مبلغ التسوية والعملة.' : 'Enter the settlement amount and currency.'}</li>
+        <li>${AR ? 'أدخل البطاقة يدوياً، أو اختر Physical ومرّرها عبر قارئ متصل.' : 'Enter the card manually, or choose Physical and swipe it through a connected reader.'}</li>
+      </ol>
+      <div style="margin-top:6px;color:var(--muted2)">${AR ? 'لا تدخل CVV لهذه العملية. الشريحة أو NFC لا ترسل رقم البطاقة إلى صفحة الويب.' : 'Do not enter a CVV for this operation. Chip or NFC does not pass the card number to this web page.'}</div>
+    </div>`;
+  }
   if (showRrn) {
     const lock = type === 'capture' ? ' readonly' : '';
     html += `<div class="fld">
       <label>RRN ${type === 'capture' ? '<span style="color:var(--muted);font-weight:600">('+(AR?'من إيصال الحجز':'from the hold receipt')+')</span>' : '<span style="color:var(--red)">*</span>'}</label>
       <input type="text" id="origRef" maxlength="12" inputmode="numeric" placeholder="000000000000"${lock}
         oninput="if(!this.readOnly)this.value=this.value.replace(/\\D/g,'').slice(0,12)">
+    </div>`;
+  }
+  if (type === 'purchase_advice') {
+    html += `<div class="fld">
+      <label>${AR ? 'تاريخ العملية الأصلية' : 'Original transaction date'} <span style="color:var(--red)">*</span></label>
+      <input type="date" id="originalTransactionDate" required>
     </div>`;
   }
   if (showApproval) {
@@ -2902,6 +2954,9 @@ window.formatExp = function(el) {
 };
 
 window.toggleCloudCard = function() {
+  if (POS.txnType === 'purchase_advice' && document.getElementById('cardType').value === 'CLOUD') {
+    document.getElementById('cardType').value = 'LIVE';
+  }
   const isCloud = document.getElementById('cardType').value === 'CLOUD';
   document.getElementById('cloudTokenField').style.display = isCloud ? '' : 'none';
   ['livePanWrap','liveExpWrap','liveCvvWrap'].forEach(id => {
@@ -2927,11 +2982,10 @@ window.setInputMode = function(mode) {
   }
   setPosStatus(mode === 'physical'
     ? (AR ? 'بانتظار تمرير البطاقة على القارئ' : 'WAITING CARD ON READER')
-    : (AR ? 'مانول — أوفلاين مباشر بلا RRN' : 'MANUAL — OFFLINE DIRECT, NO RRN'));
-  if (POS.txnType && typeof renderExtraFields === 'function') {
-    renderExtraFields(POS.txnType);
-    if (typeof applyOpsLegend === 'function') applyOpsLegend(POS.txnType);
-  }
+    : (POS.txnType === 'purchase_advice'
+      ? (AR ? 'مانول — أدخل بيانات بطاقة العملية' : 'MANUAL — ENTER ADVICE CARD DETAILS')
+      : (AR ? 'مانول — أوفلاين مباشر بلا RRN' : 'MANUAL — OFFLINE DIRECT, NO RRN')));
+  if (POS.txnType && typeof applyOpsLegend === 'function') applyOpsLegend(POS.txnType);
   if (mode === 'physical') {
     const w = document.getElementById('wedgeCapture');
     if (w) {
@@ -2993,6 +3047,7 @@ window.processTransaction = async function() {
   const cardType = document.getElementById('cardType').value;
   const cardNetwork = document.getElementById('cardNetwork')?.value || 'auto';
   const cloudToken = document.getElementById('cloudToken').value.trim();
+  const originalTransactionDate = document.getElementById('originalTransactionDate')?.value || '';
   const bankRrnDigits = String((document.querySelector('#extraFields #origRef') || document.getElementById('origRef'))?.value || '').replace(/\D/g, '');
   const holdOpt = type === 'capture' ? document.getElementById('openHoldSelect')?.selectedOptions?.[0] : null;
   const holdPicked = !!(holdOpt && holdOpt.dataset && holdOpt.dataset.hold);
@@ -3022,7 +3077,9 @@ window.processTransaction = async function() {
   const manualOffline = type === 'offline_sale_moto' || type === 'offline_sales_moto';
   const extraData = {
     input_mode: POS.inputMode,
-    entry_mode: useWallet ? 'wallet_app' : (isPhysical ? (type === 'withdrawal_nfc' ? 'nfc_contactless' : 'pos_chip') : 'keyed'),
+    entry_mode: useWallet ? 'wallet_app' : (isPhysical
+      ? (type === 'purchase_advice' ? 'pos_magstripe' : (type === 'withdrawal_nfc' ? 'nfc_contactless' : 'pos_chip'))
+      : 'keyed'),
     is_offline: nuveiLargeUsd ? false : (manualOffline ? true : undefined),
     processing_mode: nuveiLargeUsd ? '3D' : (manualOffline ? 'OFFLINE' : (meta.security || '2D')),
     sec_mode: nuveiLargeUsd ? '3D' : (manualOffline ? 'OFFLINE' : (meta.security || '2D')),
@@ -3047,8 +3104,9 @@ window.processTransaction = async function() {
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     advice_channel: document.getElementById('adviceChannel')?.value || undefined,
     auth_channel: document.getElementById('authChannel')?.value || undefined,
-    is_moto: (!nuveiLargeUsd && (manualOffline || (!isPhysical && type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto' || type === 'purchase_advice')) ? true : undefined,
-    moto_indicator: (!nuveiLargeUsd && ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto')) ? 'M' : undefined,
+    is_moto: (!nuveiLargeUsd && (manualOffline || (!isPhysical && type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto' || (type === 'purchase_advice' && !isPhysical))) ? true : undefined,
+    moto_indicator: (!nuveiLargeUsd && ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto' || (type === 'purchase_advice' && !isPhysical))) ? 'M' : undefined,
+    original_transaction_date: originalTransactionDate || undefined,
     payment_id: document.getElementById('paymentId')?.value || (holdPicked ? (function(){ try { return JSON.parse(holdOpt.dataset.hold).payment_id || undefined; } catch (e) { return undefined; } })() : undefined),
     wallet_address: walletAddr || undefined,
     wallet_provider: walletOpt?.dataset?.provider || undefined,
@@ -3097,6 +3155,11 @@ window.processTransaction = async function() {
     if (!isFinite(amount) || amount === 0) {
       toast(AR?'أدخل مبلغاً موجباً أو سالباً':'Enter a positive or negative amount', 'error'); return;
     }
+    if (type === 'purchase_advice' && !/^\d{4}-\d{2}-\d{2}$/.test(originalTransactionDate)) {
+      toast(AR ? 'أدخل تاريخ العملية الأصلية' : 'Enter the original transaction date', 'error');
+      document.getElementById('originalTransactionDate')?.focus();
+      return;
+    }
   } else if (amount <= 0 && type !== 'avoid' && type !== 'capture') {
     toast(AR?'أدخل المبلغ':'Enter amount', 'error'); return;
   }
@@ -3126,7 +3189,7 @@ window.processTransaction = async function() {
     }
   }
   const needsCard = POS_REQUIRES_CARD && cardType !== 'CLOUD' && meta.requires_card !== false && !['refund','avoid'].includes(type);
-  if (needsCard && !['capture'].includes(type) && (!cardName || /^(cardholder|guest|test|customer|client)$/i.test(cardName.replace(/\s+/g, '')))) {
+  if (needsCard && !['capture'].includes(type) && !(type === 'purchase_advice' && isPhysical) && (!cardName || /^(cardholder|guest|test|customer|client)$/i.test(cardName.replace(/\s+/g, '')))) {
     toast(AR ? 'أدخل الاسم كما على البطاقة — ليس اسماً وهمياً.' : 'Enter the name on the card — not a placeholder.', 'error');
     document.getElementById('cardName')?.focus();
     return;

@@ -289,9 +289,7 @@ final class SquareAdapter implements GatewayAdapterInterface, GatewayCapabilitie
     public function capture(string $transactionId, ?float $amount = null): array
     {
         if ($this->sandbox) {
-            throw new \RuntimeException(
-                'SquareAdapter is running in sandbox mode. Set SQUARE_ENVIRONMENT=production in .env.'
-            );
+            return $this->sandboxBlocked($transactionId, $amount ?? 0, 'USD');
         }
         if ($this->accessToken === '') {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, 0, 'USD', 'SQUARE_ACCESS_TOKEN missing');
@@ -301,10 +299,19 @@ final class SquareAdapter implements GatewayAdapterInterface, GatewayCapabilitie
         if ($amount !== null && $amount < 0) {
             $amount = abs($amount);
         }
+        // نجلب عملة الـ payment الأصلية أولاً لضمان تطابق العملة مع الـ location
+        $paymentCurrency = 'USD';
         if ($amount !== null && $amount > 0) {
+            // جلب الـ payment لمعرفة عملته الصحيحة
+            $existingPayment = $this->request('GET', '/v2/payments/' . rawurlencode($transactionId));
+            $paymentCurrency = strtoupper((string) (
+                $existingPayment['payment']['amount_money']['currency']
+                ?? $existingPayment['payment']['approved_money']['currency']
+                ?? 'USD'
+            ));
             $body['amount_money'] = [
                 'amount'   => $this->toMinorUnits($amount),
-                'currency' => 'USD',
+                'currency' => $paymentCurrency,
             ];
         }
 
@@ -335,15 +342,13 @@ final class SquareAdapter implements GatewayAdapterInterface, GatewayCapabilitie
         }
 
         GatewayLogger::log('square', 'capture', ['transaction_id' => $transactionId], $res, $this->normalizeError($res), microtime(true) - $start);
-        return $this->declineFromSquare($res, $transactionId, $amount ?? 0, 'USD');
+        return $this->declineFromSquare($res, $transactionId, $amount ?? 0, $paymentCurrency);
     }
 
     public function cancel(string $transactionId, string $reason = 'requested_by_customer'): array
     {
         if ($this->sandbox) {
-            throw new \RuntimeException(
-                'SquareAdapter is running in sandbox mode. Set SQUARE_ENVIRONMENT=production in .env.'
-            );
+            return $this->sandboxBlocked($transactionId, 0, 'USD');
         }
         if ($this->accessToken === '') {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, 0, 'USD', 'SQUARE_ACCESS_TOKEN missing');
@@ -368,15 +373,15 @@ final class SquareAdapter implements GatewayAdapterInterface, GatewayCapabilitie
         }
 
         GatewayLogger::log('square', 'cancel', ['transaction_id' => $transactionId], $res, $this->normalizeError($res), microtime(true) - $start);
-        return $this->declineFromSquare($res, $transactionId, 0, 'USD');
+        // نستخدم عملة الـ payment من الـ response إذا توفرت، وإلا 'USD' كـ fallback
+        $cancelCurrency = strtoupper((string) ($payment['amount_money']['currency'] ?? 'USD'));
+        return $this->declineFromSquare($res, $transactionId, 0, $cancelCurrency);
     }
 
     public function refund(string $transactionId, ?float $amount = null, string $currency = 'USD'): array
     {
         if ($this->sandbox) {
-            throw new \RuntimeException(
-                'SquareAdapter is running in sandbox mode. Set SQUARE_ENVIRONMENT=production in .env.'
-            );
+            return $this->sandboxBlocked($transactionId, $amount ?? 0, $currency);
         }
         if ($this->accessToken === '') {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $transactionId, $amount ?? 0, $currency, 'SQUARE_ACCESS_TOKEN missing');
@@ -428,6 +433,17 @@ final class SquareAdapter implements GatewayAdapterInterface, GatewayCapabilitie
 
         GatewayLogger::log('square', 'refund', ['transaction_id' => $transactionId], $res, $this->normalizeError($res), microtime(true) - $start);
         return $this->declineFromSquare($res, $transactionId, $amount, $currency);
+    }
+
+    private function sandboxBlocked(string $reference, float $amount, string $currency): array
+    {
+        return GatewayErrorMapper::buildErrorResponse(
+            'GATEWAY_ERROR',
+            $reference,
+            $amount,
+            $currency,
+            'Square sandbox mode blocks live payment operations. Configure production credentials.'
+        );
     }
 
     /* ============================================================
@@ -531,9 +547,7 @@ final class SquareAdapter implements GatewayAdapterInterface, GatewayCapabilitie
 
         // 2. sandbox — رفض صريح بدل استجابة وهمية
         if ($this->sandbox) {
-            throw new \RuntimeException(
-                'SquareAdapter is running in sandbox mode. Set SQUARE_ENVIRONMENT=production in .env.'
-            );
+            return $this->sandboxBlocked($reference, $amount, $currency);
         }
 
         // 3. فحوصات أساسية

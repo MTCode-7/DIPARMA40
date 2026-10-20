@@ -365,9 +365,18 @@ class NuveiAdapter implements GatewayAdapterInterface {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', '', 0, '', 'NUVEI credentials missing');
         }
 
-        $ts  = date('YmdHis');
-        $ref = 'CAP' . time();
-        $amt = number_format(floatval($amount ?? 0), 2, '.', '');
+        $ts       = date('YmdHis');
+        $ref      = 'CAP-' . strtoupper(substr(uniqid(), 0, 8));
+        $amtFloat = floatval($amount ?? 0);
+        $amt      = number_format($amtFloat, 2, '.', '');
+        // العملة: تُمرَّر من الـ caller — إذا لم تُمرَّر نجلبها من الـ transaction عبر Nuvei أو نستخدم USD كـ fallback آمن
+        $currency = 'USD';
+        if (is_array($amount) && isset($amount['currency'])) {
+            // دعم استدعاء: capture($id, ['amount'=>x,'currency'=>'AED'])
+            $currency = strtoupper(trim((string) $amount['currency']));
+            $amtFloat = floatval($amount['amount'] ?? 0);
+            $amt      = number_format($amtFloat, 2, '.', '');
+        }
 
         $body = [
             'merchantId'           => $this->merchantId,
@@ -375,10 +384,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'clientRequestId'      => $ref,
             'clientUniqueId'       => $ref,
             'amount'               => $amt,
-            'currency'             => 'USD',
+            'currency'             => $currency,
             'relatedTransactionId' => $transactionId,
             'timeStamp'            => $ts,
-            'checksum'             => $this->relatedChecksum($ref, $ref, $amt, 'USD', $transactionId, $ts),
+            'checksum'             => $this->relatedChecksum($ref, $ref, $amt, $currency, $transactionId, $ts),
             'urlDetails'           => ['notificationUrl' => $this->restUrlDetails()['notificationUrl']],
         ];
 
@@ -386,16 +395,18 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $success  = $this->nuveiTxnApproved($res);
 
         if ($success) {
-            $this->log("✓ Capture: {$transactionId} | ref={$ref}");
+            $this->log("✓ Capture: {$transactionId} | ref={$ref} | currency={$currency}");
             return [
                 'success'        => true,
                 'status'         => 'captured',
                 'transaction_id' => $res['transactionId'] ?? $transactionId,
                 'reference'      => $res['clientUniqueId'] ?? $ref,
-                'amount'         => floatval($amount ?? 0),
-                'currency'       => 'USD',
+                'amount'         => $amtFloat,
+                'currency'       => $res['currency'] ?? $currency,
                 'message'        => '✅ تم تحصيل المبلغ عبر Nuvei',
                 'approval_code'  => $res['authCode'] ?? '',
+                'rrn'            => $res['rrn'] ?? $res['retrievalReferenceNumber'] ?? '',
+                'nuvei_txn_id'   => $res['transactionId'] ?? $transactionId,
                 'error_code'     => '',
                 'requires_3ds'   => false,
                 'client_secret'  => '',
@@ -408,7 +419,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
         $errCode = $this->normalizeError($res);
         $this->log("✗ Capture failed: " . json_encode($res));
-        return GatewayErrorMapper::buildErrorResponse($errCode, $transactionId, floatval($amount ?? 0), 'USD',
+        return GatewayErrorMapper::buildErrorResponse($errCode, $transactionId, $amtFloat, $currency,
             $res['gwErrorReason'] ?? $res['reason'] ?? $res['errCode'] ?? 'Nuvei capture failed');
     }
 
@@ -435,13 +446,12 @@ class NuveiAdapter implements GatewayAdapterInterface {
             $amountRaw = abs($amountRaw);
             $amount = number_format($amountRaw, 2, '.', '');
         }
-        if ($authCode === '') {
-            return ['success' => false, 'message' => 'Nuvei Auth Code is required for capture'];
-        }
+        // authCode اختياري: Nuvei تقبل settleTransaction بدونه إذا كان relatedTransactionId صحيحاً.
+        // إذا أرسله المشغّل نُضمّنه، إذا لم يرسله نُرسل الطلب بدونه.
 
         $checksum = $this->relatedChecksum($clientReqId, $clientUniqueId, $amount, $currency, $relatedId, $ts);
 
-        $result = $this->request('settleTransaction', [
+        $body = [
             'merchantId'            => $this->merchantId,
             'merchantSiteId'        => $this->siteId,
             'clientRequestId'       => $clientReqId,
@@ -449,11 +459,16 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'amount'                => $amount,
             'currency'              => $currency,
             'relatedTransactionId'  => $relatedId,
-            'authCode'              => $authCode,
             'timeStamp'             => $ts,
             'checksum'              => $checksum,
             'urlDetails'            => ['notificationUrl' => $this->restUrlDetails($clientUniqueId)['notificationUrl']],
-        ]);
+        ];
+        // أضف authCode فقط إذا تم توفيره — لا تُرسل حقلاً فارغاً
+        if ($authCode !== '') {
+            $body['authCode'] = $authCode;
+        }
+
+        $result = $this->request('settleTransaction', $body);
 
         return $this->normalizeResponse('capture', $result, $clientReqId);
     }
@@ -468,7 +483,22 @@ class NuveiAdapter implements GatewayAdapterInterface {
         }
 
         $ts  = date('YmdHis');
-        $ref = 'VOD' . time();
+        $ref = 'VOD-' . strtoupper(substr(uniqid(), 0, 8));
+
+        // Nuvei void: amount=0.00 مطلوب لكن currency يجب أن تُطابق الـ transaction الأصلية.
+        // نجلبها من الـ reason string إذا مرّرها الـ caller (convention: reason='USD' or 'AED')
+        // أو من DB عبر helper إذا متاح، أو USD كـ safe fallback.
+        $currency = 'USD';
+        if (strlen($reason) === 3 && ctype_alpha($reason)) {
+            // caller مرّر currency code بدل reason string
+            $currency = strtoupper($reason);
+            $reason   = 'requested_by_customer';
+        } elseif (function_exists('nuvei_fetch_txn_currency')) {
+            $fetched = nuvei_fetch_txn_currency($transactionId);
+            if ($fetched !== '') {
+                $currency = strtoupper($fetched);
+            }
+        }
 
         $body = [
             'merchantId'           => $this->merchantId,
@@ -476,24 +506,24 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'clientRequestId'      => $ref,
             'clientUniqueId'       => $ref,
             'amount'               => '0.00',
-            'currency'             => 'USD',
+            'currency'             => $currency,
             'relatedTransactionId' => $transactionId,
             'timeStamp'            => $ts,
-            'checksum'             => $this->relatedChecksum($ref, $ref, '0.00', 'USD', $transactionId, $ts),
+            'checksum'             => $this->relatedChecksum($ref, $ref, '0.00', $currency, $transactionId, $ts),
         ];
 
         $res     = $this->post('/voidTransaction.do', $body);
         $success = $this->nuveiTxnApproved($res);
 
         if ($success) {
-            $this->log("✓ Void: {$transactionId}");
+            $this->log("✓ Void: {$transactionId} | currency={$currency}");
             return [
                 'success'        => true,
                 'status'         => 'cancelled',
-                'transaction_id' => $transactionId,
+                'transaction_id' => $res['transactionId'] ?? $transactionId,
                 'reference'      => $ref,
                 'amount'         => 0,
-                'currency'       => 'USD',
+                'currency'       => $res['currency'] ?? $currency,
                 'message'        => '✅ تم إلغاء العملية عبر Nuvei',
                 'error_code'     => '',
                 'requires_3ds'   => false,
@@ -507,7 +537,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
         $errCode = $this->normalizeError($res);
         $this->log("✗ Void failed: " . json_encode($res));
-        return GatewayErrorMapper::buildErrorResponse($errCode, $transactionId, 0, '',
+        return GatewayErrorMapper::buildErrorResponse($errCode, $transactionId, 0, $currency,
             $res['gwErrorReason'] ?? $res['reason'] ?? $res['errCode'] ?? 'Nuvei void failed');
     }
 
@@ -727,6 +757,13 @@ class NuveiAdapter implements GatewayAdapterInterface {
         if ($ident !== null) {
             return $ident;
         }
+        $adviceRrn = null;
+        if (strtolower(trim((string) ($params['txn_type'] ?? ''))) === 'purchase_advice') {
+            $adviceRrn = $this->purchaseAdviceRrn($params);
+            if ($adviceRrn === null) {
+                return ['success' => false, 'message' => 'Purchase advice requires a 12-digit bank RRN'];
+            }
+        }
         $sessionRes = $this->getSessionToken();
         if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
             return ['success' => false, 'message' => 'Session token failed: ' . ($sessionRes['reason'] ?? 'Unknown')];
@@ -802,6 +839,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
                 'customField4' => $offline ? 'OFFLINE' : ($isMoto ? 'MOTO' : (!empty($params['card_present']) ? 'CARD' : 'ECOM')),
             ],
         ];
+        if ($adviceRrn !== null) {
+            // /payment has no caller-supplied RRN field; customData preserves it for Nuvei reporting.
+            $body['customData'] = $this->buildPurchaseAdviceCustomData($adviceRrn);
+        }
         if ($initTxnId !== '') {
             $body['relatedTransactionId'] = $initTxnId;
         }
@@ -824,7 +865,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'transactionId' => $result['transactionId'] ?? null,
         ]));
         $normalized = $this->normalizeResponse('purchase', $result, $clientReqId);
-        if (!empty($normalized['success'])) {
+        if (CardScaService::shouldRecordCompletedChallenge($need3ds, !empty($normalized['success']))) {
             CardScaService::markCompleted(
                 (string) ($params['card_number'] ?? $params['cc_number'] ?? ''),
                 (string) ($params['card_expiry'] ?? $params['cc_expiry'] ?? ''),
@@ -835,14 +876,26 @@ class NuveiAdapter implements GatewayAdapterInterface {
         return $normalized;
     }
 
+    private function purchaseAdviceRrn(array $params): ?string
+    {
+        foreach (['bank_rrn', 'rrn', 'orig_ref'] as $key) {
+            $rrn = preg_replace('/\D+/', '', (string) ($params[$key] ?? '')) ?? '';
+            if (preg_match('/^\d{12}$/', $rrn)) {
+                return $rrn;
+            }
+        }
+        return null;
+    }
+
     /**
-     * Purchase Advice — direct Sale (MTI 0220). No prior hold.
-     * A negative amount is still sent as a card debit of the absolute value.
+     * Submit an actual ISO 0220 Advice to the configured bank advice host.
+     * A negative amount is sent as a debit of the absolute value.
      */
     public function purchaseAdvice(array $params): array
     {
-        if (empty($this->merchantId) || $this->secretKey === '') {
-            return ['success' => false, 'message' => 'NUVEI credentials missing for Direct Advice'];
+        $rrn = $this->purchaseAdviceRrn($params);
+        if ($rrn === null) {
+            return ['success' => false, 'message' => 'Purchase advice requires a 12-digit bank RRN'];
         }
 
         $amountRaw = (float) ($params['amount'] ?? 0);
@@ -850,25 +903,36 @@ class NuveiAdapter implements GatewayAdapterInterface {
             return ['success' => false, 'message' => 'Purchase advice amount is required'];
         }
 
-        $params['card_cvv'] = '';
-        $params['direct_advice'] = true;
-        $params['is_moto'] = true;
-        $params['txn_type'] = 'purchase_advice';
-        if ($amountRaw < 0) {
-            $params['advice_sign'] = 'minus';
-            $params['amount_sign'] = 'minus';
-            $amountRaw = abs($amountRaw);
-        }
-        $params['amount'] = $amountRaw;
-        $params['transactionType'] = 'Sale';
+        require_once dirname(__DIR__, 2) . '/pos/lib/DirectAdvicePOSProcessor.php';
+        $processor = new DirectAdvicePOSProcessor(
+            (string) ($params['merchant_id'] ?? $params['mid'] ?? ''),
+            (string) ($params['terminal_id'] ?? $params['tid'] ?? ''),
+            'nuvei'
+        );
+        $result = $processor->executeDirectAdviceSale($rrn, $amountRaw, $params);
+        $success = !empty($result['success']);
+        $transactionId = trim((string) ($result['transaction_id'] ?? ''));
 
-        $normalized = $this->purchase($params);
-        $normalized['mti'] = '0220';
-        $normalized['auth_type'] = 'DIRECT_ADVICE_NO_PRE_AUTH';
-        if (!empty($normalized['success'])) {
-            $normalized['response_code'] = '00';
-        }
-        return $normalized;
+        return [
+            'success' => $success,
+            'status' => $success ? 'completed' : 'failed',
+            'txn_type' => 'purchase_advice',
+            'reference' => (string) ($result['reference_number'] ?? $params['reference'] ?? ''),
+            'transaction_id' => $transactionId,
+            'payment_id' => $transactionId,
+            'nuvei_txn_id' => $transactionId,
+            'rrn' => (string) ($result['reference_number'] ?? $rrn),
+            'approval_code' => (string) ($result['approval_code'] ?? ''),
+            'response_code' => (string) ($result['response_code'] ?? ''),
+            'amount' => abs($amountRaw),
+            'currency' => strtoupper((string) ($params['currency'] ?? 'USD')),
+            'mti' => (string) ($result['mti'] ?? ($success ? '0230' : '0220')),
+            'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
+            'message' => (string) ($result['message'] ?? 'Bank Advice host rejected the request'),
+            'raw' => $result['gateway_response'] ?? $result,
+            'acquirer' => 'nuvei',
+            'settlement_target' => 'gateway',
+        ];
     }
 
     // ── Authorization — تفويض (حجز) ───────────────────────
@@ -1036,15 +1100,14 @@ class NuveiAdapter implements GatewayAdapterInterface {
             return ['success' => false, 'message' => 'related_transaction_id required for refund'];
         }
 
-        $checksum = $this->buildChecksum([
-            $this->merchantId,
-            $this->siteId,
+        $checksum = $this->relatedChecksum(
             $clientReqId,
-            $relatedId,
+            $clientReqId,
             $amount,
             $currency,
-            $this->secretKey,
-        ]);
+            $relatedId,
+            $ts
+        );
 
         $result = $this->request('refundTransaction', [
             'sessionToken'          => $sessionRes['sessionToken'] ?? '',
@@ -1073,18 +1136,14 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
         $ts          = date('YmdHis');
         $clientReqId = 'POS-VOD-' . strtoupper(substr(uniqid(), 0, 8));
-        $amount      = number_format((float)$params['amount'], 2, '.', '');
-        $currency    = $params['currency'] ?? 'USD';
+        $relatedId   = (string) ($params['related_transaction_id'] ?? '');
+        // Nuvei void: amount=0.00 صحيح — البنك يُلغي المبلغ كاملاً
+        $amount      = '0.00';
+        $currency    = strtoupper((string) ($params['currency'] ?? 'USD'));
 
-        $checksum = $this->buildChecksum([
-            $this->merchantId,
-            $this->siteId,
-            $clientReqId,
-            $params['related_transaction_id'],
-            $amount,
-            $currency,
-            $this->secretKey,
-        ]);
+        // checksum صحيح: merchantId + siteId + clientRequestId + clientUniqueId
+        //                 + amount + currency + relatedTransactionId + timeStamp + secretKey
+        $checksum = $this->relatedChecksum($clientReqId, $clientReqId, $amount, $currency, $relatedId, $ts);
 
         $result = $this->request('voidTransaction', [
             'sessionToken'          => $sessionRes['sessionToken'],
@@ -1094,7 +1153,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'clientUniqueId'        => $clientReqId,
             'amount'                => $amount,
             'currency'              => $currency,
-            'relatedTransactionId'  => $params['related_transaction_id'],
+            'relatedTransactionId'  => $relatedId,
             'timeStamp'             => $ts,
             'checksum'              => $checksum,
         ]);
@@ -1319,7 +1378,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'rrn'              => $raw['rrn']                 ?? $raw['retrievalReferenceNumber'] ?? null,
             'status'           => $status,
             'txn_status'       => $txnStatus,
-            'amount'           => $raw['totalAmount']        ?? null,
+            'amount'           => $raw['totalAmount'] ?? $raw['amount'] ?? null,
             'currency'         => $raw['currency']           ?? null,
             'message'          => $needs3ds ? '3DS_REQUIRED' : $reason,
             'decline_reason'   => $success || $needs3ds ? null : $reason,

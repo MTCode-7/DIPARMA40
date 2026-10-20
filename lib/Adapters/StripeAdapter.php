@@ -42,7 +42,17 @@ class StripeAdapter implements GatewayAdapterInterface
 
     public function buildIdempotencyKey(string $reference, float $amount): string
     {
-        return 'idemp_str_' . hash('sha256', $reference . '|' . $amount . '|' . getenv('ENCRYPTION_KEY'));
+        $key = getenv('ENCRYPTION_KEY');
+        if ($key === false || strlen((string) $key) < 32) {
+            throw new \RuntimeException(
+                'ENCRYPTION_KEY is missing or shorter than 32 chars — required for Stripe idempotency'
+            );
+        }
+        return 'idemp_str_' . hash_hmac(
+            'sha256',
+            $reference . '|' . number_format($amount, 2, '.', ''),
+            (string) $key
+        );
     }
 
     // ══════════════════════════════════════════════════════════
@@ -62,6 +72,13 @@ class StripeAdapter implements GatewayAdapterInterface
         $amount    = floatval($payload['amount']   ?? 0);
         $currency  = strtolower($payload['currency'] ?? 'usd');
         $reference = $payload['reference'] ?? uniqid('str_', true);
+
+        // فحص العملة — رفض مبكر بدل رسالة خطأ مبهمة من Stripe
+        $allowedCurrencies = ['usd','eur','gbp','aed','sar','qar','bhd','kwd','egp','jod','omr','myr','sgd','cad','aud','chf','sek','nok','dkk','hkd','nzd','jpy','cny','try','brl','inr','mxn','pln','czk','huf','ron','bgn','hrk','ils'];
+        if (!in_array($currency, $allowedCurrencies, true)) {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, strtoupper($currency), "Unsupported currency for Stripe: {$currency}");
+        }
+
         $adviceMinus = false;
         $signedKind = strtolower((string) ($payload['txn_type'] ?? ''));
         if (in_array($signedKind, ['purchase_advice', 'offline_sale_moto', 'capture'], true) && $amount < 0) {
@@ -251,6 +268,12 @@ class StripeAdapter implements GatewayAdapterInterface
         $currency  = strtolower($payload['currency'] ?? 'usd');
         $reference = $payload['reference'] ?? uniqid('hold_', true);
 
+        // فحص العملة — رفض مبكر بدل رسالة خطأ مبهمة من Stripe
+        $allowedCurrencies = ['usd','eur','gbp','aed','sar','qar','bhd','kwd','egp','jod','omr','myr','sgd','cad','aud','chf','sek','nok','dkk','hkd','nzd','jpy','cny','try','brl','inr','mxn','pln','czk','huf','ron','bgn','hrk','ils'];
+        if (!in_array($currency, $allowedCurrencies, true)) {
+            return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, strtoupper($currency), "Unsupported currency for Stripe: {$currency}");
+        }
+
         if ($amount <= 0) {
             return GatewayErrorMapper::buildErrorResponse('GATEWAY_ERROR', $reference, $amount, strtoupper($currency), 'المبلغ غير صالح');
         }
@@ -376,7 +399,7 @@ class StripeAdapter implements GatewayAdapterInterface
         }
 
         $res      = $this->request('POST', "/v1/payment_intents/$transactionId/capture", $params,
-                      $this->buildIdempotencyKey('cap_' . $transactionId, $amount ?? 0));
+                      $this->buildIdempotencyKey('cap_' . $transactionId, $amount ?? -1.0));
         $status   = $res['status'] ?? '';
         $duration = microtime(true) - $start;
 

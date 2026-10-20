@@ -313,11 +313,15 @@ final class PayPalAdapter implements GatewayAdapterInterface, GatewayCapabilitie
 
         $auth = $this->svc->getAuthorization($transactionId);
         if (!is_array($auth) || empty($auth['id'] ?? $auth['success'] ?? null)) {
+            // نحاول استخراج العملة من أي بيانات متاحة — fallback لـ '' (unknown)
+            $earlyLookupCurrency = strtoupper(trim((string) (
+                $auth['amount']['currency_code'] ?? ''
+            )));
             return GatewayErrorMapper::buildErrorResponse(
                 'AUTHORIZATION_NOT_FOUND',
                 $transactionId,
                 $amount ?? 0.0,
-                'USD',
+                $earlyLookupCurrency !== '' ? $earlyLookupCurrency : '',
                 "Authorization {$transactionId} not found or not retrievable"
             );
         }

@@ -563,7 +563,7 @@ if ($cardNumber !== '' && pos_is_blocked_test_card($cardNumber)) {
 }
 if ($cardRail && !in_array($txnType, ['refund', 'avoid', 'capture'], true) && $cardType !== 'CLOUD') {
     $realName = function_exists('pos_real_card_name') ? pos_real_card_name($cardName) : trim($cardName);
-    if ($realName === '' && $requiresCard) {
+    if ($realName === '' && $requiresCard && !($txnType === 'purchase_advice' && $isPhysicalEntry)) {
         $errors[] = 'Enter the name on the card. Placeholder names are rejected.';
     } elseif ($realName !== '') {
         $cardName = $realName;
@@ -648,11 +648,30 @@ if ($cardRail && $cardType !== 'CLOUD' && $isPhysicalEntry && $requiresCard && (
     $errors[] = 'Physical POS requires a real card from the reader. Simulation and placeholder cards are disabled.';
 }
 $fieldErrors = ($cardRail && $cardType !== 'CLOUD' && !$nuveiVerix) ? pos_validate_operation_fields($txnType, $fieldPayload) : [];
+if ($txnType === 'purchase_advice'
+    && ($cardType === 'CLOUD' || strlen($cardNumber) < 13 || $cardExpiry === '')) {
+    $fieldErrors[] = 'Purchase Advice requires a real PAN and expiry from manual entry or a physical swipe.';
+}
 if (!$cardRail && in_array($txnType, ['refund', 'avoid'], true) && pos_normalize_rrn($origRef) === '' && trim($origRef) === '') {
     $fieldErrors[] = 'Original reference is required for refund/avoid.';
 }
 
 $errors = array_merge($errors, $fieldErrors);
+if ($txnType === 'purchase_advice') {
+    $originalTransactionDate = trim((string) (
+        $extra['original_transaction_date']
+        ?? $data['original_transaction_date']
+        ?? ''
+    ));
+    $dateParts = preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $originalTransactionDate, $dateMatch)
+        ? array_map('intval', array_slice($dateMatch, 1))
+        : [];
+    if (count($dateParts) !== 3 || !checkdate($dateParts[1], $dateParts[2], $dateParts[0])) {
+        $errors[] = 'Original transaction date must be a valid YYYY-MM-DD date.';
+    } else {
+        $extra['original_transaction_date'] = $originalTransactionDate;
+    }
+}
 
 // CVV فقط عندما تطلبه العملية على سكة البطاقة (وليس CLOUD)
 if ($cardRail && $cardType !== 'CLOUD' && $requiresCvv && (empty($cardCVV) || strlen($cardCVV) < 3)) {
@@ -954,6 +973,18 @@ if ($useCardGateway) {
             $params['card_cvv'] = '';
             $params['linked_to_auth'] = ($paymentId !== '' || $origRef !== '');
             $params['allow_amount_override'] = true;
+            $params['original_transaction_date'] = (string) ($extra['original_transaction_date'] ?? '');
+            if (pos_entry_is_present($params)) {
+                $params['is_moto'] = false;
+                $params['card_present'] = true;
+                $params['entry_mode'] = $params['entry_mode'] ?: 'pos_magstripe';
+                unset($params['moto_indicator'], $params['moto_channel']);
+            } else {
+                $params['is_moto'] = true;
+                $params['card_present'] = false;
+                $params['entry_mode'] = 'keyed';
+                $params['moto_indicator'] = 'M';
+            }
         }
         if (in_array($txnType, ['capture', 'purchase_advice', 'offline_sale_moto'], true) && $amount < 0) {
             $params['amount'] = pos_host_debit_amount($txnType, $amount);
@@ -1110,7 +1141,16 @@ if ($useCardGateway) {
             $message = '3DS_REQUIRED';
         } elseif ($success) {
             require_once POS_APP_ROOT . '/lib/CardScaService.php';
-            CardScaService::markCompleted($cardNumber, $cardExpiry, $cardLast4, (string) $reference);
+            $challengePerformed = $txnType === 'purchase_3d'
+                && $secMode === '3D'
+                && CardScaService::shouldChallenge([
+                    'card_number' => $cardNumber,
+                    'card_expiry' => $cardExpiry,
+                    'card_last4' => $cardLast4,
+                ]);
+            if (CardScaService::shouldRecordCompletedChallenge($challengePerformed, $success)) {
+                CardScaService::markCompleted($cardNumber, $cardExpiry, $cardLast4, (string) $reference);
+            }
         }
 
     } catch (Exception $e) {

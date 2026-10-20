@@ -1071,7 +1071,7 @@ function pos_entry_is_present(array $params): bool
     }
     $entry = strtolower(trim((string) ($params['entry_mode'] ?? '')));
     return in_array($entry, [
-        'pos_chip', 'chip', 'insert',
+        'pos_chip', 'chip', 'insert', 'pos_magstripe', 'magstripe', 'swipe', 'track2', '90',
         'nfc_contactless', 'nfc', 'contactless', 'tap',
         'pos_and_nfc', 'wallet_app',
     ], true);

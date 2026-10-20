@@ -159,10 +159,6 @@ class DiparmaIsoProcessor
 
     public static function handle(string $txnType, array $fields): array
     {
-        if (self::configuredHost() === '') {
-            return self::scrub(self::fail('DI PARMA ISO host is not configured. The charge was not sent.'));
-        }
-
         $built = self::buildIso8583($txnType, $fields);
         if (empty($built['mti'])) {
             return self::scrub($built);
@@ -423,7 +419,8 @@ class DiparmaIsoProcessor
             if ($amount == 0.0) {
                 return ['error' => self::fail('Purchase advice amount must not be zero')];
             }
-            return self::row($type, '0220', 'advice_debit', '000000', $entry, abs($amount));
+            $processing = $amount < 0 ? '200000' : '000000';
+            return self::row($type, '0220', $amount < 0 ? 'advice_credit' : 'advice_debit', $processing, $entry, abs($amount));
         }
         if (in_array($type, $capture, true)) {
             if ($amount == 0.0) {

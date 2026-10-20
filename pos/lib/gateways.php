@@ -536,7 +536,7 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
         $params['processing_mode'] = '2D';
     }
     $cardPresent = function_exists('pos_entry_is_present') && pos_entry_is_present($params);
-    $inherentMoto = in_array($txnType, ['online_sale_moto', 'offline_sale_moto', 'purchase_advice'], true);
+    $inherentMoto = in_array($txnType, ['online_sale_moto', 'offline_sale_moto'], true);
     if ($cardPresent && !$inherentMoto) {
         $params['is_moto'] = false;
         $params['card_present'] = true;
@@ -590,7 +590,7 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
             )
         ) {
             $params['processing_mode'] = 'MOTO';
-            $params['is_moto'] = true;
+            $params['is_moto'] = $txnType !== 'purchase_advice' || !$cardPresent;
         }
     }
     if (in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold', 'capture'], true)) {

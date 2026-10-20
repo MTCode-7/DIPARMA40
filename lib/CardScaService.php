@@ -73,6 +73,11 @@ class CardScaService
         return !self::hasCompleted3ds($pan, $expiry, $last4);
     }
 
+    public static function shouldRecordCompletedChallenge(bool $challengePerformed, bool $paymentApproved): bool
+    {
+        return $challengePerformed && $paymentApproved;
+    }
+
     private static function ensureTable(): void
     {
         static $ready = false;

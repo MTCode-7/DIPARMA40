@@ -274,6 +274,8 @@ check(gateway_offline_daily_limit_usd('paypal') === 1000000.00, 'PayPal offline 
 check(gateway_offline_daily_limit_usd('stripe') === 5000000.00, 'Stripe offline daily limit is 5 million USD');
 check(gateway_offline_daily_limit_usd('square') === 10000000.00, 'Square 1 offline daily limit is 10 million USD');
 check(gateway_offline_daily_limit_usd('square_online') === 20000000.00, 'Square 2 offline daily limit is 20 million USD');
+$savedDiparmaHost = getenv('DIPARMA_ISO_URL');
+putenv('DIPARMA_ISO_URL=https://bank-advice.example.test');
 check(dp_gateway_charge_path_is_complete('square_online'), 'Square 2 has a card charge path');
 check(dp_gateway_charge_path_is_complete('square_2') && dp_gateway_charge_path_is_complete('square2'), 'Square 2 aliases share the charge path');
 check(dp_gateway_is_customer_visible(['code' => 'square_online', 'status' => 'active', 'connection_status' => 'verified', 'credentials' => '{"access_token":"token","location_id":"loc","site_id":"site"}']), 'Connected active Square 2 is visible on charge surfaces');
@@ -285,6 +287,11 @@ foreach (['nuvei', 'paypal', 'stripe', 'square', 'diparma', 'checkout', 'paytabs
 foreach (['wise', 'adyen', 'klarna', 'sofort', 'alipay', 'razorpay', 'bank_transfer', 'diparma_gateway', 'mashreq', 'hsbc_uae', 'nbe_egypt', 'jpmorgan', 'ledger'] as $adminOnlyCode) {
     check(!dp_gateway_charge_path_is_complete($adminOnlyCode), $adminOnlyCode . ' stays admin-only');
     check(!dp_gateway_is_customer_visible($connected + ['code' => $adminOnlyCode]), $adminOnlyCode . ' stays hidden when connected');
+}
+if ($savedDiparmaHost === false) {
+    putenv('DIPARMA_ISO_URL');
+} else {
+    putenv('DIPARMA_ISO_URL=' . $savedDiparmaHost);
 }
 check(!dp_gateway_is_live_for_fulfillment(['code' => 'square', 'status' => 'active', 'connection_status' => 'verified', 'credentials' => '{"access_token":"token","location_id":"loc","site_id":"site"}']), 'Square 1 credentials cannot enable Square 2 fulfillment');
 check(dp_gateway_is_live_for_fulfillment(['code' => 'square_online', 'status' => 'active', 'connection_status' => 'verified', 'credentials' => '{"access_token":"token","location_id":"loc","site_id":"site"}']), 'Square 2 fulfillment requires its own verified connection');
@@ -461,6 +468,8 @@ $setTestEnvironment('SQUARE_ACCESS_TOKEN', 'sandbox-token');
 $setTestEnvironment('SQUARE_LOCATION_ID', 'test-location');
 $squareTestAdapter = new SquareAdapter();
 foreach ([
+    'charge' => static fn() => $squareTestAdapter->charge(['reference' => 'TEST-TXN', 'amount' => 1, 'currency' => 'USD']),
+    'hold' => static fn() => $squareTestAdapter->hold(['reference' => 'TEST-TXN', 'amount' => 1, 'currency' => 'USD']),
     'capture' => static fn() => $squareTestAdapter->capture('TEST-TXN', 1),
     'cancel' => static fn() => $squareTestAdapter->cancel('TEST-TXN'),
     'refund' => static fn() => $squareTestAdapter->refund('TEST-TXN', 1),
