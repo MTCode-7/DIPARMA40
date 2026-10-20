@@ -80,22 +80,8 @@ $rawStatus = strtoupper(trim((string)(
     ?? $data['status']
     ?? ''
 )));
-$statusMap = [
-    'OK' => 'completed',
-    'APPROVED' => 'completed',
-    'SUCCESS' => 'completed',
-    'SETTLED' => 'completed',
-    'CAPTURED' => 'completed',
-    'DECLINED' => 'failed',
-    'FAILED' => 'failed',
-    'ERROR' => 'failed',
-    'FAIL' => 'failed',
-    'CANCELLED' => 'failed',
-    'CANCELED' => 'failed',
-    'PENDING' => 'pending',
-    'UPDATE' => 'pending',
-];
-$normalized = $statusMap[$rawStatus] ?? 'pending';
+require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
+$normalized = NuveiAdapter::mapTransactionStatus($rawStatus);
 
 if ($reference === '') {
     nuvei_dmn_ok();
