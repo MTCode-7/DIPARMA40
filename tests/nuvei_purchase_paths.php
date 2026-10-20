@@ -18,6 +18,21 @@ check(!CardScaService::shouldRecordCompletedChallenge(false, true), 'Approved 2D
 check(!CardScaService::shouldRecordCompletedChallenge(true, false), 'Failed 3DS sale does not mark 3DS completed');
 check(CardScaService::shouldRecordCompletedChallenge(true, true), 'Approved challenged 3DS sale marks 3DS completed');
 
+foreach ([
+    'APPROVED' => 'completed',
+    'SUCCESS' => 'completed',
+    'SETTLED' => 'completed',
+    'CAPTURED' => 'completed',
+    'PENDING' => 'pending',
+    'DECLINED' => 'failed',
+    'CANCELED' => 'cancelled',
+    'REFUNDED' => 'refunded',
+    'UNKNOWN_STATUS' => 'pending',
+] as $nuveiStatus => $expectedStatus) {
+    check(NuveiAdapter::mapTransactionStatus($nuveiStatus) === $expectedStatus,
+        'Nuvei ' . $nuveiStatus . ' status maps to ' . $expectedStatus);
+}
+
 $negativeAdvice = POSAdviceHandler::buildAdviceRequest([
     'card_number' => '4111111111111111',
     'amount' => -12.34,
@@ -50,10 +65,16 @@ check(!empty(POSAdviceHandler::handleAdviceResponse('{"mti":"0230","response_cod
 
 $adapter = new NuveiAdapter();
 $savedNuveiApiUrl = getenv('NUVEI_API_URL');
+$savedNuveiMerchantId = getenv('NUVEI_MERCHANT_ID');
+$savedNuveiSiteId = getenv('NUVEI_SITE_ID');
+$savedNuveiSecretKey = getenv('NUVEI_SECRET_KEY');
 $baseUrlProperty = new ReflectionProperty(NuveiAdapter::class, 'baseUrl');
 $configurationErrorProperty = new ReflectionProperty(NuveiAdapter::class, 'configurationError');
 $requestMethod = new ReflectionMethod(NuveiAdapter::class, 'request');
 
+putenv('NUVEI_MERCHANT_ID=TEST-MERCHANT');
+putenv('NUVEI_SITE_ID=TEST-SITE');
+putenv('NUVEI_SECRET_KEY=TEST-SECRET');
 putenv('NUVEI_API_URL=https://ppp-test.nuvei.com/ppp/api/v1');
 $sandboxAdapter = new NuveiAdapter();
 check($baseUrlProperty->getValue($sandboxAdapter) === 'https://ppp-test.nuvei.com/ppp/api/v1',
@@ -66,6 +87,16 @@ check($configurationErrorProperty->getValue($invalidEndpointAdapter) !== ''
     && ($invalidEndpointResult['status'] ?? '') === 'ERROR'
     && str_contains((string) ($invalidEndpointResult['reason'] ?? ''), 'HTTPS'),
     'Nuvei refuses an insecure configured API URL without sending credentials');
+$anonymousOrder = $invalidEndpointAdapter->openOrder([
+    'amount' => 10,
+    'currency' => 'USD',
+    'email' => 'guest@diparmas.com',
+    'reference' => 'TEST-OPEN-ORDER',
+    'transactionType' => 'Auth',
+]);
+check(empty($anonymousOrder['success'])
+    && str_contains((string) ($anonymousOrder['message'] ?? ''), 'يتطلب'),
+    'Nuvei openOrder rejects anonymous identity before creating an order');
 
 $paymentOptionMethod = new ReflectionMethod(NuveiAdapter::class, 'buildCardPaymentOption');
 check($paymentOptionMethod->invoke($invalidEndpointAdapter, ['cloud_token' => 'nuvei-upo-token-123456'])
@@ -108,6 +139,17 @@ if ($savedNuveiApiUrl === false) {
     putenv('NUVEI_API_URL');
 } else {
     putenv('NUVEI_API_URL=' . $savedNuveiApiUrl);
+}
+foreach ([
+    'NUVEI_MERCHANT_ID' => $savedNuveiMerchantId,
+    'NUVEI_SITE_ID' => $savedNuveiSiteId,
+    'NUVEI_SECRET_KEY' => $savedNuveiSecretKey,
+] as $key => $value) {
+    if ($value === false) {
+        putenv($key);
+    } else {
+        putenv($key . '=' . $value);
+    }
 }
 
 $nuveiIsLive = DiParmaChargeHub::supports('nuvei');

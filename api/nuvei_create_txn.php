@@ -28,6 +28,7 @@ if (!verifyCsrfToken($payload['csrf_token'] ?? '')) {
 $amount   = floatval($payload['amount']   ?? 1);
 $currency = strtoupper(trim($payload['currency'] ?? 'USD'));
 $email    = trim($payload['email'] ?? 'guest@diparmas.com');
+$cardholderName = trim((string) ($payload['name'] ?? $payload['card_name'] ?? ''));
 
 // Nuvei credentials
 $merchantId = trim((string)getenv('NUVEI_MERCHANT_ID'));
@@ -38,50 +39,28 @@ if ($merchantId === '' || $siteId === '' || $secretKey === '') {
     echo json_encode(['success' => false, 'message' => 'Nuvei credentials are not configured']);
     exit;
 }
-$baseUrl = 'https://secure.nuvei.com/ppp/api/v1';
-
-$ref  = 'TXN' . strtoupper(bin2hex(random_bytes(5))) . date('Ymd');
-$ts   = date('YmdHis');
-$amtF = number_format($amount, 2, '.', '');
-
-// Checksum: merchantId + siteId + clientRequestId + timeStamp + secretKey
-$checksum = hash('sha256', $merchantId . $siteId . $ref . $ts . $secretKey);
-
-$body = [
-    'merchantId'      => $merchantId,
-    'merchantSiteId'  => $siteId,
-    'clientRequestId' => $ref,
-    'clientUniqueId'  => $ref,
-    'amount'          => $amtF,
-    'currency'        => $currency,
-    'timeStamp'       => $ts,
-    'checksum'        => $checksum,
-    'userTokenId'     => $email,
-    'billingAddress'  => ['email' => $email],
-    'transactionType' => 'Auth', // حجز فقط بدون سحب
-];
-
-$ch = curl_init($baseUrl . '/openOrder.do');
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST           => true,
-    CURLOPT_POSTFIELDS     => json_encode($body),
-    CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-    CURLOPT_TIMEOUT        => 20,
-    CURLOPT_SSL_VERIFYPEER => true,
-]);
-$resp = curl_exec($ch);
-$err  = curl_error($ch);
-curl_close($ch);
-
-if ($err) {
-    echo json_encode(['success'=>false,'message'=>'cURL Error: '.$err]);
+if ($cardholderName === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+    http_response_code(422);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Nuvei requires the cardholder name and a valid customer email',
+    ]);
     exit;
 }
 
-$data = json_decode($resp, true) ?: [];
+$ref  = 'TXN' . strtoupper(bin2hex(random_bytes(5))) . date('Ymd');
+$amtF = number_format($amount, 2, '.', '');
+require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
+$order = (new NuveiAdapter())->openOrder([
+    'amount' => $amount,
+    'currency' => $currency,
+    'email' => $email,
+    'name' => $cardholderName,
+    'reference' => $ref,
+    'transactionType' => 'Auth',
+]);
 
-if (($data['status'] ?? '') === 'SUCCESS' && !empty($data['sessionToken'])) {
+if (!empty($order['success']) && !empty($order['session_token'])) {
     // نحفظ في DB
     try {
         $db = db();
@@ -93,8 +72,8 @@ if (($data['status'] ?? '') === 'SUCCESS' && !empty($data['sessionToken'])) {
             [
                 $ref, 'nuvei', $amount, $currency, $email,
                 json_encode([
-                    'session_token' => $data['sessionToken'],
-                    'order_id'      => $data['orderId'] ?? '',
+                    'session_token' => $order['session_token'],
+                    'checkout_url'  => $order['checkout_url'] ?? '',
                     'merchant_id'   => $merchantId,
                     'site_id'       => $siteId,
                     'amount'        => $amtF,
@@ -108,15 +87,16 @@ if (($data['status'] ?? '') === 'SUCCESS' && !empty($data['sessionToken'])) {
     echo json_encode([
         'success'       => true,
         'reference'     => $ref,
-        'session_token' => $data['sessionToken'],
-        'order_id'      => $data['orderId'] ?? '',
+        'transaction_id' => $order['session_token'],
+        'session_token' => $order['session_token'],
+        'checkout_url'  => $order['checkout_url'] ?? '',
         'message'       => 'Transaction created — use sessionToken as Transaction ID',
         'note'          => 'Use this in capture.php as Transaction ID',
     ]);
 } else {
+    http_response_code(502);
     echo json_encode([
         'success' => false,
-        'message' => ($data['reason'] ?? $data['errCode'] ?? 'Nuvei error'),
-        'raw'     => $data,
+        'message' => (string) ($order['message'] ?? 'Nuvei openOrder failed'),
     ]);
 }

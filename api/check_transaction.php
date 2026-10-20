@@ -895,14 +895,8 @@ function mapCheckoutStatus($checkoutStatus) {
  * طھط­ظˆظٹظ„ ط­ط§ظ„ط© Nuvei
  */
 function mapNuveiStatus($nuveiStatus) {
-    $map = [
-        'SUCCESS' => 'completed',
-        'PENDING' => 'pending',
-        'DECLINED' => 'failed',
-        'CANCELED' => 'cancelled',
-        'REFUNDED' => 'refunded',
-    ];
-    return $map[$nuveiStatus] ?? 'pending';
+    require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
+    return NuveiAdapter::mapTransactionStatus((string) $nuveiStatus);
 }
 
 /**

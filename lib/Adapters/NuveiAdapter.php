@@ -1361,6 +1361,18 @@ class NuveiAdapter implements GatewayAdapterInterface {
         return $txn === 'APPROVED';
     }
 
+    public static function mapTransactionStatus(string $status): string
+    {
+        return match (strtoupper(trim($status))) {
+            'OK', 'APPROVED', 'SUCCESS', 'SETTLED', 'CAPTURED' => 'completed',
+            'DECLINED', 'FAILED', 'ERROR', 'FAIL' => 'failed',
+            'CANCELLED', 'CANCELED' => 'cancelled',
+            'REFUNDED' => 'refunded',
+            'PENDING', 'UPDATE' => 'pending',
+            default => 'pending',
+        };
+    }
+
     private function nuveiRedirectUrl(array $res): string
     {
         $url = trim((string)($res['redirectUrl'] ?? $res['redirect_url'] ?? ''));

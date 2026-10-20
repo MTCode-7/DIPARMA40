@@ -72,6 +72,7 @@ switch ($gateway) {
 
     // ── Nuvei ─────────────────────────────────────────────
     case 'nuvei':
+        require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
         $mId = trim((string)getenv('NUVEI_MERCHANT_ID'));
         $sId = trim((string)getenv('NUVEI_SITE_ID'));
         $key = trim((string)getenv('NUVEI_SECRET_KEY'));
@@ -79,63 +80,34 @@ switch ($gateway) {
             $result['message'] = 'Nuvei credentials are not configured';
             break;
         }
-        $ts  = date('YmdHis');
-        $amt = number_format($amount, 2, '.', '');
-
-        // Step 1: Get Session Token (checksum = merchantId+siteId+clientRequestId+timeStamp+secretKey)
-        $cs1 = hash('sha256', $mId.$sId.$ref.$ts.$key);
-        $body1 = json_encode([
-            'merchantId'      => $mId,
-            'merchantSiteId'  => $sId,
-            'clientRequestId' => $ref,
-            'timeStamp'       => $ts,
-            'checksum'        => $cs1,
-        ]);
-        $r1 = httpPost('https://secure.nuvei.com/ppp/api/v1/getSessionToken.do',
-            ['Content-Type: application/json'], $body1);
-        $d1 = json_decode($r1['body'], true) ?: [];
-        if (($d1['status']??'') !== 'SUCCESS' || empty($d1['sessionToken'])) {
-            $result['message'] = 'Nuvei getSessionToken failed: ' . ($d1['reason'] ?? $d1['errCode'] ?? 'unknown');
+        $cardholderName = trim((string) ($payload['name'] ?? $payload['card_name'] ?? ''));
+        if ($cardholderName === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            $result['message'] = 'Nuvei requires the cardholder name and a valid customer email';
             break;
         }
-        $sessionToken = $d1['sessionToken'];
-
-        // Step 2: Open Order using session token
-        $ref2 = $ref . '_O';
-        $ts2  = date('YmdHis');
-        $cs2  = hash('sha256', $mId.$sId.$ref2.$ts2.$key);
-        $body2 = json_encode([
-            'merchantId'      => $mId,
-            'merchantSiteId'  => $sId,
-            'sessionToken'    => $sessionToken,
-            'clientRequestId' => $ref2,
-            'clientUniqueId'  => $ref2,
-            'amount'          => $amt,
-            'currency'        => $currency,
-            'timeStamp'       => $ts2,
-            'checksum'        => $cs2,
-            'userTokenId'     => $email,
-            'billingAddress'  => ['email' => $email],
+        $order = (new NuveiAdapter())->openOrder([
+            'amount' => $amount,
+            'currency' => $currency,
+            'email' => $email,
+            'name' => $cardholderName,
+            'reference' => $ref,
             'transactionType' => 'Auth',
         ]);
-        $r2 = httpPost('https://secure.nuvei.com/ppp/api/v1/openOrder.do',
-            ['Content-Type: application/json'], $body2);
-        $d = json_decode($r2['body'], true) ?: [];
-        if (($d['status']??'') === 'SUCCESS' && !empty($d['sessionToken'])) {
+        if (!empty($order['success']) && !empty($order['session_token'])) {
             saveToDb($ref,'nuvei',$amount,$currency,$email,[
-                'session_token' => $d['sessionToken'],
-                'order_id'      => $d['orderId'] ?? '',
-                'first_token'   => $sessionToken,
+                'session_token' => $order['session_token'],
+                'checkout_url' => $order['checkout_url'] ?? '',
             ]);
-            $result = ['success'=>true,'transaction_id'=>$d['sessionToken'],
-                'order_id'=>$d['orderId']??'','reference'=>$ref,
-                'gateway'=>'nuvei','message'=>'Nuvei Transaction ID created'];
+            $result = [
+                'success' => true,
+                'transaction_id' => $order['session_token'],
+                'checkout_url' => $order['checkout_url'] ?? '',
+                'reference' => $ref,
+                'gateway' => 'nuvei',
+                'message' => 'Nuvei session token created',
+            ];
         } else {
-            // fallback: استخدم الـ session token الأول مباشرة
-            saveToDb($ref,'nuvei',$amount,$currency,$email,['session_token'=>$sessionToken]);
-            $result = ['success'=>true,'transaction_id'=>$sessionToken,
-                'order_id'=>'','reference'=>$ref,
-                'gateway'=>'nuvei','message'=>'Nuvei Session Token created'];
+            $result['message'] = (string) ($order['message'] ?? 'Nuvei openOrder failed');
         }
         break;
 

@@ -135,8 +135,13 @@ body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-h
     </div>
 
     <div class="fld">
-      <label>Email <span style="font-size:.63rem;color:var(--muted)">(<?=$ar?'اختياري':'optional'?>)</span></label>
-      <input type="email" id="email" placeholder="example@email.com" value="guest@diparmas.com">
+      <label><?=$ar?'اسم حامل البطاقة':'Cardholder Name'?> <span style="font-size:.63rem;color:var(--muted)">(Nuvei)</span></label>
+      <input type="text" id="cardName" autocomplete="cc-name" placeholder="<?=$ar?'كما هو مطبوع على البطاقة':'As printed on the card'?>">
+    </div>
+
+    <div class="fld">
+      <label>Email <span style="font-size:.63rem;color:var(--muted)">(<?=$ar?'مطلوب لـ Nuvei':'required for Nuvei'?>)</span></label>
+      <input type="email" id="email" autocomplete="email" placeholder="example@email.com">
     </div>
 
     <button class="btn" id="createBtn" style="background:linear-gradient(135deg,#083d7a,#0A5EB0)" onclick="createTxn()">
@@ -274,6 +279,12 @@ function shadeColor(color, percent) {
 
 async function createTxn() {
   var btn = document.getElementById('createBtn');
+  var cardName = document.getElementById('cardName').value.trim();
+  var email = document.getElementById('email').value.trim();
+  if (currentGW === 'nuvei' && (!cardName || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    showToast('<?=$ar?'أدخل اسم حامل البطاقة وإيميله الحقيقي لـ Nuvei':'Enter the cardholder name and a valid email for Nuvei'?>', 'error');
+    return;
+  }
   btn.disabled = true;
   var origHTML = btn.innerHTML;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
@@ -286,7 +297,8 @@ async function createTxn() {
         gateway:    currentGW,
         amount:     parseFloat(document.getElementById('amount').value) || 1000,
         currency:   document.getElementById('currency').value,
-        email:      document.getElementById('email').value || 'guest@diparmas.com',
+        email:      email,
+        name:       cardName,
         csrf_token: CSRF
       })
     });
