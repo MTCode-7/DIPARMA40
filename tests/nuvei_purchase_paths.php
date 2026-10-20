@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../lib/CardScaService.php';
 require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
+require_once __DIR__ . '/../lib/MySystem/ChargeHub.php';
 require_once __DIR__ . '/../pos/lib/POSAdviceHandler.php';
 
 $fail = 0;
@@ -48,6 +49,77 @@ check(!empty(POSAdviceHandler::handleAdviceResponse('{"mti":"0230","response_cod
     'Purchase Advice accepts an approved 0230 response');
 
 $adapter = new NuveiAdapter();
+$savedNuveiApiUrl = getenv('NUVEI_API_URL');
+$baseUrlProperty = new ReflectionProperty(NuveiAdapter::class, 'baseUrl');
+$configurationErrorProperty = new ReflectionProperty(NuveiAdapter::class, 'configurationError');
+$requestMethod = new ReflectionMethod(NuveiAdapter::class, 'request');
+
+putenv('NUVEI_API_URL=https://ppp-test.nuvei.com/ppp/api/v1');
+$sandboxAdapter = new NuveiAdapter();
+check($baseUrlProperty->getValue($sandboxAdapter) === 'https://ppp-test.nuvei.com/ppp/api/v1',
+    'Nuvei honors an explicitly configured HTTPS Sandbox endpoint');
+
+putenv('NUVEI_API_URL=http://nuvei.example.test/ppp/api/v1');
+$invalidEndpointAdapter = new NuveiAdapter();
+$invalidEndpointResult = $requestMethod->invoke($invalidEndpointAdapter, 'getSessionToken', []);
+check($configurationErrorProperty->getValue($invalidEndpointAdapter) !== ''
+    && ($invalidEndpointResult['status'] ?? '') === 'ERROR'
+    && str_contains((string) ($invalidEndpointResult['reason'] ?? ''), 'HTTPS'),
+    'Nuvei refuses an insecure configured API URL without sending credentials');
+
+$paymentOptionMethod = new ReflectionMethod(NuveiAdapter::class, 'buildCardPaymentOption');
+check($paymentOptionMethod->invoke($invalidEndpointAdapter, ['cloud_token' => 'nuvei-upo-token-123456'])
+    === ['card' => ['ccTempToken' => 'nuvei-upo-token-123456']],
+    'Nuvei maps a stored token to ccTempToken without requiring PAN data');
+check($paymentOptionMethod->invoke($invalidEndpointAdapter, ['payment_token' => '123456789'])
+    === ['userPaymentOptionId' => '123456789'],
+    'Nuvei maps a numeric stored token to userPaymentOptionId');
+
+$tokenCharge = $invalidEndpointAdapter->charge([
+    'txn_type' => 'purchase_2d',
+    'amount' => 10,
+    'currency' => 'USD',
+    'cloud_token' => 'nuvei-upo-token-123456',
+]);
+check(empty($tokenCharge['success'])
+    && str_contains((string) ($tokenCharge['message'] ?? ''), 'Session token failed')
+    && ($tokenCharge['error_code'] ?? '') !== 'INVALID_CARD',
+    'Nuvei accepts a stored-token charge without PAN or expiry');
+$tokenHold = $invalidEndpointAdapter->hold([
+    'amount' => 10,
+    'currency' => 'USD',
+    'payment_token' => 'nuvei-upo-token-123456',
+]);
+check(empty($tokenHold['success'])
+    && str_contains((string) ($tokenHold['message'] ?? ''), 'Session token failed')
+    && ($tokenHold['error_code'] ?? '') !== 'INVALID_CARD',
+    'Nuvei accepts a stored-token authorization without PAN or expiry');
+
+$invalidCard = $invalidEndpointAdapter->charge([
+    'txn_type' => 'purchase_2d',
+    'amount' => 10,
+    'currency' => 'USD',
+    'card_number' => '4111111111111111',
+]);
+check(($invalidCard['error_code'] ?? '') === 'INVALID_CARD',
+    'Nuvei still requires expiry when charging with a PAN');
+
+if ($savedNuveiApiUrl === false) {
+    putenv('NUVEI_API_URL');
+} else {
+    putenv('NUVEI_API_URL=' . $savedNuveiApiUrl);
+}
+
+$nuveiIsLive = DiParmaChargeHub::supports('nuvei');
+if (!$nuveiIsLive) {
+    check(!DiParmaChargeHub::canCharge('nuvei'),
+        'Disabled Nuvei is not reported as chargeable through adapter fallback');
+    $disabledCharge = DiParmaChargeHub::charge('nuvei', 'purchase_2d', ['amount' => 10]);
+    check(empty($disabledCharge['success'])
+        && str_contains((string) ($disabledCharge['message'] ?? ''), 'not active for POS charges'),
+        'Disabled Nuvei cannot bypass POS activation through adapter fallback');
+}
+
 $rrnMethod = new ReflectionMethod(NuveiAdapter::class, 'purchaseAdviceRrn');
 $rrnMethod->setAccessible(true);
 $rrn = $rrnMethod->invoke($adapter, ['bank_rrn' => '123456789012']);

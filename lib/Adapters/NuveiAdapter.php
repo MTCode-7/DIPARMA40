@@ -13,6 +13,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
     private string $siteId;
     private string $secretKey;
     private string $baseUrl = 'https://secure.nuvei.com/ppp/api/v1';
+    private string $configurationError = '';
     private string $logFile;
 
     public function __construct() {
@@ -20,30 +21,22 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $this->siteId     = getenv('NUVEI_SITE_ID')     ?: '';
         $this->secretKey  = getenv('NUVEI_SECRET_KEY')  ?: '';
         $envUrl = trim((string)(getenv('NUVEI_API_URL') ?: ''));
-        if ($envUrl !== '' && !preg_match('#ppp-test|sandbox#i', $envUrl)) {
-            $this->baseUrl = rtrim($envUrl, '/');
-        } else {
-            $this->baseUrl = 'https://secure.nuvei.com/ppp/api/v1';
+        if ($envUrl !== '') {
+            $urlParts = parse_url($envUrl);
+            if (!is_array($urlParts)
+                || strtolower((string) ($urlParts['scheme'] ?? '')) !== 'https'
+                || trim((string) ($urlParts['host'] ?? '')) === ''
+                || isset($urlParts['user'])
+                || isset($urlParts['pass'])
+                || isset($urlParts['query'])
+                || isset($urlParts['fragment'])) {
+                $this->configurationError = 'NUVEI_API_URL must be a valid HTTPS base URL without credentials, query, or fragment';
+            } else {
+                $this->baseUrl = rtrim($envUrl, '/');
+            }
         }
         $this->logFile    = defined('LOGS_PATH') ? LOGS_PATH.'/nuvei.log' : __DIR__.'/../../logs/nuvei.log';
         if(!is_dir(dirname($this->logFile))) @mkdir(dirname($this->logFile),0755,true);
-    }
-
-    /** Live Nuvei first; old SafeCharge host only as fallback. */
-    private function apiBases(): array
-    {
-        $primary = rtrim($this->baseUrl, '/');
-        $live = [
-            'https://secure.nuvei.com/ppp/api/v1',
-            'https://secure.safecharge.com/ppp/api/v1',
-        ];
-        $bases = [$primary];
-        foreach ($live as $base) {
-            if (!in_array($base, $bases, true)) {
-                $bases[] = $base;
-            }
-        }
-        return $bases;
     }
     
 
@@ -158,8 +151,8 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $ccExp    = $payload['card_expiry'] ?? $payload['cc_expiry'] ?? '';
         $ccCvv    = $payload['cvv2'] ?? $payload['card_cvv'] ?? $payload['cc_cvv'] ?? '';
 
-        if ($ccNumber === '' || $ccExp === '') {
-            return GatewayErrorMapper::buildErrorResponse('INVALID_CARD', $reference, $amount, $currency, 'بيانات البطاقة غير مكتملة');
+        if (!$this->hasCardOrPaymentToken($payload)) {
+            return GatewayErrorMapper::buildErrorResponse('INVALID_CARD', $reference, $amount, $currency, 'بيانات البطاقة أو توكن الدفع غير مكتملة');
         }
 
         $payload['cc_number'] = $ccNumber;
@@ -200,16 +193,37 @@ class NuveiAdapter implements GatewayAdapterInterface {
         $payload['card_expiry'] = $payload['card_expiry'] ?? $payload['cc_expiry'] ?? '';
         $payload['card_cvv'] = $payload['cvv2'] ?? $payload['card_cvv'] ?? $payload['cc_cvv'] ?? '';
         $payload['card_name'] = $payload['name'] ?? $payload['card_name'] ?? '';
-        if (($payload['card_number'] ?? '') === '' || ($payload['card_expiry'] ?? '') === '') {
+        if (!$this->hasCardOrPaymentToken($payload)) {
             return GatewayErrorMapper::buildErrorResponse(
                 'INVALID_CARD',
                 (string) ($payload['reference'] ?? ''),
                 (float) ($payload['amount'] ?? 0),
                 strtoupper((string) ($payload['currency'] ?? 'USD')),
-                'بيانات البطاقة غير مكتملة'
+                'بيانات البطاقة أو توكن الدفع غير مكتملة'
             );
         }
         return $this->purchase($payload);
+    }
+
+    private function hasCardOrPaymentToken(array $payload): bool
+    {
+        $cardNumber = trim((string) ($payload['card_number'] ?? $payload['cc_number'] ?? ''));
+        $cardExpiry = trim((string) ($payload['card_expiry'] ?? $payload['cc_expiry'] ?? ''));
+
+        return $cardNumber !== ''
+            ? $cardExpiry !== ''
+            : $this->paymentToken($payload) !== '';
+    }
+
+    private function paymentToken(array $params): string
+    {
+        foreach (['cloud_token', 'payment_token', 'userPaymentOptionId'] as $key) {
+            $token = trim((string) ($params[$key] ?? ''));
+            if ($token !== '') {
+                return $token;
+            }
+        }
+        return '';
     }
 
         // ── توليد checksum ──────────────────────────────────────
@@ -1242,7 +1256,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
     // ── بناء payment option للبطاقة ────────────────────────
     private function buildCardPaymentOption(array $p): array
     {
-        $token = trim((string)($p['cloud_token'] ?? $p['payment_token'] ?? $p['userPaymentOptionId'] ?? ''));
+        $token = $this->paymentToken($p);
         if ($token !== '' && empty($p['card_number'])) {
             if (ctype_digit($token)) {
                 return ['userPaymentOptionId' => $token];
@@ -1475,50 +1489,58 @@ class NuveiAdapter implements GatewayAdapterInterface {
         // ── HTTP Request ───────────────────────────────────────
     private function request(string $endpoint, array $body): array
     {
+        if ($this->configurationError !== '') {
+            return ['status' => 'ERROR', 'reason' => $this->configurationError];
+        }
+
         $path = ltrim($endpoint, '/');
         if (!str_ends_with($path, '.do')) {
             $path .= '.do';
         }
         $payload = json_encode($body);
-        $lastError = '';
-        foreach ($this->apiBases() as $base) {
-            $url = rtrim($base, '/') . '/' . $path;
-            $ch  = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_POST           => true,
-                CURLOPT_POSTFIELDS     => $payload,
-                CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 30,
-                CURLOPT_CONNECTTIMEOUT => 12,
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
-            ]);
-            $response = curl_exec($ch);
-            $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $error    = curl_error($ch);
-            curl_close($ch);
-
-            if ($error) {
-                $lastError = $error;
-                $this->log('cURL ' . $error . ' ' . $url);
-                continue;
-            }
-            if ($httpCode !== 200) {
-                $this->log('HTTP ' . $httpCode . ' ' . $url);
-                $lastError = 'HTTP ' . $httpCode;
-                continue;
-            }
-            $decoded = json_decode((string)$response, true);
-            if (!is_array($decoded)) {
-                $lastError = 'Invalid JSON response';
-                continue;
-            }
-            $this->baseUrl = $base;
-            $decoded['_http_code'] = $httpCode;
-            return $decoded;
+        if ($payload === false) {
+            return ['status' => 'ERROR', 'reason' => 'Nuvei request payload could not be encoded'];
         }
 
-        return ['status' => 'ERROR', 'reason' => 'cURL: ' . ($lastError !== '' ? $lastError : 'Nuvei host unreachable')];
+        $url = rtrim($this->baseUrl, '/') . '/' . $path;
+        $ch  = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_CONNECTTIMEOUT => 12,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_IPRESOLVE      => CURL_IPRESOLVE_V4,
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error    = curl_error($ch);
+        curl_close($ch);
+
+        if ($error) {
+            $this->log('cURL ' . $error . ' ' . $url);
+            return [
+                'status' => 'ERROR',
+                'reason' => 'cURL: ' . $error . '. Request was not retried; verify the Nuvei transaction status before retrying.',
+            ];
+        }
+        if ($httpCode !== 200) {
+            $this->log('HTTP ' . $httpCode . ' ' . $url);
+            return [
+                'status' => 'ERROR',
+                'reason' => 'HTTP ' . $httpCode . '. Request was not retried; verify the Nuvei transaction status before retrying.',
+            ];
+        }
+        $decoded = json_decode((string) $response, true);
+        if (!is_array($decoded)) {
+            return [
+                'status' => 'ERROR',
+                'reason' => 'Invalid JSON response. Request was not retried; verify the Nuvei transaction status before retrying.',
+            ];
+        }
+        $decoded['_http_code'] = $httpCode;
+        return $decoded;
     }
 }

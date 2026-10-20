@@ -80,6 +80,10 @@ class DiParmaChargeHub
         if ($gw === '' || $gw === 'diparma_gateway') {
             return false;
         }
+        self::ensurePosLoaded();
+        if (self::isDisabledPosProcessor($gw)) {
+            return false;
+        }
         self::ensureFactoryLoaded();
         return GatewayAdapterFactory::isSupported($gw);
     }
@@ -130,6 +134,9 @@ class DiParmaChargeHub
         $txnType = strtolower(trim($txnType !== '' ? $txnType : (string) ($params['txn_type'] ?? 'purchase')));
         $params['txn_type'] = $txnType;
         self::ensurePosLoaded();
+        if (self::isDisabledPosProcessor($gw)) {
+            return self::fail('Pick an enabled payment gateway. The selected gateway is not active for POS charges.', $gw);
+        }
         if (function_exists('pos_prepare_operation_payload')) {
             $params = pos_prepare_operation_payload($txnType, $params);
             $txnType = strtolower((string) ($params['txn_type'] ?? $txnType));
@@ -142,6 +149,14 @@ class DiParmaChargeHub
         }
 
         return self::chargeViaAdapter($gw, $txnType, $params);
+    }
+
+    private static function isDisabledPosProcessor(string $gateway): bool
+    {
+        if (!function_exists('pos_is_charge_processor') || !pos_is_charge_processor($gateway)) {
+            return false;
+        }
+        return !function_exists('pos_gateway_is_live') || !pos_gateway_is_live($gateway);
     }
 
     /**
