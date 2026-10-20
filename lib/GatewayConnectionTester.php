@@ -439,32 +439,12 @@ class GatewayConnectionTester
     // ── Nuvei ────────────────────────────────────────────────
     private function testNuvei(array $creds): array
     {
-        $merchantId = trim((string)($creds['merchant_id'] ?? getenv('NUVEI_MERCHANT_ID') ?: ''));
-        $siteId = trim((string)($creds['site_id'] ?? getenv('NUVEI_SITE_ID') ?: ''));
-        $secretKey = trim((string)($creds['secret_key'] ?? getenv('NUVEI_SECRET_KEY') ?: ''));
-
-        if ($merchantId === '' || $siteId === '' || $secretKey === '') {
-            return ['success' => false, 'message' => '❌ بيانات Nuvei ناقصة: merchant_id أو site_id أو secret_key'];
-        }
-
-        $clientRequestId = 'CONNECTION_' . bin2hex(random_bytes(8));
-        $timeStamp = date('YmdHis');
-        $checksum = hash('sha256', $merchantId . $siteId . $clientRequestId . $timeStamp . $secretKey);
-        $res = $this->curl('POST', 'https://secure.nuvei.com/ppp/api/v1/getSessionToken.do', [
-            'merchantId' => $merchantId,
-            'merchantSiteId' => $siteId,
-            'clientRequestId' => $clientRequestId,
-            'timeStamp' => $timeStamp,
-            'checksum' => $checksum,
-        ], ['Content-Type: application/json']);
-
-        $data = $res['data'] ?? [];
-        if (($data['status'] ?? '') === 'SUCCESS' && !empty($data['sessionToken'])) {
+        require_once __DIR__ . '/Adapters/NuveiAdapter.php';
+        $result = (new NuveiAdapter($creds))->testConnection();
+        if (!empty($result['success'])) {
             return ['success' => true, 'message' => '✅ Nuvei متصل — Session Token صالح'];
         }
-
-        $reason = $data['reason'] ?? $data['errCode'] ?? ('HTTP ' . $res['http_code']);
-        return ['success' => false, 'message' => '❌ Nuvei: ' . $reason];
+        return ['success' => false, 'message' => '❌ Nuvei: ' . ($result['message'] ?? 'فشل الاتصال')];
     }
 
     // ── PayPal ────────────────────────────────────────────────

@@ -75,27 +75,15 @@ function fetchBalance(string $gw): array {
 
             // ── Nuvei ────────────────────────────────────────
             case 'nuvei': {
-                $mId = getenv('NUVEI_MERCHANT_ID') ?: '2761828514943809999';
-                $sId = getenv('NUVEI_SITE_ID')     ?: '5613117';
-                $key = getenv('NUVEI_SECRET_KEY')  ?: '';
-                if (!$key) { $result['message']='Missing key'; break; }
-                $ts  = date('YmdHis');
-                $ref = 'BAL'.time();
-                $cs  = hash('sha256', $mId.$sId.$ref.$ts.$key);
-                $body = json_encode(['merchantId'=>$mId,'merchantSiteId'=>$sId,
-                    'clientRequestId'=>$ref,'timeStamp'=>$ts,'checksum'=>$cs]);
-                $ch = curl_init('https://secure.nuvei.com/ppp/api/v1/getSessionToken.do');
-                curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_POST=>true,
-                    CURLOPT_POSTFIELDS=>$body,CURLOPT_HTTPHEADER=>['Content-Type: application/json'],CURLOPT_TIMEOUT=>10]);
-                $r = json_decode(curl_exec($ch),true) ?: [];
-                curl_close($ch);
-                if (($r['status']??'') === 'SUCCESS') {
+                require_once __DIR__ . '/lib/Adapters/NuveiAdapter.php';
+                $connection = (new NuveiAdapter())->testConnection();
+                if (!empty($connection['success'])) {
                     $result['balance']  = 'Connected ✓';
                     $result['currency'] = '';
                     $result['status']   = 'success';
-                    $result['message']  = 'Session: '.substr($r['sessionToken']??'',0,16).'...';
+                    $result['message']  = 'Nuvei connection verified';
                 } else {
-                    $result['message'] = $r['reason'] ?? 'Error';
+                    $result['message'] = $connection['message'] ?? 'Nuvei connection failed';
                 }
                 break;
             }

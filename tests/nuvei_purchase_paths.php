@@ -79,6 +79,14 @@ putenv('NUVEI_API_URL=https://ppp-test.nuvei.com/ppp/api/v1');
 $sandboxAdapter = new NuveiAdapter();
 check($baseUrlProperty->getValue($sandboxAdapter) === 'https://ppp-test.nuvei.com/ppp/api/v1',
     'Nuvei honors an explicitly configured HTTPS Sandbox endpoint');
+$gatewayConfiguredAdapter = new NuveiAdapter([
+    'merchant_id' => 'GATEWAY-MERCHANT',
+    'site_id' => 'GATEWAY-SITE',
+    'secret_key' => 'GATEWAY-SECRET',
+    'api_endpoint' => 'https://gateway-sandbox.nuvei.test/ppp/api/v1',
+]);
+check($baseUrlProperty->getValue($gatewayConfiguredAdapter) === 'https://gateway-sandbox.nuvei.test/ppp/api/v1',
+    'Nuvei adapter honors gateway-level credentials and endpoint');
 
 putenv('NUVEI_API_URL=http://nuvei.example.test/ppp/api/v1');
 $invalidEndpointAdapter = new NuveiAdapter();
@@ -87,6 +95,10 @@ check($configurationErrorProperty->getValue($invalidEndpointAdapter) !== ''
     && ($invalidEndpointResult['status'] ?? '') === 'ERROR'
     && str_contains((string) ($invalidEndpointResult['reason'] ?? ''), 'HTTPS'),
     'Nuvei refuses an insecure configured API URL without sending credentials');
+$invalidStatusQuery = $invalidEndpointAdapter->getTransactionDetails('TEST-REFERENCE');
+check(($invalidStatusQuery['status'] ?? '') === 'ERROR'
+    && str_contains((string) ($invalidStatusQuery['reason'] ?? ''), 'HTTPS'),
+    'Nuvei status query refuses an insecure configured API URL');
 $anonymousOrder = $invalidEndpointAdapter->openOrder([
     'amount' => 10,
     'currency' => 'USD',

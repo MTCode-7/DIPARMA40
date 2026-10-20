@@ -301,7 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit_
                     $settings['back'] = trim((string)($settings['back'] ?? '')) ?: 'https://diparmas.com/nuvei-back.html';
                     $settings['environment'] = trim((string)($settings['environment'] ?? '')) ?: 'live';
                     if (trim((string)($_POST['api_endpoint'] ?? '')) === '' || str_contains((string)($_POST['api_endpoint'] ?? ''), 'example.com')) {
-                        $_POST['api_endpoint'] = 'https://secure.nuvei.com/ppp/api/v1';
+                        $_POST['api_endpoint'] = rtrim((string) (getenv('NUVEI_API_URL') ?: 'https://secure.nuvei.com/ppp/api/v1'), '/');
                     }
                     if (trim((string)($_POST['api_version'] ?? '')) === '') {
                         $_POST['api_version'] = 'v1';
@@ -1074,7 +1074,7 @@ $csrfToken = generateCsrfToken();
                 if (($editGateway['code'] ?? '') === 'nuvei') {
                     $ep = trim((string)($editGateway['api_endpoint'] ?? ''));
                     if ($ep === '' || str_contains($ep, 'example.com')) {
-                        $editGateway['api_endpoint'] = 'https://secure.nuvei.com/ppp/api/v1';
+                        $editGateway['api_endpoint'] = rtrim((string) (getenv('NUVEI_API_URL') ?: 'https://secure.nuvei.com/ppp/api/v1'), '/');
                     }
                     if (trim((string)($editGateway['api_version'] ?? '')) === '') {
                         $editGateway['api_version'] = 'v1';

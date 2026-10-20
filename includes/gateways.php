@@ -127,7 +127,7 @@ $GLOBALS['PAYMENT_GATEWAYS_CONFIG'] = [
             'secret_key' => getenv('NUVEI_SECRET_KEY') ?: '',
         ],
         'urls' => [
-            'api' => 'https://secure.nuvei.com/ppp/api/v1/',
+            'api' => getenv('NUVEI_API_URL') ?: 'https://secure.nuvei.com/ppp/api/v1/',
             'success' => getenv('NUVEI_SUCCESS_URL') ?: 'https://diparmas.com/nuvei-success.html',
             'cancel' => getenv('NUVEI_FAILURE_URL') ?: getenv('NUVEI_CANCEL_URL') ?: 'https://diparmas.com/nuvei-fail.html',
             'pending' => getenv('NUVEI_PENDING_URL') ?: 'https://diparmas.com/nuvei-pending.html',
@@ -2722,6 +2722,5 @@ function gateway_service() {
 }
 
 ?>
-
 
 

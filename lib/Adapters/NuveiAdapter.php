@@ -16,11 +16,23 @@ class NuveiAdapter implements GatewayAdapterInterface {
     private string $configurationError = '';
     private string $logFile;
 
-    public function __construct() {
-        $this->merchantId = getenv('NUVEI_MERCHANT_ID') ?: '';
-        $this->siteId     = getenv('NUVEI_SITE_ID')     ?: '';
-        $this->secretKey  = getenv('NUVEI_SECRET_KEY')  ?: '';
-        $envUrl = trim((string)(getenv('NUVEI_API_URL') ?: ''));
+    public function __construct(array $config = []) {
+        $this->merchantId = trim((string) ($config['merchant_id'] ?? ''));
+        $this->siteId = trim((string) ($config['site_id'] ?? ''));
+        $this->secretKey = trim((string) ($config['secret_key'] ?? ''));
+        $envUrl = trim((string) ($config['api_endpoint'] ?? ''));
+        if ($this->merchantId === '') {
+            $this->merchantId = trim((string) (getenv('NUVEI_MERCHANT_ID') ?: ''));
+        }
+        if ($this->siteId === '') {
+            $this->siteId = trim((string) (getenv('NUVEI_SITE_ID') ?: ''));
+        }
+        if ($this->secretKey === '') {
+            $this->secretKey = trim((string) (getenv('NUVEI_SECRET_KEY') ?: ''));
+        }
+        if ($envUrl === '') {
+            $envUrl = trim((string) (getenv('NUVEI_API_URL') ?: ''));
+        }
         if ($envUrl !== '') {
             $urlParts = parse_url($envUrl);
             if (!is_array($urlParts)
@@ -711,7 +723,9 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     // ── اختبار الاتصال ────────────────────────────────────
     public function testConnection(): array {
-        if(empty($this->merchantId)) return ['success'=>false,'message'=>'NUVEI_MERCHANT_ID missing'];
+        if ($this->merchantId === '' || $this->siteId === '' || $this->secretKey === '') {
+            return ['success' => false, 'message' => 'Nuvei merchant_id, site_id, and secret_key are required'];
+        }
 
         $ts  = date('YmdHis');
         $reqId = 'test_'.$ts;
@@ -734,6 +748,22 @@ class NuveiAdapter implements GatewayAdapterInterface {
         }
 
         return ['success'=>false,'message'=>($res['reason'] ?? $res['errCode'] ?? 'Connection failed').' ('.$ms.'ms)','ms'=>$ms];
+    }
+
+    public function getTransactionDetails(string $orderId): array
+    {
+        if ($this->merchantId === '' || $this->siteId === '' || $this->secretKey === '') {
+            return ['status' => 'ERROR', 'reason' => 'Nuvei merchant_id, site_id, and secret_key are required'];
+        }
+        $timeStamp = time();
+        $checksum = md5($this->merchantId . $timeStamp . $this->secretKey);
+        return $this->request('getTransactionDetails.do', [
+            'merchantId' => $this->merchantId,
+            'merchantSiteId' => $this->siteId,
+            'timeStamp' => $timeStamp,
+            'checksum' => $checksum,
+            'orderId' => $orderId,
+        ]);
     }
 
     // ── Webhook Handler ───────────────────────────────────

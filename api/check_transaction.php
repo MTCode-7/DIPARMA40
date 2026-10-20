@@ -423,54 +423,24 @@ if (!$updated && in_array($currentStatus, ['pending', 'processing'], true)) {
     // â•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گâ•گ
     elseif ($gateway === 'nuvei' && !empty($reference)) {
         try {
-            $merchantId = getenv('NUVEI_MERCHANT_ID') ?: 
-                        ($gatewayConfig['credentials']['merchant_id'] ?? '');
-            $siteId = getenv('NUVEI_SITE_ID') ?: 
-                    ($gatewayConfig['credentials']['site_id'] ?? '');
-            $secretKey = getenv('NUVEI_SECRET_KEY') ?: 
-                        ($gatewayConfig['credentials']['secret_key'] ?? '');
-            
-            if (!empty($merchantId) && !empty($secretKey)) {
-                $timestamp = time();
-                $checksum = md5($merchantId . $timestamp . $secretKey);
-                
-                $data = [
-                    'merchantId' => $merchantId,
-                    'merchantSiteId' => $siteId,
-                    'timeStamp' => $timestamp,
-                    'checksum' => $checksum,
-                    'orderId' => $reference,
-                ];
-                
-                $url = 'https://secure.nuvei.com/ppp/api/v1/getTransactionDetails.do';
-                
-                $ch = curl_init($url);
-                curl_setopt_array($ch, [
-                    CURLOPT_POST => true,
-                    CURLOPT_POSTFIELDS => json_encode($data),
-                    CURLOPT_HTTPHEADER => [
-                        'Content-Type: application/json',
-                    ],
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_TIMEOUT => 10,
-                ]);
-                
-                $response = curl_exec($ch);
-                curl_close($ch);
-                
-                $responseData = json_decode($response, true);
-                
-                if (!empty($responseData['transactionStatus'])) {
-                    $nuveiStatus = $responseData['transactionStatus'];
-                    $mapped = mapNuveiStatus($nuveiStatus);
-                    $liveData = $responseData;
-                    $source = 'nuvei_api';
-                    
-                    if ($mapped !== $currentStatus) {
-                        $newStatus = $mapped;
-                        $updated = true;
-                    }
+            require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
+            $nuveiConfig = is_array($gatewayConfig['credentials'] ?? null)
+                ? $gatewayConfig['credentials']
+                : [];
+            $nuveiConfig['api_endpoint'] = $gatewayConfig['api_endpoint'] ?? '';
+            $responseData = (new NuveiAdapter($nuveiConfig))->getTransactionDetails($reference);
+
+            if (!empty($responseData['transactionStatus'])) {
+                $mapped = mapNuveiStatus((string) $responseData['transactionStatus']);
+                $liveData = $responseData;
+                $source = 'nuvei_api';
+
+                if ($mapped !== $currentStatus) {
+                    $newStatus = $mapped;
+                    $updated = true;
                 }
+            } elseif (($responseData['status'] ?? '') === 'ERROR') {
+                error_log('[DI PARMA] Nuvei status query failed: ' . ($responseData['reason'] ?? 'Unknown error'));
             }
         } catch (Exception $e) {
             error_log('[DI PARMA] Nuvei error: ' . $e->getMessage());
