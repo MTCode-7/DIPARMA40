@@ -1178,8 +1178,8 @@ if ($txnType === 'balance' && $posGateway !== 'diparma') {
         $gatewayResponse = ['type' => 'balance', 'rail' => 'ledger', 'no_bank' => true];
     } else {
         try {
-            require_once POS_APP_ROOT . '/lib/Adapters/NuveiAdapter.php';
-            $nuvei = new NuveiAdapter();
+            require_once POS_APP_ROOT . '/lib/Adapters/GatewayAdapterFactory.php';
+            $nuvei = GatewayAdapterFactory::resolve('nuvei');
             $result = $nuvei->balanceInquiry([]);
             $success = !empty($result['success']);
             $message = $success ? 'BALANCE_INQUIRY_OK' : pos_plain_host_message($result['message'] ?? 'BALANCE_INQUIRY_FAILED');

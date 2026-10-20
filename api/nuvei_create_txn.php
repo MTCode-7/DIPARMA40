@@ -30,15 +30,6 @@ $currency = strtoupper(trim($payload['currency'] ?? 'USD'));
 $email    = trim($payload['email'] ?? 'guest@diparmas.com');
 $cardholderName = trim((string) ($payload['name'] ?? $payload['card_name'] ?? ''));
 
-// Nuvei credentials
-$merchantId = trim((string)getenv('NUVEI_MERCHANT_ID'));
-$siteId     = trim((string)getenv('NUVEI_SITE_ID'));
-$secretKey  = trim((string)getenv('NUVEI_SECRET_KEY'));
-if ($merchantId === '' || $siteId === '' || $secretKey === '') {
-    http_response_code(503);
-    echo json_encode(['success' => false, 'message' => 'Nuvei credentials are not configured']);
-    exit;
-}
 if ($cardholderName === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
     http_response_code(422);
     echo json_encode([
@@ -50,8 +41,8 @@ if ($cardholderName === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === fals
 
 $ref  = 'TXN' . strtoupper(bin2hex(random_bytes(5))) . date('Ymd');
 $amtF = number_format($amount, 2, '.', '');
-require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
-$order = (new NuveiAdapter())->openOrder([
+require_once __DIR__ . '/../lib/Adapters/GatewayAdapterFactory.php';
+$order = GatewayAdapterFactory::resolve('nuvei')->openOrder([
     'amount' => $amount,
     'currency' => $currency,
     'email' => $email,
@@ -74,8 +65,6 @@ if (!empty($order['success']) && !empty($order['session_token'])) {
                 json_encode([
                     'session_token' => $order['session_token'],
                     'checkout_url'  => $order['checkout_url'] ?? '',
-                    'merchant_id'   => $merchantId,
-                    'site_id'       => $siteId,
                     'amount'        => $amtF,
                     'currency'      => $currency,
                 ])

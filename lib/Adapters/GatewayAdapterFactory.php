@@ -221,10 +221,11 @@ class GatewayAdapterFactory
     {
         $gateway = strtolower(trim($gatewayType));
 
-        // تمرير config للـ env مؤقتاً إذا كانت مقدمة
-        self::injectConfig($gateway, $config);
+        if ($gateway !== 'nuvei') {
+            self::injectConfig($gateway, $config);
+        }
 
-        return self::build($gateway);
+        return self::build($gateway, $config);
     }
 
     // ══════════════════════════════════════════════════════════
@@ -301,7 +302,7 @@ class GatewayAdapterFactory
 
     // ── مساعدات خاصة ─────────────────────────────────────────
 
-    private static function build(string $gateway): GatewayAdapterInterface
+    private static function build(string $gateway, array $config = []): GatewayAdapterInterface
     {
         $class = self::$map[$gateway] ?? null;
         if ($class === null) {
@@ -311,6 +312,35 @@ class GatewayAdapterFactory
         }
         if ($gateway === 'square_online' && $class === SquareAdapter::class) {
             SquareAdapter::forProfile('square_online');
+        }
+        if ($gateway === 'nuvei') {
+            if (function_exists('db')) {
+                $row = db()->find('payment_gateways', ['code' => 'nuvei']);
+                if (is_array($row)) {
+                    if (function_exists('dp_gateway_effective_credentials')) {
+                        $credentials = dp_gateway_effective_credentials($row);
+                    } else {
+                        $credentials = [];
+                        foreach (['settings', 'credentials'] as $key) {
+                            $values = $row[$key] ?? [];
+                            if (is_string($values)) {
+                                $values = json_decode($values, true) ?: [];
+                            }
+                            if (is_array($values)) {
+                                $credentials = array_merge($credentials, $values);
+                            }
+                        }
+                    }
+                    if (!is_array($credentials)) {
+                        $credentials = [];
+                    }
+                    $databaseConfig = array_merge($credentials, [
+                        'api_endpoint' => $row['api_endpoint'] ?? '',
+                    ]);
+                    $config = array_replace($databaseConfig, $config);
+                }
+            }
+            return new NuveiAdapter($config);
         }
         return new $class();
     }

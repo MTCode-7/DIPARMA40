@@ -72,20 +72,13 @@ switch ($gateway) {
 
     // ── Nuvei ─────────────────────────────────────────────
     case 'nuvei':
-        require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
-        $mId = trim((string)getenv('NUVEI_MERCHANT_ID'));
-        $sId = trim((string)getenv('NUVEI_SITE_ID'));
-        $key = trim((string)getenv('NUVEI_SECRET_KEY'));
-        if ($mId === '' || $sId === '' || $key === '') {
-            $result['message'] = 'Nuvei credentials are not configured';
-            break;
-        }
+        require_once __DIR__ . '/../lib/Adapters/GatewayAdapterFactory.php';
         $cardholderName = trim((string) ($payload['name'] ?? $payload['card_name'] ?? ''));
         if ($cardholderName === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
             $result['message'] = 'Nuvei requires the cardholder name and a valid customer email';
             break;
         }
-        $order = (new NuveiAdapter())->openOrder([
+        $order = GatewayAdapterFactory::resolve('nuvei')->openOrder([
             'amount' => $amount,
             'currency' => $currency,
             'email' => $email,

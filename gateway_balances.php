@@ -75,8 +75,8 @@ function fetchBalance(string $gw): array {
 
             // ── Nuvei ────────────────────────────────────────
             case 'nuvei': {
-                require_once __DIR__ . '/lib/Adapters/NuveiAdapter.php';
-                $connection = (new NuveiAdapter())->testConnection();
+                require_once __DIR__ . '/lib/Adapters/GatewayAdapterFactory.php';
+                $connection = GatewayAdapterFactory::resolve('nuvei')->testConnection();
                 if (!empty($connection['success'])) {
                     $result['balance']  = 'Connected ✓';
                     $result['currency'] = '';

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../lib/CardScaService.php';
 require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
+require_once __DIR__ . '/../lib/Adapters/GatewayAdapterFactory.php';
 require_once __DIR__ . '/../lib/MySystem/ChargeHub.php';
 require_once __DIR__ . '/../pos/lib/POSAdviceHandler.php';
 
@@ -87,6 +88,14 @@ $gatewayConfiguredAdapter = new NuveiAdapter([
 ]);
 check($baseUrlProperty->getValue($gatewayConfiguredAdapter) === 'https://gateway-sandbox.nuvei.test/ppp/api/v1',
     'Nuvei adapter honors gateway-level credentials and endpoint');
+$resolvedConfiguredAdapter = GatewayAdapterFactory::resolve('nuvei', [
+    'merchant_id' => 'RESOLVED-MERCHANT',
+    'site_id' => 'RESOLVED-SITE',
+    'secret_key' => 'RESOLVED-SECRET',
+    'api_endpoint' => 'https://resolved-sandbox.nuvei.test/ppp/api/v1',
+]);
+check($baseUrlProperty->getValue($resolvedConfiguredAdapter) === 'https://resolved-sandbox.nuvei.test/ppp/api/v1',
+    'Nuvei factory resolve passes explicit credentials and endpoint to the adapter');
 
 putenv('NUVEI_API_URL=http://nuvei.example.test/ppp/api/v1');
 $invalidEndpointAdapter = new NuveiAdapter();
