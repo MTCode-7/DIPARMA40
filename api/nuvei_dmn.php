@@ -116,6 +116,16 @@ try {
         $transaction = $db->find('transactions', ['rrn' => (string)$data['ppp_TransactionID']]) ?: null;
     }
     if ($transaction) {
+        $currentStatus = (string) ($transaction['status'] ?? 'pending');
+        if (!NuveiAdapter::shouldApplyTransactionStatus($currentStatus, $normalized)) {
+            @file_put_contents(
+                $logFile,
+                '[' . date('Y-m-d H:i:s') . "] NUVEI DMN ignored stale status {$reference}: {$currentStatus} → {$normalized}\n",
+                FILE_APPEND
+            );
+            nuvei_dmn_ok();
+            exit;
+        }
         if ($normalized === 'failed') {
             diparma_discard_unsuccessful_transaction($db, (string) ($transaction['reference'] ?? $reference));
             nuvei_dmn_ok();
@@ -128,7 +138,7 @@ try {
             $update['status'] = $normalized;
         }
         $db->update('transactions', $update, ['id' => $transaction['id']]);
-        if ($normalized === 'completed' && ($transaction['status'] ?? '') !== 'completed') {
+        if ($normalized === 'completed' && $currentStatus !== 'completed') {
             require_once __DIR__ . '/../lib/PaymentOrchestrator.php';
             PaymentOrchestrator::getInstance()->onPaymentConfirmed($reference, $data);
         }

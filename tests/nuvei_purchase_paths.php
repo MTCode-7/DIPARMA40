@@ -33,6 +33,19 @@ foreach ([
     check(NuveiAdapter::mapTransactionStatus($nuveiStatus) === $expectedStatus,
         'Nuvei ' . $nuveiStatus . ' status maps to ' . $expectedStatus);
 }
+foreach ([
+    ['pending', 'completed', true],
+    ['completed', 'pending', false],
+    ['completed', 'failed', false],
+    ['completed', 'refunded', true],
+    ['refunded', 'completed', false],
+    ['refunded', 'pending', false],
+    ['cancelled', 'pending', false],
+    ['cancelled', 'completed', true],
+] as [$current, $incoming, $expected]) {
+    check(NuveiAdapter::shouldApplyTransactionStatus($current, $incoming) === $expected,
+        'Nuvei ' . $current . ' transaction ' . ($expected ? 'accepts' : 'ignores') . ' ' . $incoming . ' update');
+}
 
 $negativeAdvice = POSAdviceHandler::buildAdviceRequest([
     'card_number' => '4111111111111111',

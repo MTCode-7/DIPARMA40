@@ -1403,6 +1403,25 @@ class NuveiAdapter implements GatewayAdapterInterface {
         };
     }
 
+    public static function shouldApplyTransactionStatus(string $currentStatus, string $incomingStatus): bool
+    {
+        $current = strtolower(trim($currentStatus));
+        $incoming = strtolower(trim($incomingStatus));
+        if ($current === $incoming) {
+            return true;
+        }
+        if ($current === 'refunded') {
+            return false;
+        }
+        if ($current === 'completed') {
+            return $incoming === 'refunded';
+        }
+        if (in_array($current, ['failed', 'cancelled'], true)) {
+            return in_array($incoming, ['completed', 'refunded'], true);
+        }
+        return true;
+    }
+
     private function nuveiRedirectUrl(array $res): string
     {
         $url = trim((string)($res['redirectUrl'] ?? $res['redirect_url'] ?? ''));
