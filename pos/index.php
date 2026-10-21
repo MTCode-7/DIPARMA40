@@ -2437,6 +2437,11 @@ function arrangeAdviceSteps(type) {
   if (type === 'purchase_advice') {
     cardHome.insertAdjacentElement('afterend', extra);
     extra.insertAdjacentElement('afterend', amount);
+    if (isNuveiPurchaseAdvice(type)) {
+      const modeHome = document.getElementById('nuveiAdviceModeHome');
+      const modeRow = document.getElementById('cardModeRow');
+      if (modeHome && modeRow) modeHome.replaceWith(modeRow);
+    }
   } else {
     cardHome.insertAdjacentElement('afterend', card);
     amountHome.insertAdjacentElement('afterend', amount);
@@ -2450,6 +2455,11 @@ function arrangeAdviceSteps(type) {
 
 function renderExtraFields(type) {
   const el = document.getElementById('extraFields');
+  const modeRow = document.getElementById('cardModeRow');
+  const cardTitle = document.querySelector('#cardSection .form-title');
+  if (modeRow && cardTitle && modeRow.parentElement !== cardTitle.parentElement) {
+    cardTitle.insertAdjacentElement('afterend', modeRow);
+  }
   let html = '';
   const meta = TXN_META[type] || {};
   const nuveiAdvice = isNuveiPurchaseAdvice(type);
@@ -2464,7 +2474,7 @@ function renderExtraFields(type) {
       ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
       ${type === 'capture' ? '<br>• '+(AR?'RRN وApproval من إيصال الحجز. المبلغ أقل أو مساوٍ أو أكبر أو سالب. حد البنك 5,000,000 على القيمة المطلقة.':'RRN and approval come from the hold receipt. Amount may be lower, equal, higher, or negative. Bank cap 5,000,000 on the absolute value.') : ''}
       ${(type === 'offline_sale_moto' || type === 'offline_sales_moto') ? '<br>• '+(AR?'Approval Code مطلوب. لا RRN. الشحن يبقى أوفلاين حتى لو كان المبلغ سالباً. حد البنك 2,000,000 على القيمة المطلقة.':'Approval code is required. No RRN. The charge stays offline even when the amount is negative. Bank cap 2,000,000 on the absolute value.') : ''}
-      ${type === 'purchase_advice' ? '<br>• '+(nuveiAdvice ? (AR?'أدخل RRN وتاريخ العملية الأصلية ورمز الموافقة. في وضع Physical مرّر البطاقة فقط؛ في وضع Manual أدخل رقم البطاقة وتاريخ الانتهاء وCVV.':'Enter the original RRN, transaction date, and approval code. Physical: swipe the card only. Manual: enter PAN, expiry, and CVV.') : (AR?'اربط الإشعار بتفويض سابق باستخدام RRN وApproval وتاريخه الأصلي. لا يلزم أن يكون الحجز من هذا الجهاز.':'Link the advice to a prior authorization using its original RRN, approval code, and date. The hold need not be from this terminal.')) : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز. بعد الموافقة يظهران في الإيصال.':'No RRN or approval fields while entering the hold. After approval they print on the receipt.') : '')}
+      ${type === 'purchase_advice' ? '<br>• '+(nuveiAdvice ? (AR?'أدخل RRN ورمز الموافقة وتاريخ العملية الأصلية. في وضع Physical مرّر البطاقة فقط؛ في وضع Manual أدخل رقم البطاقة وتاريخ الانتهاء وCVV.':'Enter the original RRN, approval code, and transaction date. Physical: swipe the card only. Manual: enter PAN, expiry, and CVV.') : (AR?'اربط الإشعار بتفويض سابق باستخدام RRN وApproval وتاريخه الأصلي. لا يلزم أن يكون الحجز من هذا الجهاز.':'Link the advice to a prior authorization using its original RRN, approval code, and date. The hold need not be from this terminal.')) : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز. بعد الموافقة يظهران في الإيصال.':'No RRN or approval fields while entering the hold. After approval they print on the receipt.') : '')}
     </div>`;
   }
 
@@ -2497,7 +2507,7 @@ function renderExtraFields(type) {
     html += `<div class="info-banner" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.74rem;line-height:1.7">
       <strong style="color:#fbbf24">${AR ? 'خطوات Purchase Advice' : 'Purchase Advice steps'}</strong>
       <ol style="margin:6px 0 0;padding-inline-start:22px">
-        <li>${AR ? 'أدخل RRN وتاريخ التفويض ورمز الموافقة من العملية الأصلية، حتى لو تمت على جهاز آخر.' : 'Enter the original authorization RRN, date, and approval code, even if it was created on another terminal.'}</li>
+        <li>${AR ? 'أدخل RRN ورمز الموافقة وتاريخ العملية الأصلية، حتى لو تمت على جهاز آخر.' : 'Enter the original RRN, approval code, and transaction date, even if it was created on another terminal.'}</li>
         <li>${AR ? 'أدخل مبلغ التسوية والعملة.' : 'Enter the settlement amount and currency.'}</li>
         <li>${AR ? (nuveiAdvice ? 'في Physical مرّر البطاقة فقط. في Manual أدخل رقم البطاقة وتاريخ الانتهاء وCVV.' : 'أدخل البطاقة يدوياً، أو اختر Physical ومرّرها عبر قارئ متصل.') : (nuveiAdvice ? 'Physical: swipe the card only. Manual: enter PAN, expiry, and CVV.' : 'Enter the card manually, or choose Physical and swipe it through a connected reader.')}</li>
       </ol>
@@ -2512,12 +2522,6 @@ function renderExtraFields(type) {
         oninput="if(!this.readOnly)this.value=this.value.replace(/\\D/g,'').slice(0,12)">
     </div>`;
   }
-  if (type === 'purchase_advice') {
-    html += `<div class="fld">
-      <label>${AR ? 'تاريخ العملية الأصلية' : 'Original transaction date'} <span style="color:var(--red)">*</span></label>
-      <input type="date" id="originalTransactionDate" required>
-    </div>`;
-  }
   if (showApproval) {
     const lock = type === 'capture' ? ' readonly' : '';
     const required = type === 'purchase_advice' ? ' required' : '';
@@ -2527,6 +2531,13 @@ function renderExtraFields(type) {
         style="letter-spacing:4px;font-weight:800;text-align:center"
         oninput="if(!this.readOnly)this.value=this.value.replace(/[^0-9A-Za-z]/g,'').slice(0,6)">
     </div>`;
+  }
+  if (type === 'purchase_advice') {
+    html += `<div class="fld">
+    <label>${AR ? 'تاريخ العملية الأصلية' : 'Original transaction date'} <span style="color:var(--red)">*</span></label>
+    <input type="date" id="originalTransactionDate" required>
+    </div>`;
+    if (nuveiAdvice) html += '<div id="nuveiAdviceModeHome"></div>';
   }
 
   if (type === 'refund' || type === 'avoid') {
@@ -3865,7 +3876,13 @@ async function loadLedgerBalance(address) {
     const payload = await r.json();
     if (!r.ok || !payload.success) {
       if (bal) bal.textContent = '— USDT';
-      if (trx) trx.textContent = payload.message || ('HTTP ' + r.status);
+      if (trx) {
+        trx.textContent = payload.code === 'INVALID_TRON_ADDRESS'
+          ? (AR
+            ? 'عنوان استلام Ledger غير صالح. حدّث إعداد LEDGER_TRC20_ADDRESS بعنوان TRON صحيح.'
+            : 'Ledger receiving address is invalid. Set LEDGER_TRC20_ADDRESS to a valid TRON address.')
+          : (payload.message || ('HTTP ' + r.status));
+      }
       return;
     }
     if (bal) bal.textContent = Number(payload.usdt || 0).toFixed(2) + ' USDT';

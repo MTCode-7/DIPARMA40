@@ -8,6 +8,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/base58.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -29,8 +30,8 @@ if (!tron_address_ok($address)) {
     http_response_code(400);
     echo json_encode([
         'success' => false,
+        'code' => 'INVALID_TRON_ADDRESS',
         'message' => 'عنوان Ledger غير صالح: فحص base58 checksum فشل',
-        'address' => $address,
     ]);
     exit;
 }
@@ -39,37 +40,15 @@ const USDT_CONTRACT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 
 function tron_address_ok(string $address): bool
 {
-    if (!preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $address)) {
+    if (!preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/D', $address)) {
         return false;
     }
-    $alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-    $decoded = '0';
-    $length = strlen($address);
-    for ($i = 0; $i < $length; $i++) {
-        $digit = strpos($alphabet, $address[$i]);
-        if ($digit === false) {
-            return false;
-        }
-        $decoded = bcmul($decoded, '58', 0);
-        $decoded = bcadd($decoded, (string) $digit, 0);
-    }
-    $raw = '';
-    while (bccomp($decoded, '0') === 1) {
-        $raw = chr((int) bcmod($decoded, '256')) . $raw;
-        $decoded = bcdiv($decoded, '256', 0);
-    }
-    $pad = 0;
-    for ($i = 0; $i < $length && $address[$i] === '1'; $i++) {
-        $pad++;
-    }
-    $raw = str_repeat("\x00", $pad) . $raw;
-    if (strlen($raw) !== 25 || $raw[0] !== "\x41") {
+    try {
+        dp_tron_address_payload($address);
+        return true;
+    } catch (InvalidArgumentException $e) {
         return false;
     }
-    $payload = substr($raw, 0, 21);
-    $checksum = substr($raw, 21, 4);
-    $hash = substr(hash('sha256', hash('sha256', $payload, true), true), 0, 4);
-    return hash_equals($hash, $checksum);
 }
 
 function trongrid_get(string $url): array

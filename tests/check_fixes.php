@@ -31,6 +31,15 @@ $body = hex2bin('417e5f4552091a69125d5dfcb7b8c2659029395bdf');
 $check = substr(hash('sha256', hash('sha256', $body, true), true), 0, 4);
 $expected = dp_base58_encode($body . $check);
 check(TronSigner::addressFromPrivateKey(str_repeat('0', 63) . '1') === $expected, 'key 1 derives its TRON address');
+check(dp_tron_address_payload($expected) === $body, 'TRON address validation accepts a correct Base58Check address');
+$invalidChecksumAddress = substr($expected, 0, -1) . ($expected[strlen($expected) - 1] === '1' ? '2' : '1');
+$rejectsInvalidChecksum = false;
+try {
+    dp_tron_address_payload($invalidChecksumAddress);
+} catch (InvalidArgumentException $e) {
+    $rejectsInvalidChecksum = true;
+}
+check($rejectsInvalidChecksum, 'TRON address validation rejects an invalid Base58Check checksum');
 
 $pub = TronSigner::publicKey(str_repeat('0', 63) . '1');
 $gx = '55066263022277343669578718895168534326250603453777594175500187360389116729240';
