@@ -63,9 +63,26 @@ check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'captur
 check(pos_receipt_status(['status' => 'failed', 'transaction_type' => 'purchase_3d']) === 'DECLINED', 'Failed purchase receipt is declined');
 check(pos_receipt_status(['status' => 'pending', 'transaction_type' => 'purchase_3d']) === 'PENDING', 'Pending purchase receipt is pending');
 check(pos_receipt_status(['status' => 'completed', 'transaction_type' => 'withdrawal_pos']) === 'SUCCESS', 'Completed withdrawal receipt reports success');
-check(transaction_display_label('purchase_advice') === 'PURCHASE ADVICE', 'Purchase Advice is not displayed as a sale');
+$operationLabels = [
+    'purchase_2d' => 'PURCHASE 2D',
+    'purchase_3d' => 'PURCHASE 3D (OTP)',
+    'online_sale_moto' => 'ONLINE SALE MOTO',
+    'offline_sale_moto' => 'OFFLINE SALE MOTO (SAF)',
+    'auth' => 'AUTHORIZATION (HOLD)',
+    'capture' => 'AUTH CAPTURE',
+    'purchase_advice' => 'PURCHASE ADVICE',
+    'refund' => 'REFUND',
+    'avoid' => 'VOID',
+    'withdrawal_pos' => 'POS CASH ADVANCE',
+    'withdrawal_nfc' => 'NFC CASH ADVANCE',
+];
+foreach ($operationLabels as $operation => $expectedLabel) {
+    check(transaction_display_label($operation) === $expectedLabel, $operation . ' has a distinct operation label');
+}
 check(transaction_display_label('purchase_advice', 'SALE') === 'PURCHASE ADVICE', 'Purchase Advice overrides a legacy SALE label in transaction history');
-check(transaction_display_label('purchase_2d') === 'SALE', 'Ordinary purchases retain the SALE display label');
+check(count(array_unique(array_values($operationLabels))) === count($operationLabels), 'core POS operations have unique receipt labels');
+check(transaction_display_label('auth_capture') === transaction_display_label('capture'), 'AUTH capture aliases retain one operation label');
+check(transaction_display_label('purchase_offline') === transaction_display_label('offline_sale_moto'), 'Offline sale aliases retain one operation label');
 $paypalSourceBuilder = new ReflectionMethod(PayPalService::class, 'directCardPaymentSource');
 $paypalSourceBuilder->setAccessible(true);
 $paypalTestService = PayPalService::getInstance();

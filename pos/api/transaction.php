@@ -1220,20 +1220,7 @@ if ($txnType === 'settlement' && $posGateway !== 'diparma') {
     $gatewayResponse = ['type' => 'settlement', 'settlement_target' => 'ledger', 'no_bank' => true];
 }
 
-$displayOperation = in_array($txnType, [
-    'purchase_2d', 'purchase_3d', 'online_sale_moto', 'offline_sale_moto',
-    'capture', 'withdrawal_pos', 'withdrawal_nfc',
-], true) ? 'SALE' : strtoupper(str_replace('_', ' ', $txnType));
-
-if ($txnType === 'auth') {
-    $displayOperation = 'AUTH';
-} elseif ($txnType === 'refund') {
-    $displayOperation = 'REFUND';
-} elseif ($txnType === 'avoid') {
-    $displayOperation = 'AVOID';
-} elseif (pos_is_withdrawal($txnType)) {
-    $displayOperation = 'CASH ADVANCE';
-}
+$displayOperation = transaction_display_label($txnType);
 $receiptPaymentId = $providerPaymentId !== ''
     ? $providerPaymentId
     : ($txnType === 'auth' ? '' : $paymentId);

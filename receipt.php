@@ -660,11 +660,10 @@ $receiptGatewayApproval = $firstNonEmpty([
     $txn['gateway_approval_code'] ?? '',
     $internalApprovalCode,
 ]);
-$txnType = strtoupper(str_replace('_', ' ', $rawTxnType !== '' ? $rawTxnType : 'PURCHASE'));
-$txnType = trim((string) preg_replace('/\s+/', ' ', str_ireplace('MOTO', '', $txnType)));
-if ($txnType === '') {
-    $txnType = 'SALE';
-}
+$txnType = function_exists('transaction_display_label')
+    ? transaction_display_label($rawTxnType !== '' ? $rawTxnType : 'purchase', (string) ($txn['transaction_label'] ?? ''))
+    : strtoupper(str_replace('_', ' ', $rawTxnType !== '' ? $rawTxnType : 'PURCHASE'));
+$txnType = trim((string) preg_replace('/\s+/', ' ', $txnType));
 if (function_exists('redact_protocol_numbers')) {
     $txnType = redact_protocol_numbers($txnType);
 }

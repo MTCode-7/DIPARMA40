@@ -1950,7 +1950,41 @@ function posSlipStatus(d) {
 
 function posReceiptOperationName(d, selectedType) {
   const type = String((d && d.txn_type) || selectedType || '').trim().toLowerCase();
-  if (type === 'purchase_advice') return 'PURCHASE ADVICE';
+  const labels = {
+    purchase: 'PURCHASE 3D (OTP)',
+    direct3d: 'PURCHASE 3D (OTP)',
+    purchase_2d: 'PURCHASE 2D',
+    purchase_moto: 'PURCHASE 2D',
+    direct2d: 'PURCHASE 2D',
+    purchase_3d: 'PURCHASE 3D (OTP)',
+    online_sale_moto: 'ONLINE SALE MOTO',
+    purchase_online: 'ONLINE SALE MOTO',
+    online_purchase: 'ONLINE SALE MOTO',
+    online_moto: 'ONLINE SALE MOTO',
+    offline_sale_moto: 'OFFLINE SALE MOTO (SAF)',
+    offline_sales_moto: 'OFFLINE SALE MOTO (SAF)',
+    purchase_offline: 'OFFLINE SALE MOTO (SAF)',
+    offline_purchase: 'OFFLINE SALE MOTO (SAF)',
+    offline_moto: 'OFFLINE SALE MOTO (SAF)',
+    auth: 'AUTHORIZATION (HOLD)',
+    auth_hold: 'AUTHORIZATION (HOLD)',
+    auth_moto: 'AUTHORIZATION (HOLD)',
+    hold: 'AUTHORIZATION (HOLD)',
+    capture: 'AUTH CAPTURE',
+    auth_complete: 'AUTH CAPTURE',
+    auth_capture: 'AUTH CAPTURE',
+    purchase_advice: 'PURCHASE ADVICE',
+    refund: 'REFUND',
+    avoid: 'VOID',
+    void: 'VOID',
+    cancel: 'VOID',
+    reversal: 'VOID',
+    withdrawal_pos: 'POS CASH ADVANCE',
+    withdrawal_physical: 'POS CASH ADVANCE',
+    withdrawal_nfc: 'NFC CASH ADVANCE',
+    cash_advance: 'CASH ADVANCE',
+  };
+  if (labels[type]) return labels[type];
   return String((d && d.operation_name) || selectedType || 'SALE')
     .replace(/_?moto/ig, '')
     .replace(/_/g, ' ')
