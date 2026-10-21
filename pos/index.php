@@ -1197,11 +1197,11 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="mode-row" id="cardModeRow" <?=pos_gateway_requires_card($posGw)?'':'style="display:none"'?>>
       <button type="button" class="mode-btn <?=$startMode==='manual'?'active':''?>" id="modeManual" onclick="setInputMode('manual')">
         <strong><i class="fas fa-keyboard"></i> <?=$ar?'مانول':'Manual'?></strong>
-        <span><?=$ar?'رقم البطاقة يدوياً. أوفلاين يبقي رمز الموافقة. البيع الثنائي والتسوية لا يتحولان إلى 3DS.':'Type the card. Offline keeps the approval code. 2D and advice are not switched to 3DS.'?></span>
+        <span id="modeManualHint"><?=$ar?'أدخل بيانات البطاقة يدوياً.':'Enter card details manually.'?></span>
       </button>
       <button type="button" class="mode-btn <?=$startMode==='physical'?'active':''?>" id="modePhysical" onclick="setInputMode('physical')">
         <strong><i class="fas fa-sim-card"></i> <?=$ar?'فيزيكل':'Physical'?></strong>
-        <span><?=$ar?'تمرير البطاقة من قارئ متصل':'Swipe card using a connected reader'?></span>
+        <span id="modePhysicalHint"><?=$ar?'مرّر البطاقة عبر قارئ متصل.':'Swipe through a connected reader.'?></span>
       </button>
     </div>
 
@@ -1212,6 +1212,11 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
         <div style="font-size:.74rem;color:var(--muted2)" id="physHint"><?=$ar
           ? ('مرّر البطاقة عبر قارئ مغناطيسي متصل. الشريحة أو NFC لا تنقل PAN إلى المتصفح. TID حقيقي مطلوب.')
           : ('Swipe through a connected magstripe reader. Chip/NFC does not pass PAN to the browser. A real TID is required.')?></div>
+        <div id="nuveiAdviceContactlessNotice" style="display:none;margin-top:10px;padding:9px 10px;border:1px solid rgba(245,158,11,.35);border-radius:9px;background:rgba(245,158,11,.08);font-size:.7rem;line-height:1.55;color:#fbbf24">
+          <?=$ar
+            ? 'التمرير عبر قارئ magstripe متصل مدعوم. الدفع بالـtap أو الشريحة عبر قارئ الجهاز المدمج غير مربوط بتطبيق الويب حالياً؛ استخدم Manual أو أكمل عبر تطبيق الدفع الأصلي بعد توفير تكامله.'
+            : 'Magstripe swipe through a connected reader is supported. Tap or chip through the built-in reader is not connected to this web app; use Manual or the native payment app until its integration is available.'?>
+        </div>
         <input id="wedgeCapture" type="text" inputmode="none" autocomplete="off" autocapitalize="off" spellcheck="false"
           style="margin-top:12px;width:100%;background:#020508;border:1px dashed rgba(16,185,129,.45);color:var(--green);border-radius:10px;padding:12px;font-weight:800;letter-spacing:.04em"
           placeholder="<?=$ar?'مرّر البطاقة هنا':'Swipe the card here'?>">
@@ -2292,6 +2297,20 @@ window.applyOpsLegend = function(type) {
   const nuveiAdvice = isNuveiPurchaseAdvice(type);
   const nuveiAdvicePhysical = nuveiAdvice && POS.inputMode === 'physical';
   const nuveiAdviceManual = nuveiAdvice && !nuveiAdvicePhysical;
+  const manualModeHint = document.getElementById('modeManualHint');
+  const physicalModeHint = document.getElementById('modePhysicalHint');
+  if (manualModeHint) {
+    manualModeHint.textContent = nuveiAdvice
+      ? (AR ? 'أدخل رقم البطاقة وتاريخ الانتهاء وCVV يدوياً.' : 'Enter the card number, expiry, and CVV manually.')
+      : (AR ? 'أدخل بيانات البطاقة يدوياً.' : 'Enter card details manually.');
+  }
+  if (physicalModeHint) {
+    physicalModeHint.textContent = nuveiAdvice
+      ? (AR ? 'مرّر البطاقة عبر قارئ magstripe متصل؛ tap الجهاز غير مربوط بعد.' : 'Swipe through a connected magstripe reader; device tap is not integrated yet.')
+      : (AR ? 'مرّر البطاقة عبر قارئ متصل.' : 'Swipe through a connected reader.');
+  }
+  const contactlessNotice = document.getElementById('nuveiAdviceContactlessNotice');
+  if (contactlessNotice) contactlessNotice.style.display = nuveiAdvicePhysical ? '' : 'none';
   if (nuveiAdvice) {
     row.card = !nuveiAdvicePhysical;
     row.exp = !nuveiAdvicePhysical;
@@ -3355,6 +3374,14 @@ window.processTransaction = async function() {
     if (cardNum.length < 13 || cardNum.length > 19) document.getElementById('cardNumber')?.focus();
     else if (!expiry) document.getElementById('cardExpiry')?.focus();
     else document.getElementById('cardCVV')?.focus();
+    return;
+  }
+  if (nuveiAdvicePhysical && (cardNum.length < 13 || cardNum.length > 19 || !expiry)) {
+    toast(AR
+      ? 'مرّر البطاقة عبر قارئ magstripe متصل، أو اختر Manual. tap والشريحة يحتاجان تكامل تطبيق الجهاز.'
+      : 'Swipe through a connected magstripe reader or choose Manual. Tap and chip require the device app integration.',
+      'error');
+    document.getElementById('wedgeCapture')?.focus();
     return;
   }
   if (needsCard && !['capture'].includes(type) && !nuveiAdvice && !(type === 'purchase_advice' && isPhysical) && (!cardName || /^(cardholder|guest|test|customer|client)$/i.test(cardName.replace(/\s+/g, '')))) {

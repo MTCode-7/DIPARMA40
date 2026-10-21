@@ -674,6 +674,12 @@ if ($txnType === 'purchase_advice' && !$isNuveiAdvicePhysical
     && ($cardType === 'CLOUD' || strlen($cardNumber) < 13 || $cardExpiry === '')) {
     $fieldErrors[] = 'Purchase Advice requires a real PAN and expiry from manual entry or a physical swipe.';
 }
+if ($isNuveiAdvicePhysical && !$nuveiVerix) {
+    $readerDataError = pos_nuvei_physical_advice_data_error($inputMode, $cardType, $cardNumber, $cardExpiry);
+    if ($readerDataError !== null) {
+        $fieldErrors[] = $readerDataError;
+    }
+}
 if (!$cardRail && in_array($txnType, ['refund', 'avoid'], true) && pos_normalize_rrn($origRef) === '' && trim($origRef) === '') {
     $fieldErrors[] = 'Original reference is required for refund/avoid.';
 }

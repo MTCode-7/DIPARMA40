@@ -40,6 +40,12 @@ $adviceOk = pos_validate_operation_fields('purchase_advice', $card + ['rrn' => '
 check($adviceOk === [], 'advice with RRN and approval passes');
 check(pos_host_advice_amount('nuvei', -40.0) === -40.0, 'Nuvei Advice preserves a negative credit amount for ISO processing');
 check(pos_host_advice_amount('stripe', -40.0) === 40.0, 'other Advice gateways retain positive host debit amounts');
+check(pos_nuvei_physical_advice_data_error('physical', 'LIVE', '', '') !== null,
+    'physical Nuvei Advice cannot submit without card data from the reader');
+check(pos_nuvei_physical_advice_data_error('physical', 'LIVE', '4111111111111111', '12/30') === null,
+    'physical Nuvei Advice accepts card data from a magstripe reader');
+check(pos_nuvei_physical_advice_data_error('manual', 'LIVE', '', '') === null,
+    'physical reader data guard does not affect Manual entry');
 $adviceMeta = pos_operation_meta('purchase_advice');
 check(!empty($adviceMeta['requires_rrn']) && !empty($adviceMeta['requires_approval']) && !empty($adviceMeta['linked_to_auth']) && !empty($adviceMeta['direct_advice']), 'advice links to a prior authorization using external references, without requiring a local hold');
 check(($adviceMeta['ar'] ?? '') === 'PURCHASE ADVICE' && ($adviceMeta['en'] ?? '') === 'PURCHASE ADVICE', 'advice label does not misidentify card-present transactions as MOTO');

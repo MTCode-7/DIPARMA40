@@ -90,6 +90,19 @@ function pos_host_advice_amount(string $gateway, float $amount): float
     return pos_host_debit_amount('purchase_advice', $amount);
 }
 
+function pos_nuvei_physical_advice_data_error(string $inputMode, string $cardType, string $cardNumber, string $cardExpiry): ?string
+{
+    if (strtolower(trim($inputMode)) !== 'physical') {
+        return null;
+    }
+    $pan = preg_replace('/\D/', '', $cardNumber) ?? '';
+    if (strtoupper(trim($cardType)) === 'CLOUD' || strlen($pan) < 13 || strlen($pan) > 19
+        || !preg_match('/^(0[1-9]|1[0-2])\/\d{2}$/', trim($cardExpiry))) {
+        return 'Physical Nuvei Purchase Advice requires card data from a connected magstripe reader. Tap/chip is not integrated with this web POS.';
+    }
+    return null;
+}
+
 /**
  * RRN + approval printed on a successful AUTH and stored for later capture.
  * Host values win. A missing value is filled with the 12-digit RRN (ymd + STAN)
