@@ -1001,7 +1001,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'success' => $success,
             'status' => $success ? 'completed' : 'failed',
             'txn_type' => 'purchase_advice',
-            'reference' => (string) ($result['reference_number'] ?? $params['reference'] ?? ''),
+            'reference' => (string) ($params['reference'] ?? ''),
             'transaction_id' => $transactionId,
             'payment_id' => $transactionId,
             'nuvei_txn_id' => $transactionId,

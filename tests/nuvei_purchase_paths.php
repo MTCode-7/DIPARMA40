@@ -255,6 +255,7 @@ foreach (['BANK_ADVICE_HOST', 'DIRECT_ADVICE_HOST'] as $key) {
     putenv($key);
 }
 $advice = $adapter->purchaseAdvice([
+    'reference' => 'POS-ADVICE-TEST-001',
     'amount' => 10,
     'currency' => 'USD',
     'rrn' => '123456789012',
@@ -267,9 +268,13 @@ check(empty($advice['success'])
     && str_contains((string) ($advice['message'] ?? ''), 'BANK_ADVICE_HOST')
     && str_contains((string) ($advice['message'] ?? ''), 'No card sale was sent'),
     'Nuvei Advice fails closed without a bank host instead of sending a REST Sale');
+check(($advice['reference'] ?? '') === 'POS-ADVICE-TEST-001'
+    && ($advice['rrn'] ?? '') === '123456789012',
+    'Nuvei Advice preserves the POS receipt reference separately from the bank RRN');
 
 putenv('BANK_ADVICE_HOST=http://bank-advice.example.test');
 $invalidHostAdvice = $adapter->purchaseAdvice([
+    'reference' => 'POS-ADVICE-TEST-002',
     'amount' => 10,
     'currency' => 'USD',
     'rrn' => '123456789012',
