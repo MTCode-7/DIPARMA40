@@ -1012,9 +1012,13 @@ if ($useCardGateway) {
                 $params['moto_indicator'] = 'M';
             }
         }
-        if (in_array($txnType, ['capture', 'purchase_advice', 'offline_sale_moto'], true) && $amount < 0) {
+        if ($txnType === 'purchase_advice') {
+            $params['amount'] = pos_host_advice_amount($posGateway, $amount);
+        } elseif (in_array($txnType, ['capture', 'offline_sale_moto'], true) && $amount < 0) {
             $params['amount'] = pos_host_debit_amount($txnType, $amount);
-            $params['capture_amount'] = $txnType === 'capture' ? $params['amount'] : ($params['capture_amount'] ?? null);
+            if ($txnType === 'capture') {
+                $params['capture_amount'] = $params['amount'];
+            }
         }
         if ($txnType === 'capture') {
             $params['capture_amount'] = abs($captureAmount) >= 0.01 ? pos_host_debit_amount('capture', $captureAmount) : ($params['capture_amount'] ?? 0);
@@ -1614,6 +1618,9 @@ echo json_encode([
     'stan' => $receiptStan,
     'batch' => $receiptBatch,
     'original_rrn' => $originalRrn,
+    'original_transaction_date' => $txnType === 'purchase_advice'
+        ? (string) ($extra['original_transaction_date'] ?? '')
+        : null,
     'approval_code' => $approvalCode,
     'gateway_approval_code' => $approvalCode,
     'payment_id' => $receiptPaymentId,

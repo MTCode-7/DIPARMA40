@@ -3,6 +3,7 @@ require_once __DIR__ . '/../lib/CardScaService.php';
 require_once __DIR__ . '/../lib/Adapters/NuveiAdapter.php';
 require_once __DIR__ . '/../lib/Adapters/GatewayAdapterFactory.php';
 require_once __DIR__ . '/../lib/MySystem/ChargeHub.php';
+require_once __DIR__ . '/../pos/lib/operations.php';
 require_once __DIR__ . '/../pos/lib/POSAdviceHandler.php';
 
 $fail = 0;
@@ -49,13 +50,13 @@ foreach ([
 
 $negativeAdvice = POSAdviceHandler::buildAdviceRequest([
     'card_number' => '4111111111111111',
-    'amount' => -12.34,
+    'amount' => pos_host_advice_amount('nuvei', -12.34),
     'rrn' => '123456789012',
 ]);
 check(($negativeAdvice['mti'] ?? '') === '0220'
     && ($negativeAdvice['fields']['3'] ?? '') === '200000'
     && ($negativeAdvice['fields']['4'] ?? '') === '000000001234',
-    'Negative Purchase Advice is encoded as a 0220 credit');
+    'Negative Nuvei Advice stays a 0220 credit after host amount normalization');
 $manualAdvice = POSAdviceHandler::buildAdviceRequest([
     'card_number' => '4111111111111111',
     'amount' => 12.34,

@@ -38,6 +38,8 @@ $adviceMissingAp = pos_validate_operation_fields('purchase_advice', $card + ['rr
 check($adviceMissingAp !== [] && !in_array('RRN must be exactly 12 digits.', $adviceMissingAp, true), 'advice requires approval');
 $adviceOk = pos_validate_operation_fields('purchase_advice', $card + ['rrn' => '123456789012', 'approval_code' => '123456']);
 check($adviceOk === [], 'advice with RRN and approval passes');
+check(pos_host_advice_amount('nuvei', -40.0) === -40.0, 'Nuvei Advice preserves a negative credit amount for ISO processing');
+check(pos_host_advice_amount('stripe', -40.0) === 40.0, 'other Advice gateways retain positive host debit amounts');
 $adviceMeta = pos_operation_meta('purchase_advice');
 check(!empty($adviceMeta['requires_rrn']) && !empty($adviceMeta['requires_approval']) && !empty($adviceMeta['linked_to_auth']) && !empty($adviceMeta['direct_advice']), 'advice links to a prior authorization using external references, without requiring a local hold');
 check(($adviceMeta['ar'] ?? '') === 'PURCHASE ADVICE' && ($adviceMeta['en'] ?? '') === 'PURCHASE ADVICE', 'advice label does not misidentify card-present transactions as MOTO');
@@ -58,21 +60,25 @@ $nuveiPhysicalAdvice = pos_prepare_operation_payload('purchase_advice', [
     'gateway' => 'nuvei',
     'input_mode' => 'physical',
     'entry_mode' => 'pos_magstripe',
+    'card_cvv' => '123',
 ]);
 check(empty($nuveiPhysicalAdvice['is_moto'])
     && !empty($nuveiPhysicalAdvice['card_present'])
     && !empty($nuveiPhysicalAdvice['direct_advice'])
+    && empty($nuveiPhysicalAdvice['card_cvv'])
     && ($nuveiPhysicalAdvice['entry_mode'] ?? '') === 'pos_magstripe',
     'Nuvei physical Advice uses card-present ISO Advice');
 $nuveiManualAdvice = pos_prepare_operation_payload('purchase_advice', [
     'gateway' => 'nuvei',
     'input_mode' => 'manual',
     'entry_mode' => 'keyed',
+    'card_cvv' => '123',
 ]);
 check(!empty($nuveiManualAdvice['is_moto'])
     && empty($nuveiManualAdvice['card_present'])
-    && !empty($nuveiManualAdvice['direct_advice']),
-    'Nuvei manual Advice uses keyed ISO Advice');
+    && !empty($nuveiManualAdvice['direct_advice'])
+    && ($nuveiManualAdvice['card_cvv'] ?? '') === '123',
+    'Nuvei manual Advice keeps CVV while using keyed ISO Advice');
 $physicalAdviceFields = pos_validate_operation_fields('purchase_advice', [
     'rrn' => '123456789012',
     'approval_code' => '123456',

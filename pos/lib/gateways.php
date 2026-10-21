@@ -566,7 +566,11 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
     }
     if ($txnType === 'purchase_advice') {
         $params['direct_advice'] = !$nuveiAuthSettlement;
-        $params['card_cvv'] = '';
+        $keepNuveiManualCvv = $gw === 'nuvei'
+            && strtolower(trim((string) ($params['input_mode'] ?? 'manual'))) !== 'physical';
+        if (!$keepNuveiManualCvv) {
+            $params['card_cvv'] = '';
+        }
     }
     $paypalAuthorize = $gw === 'paypal' && in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold'], true);
     if ($paypalAuthorize) {
@@ -740,7 +744,6 @@ function pos_dispatch_direct_advice_to_gateway(string $gateway, array $params): 
         return ['success' => false, 'message' => 'Unknown POS gateway'];
     }
     $adapter = $meta['adapter'];
-    $params['card_cvv'] = '';
     $params['direct_advice'] = true;
     $params['txn_type'] = 'purchase_advice';
 

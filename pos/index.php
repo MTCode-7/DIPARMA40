@@ -1449,6 +1449,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     </div>
     <div class="receipt-row"><span>DATE</span><span id="rDate"><?=htmlspecialchars(date('d/m/Y'))?></span></div>
     <div class="receipt-row"><span>TIME</span><span id="rTime"><?=htmlspecialchars(date('H:i:s'))?></span></div>
+    <div class="receipt-row" id="rOriginalDateRow" style="display:none"><span>ORIGINAL DATE</span><span id="rOriginalDate"></span></div>
     <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars($posDeviceHasTerminalId ? (string) $posDevice['terminal_id'] : '—')?></span></div>
     <div class="receipt-row"><span>MID</span><span id="rMid"><?= $posGw === 'nuvei' ? '—' : 'DIPARMA' ?></span></div>
     <div class="receipt-row"><span>BATCH</span><span id="rBatch"><?= $posGw === 'nuvei' ? '—' : htmlspecialchars(date('dmy')) ?></span></div>
@@ -3611,8 +3612,15 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const batchDigits = String(actualBatch || '').replace(/\D/g, '');
   const batch = batchDigits ? batchDigits.slice(-6) : (isNuvei ? '—' : (pad(when.getDate()) + pad(when.getMonth() + 1) + String(when.getFullYear()).slice(-2)));
   const slipType = posReceiptOperationName(d, type);
+  const originalDate = type === 'purchase_advice'
+    ? String(d.original_transaction_date || (d.extra && d.extra.original_transaction_date)
+      || document.getElementById('originalTransactionDate')?.value || '').trim()
+    : '';
+  const originalDateRow = document.getElementById('rOriginalDateRow');
+  if (originalDateRow) originalDateRow.style.display = originalDate ? '' : 'none';
   set('rDate', dateStr);
   set('rTime', timeStr);
+  set('rOriginalDate', originalDate);
   set('rTid', String(tid).trim() || '—');
   set('rMid', mid);
   set('rBatch', batch);

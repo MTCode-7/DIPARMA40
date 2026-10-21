@@ -82,6 +82,14 @@ function pos_host_debit_amount(string $type, float $amount): float
     return $amount;
 }
 
+function pos_host_advice_amount(string $gateway, float $amount): float
+{
+    if (strtolower(trim($gateway)) === 'nuvei') {
+        return $amount;
+    }
+    return pos_host_debit_amount('purchase_advice', $amount);
+}
+
 /**
  * RRN + approval printed on a successful AUTH and stored for later capture.
  * Host values win. A missing value is filled with the 12-digit RRN (ymd + STAN)

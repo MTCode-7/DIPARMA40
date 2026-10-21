@@ -216,6 +216,7 @@ $gatewayResult = $gwResp['gateway_details']['response'] ?? $gwResp['raw'] ?? [];
 if (!is_array($gatewayResult)) {
     $gatewayResult = [];
 }
+$originalTransactionDate = trim((string) ($gwResp['extra']['original_transaction_date'] ?? ''));
 
 // 6.3 تفاصيل البطاقة (من البوابة)
 $cardLast4 = $txn['card_last4'] ?? ($gwResp['card_last4'] ?? ($gatewayResult['card_last4'] ?? ($gwResp['payment_method_details']['card']['last4'] ?? '****')));
@@ -1262,6 +1263,12 @@ if ($txnGateway === 'paypal') {
                 <span class="label">DATE / TIME</span>
                 <span class="value"><?=htmlspecialchars($sealedDate)?> <?=htmlspecialchars($sealedTime)?></span>
             </div>
+            <?php if ($originalTransactionDate !== ''): ?>
+            <div class="row">
+                <span class="label">ORIGINAL TRANSACTION DATE</span>
+                <span class="value"><?=htmlspecialchars($originalTransactionDate)?></span>
+            </div>
+            <?php endif; ?>
             <?php if ($receiptTid !== ''): ?>
             <div class="row">
                 <span class="label">TID</span>
