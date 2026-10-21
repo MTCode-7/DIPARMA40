@@ -1081,7 +1081,10 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             $tx['amount'],
             $tx['currency'],
             $tx['gateway'],
-            $tx['transaction_label'] ?? '',
+            transaction_display_label(
+                $tx['transaction_type'] ?? '',
+                $tx['transaction_label'] ?? ''
+            ),
             function_exists('protocol_display_name') ? protocol_display_name($tx['protocol'] ?? '') : ($tx['protocol'] ?? ''),
             getStatusLabel($tx['status']),
             $tx['created_at']
