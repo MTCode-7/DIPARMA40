@@ -324,8 +324,8 @@ function pos_operation_catalog(): array
             'desc_en' => 'Complete an AUTH hold on the same gateway. RRN and approval are filled from the hold receipt and stay locked. The amount may be lower, equal, higher, or negative. Bank cap 5,000,000 USD on the absolute value. CVV is optional.',
         ],
         'purchase_advice' => [
-            'ar' => 'PURCHASE ADVICE - MOTO',
-            'en' => 'PURCHASE ADVICE - MOTO',
+            'ar' => 'PURCHASE ADVICE',
+            'en' => 'PURCHASE ADVICE',
             'icon' => 'fa-bell',
             'color' => '#F59E0B',
             'security' => '2D',
