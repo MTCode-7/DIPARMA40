@@ -54,6 +54,19 @@ $keyedAdvice = pos_prepare_operation_payload('purchase_advice', [
     'entry_mode' => 'keyed',
 ]);
 check(!empty($keyedAdvice['is_moto']) && empty($keyedAdvice['card_present']), 'manual advice stays keyed MOTO');
+$nuveiAuthSettlement = pos_prepare_operation_payload('purchase_advice', [
+    'gateway' => 'nuvei',
+    'input_mode' => 'authorization_reference',
+    'related_transaction_id' => 'AUTH-TXN-123',
+]);
+check(empty($nuveiAuthSettlement['is_moto'])
+    && empty($nuveiAuthSettlement['card_present'])
+    && empty($nuveiAuthSettlement['direct_advice'])
+    && ($nuveiAuthSettlement['processing_mode'] ?? '') !== 'MOTO'
+    && ($nuveiAuthSettlement['entry_mode'] ?? '') === 'related_transaction',
+    'Nuvei AUTH settlement is not mislabeled as card-entry MOTO or ISO Advice');
+check(stripos((string) ($adviceMeta['desc_en'] ?? ''), 'Nuvei') === false,
+    'generic Purchase Advice description does not imply a Nuvei-specific flow');
 
 $offlineMissing = pos_validate_operation_fields('offline_sale_moto', $card);
 check($offlineMissing !== [] && !in_array('RRN must be exactly 12 digits.', $offlineMissing, true), 'offline requires approval and not RRN');

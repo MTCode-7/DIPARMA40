@@ -144,6 +144,15 @@ $cardRail = pos_gateway_requires_card($posGateway);
 $txnTypeRaw = $data['txn_type'] ?? 'purchase_2d';
 $txnType = pos_normalize_operation($txnTypeRaw);
 $opMeta = pos_operation_meta($txnType) ?? [];
+$isNuveiAdviceSettlement = $posGateway === 'nuvei' && $txnType === 'purchase_advice';
+$originalNuveiTransactionId = trim((string) (
+    $data['original_transaction_id']
+    ?? $extraEarly['original_transaction_id']
+    ?? $data['related_transaction_id']
+    ?? $extraEarly['related_transaction_id']
+    ?? ''
+));
+$requiresCard = !empty($opMeta['requires_card']) && !$isNuveiAdviceSettlement;
 $amount = floatval($data['amount'] ?? 0);
 $currency = strtoupper($data['currency'] ?? 'USD');
 if (pos_gateway_requires_card($requestedGateway)) {
@@ -168,6 +177,9 @@ if (pos_is_valid_rrn($typedBankNorm)) {
     $origRef = $typedBankNorm;
 }
 $paymentId = trim((string)($data['payment_id'] ?? $data['nuvei_txn_id'] ?? $data['transaction_id'] ?? $extraEarly['payment_id'] ?? ''));
+if ($isNuveiAdviceSettlement) {
+    $paymentId = '';
+}
 $gatewayApprovalCode = trim((string)($data['gateway_approval_code'] ?? $data['auth_code'] ?? $extraEarly['gateway_approval_code'] ?? ''));
 $ledgerAddr = trim((string) LEDGER_TRC20_ADDRESS);
 $hotWalletAddr = trim($data['hot_wallet_address'] ?? HOT_WALLET_TRC20_ADDRESS);
@@ -506,6 +518,9 @@ $errors = [];
 if (pos_nuvei_offline_operation_requested($posGateway, $txnType, $data)) {
     $errors[] = 'Nuvei REST does not support offline SAF sales or holds. No transaction was sent; use a supported online operation or an approved SAF terminal.';
 }
+if ($isNuveiAdviceSettlement && $amount <= 0) {
+    $errors[] = 'Nuvei AUTH settlement amount must be greater than zero.';
+}
 
 // Capture / advice / offline keep a signed amount. Other types stay greater than zero.
 $policyAmount = $amount;
@@ -590,7 +605,7 @@ if (!empty($ledgerAddr) && !empty($hotWalletAddr) && strcasecmp($ledgerAddr, $ho
     $errors[] = 'Ledger address must be different from the Hot Wallet address.';
 }
 
-$requiresCard = !empty($opMeta['requires_card']);
+$requiresCard = !empty($opMeta['requires_card']) && !$isNuveiAdviceSettlement;
 $requiresCvv  = false;
 $requiresOrig = !empty($opMeta['requires_rrn']) || !empty($opMeta['requires_orig']);
 $requiresApproval = !empty($opMeta['requires_approval']);
@@ -613,7 +628,9 @@ if ($txnType === 'purchase_advice' && $adviceChannel !== '') {
 }
 
 if ($cardType === 'CLOUD' && $cardRail && !$hasRealCloudToken && !in_array($txnType, ['refund', 'avoid'], true)) {
-    $errors[] = 'CLOUD token is required. Use a real gateway token (Nuvei UPO, Stripe pm_/tok_, PayPal vault).';
+    if (!$isNuveiAdviceSettlement) {
+        $errors[] = 'CLOUD token is required. Use a real gateway token (Nuvei UPO, Stripe pm_/tok_, PayPal vault).';
+    }
 }
 
 // قواعد الحقول المعيارية (RRN 12 / Approval 4|6 / بطاقة / انتهاء)
@@ -627,6 +644,7 @@ $fieldPayload = [
     'payment_id' => $paymentId,
     'nuvei_txn_id' => $paymentId,
     'transaction_id' => $paymentId,
+    'related_transaction_id' => $originalNuveiTransactionId,
     'gateway_approval_code' => $gatewayApprovalCode,
     'auth_code' => $gatewayApprovalCode,
     'card_number' => $cardNumber,
@@ -651,8 +669,18 @@ if ($nuveiVerix) {
 if ($cardRail && $cardType !== 'CLOUD' && $isPhysicalEntry && $requiresCard && (strlen($cardNumber) < 13 || $cardExpiry === '')) {
     $errors[] = 'Physical POS requires a real card from the reader. Simulation and placeholder cards are disabled.';
 }
-$fieldErrors = ($cardRail && $cardType !== 'CLOUD' && !$nuveiVerix) ? pos_validate_operation_fields($txnType, $fieldPayload) : [];
-if ($txnType === 'purchase_advice'
+$fieldErrors = ($cardRail && $cardType !== 'CLOUD' && !$nuveiVerix && !$isNuveiAdviceSettlement) ? pos_validate_operation_fields($txnType, $fieldPayload) : [];
+if ($isNuveiAdviceSettlement) {
+    if ($originalNuveiTransactionId === '') {
+        $fieldErrors[] = 'Enter the original Nuvei authorization transaction ID.';
+    } elseif (strlen($originalNuveiTransactionId) > 64 || preg_match('/[\x00-\x1F\x7F]/', $originalNuveiTransactionId)) {
+        $fieldErrors[] = 'Original Nuvei authorization transaction ID is invalid.';
+    }
+    if ($gatewayApprovalCode === '' && $bankApprovalCode === '') {
+        $fieldErrors[] = 'Enter the original Nuvei authorization code.';
+    }
+}
+if ($txnType === 'purchase_advice' && !$isNuveiAdviceSettlement
     && ($cardType === 'CLOUD' || strlen($cardNumber) < 13 || $cardExpiry === '')) {
     $fieldErrors[] = 'Purchase Advice requires a real PAN and expiry from manual entry or a physical swipe.';
 }
@@ -661,7 +689,7 @@ if (!$cardRail && in_array($txnType, ['refund', 'avoid'], true) && pos_normalize
 }
 
 $errors = array_merge($errors, $fieldErrors);
-if ($txnType === 'purchase_advice') {
+if ($txnType === 'purchase_advice' && !$isNuveiAdviceSettlement) {
     $originalTransactionDate = trim((string) (
         $extra['original_transaction_date']
         ?? $data['original_transaction_date']
@@ -979,13 +1007,24 @@ if ($useCardGateway) {
             $params['card_cvv'] = '';
             $params['linked_to_auth'] = true;
             $params['allow_amount_override'] = true;
-            $params['original_transaction_date'] = (string) ($extra['original_transaction_date'] ?? '');
-            if (pos_entry_is_present($params)) {
+            if ($isNuveiAdviceSettlement) {
+                $params['related_transaction_id'] = $originalNuveiTransactionId;
+                $params['original_transaction_id'] = $originalNuveiTransactionId;
+                $params['auth_code'] = $gatewayApprovalCode !== '' ? $gatewayApprovalCode : $bankApprovalCode;
+                $params['direct_advice'] = false;
+                unset($params['payment_id'], $params['nuvei_txn_id']);
+                unset($extra['payment_id']);
+                $extra['original_transaction_id'] = $originalNuveiTransactionId;
+                $extra['related_transaction_id'] = $originalNuveiTransactionId;
+            } else {
+                $params['original_transaction_date'] = (string) ($extra['original_transaction_date'] ?? '');
+            }
+            if (!$isNuveiAdviceSettlement && pos_entry_is_present($params)) {
                 $params['is_moto'] = false;
                 $params['card_present'] = true;
                 $params['entry_mode'] = $params['entry_mode'] ?: 'pos_magstripe';
                 unset($params['moto_indicator'], $params['moto_channel']);
-            } else {
+            } elseif (!$isNuveiAdviceSettlement) {
                 $params['is_moto'] = true;
                 $params['card_present'] = false;
                 $params['entry_mode'] = 'keyed';
@@ -1231,6 +1270,7 @@ $gatewayDetails = [
     'card_type' => $cardType,
     'transaction_id' => $result['transaction_id'] ?? $nuveiTxnId,
     'payment_id' => $receiptPaymentId,
+    'related_transaction_id' => $isNuveiAdviceSettlement ? $originalNuveiTransactionId : null,
     'authorization_id' => $result['authorization_id'] ?? ($txnType === 'auth' ? $providerPaymentId : ''),
     'auth_code' => $approvalCode,
     'approval_code' => $approvalCode,
@@ -1323,6 +1363,7 @@ try {
             'bank_approval_code' => $bankApprovalCode,
             'approval_code' => $approvalCode,
             'payment_id' => $receiptPaymentId,
+            'related_transaction_id' => $isNuveiAdviceSettlement ? $originalNuveiTransactionId : null,
             'authorization_id' => $result['authorization_id'] ?? ($txnType === 'auth' ? $providerPaymentId : ''),
             'internal_approval_code' => $receiptIds['internal_approval_code'],
             'nuvei_txn_id' => $nuveiTxnId,

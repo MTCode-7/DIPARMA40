@@ -535,9 +535,18 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
     if (strtoupper((string) ($params['processing_mode'] ?? '')) !== 'OFFLINE') {
         $params['processing_mode'] = '2D';
     }
+    $gw = strtolower(trim((string) ($params['gateway'] ?? $params['provider'] ?? '')));
+    $hasNuveiAuthReference = trim((string) ($params['related_transaction_id'] ?? '')) !== ''
+        || trim((string) ($params['original_transaction_id'] ?? '')) !== '';
+    $nuveiAuthSettlement = $gw === 'nuvei' && $txnType === 'purchase_advice' && $hasNuveiAuthReference;
     $cardPresent = function_exists('pos_entry_is_present') && pos_entry_is_present($params);
     $inherentMoto = in_array($txnType, ['online_sale_moto', 'offline_sale_moto'], true);
-    if ($cardPresent && !$inherentMoto) {
+    if ($nuveiAuthSettlement) {
+        $params['is_moto'] = false;
+        $params['card_present'] = false;
+        $params['entry_mode'] = 'related_transaction';
+        unset($params['moto_indicator'], $params['moto_channel'], $params['moto_type']);
+    } elseif ($cardPresent && !$inherentMoto) {
         $params['is_moto'] = false;
         $params['card_present'] = true;
         unset($params['moto_indicator'], $params['moto_channel'], $params['moto_type']);
@@ -556,10 +565,9 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
         $params['auth_channel'] = 'online';
     }
     if ($txnType === 'purchase_advice') {
-        $params['direct_advice'] = true;
+        $params['direct_advice'] = !$nuveiAuthSettlement;
         $params['card_cvv'] = '';
     }
-    $gw = strtolower(trim((string) ($params['gateway'] ?? $params['provider'] ?? '')));
     $paypalAuthorize = $gw === 'paypal' && in_array($txnType, ['auth', 'auth_hold', 'auth_moto', 'hold'], true);
     if ($paypalAuthorize) {
         $params['processing_mode'] = '2D';
@@ -580,7 +588,7 @@ function pos_prepare_operation_payload(string $txnType, array $params): array
             $params['moto_channel'] = 'offline';
         } elseif (
             $txnType === 'online_sale_moto'
-            || $txnType === 'purchase_advice'
+            || ($txnType === 'purchase_advice' && !$nuveiAuthSettlement)
             || (
                 !$cardPresent
                 && (

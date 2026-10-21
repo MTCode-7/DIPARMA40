@@ -239,61 +239,45 @@ if (!$nuveiIsLive) {
         'Disabled Nuvei cannot bypass POS activation through adapter fallback');
 }
 
-$rrnMethod = new ReflectionMethod(NuveiAdapter::class, 'purchaseAdviceRrn');
-$rrnMethod->setAccessible(true);
-$rrn = $rrnMethod->invoke($adapter, ['bank_rrn' => '123456789012']);
-check($rrn === '123456789012', 'Purchase Advice accepts a 12-digit bank RRN');
-check($rrnMethod->invoke($adapter, ['orig_ref' => '1234-5678-9012']) === '123456789012', 'Purchase Advice normalizes RRN aliases');
-check($rrnMethod->invoke($adapter, ['bank_rrn' => '', 'orig_ref' => '123456789012']) === '123456789012', 'Empty RRN fields do not mask a valid fallback');
-check($rrnMethod->invoke($adapter, ['rrn' => '12345678901']) === null, 'Purchase Advice rejects an invalid RRN');
-$missingRrn = $adapter->purchase(['txn_type' => 'purchase_advice', 'amount' => 1]);
-check(empty($missingRrn['success']) && str_contains((string) ($missingRrn['message'] ?? ''), 'RRN'), 'Direct Advice purchase rejects a missing RRN before making a request');
-
-$savedAdviceHosts = [];
-foreach (['BANK_ADVICE_HOST', 'DIRECT_ADVICE_HOST'] as $key) {
-    $savedAdviceHosts[$key] = getenv($key);
-    putenv($key);
-}
-$advice = $adapter->purchaseAdvice([
+$adviceAdapter = new NuveiAdapter();
+$merchantIdProperty = new ReflectionProperty(NuveiAdapter::class, 'merchantId');
+$merchantIdProperty->setValue($adviceAdapter, '');
+$missingAdviceTxn = $adviceAdapter->purchaseAdvice(['amount' => 10, 'auth_code' => '123456']);
+check(empty($missingAdviceTxn['success'])
+    && str_contains((string) ($missingAdviceTxn['message'] ?? ''), 'original authorization transaction ID'),
+    'Nuvei Purchase Advice requires the original authorization transaction ID');
+$missingAdviceAuth = $adviceAdapter->purchaseAdvice([
+    'amount' => 10,
+    'related_transaction_id' => 'AUTH-TXN-123',
+]);
+check(empty($missingAdviceAuth['success'])
+    && str_contains((string) ($missingAdviceAuth['message'] ?? ''), 'original authorization code'),
+    'Nuvei Purchase Advice requires the original authorization code');
+$negativeAdviceSettle = $adviceAdapter->purchaseAdvice([
+    'amount' => -10,
+    'related_transaction_id' => 'AUTH-TXN-123',
+    'auth_code' => '123456',
+]);
+check(empty($negativeAdviceSettle['success'])
+    && str_contains((string) ($negativeAdviceSettle['message'] ?? ''), 'greater than zero'),
+    'Nuvei AUTH settlement rejects negative amounts');
+$validAdviceSettle = $adviceAdapter->purchaseAdvice([
+    'amount' => 10,
+    'currency' => 'USD',
     'reference' => 'POS-ADVICE-TEST-001',
-    'amount' => 10,
-    'currency' => 'USD',
-    'rrn' => '123456789012',
-    'original_transaction_date' => '2026-10-20',
+    'related_transaction_id' => 'AUTH-TXN-123',
     'auth_code' => '123456',
-    'merchant_id' => 'TESTMID',
-    'terminal_id' => 'TESTTID',
 ]);
-check(empty($advice['success'])
-    && str_contains((string) ($advice['message'] ?? ''), 'BANK_ADVICE_HOST')
-    && str_contains((string) ($advice['message'] ?? ''), 'No card sale was sent'),
-    'Nuvei Advice with external authorization references does not require a local hold and fails closed without an advice host');
-check(($advice['reference'] ?? '') === 'POS-ADVICE-TEST-001'
-    && ($advice['rrn'] ?? '') === '123456789012',
-    'Nuvei Advice preserves the POS receipt reference separately from the bank RRN');
-check(($advice['auth_type'] ?? '') === 'PURCHASE_ADVICE_AFTER_AUTH',
-    'Nuvei Advice result is identified as linked to a prior authorization');
-
-putenv('BANK_ADVICE_HOST=http://bank-advice.example.test');
-$invalidHostAdvice = $adapter->purchaseAdvice([
-    'reference' => 'POS-ADVICE-TEST-002',
+check(empty($validAdviceSettle['success'])
+    && str_contains((string) ($validAdviceSettle['message'] ?? ''), 'merchant credentials')
+    && !str_contains((string) ($validAdviceSettle['message'] ?? ''), 'BANK_ADVICE_HOST'),
+    'Nuvei Advice uses settleTransaction without a local hold or BANK_ADVICE_HOST');
+$purchaseAdviceWithoutId = $adviceAdapter->purchase([
+    'txn_type' => 'purchase_advice',
     'amount' => 10,
-    'currency' => 'USD',
-    'rrn' => '123456789012',
-    'original_transaction_date' => '2026-10-20',
-    'auth_code' => '123456',
-    'merchant_id' => 'TESTMID',
-    'terminal_id' => 'TESTTID',
 ]);
-check(empty($invalidHostAdvice['success'])
-    && str_contains((string) ($invalidHostAdvice['message'] ?? ''), 'HTTPS URL'),
-    'Nuvei Advice refuses a non-HTTPS bank host without transmitting card data');
-foreach ($savedAdviceHosts as $key => $value) {
-    if ($value === false) {
-        putenv($key);
-    } else {
-        putenv($key . '=' . $value);
-    }
-}
+check(empty($purchaseAdviceWithoutId['success'])
+    && str_contains((string) ($purchaseAdviceWithoutId['message'] ?? ''), 'original authorization transaction ID'),
+    'Nuvei purchase() routes Advice through AUTH settlement validation');
 
 exit($fail === 0 ? 0 : 1);

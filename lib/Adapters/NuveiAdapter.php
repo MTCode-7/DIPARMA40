@@ -461,7 +461,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
             return [
                 'success'        => true,
                 'status'         => 'captured',
-                'transaction_id' => $res['transactionId'] ?? $transactionId,
+                'transaction_id' => (string) ($res['transactionId'] ?? ''),
                 'reference'      => $res['clientUniqueId'] ?? $ref,
                 'amount'         => $amtFloat,
                 'currency'       => $res['currency'] ?? $currency,
@@ -725,25 +725,42 @@ class NuveiAdapter implements GatewayAdapterInterface {
         return $this->purchase($payload);
     }
 
-    public function settleTransaction(string $transactionId, float $amount, string $currency = 'USD', string $reference = ''): array {
+    public function settleTransaction(
+        string $transactionId,
+        float $amount,
+        string $currency = 'USD',
+        string $reference = '',
+        string $authCode = ''
+    ): array {
         if ($this->merchantId === '' || $transactionId === '') {
             return ['success' => false, 'message' => 'Nuvei settlement requires merchant credentials and transaction ID'];
+        }
+        if (!is_finite($amount) || $amount <= 0) {
+            return ['success' => false, 'message' => 'Nuvei settlement amount must be greater than zero'];
         }
 
         $ref = $reference !== '' ? $reference : 'SETTLE' . time();
         $ts = date('YmdHis');
+        $amountText = number_format($amount, 2, '.', '');
+        $currency = strtoupper(trim($currency));
+        if ((float) $amountText <= 0 || !preg_match('/^[A-Z]{3}$/', $currency)) {
+            return ['success' => false, 'message' => 'Nuvei settlement requires a positive amount and valid currency'];
+        }
         $body = [
             'merchantId' => $this->merchantId,
             'merchantSiteId' => $this->siteId,
             'clientRequestId' => $ref,
             'clientUniqueId' => $ref,
-            'amount' => number_format($amount, 2, '.', ''),
-            'currency' => strtoupper($currency),
+            'amount' => $amountText,
+            'currency' => $currency,
             'relatedTransactionId' => $transactionId,
             'timeStamp' => $ts,
-            'checksum' => $this->relatedChecksum($ref, $ref, number_format($amount, 2, '.', ''), $currency, $transactionId, $ts),
+            'checksum' => $this->relatedChecksum($ref, $ref, $amountText, $currency, $transactionId, $ts),
             'urlDetails' => ['notificationUrl' => $this->restUrlDetails($ref)['notificationUrl']],
         ];
+        if (trim($authCode) !== '') {
+            $body['authCode'] = trim($authCode);
+        }
 
         $res = $this->post('/settleTransaction.do', $body);
         $success = $this->nuveiTxnApproved($res);
@@ -752,7 +769,12 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'success' => $success,
             'status' => $success ? 'completed' : 'failed',
             'transaction_id' => $res['transactionId'] ?? $transactionId,
-            'message' => $success ? 'Nuvei Purchase Advice settled' : ($res['gwErrorReason'] ?? $res['reason'] ?? 'Nuvei settlement failed'),
+            'reference' => $res['clientUniqueId'] ?? $ref,
+            'amount' => (float) ($res['amount'] ?? $amountText),
+            'currency' => strtoupper((string) ($res['currency'] ?? $currency)),
+            'approval_code' => (string) ($res['authCode'] ?? ''),
+            'response_code' => (string) ($res['gwErrorCode'] ?? $res['errCode'] ?? ''),
+            'message' => $success ? 'Nuvei AUTH settlement approved' : ($res['gwErrorReason'] ?? $res['reason'] ?? 'Nuvei settlement failed'),
             'raw' => $res,
         ];
     }
@@ -837,16 +859,12 @@ class NuveiAdapter implements GatewayAdapterInterface {
         if ($offlineError !== null) {
             return $offlineError;
         }
+        if (strtolower(trim((string) ($params['txn_type'] ?? ''))) === 'purchase_advice') {
+            return $this->purchaseAdvice($params);
+        }
         $ident = $this->missingPayerIdentity($params);
         if ($ident !== null) {
             return $ident;
-        }
-        $adviceRrn = null;
-        if (strtolower(trim((string) ($params['txn_type'] ?? ''))) === 'purchase_advice') {
-            $adviceRrn = $this->purchaseAdviceRrn($params);
-            if ($adviceRrn === null) {
-                return ['success' => false, 'message' => 'Purchase advice requires a 12-digit bank RRN'];
-            }
         }
         $sessionRes = $this->getSessionToken();
         if (($sessionRes['status'] ?? '') !== 'SUCCESS') {
@@ -923,10 +941,6 @@ class NuveiAdapter implements GatewayAdapterInterface {
                 'customField4' => $offline ? 'OFFLINE' : ($isMoto ? 'MOTO' : (!empty($params['card_present']) ? 'CARD' : 'ECOM')),
             ],
         ];
-        if ($adviceRrn !== null) {
-            // /payment has no caller-supplied RRN field; customData preserves it for Nuvei reporting.
-            $body['customData'] = $this->buildPurchaseAdviceCustomData($adviceRrn);
-        }
         if ($initTxnId !== '') {
             $body['relatedTransactionId'] = $initTxnId;
         }
@@ -960,60 +974,63 @@ class NuveiAdapter implements GatewayAdapterInterface {
         return $normalized;
     }
 
-    private function purchaseAdviceRrn(array $params): ?string
-    {
-        foreach (['bank_rrn', 'rrn', 'orig_ref'] as $key) {
-            $rrn = preg_replace('/\D+/', '', (string) ($params[$key] ?? '')) ?? '';
-            if (preg_match('/^\d{12}$/', $rrn)) {
-                return $rrn;
-            }
-        }
-        return null;
-    }
-
     /**
-     * Submit an actual ISO 0220 Advice to the configured bank advice host.
-     * A negative amount is sent as a debit of the absolute value.
+     * Settle an approved Nuvei authorization by its original transaction ID.
      */
     public function purchaseAdvice(array $params): array
     {
-        $rrn = $this->purchaseAdviceRrn($params);
-        if ($rrn === null) {
-            return ['success' => false, 'message' => 'Purchase advice requires a 12-digit bank RRN'];
+        $relatedTransactionId = '';
+        foreach (['related_transaction_id', 'original_transaction_id', 'nuvei_txn_id', 'payment_id'] as $key) {
+            $candidateId = trim((string) ($params[$key] ?? ''));
+            if ($candidateId !== '') {
+                $relatedTransactionId = $candidateId;
+                break;
+            }
+        }
+        if ($relatedTransactionId === '') {
+            return ['success' => false, 'message' => 'Nuvei Purchase Advice requires the original authorization transaction ID'];
         }
 
         $amountRaw = (float) ($params['amount'] ?? 0);
-        if (abs($amountRaw) < 0.00001) {
-            return ['success' => false, 'message' => 'Purchase advice amount is required'];
+        if (!is_finite($amountRaw) || $amountRaw <= 0) {
+            return ['success' => false, 'message' => 'Nuvei AUTH settlement amount must be greater than zero'];
         }
 
-        require_once dirname(__DIR__, 2) . '/pos/lib/DirectAdvicePOSProcessor.php';
-        $processor = new DirectAdvicePOSProcessor(
-            (string) ($params['merchant_id'] ?? $params['mid'] ?? ''),
-            (string) ($params['terminal_id'] ?? $params['tid'] ?? ''),
-            'nuvei'
-        );
-        $result = $processor->executeDirectAdviceSale($rrn, $amountRaw, $params);
-        $success = !empty($result['success']);
-        $transactionId = trim((string) ($result['transaction_id'] ?? ''));
+        $authCode = trim((string) ($params['auth_code'] ?? ''));
+        if ($authCode === '') {
+            $authCode = trim((string) ($params['approval_code'] ?? $params['bank_approval_code'] ?? ''));
+        }
+        if ($authCode === '') {
+            return ['success' => false, 'message' => 'Nuvei AUTH settlement requires the original authorization code'];
+        }
 
+        $reference = trim((string) ($params['reference'] ?? ''));
+        $result = $this->settleTransaction(
+            $relatedTransactionId,
+            $amountRaw,
+            strtoupper((string) ($params['currency'] ?? 'USD')),
+            $reference,
+            $authCode
+        );
+        $success = !empty($result['success']);
         return [
             'success' => $success,
             'status' => $success ? 'completed' : 'failed',
             'txn_type' => 'purchase_advice',
-            'reference' => (string) ($params['reference'] ?? ''),
-            'transaction_id' => $transactionId,
-            'payment_id' => $transactionId,
-            'nuvei_txn_id' => $transactionId,
-            'rrn' => (string) ($result['reference_number'] ?? $rrn),
-            'approval_code' => (string) ($result['approval_code'] ?? ''),
+            'reference' => (string) ($result['reference'] ?? $reference),
+            'transaction_id' => (string) ($result['transaction_id'] ?? ''),
+            'payment_id' => (string) ($result['transaction_id'] ?? ''),
+            'nuvei_txn_id' => (string) ($result['transaction_id'] ?? ''),
+            'related_transaction_id' => $relatedTransactionId,
+            'rrn' => (string) ($result['raw']['rrn'] ?? $result['raw']['retrievalReferenceNumber'] ?? ''),
+            'approval_code' => (string) (($result['approval_code'] ?? '') ?: $authCode),
             'response_code' => (string) ($result['response_code'] ?? ''),
             'amount' => abs($amountRaw),
             'currency' => strtoupper((string) ($params['currency'] ?? 'USD')),
-            'mti' => (string) ($result['mti'] ?? ($success ? '0230' : '0220')),
+            'auth_code' => $authCode,
             'auth_type' => 'PURCHASE_ADVICE_AFTER_AUTH',
-            'message' => (string) ($result['message'] ?? 'Bank Advice host rejected the request'),
-            'raw' => $result['gateway_response'] ?? $result,
+            'message' => (string) ($result['message'] ?? 'Nuvei settlement failed'),
+            'raw' => $result['raw'] ?? $result,
             'acquirer' => 'nuvei',
             'settlement_target' => 'gateway',
         ];
