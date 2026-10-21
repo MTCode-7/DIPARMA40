@@ -154,6 +154,10 @@ $startOp = pos_normalize_operation((string)($_GET['op'] ?? 'purchase_3d'));
 if (!isset($txnTypes[$startOp])) {
     $startOp = 'purchase_3d';
 }
+$nuveiOfflineUnavailable = $posGw === 'nuvei';
+if ($nuveiOfflineUnavailable && in_array($startOp, ['offline_sale_moto', 'offline_sales_moto'], true)) {
+    $startOp = 'online_sale_moto';
+}
 $startMode = strtolower(trim((string)($_GET['mode'] ?? '')));
 $sunmiPhysical = in_array((string) ($posDevice['model'] ?? ''), ['sunmi_v3', 'sunmi_v3_mix'], true);
 if ($startMode === '' && ($kiosk || $sunmiPhysical)) {
@@ -1043,10 +1047,17 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
 <!-- ══ LEFT: Transaction Types ══ -->
 <div class="left-panel">
   <div class="panel-title"><?=$ar?'نوع العملية':'Transaction Type'?></div>
+  <div id="nuveiOfflineNote" style="display:<?=$nuveiOfflineUnavailable ? '' : 'none'?>;margin:0 0 10px;padding:10px;border:1px solid rgba(245,158,11,.45);border-radius:10px;background:rgba(245,158,11,.08);font-size:.7rem;line-height:1.55;color:#fbbf24">
+    <?=$ar
+      ? 'Nuvei لا يدعم SAF أو التفويض دون اتصال عبر REST. لم يتم إرسال أو تخزين العملية. استخدم عملية متصلة بالإنترنت أو جهاز SAF معتمد.'
+      : 'Nuvei REST does not support SAF or offline authorization. No transaction is sent or queued. Use an online operation or an approved SAF terminal.'?>
+  </div>
   <?php foreach($txnTypes as $key => $tx): ?>
   <button class="txn-btn <?=$key===$startOp?'active':''?>"
     onclick="selectTxnType('<?=$key?>',this)"
     data-type="<?=$key?>"
+    data-offline-sale-op="<?=in_array($key, ['offline_sale_moto', 'offline_sales_moto'], true) ? '1' : '0'?>"
+    <?= $nuveiOfflineUnavailable && in_array($key, ['offline_sale_moto', 'offline_sales_moto'], true) ? 'disabled' : '' ?>
     title="<?=htmlspecialchars($ar?($tx['desc_ar']??''):($tx['desc_en']??''))?>">
     <div class="t-icon" style="background:<?=$tx['color']?>22;color:<?=$tx['color']?>">
       <i class="fas <?=$tx['icon']?>"></i>
@@ -1122,6 +1133,8 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       <?php foreach($txnTypes as $key => $tx): ?>
       <button type="button" class="txn-btn <?=$key===$startOp?'active':''?>" data-type="<?=$key?>"
         onclick="selectTxnType('<?=$key?>',this)"
+        data-offline-sale-op="<?=in_array($key, ['offline_sale_moto', 'offline_sales_moto'], true) ? '1' : '0'?>"
+        <?= $nuveiOfflineUnavailable && in_array($key, ['offline_sale_moto', 'offline_sales_moto'], true) ? 'disabled' : '' ?>
         title="<?=htmlspecialchars($ar?($tx['desc_ar']??''):($tx['desc_en']??''))?>"
         style="margin:0;flex-direction:column;text-align:center;padding:10px 6px;gap:6px">
         <div class="t-icon" style="background:<?=$tx['color']?>22;color:<?=$tx['color']?>;margin:0 auto">
@@ -1748,6 +1761,14 @@ function selectPayoutRail(code, el) {
 }
 let POS_GW = <?= json_encode((string)$posGw) ?>;
 let POS_REQUIRES_CARD = <?= !empty($posGw) && pos_gateway_requires_card($posGw) ? 'true' : 'false' ?>;
+function updateNuveiOfflineControls() {
+  const unavailable = String(POS_GW || '').toLowerCase() === 'nuvei';
+  const note = document.getElementById('nuveiOfflineNote');
+  if (note) note.style.display = unavailable ? '' : 'none';
+  document.querySelectorAll('[data-offline-sale-op="1"]').forEach(button => {
+    button.disabled = unavailable;
+  });
+}
 function syncNuveiFxHint() {
   const el = document.getElementById('nuveiFxHint');
   const cur = document.getElementById('txnCurrency');
@@ -1791,7 +1812,20 @@ function selectPosGateway(code, el) {
     toast(AR ? 'البوابة غير مفعّلة' : 'Gateway is not enabled', 'error');
     return;
   }
+  const authChannel = document.getElementById('authChannel')?.value || '';
+  if (code === 'nuvei' && (
+      POS.txnType === 'offline_sale_moto'
+      || POS.txnType === 'offline_sales_moto'
+      || (POS.txnType === 'auth' && authChannel === 'offline')
+  )) {
+    toast(AR
+      ? 'Nuvei لا يدعم SAF أو التفويض دون اتصال عبر REST. اختر عملية متصلة بالإنترنت أو جهاز SAF معتمد.'
+      : 'Nuvei REST does not support SAF or offline authorization. Choose an online operation or an approved SAF terminal.',
+    'error');
+    return;
+  }
   POS_GW = code;
+  updateNuveiOfflineControls();
   const moreCaptureButton = document.querySelector('[data-cap-cmp="more"]');
   if (moreCaptureButton && POS.txnType === 'capture') {
     moreCaptureButton.style.display = posGatewayAllowsOvercapture(code) ? '' : 'none';
@@ -2247,6 +2281,14 @@ window.applyOpsLegend = function(type) {
 };
 
 window.selectTxnType = function(type, el) {
+  if (String(POS_GW || '').toLowerCase() === 'nuvei'
+      && (type === 'offline_sale_moto' || type === 'offline_sales_moto')) {
+    toast(AR
+      ? 'Nuvei لا يدعم SAF عبر REST. لم يتم إرسال أو تخزين العملية.'
+      : 'Nuvei REST does not support SAF. No transaction was sent or queued.',
+    'error');
+    return;
+  }
   POS.txnType = type;
   const cloudCardOption = document.getElementById('optCloudGw');
   if (cloudCardOption) cloudCardOption.disabled = type === 'purchase_advice';
@@ -2419,7 +2461,7 @@ function renderExtraFields(type) {
       <select id="authChannel" onchange="onAuthMotoChannel()">
         ${nuveiAuth ? `<option value="ecom" selected>${AR?'ECOM 3DS — حجز مع OTP ثم كابتشر':'ECOM 3DS — hold with OTP, then capture'}</option>` : ''}
         <option value="online" ${nuveiAuth ? '' : 'selected'}>${AR?'MOTO Online — حجز على البوابة بدون OTP':'MOTO Online — live hold, no OTP'}</option>
-        <option value="offline">${AR?'MOTO Offline — بدون RRN أو Approval عند الإدخال':'MOTO Offline — no RRN or approval on entry'}</option>
+        ${nuveiAuth ? '' : `<option value="offline">${AR?'MOTO Offline — بدون RRN أو Approval عند الإدخال':'MOTO Offline — no RRN or approval on entry'}</option>`}
       </select>
     </div>
     <div style="font-size:.68rem;color:var(--muted2);line-height:1.55;margin:-4px 0 12px">
@@ -3000,6 +3042,16 @@ window.processTransaction = async function() {
   try {
   if (!POS_GW || !EXEC_GWS[POS_GW]) {
     toast(AR ? 'اختر بوابة من القائمة المتصلة' : 'Pick a gateway from the connected list', 'error');
+    return;
+  }
+  const selectedAuthChannel = document.getElementById('authChannel')?.value || '';
+  if (String(POS_GW).toLowerCase() === 'nuvei'
+      && ((POS.txnType === 'offline_sale_moto' || POS.txnType === 'offline_sales_moto')
+          || (POS.txnType === 'auth' && selectedAuthChannel === 'offline'))) {
+    toast(AR
+      ? 'Nuvei لا يدعم SAF أو التفويض دون اتصال عبر REST. لم يتم إرسال أو تخزين العملية.'
+      : 'Nuvei REST does not support SAF or offline authorization. No transaction was sent or queued.',
+    'error');
     return;
   }
   if (POS_ARRIVAL !== 'wallet') {

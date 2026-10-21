@@ -82,6 +82,11 @@ check(pos_keyed_entry_forces_offline('purchase_2d') === false, 'keyed 2D is not 
 check(pos_keyed_entry_forces_offline('online_sale_moto') === false, 'keyed online sale is not forced offline');
 check(pos_keyed_entry_forces_offline('purchase_advice') === false, 'advice is not forced offline');
 check(pos_keyed_entry_forces_offline('offline_sale_moto') === true, 'explicit offline stays offline');
+check(pos_nuvei_offline_operation_requested('nuvei', 'offline_sale_moto') === true, 'Nuvei SAF sale is identified for fail-closed handling');
+check(pos_nuvei_offline_operation_requested('nuvei', 'auth', ['auth_channel' => 'offline']) === true, 'Nuvei offline authorization is identified for fail-closed handling');
+check(pos_nuvei_offline_operation_requested('nuvei', 'auth', ['auth_channel' => 'online', 'extra' => ['auth_channel' => 'offline']]) === true, 'Nuvei offline authorization is detected in nested extra data');
+check(pos_nuvei_offline_operation_requested('nuvei', 'purchase_2d') === false, 'Nuvei online 2D operation remains available');
+check(pos_nuvei_offline_operation_requested('stripe', 'offline_sale_moto') === false, 'Other gateway offline routing is unchanged');
 check(pos_paypal_charge_mode('purchase_2d', 'OFFLINE', false) === '2D', 'PayPal sends keyed 2D when offline mode is off');
 check(pos_paypal_charge_mode('purchase_advice', 'OFFLINE', false) === 'MOTO', 'PayPal sends advice when offline mode is off');
 check(pos_paypal_charge_mode('offline_sale_moto', 'OFFLINE', false) === 'OFFLINE', 'explicit PayPal offline stays on the offline path');

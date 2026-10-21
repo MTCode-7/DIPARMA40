@@ -159,7 +159,50 @@ check(empty($tokenHold['success'])
     && str_contains((string) ($tokenHold['message'] ?? ''), 'Session token failed')
     && ($tokenHold['error_code'] ?? '') !== 'INVALID_CARD',
     'Nuvei accepts a stored-token authorization without PAN or expiry');
-
+$offlineSale = $invalidEndpointAdapter->charge([
+    'txn_type' => 'offline_sale_moto',
+    'processing_mode' => 'OFFLINE',
+    'is_offline' => true,
+    'amount' => 10,
+    'currency' => 'USD',
+    'card_number' => '4111111111111111',
+    'card_expiry' => '12/30',
+]);
+check(empty($offlineSale['success'])
+    && ($offlineSale['error_code'] ?? '') === 'OFFLINE_NOT_SUPPORTED',
+    'Nuvei offline sale fails closed without attempting REST authorization');
+$offlineSaleAlias = $invalidEndpointAdapter->charge([
+    'txn_type' => 'offline_sales_moto',
+    'amount' => 10,
+    'currency' => 'USD',
+    'card_number' => '4111111111111111',
+    'card_expiry' => '12/30',
+]);
+check(empty($offlineSaleAlias['success'])
+    && ($offlineSaleAlias['error_code'] ?? '') === 'OFFLINE_NOT_SUPPORTED',
+    'Nuvei offline sale alias also fails closed');
+$offlineHold = $invalidEndpointAdapter->hold([
+    'txn_type' => 'auth',
+    'auth_channel' => 'offline',
+    'processing_mode' => 'OFFLINE',
+    'amount' => 10,
+    'currency' => 'USD',
+    'payment_token' => 'nuvei-upo-token-123456',
+]);
+check(empty($offlineHold['success'])
+    && ($offlineHold['error_code'] ?? '') === 'OFFLINE_NOT_SUPPORTED',
+    'Nuvei offline authorization fails closed without attempting REST authorization');
+$nestedOfflineHold = $invalidEndpointAdapter->hold([
+    'txn_type' => 'auth',
+    'auth_channel' => 'online',
+    'extra' => ['auth_channel' => 'offline'],
+    'amount' => 10,
+    'currency' => 'USD',
+    'payment_token' => 'nuvei-upo-token-123456',
+]);
+check(empty($nestedOfflineHold['success'])
+    && ($nestedOfflineHold['error_code'] ?? '') === 'OFFLINE_NOT_SUPPORTED',
+    'Nuvei offline authorization is rejected when flagged in nested extra data');
 $invalidCard = $invalidEndpointAdapter->charge([
     'txn_type' => 'purchase_2d',
     'amount' => 10,

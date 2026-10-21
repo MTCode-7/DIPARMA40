@@ -142,6 +142,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
     }
 
     public function charge(array $payload): array {
+        $offlineError = $this->offlineModeError($payload);
+        if ($offlineError !== null) {
+            return $offlineError;
+        }
         if (strtolower(trim((string) ($payload['txn_type'] ?? ''))) === 'purchase_advice') {
             return $this->purchaseAdvice($payload);
         }
@@ -180,6 +184,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
     }
 
     public function hold(array $payload): array {
+        $offlineError = $this->offlineModeError($payload);
+        if ($offlineError !== null) {
+            return $offlineError;
+        }
         $payload['transactionType'] = 'Auth';
         $mode = strtoupper(trim((string) ($payload['processing_mode'] ?? $payload['mode'] ?? '')));
         $channel = strtolower(trim((string) ($payload['auth_channel'] ?? $payload['moto_channel'] ?? '')));
@@ -236,6 +244,34 @@ class NuveiAdapter implements GatewayAdapterInterface {
             }
         }
         return '';
+    }
+
+    private function offlineModeError(array $params): ?array
+    {
+        $type = strtolower(trim((string) ($params['txn_type'] ?? '')));
+        $offlineRequested = in_array($type, ['offline_sale_moto', 'offline_sales_moto'], true);
+        $sources = [$params];
+        if (is_array($params['extra'] ?? null)) {
+            $sources[] = $params['extra'];
+        }
+        foreach ($sources as $source) {
+            $mode = strtoupper(trim((string) ($source['processing_mode'] ?? $source['mode'] ?? '')));
+            $channel = strtolower(trim((string) ($source['auth_channel'] ?? $source['moto_channel'] ?? '')));
+            $offlineRequested = $offlineRequested
+                || !empty($source['is_offline'])
+                || $mode === 'OFFLINE'
+                || $channel === 'offline';
+        }
+        if (!$offlineRequested) {
+            return null;
+        }
+
+        return [
+            'success' => false,
+            'status' => 'failed',
+            'error_code' => 'OFFLINE_NOT_SUPPORTED',
+            'message' => 'Nuvei REST does not support offline SAF sales or holds. No transaction was sent; use a supported online operation or an approved SAF terminal.',
+        ];
     }
 
         // ── توليد checksum ──────────────────────────────────────
@@ -797,6 +833,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
     // ── Purchase — شراء مباشر ──────────────────────────────
     public function purchase(array $params): array
     {
+        $offlineError = $this->offlineModeError($params);
+        if ($offlineError !== null) {
+            return $offlineError;
+        }
         $ident = $this->missingPayerIdentity($params);
         if ($ident !== null) {
             return $ident;

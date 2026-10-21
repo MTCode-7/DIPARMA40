@@ -1003,6 +1003,29 @@ function pos_keyed_entry_forces_offline(string $txnType): bool
     return pos_normalize_operation($txnType) === 'offline_sale_moto';
 }
 
+function pos_nuvei_offline_operation_requested(string $gateway, string $txnType, array $params = []): bool
+{
+    if (strtolower(trim($gateway)) !== 'nuvei') {
+        return false;
+    }
+    $type = pos_normalize_operation($txnType);
+    if ($type === 'offline_sale_moto') {
+        return true;
+    }
+    $sources = [$params];
+    if (is_array($params['extra'] ?? null)) {
+        $sources[] = $params['extra'];
+    }
+    foreach ($sources as $source) {
+        $channel = strtolower(trim((string) ($source['auth_channel'] ?? $source['moto_channel'] ?? '')));
+        $mode = strtoupper(trim((string) ($source['processing_mode'] ?? '')));
+        if (!empty($source['is_offline']) || $mode === 'OFFLINE' || $channel === 'offline') {
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * Drop a forced OFFLINE flag from a charge the operator did not mark as offline.
  * offline_sale_moto stays offline. An AUTH whose channel is offline stays offline.
