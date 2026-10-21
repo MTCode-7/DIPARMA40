@@ -272,7 +272,7 @@ check(($advice['reference'] ?? '') === 'POS-ADVICE-TEST-001'
     && ($advice['rrn'] ?? '') === '123456789012',
     'Nuvei Advice preserves the POS receipt reference separately from the bank RRN');
 check(($advice['auth_type'] ?? '') === 'PURCHASE_ADVICE_AFTER_AUTH',
-    'Nuvei Advice is identified as linked to a prior authorization');
+    'Nuvei Advice result is identified as linked to a prior authorization');
 
 putenv('BANK_ADVICE_HOST=http://bank-advice.example.test');
 $invalidHostAdvice = $adapter->purchaseAdvice([

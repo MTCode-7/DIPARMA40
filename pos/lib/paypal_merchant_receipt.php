@@ -227,7 +227,9 @@ function pos_paypal_merchant_receipt_model(array $txn, array $gw, bool $ar, stri
         $amountCaption = $ar ? 'المبلغ المحصّل' : 'CAPTURED AMOUNT';
         $note = $ar ? 'نفس RRN ورمز الموافقة من إيصال الحجز' : 'Same RRN and approval code as the hold receipt';
     } elseif ($type === 'purchase_advice') {
-        $note = $ar ? 'تسوية مباشرة — بلا حجز' : 'Direct settlement — no hold';
+        $note = $ar
+            ? 'إشعار مرتبط بتفويض سابق — قد يكون من جهاز آخر'
+            : 'Advice linked to a prior authorization — may be from another terminal';
     } elseif ($type === 'offline_sale_moto') {
         $note = $ar ? 'شحن بطاقة أوفلاين' : 'Offline card charge';
     }

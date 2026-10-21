@@ -34,9 +34,7 @@ class DirectAdvicePOSProcessor
         $this->gateway = strtolower(trim((string) $gateway));
     }
 
-    /**
-     * تنفيذ عملية الخصم/السحب المباشر بالرقم المرجعي وبدون Auth مسبق
-     */
+    /** Submit Advice using the original authorization references. */
     public function executeDirectAdviceSale($referenceNumber, $amount, $cardToken)
     {
         $maxAllowedLimit = 5000000.00; // الحد الأقصى — قيد حساب البنك
@@ -99,7 +97,7 @@ class DirectAdvicePOSProcessor
             'amount' => $amount,
             'processing_code' => $isCredit ? '200000' : '000000',
             'original_transaction_date' => $originalDate,
-            'auth_type' => 'PURCHASE_ADVICE_AFTER_AUTH',
+            'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
             'timestamp' => date('Y-m-d H:i:s'),
             'gateway' => $this->gateway,
         ];
@@ -191,7 +189,7 @@ class DirectAdvicePOSProcessor
                 'Content-Type: application/json',
                 'Accept: application/json',
                 'X-MTI: ' . ($iso['mti'] ?? '0220'),
-                'X-Auth-Type: PURCHASE_ADVICE_AFTER_AUTH',
+                'X-Auth-Type: DIRECT_ADVICE_NO_PRE_AUTH',
             ],
             CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
             CURLOPT_TIMEOUT => 90,
