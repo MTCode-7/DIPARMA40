@@ -349,6 +349,8 @@ check($nuveiRoute('online_sale_moto', $chip)['mode'] === 'MOTO' && $nuveiRoute('
 $stickerRows = pos_ops_sticker_rows();
 check(count(array_filter($stickerRows, static fn($row) => !empty($row['card']) && $row['cvv'] !== 'optional')) === 0, 'CVV is optional on every card operation');
 check(count(array_filter($stickerRows, static fn($row) => empty($row['card']) && $row['cvv'] !== false)) === 0, 'Non-card operations do not request CVV');
+$nuveiAdviceSticker = array_values(array_filter(pos_ops_sticker_rows('nuvei'), static fn($row) => $row['op'] === 'purchase_advice'))[0] ?? [];
+check(($nuveiAdviceSticker['card'] ?? null) === 'mode' && ($nuveiAdviceSticker['exp'] ?? null) === 'mode' && ($nuveiAdviceSticker['cvv'] ?? null) === 'mode', 'Nuvei purchase advice card fields are mode-dependent');
 check(!dp_gateway_is_live_for_charge(['code' => 'stripe', 'status' => 'active', 'connection_status' => 'pending', 'credentials' => '{}']), 'Active but unverified gateways stay hidden');
 check(!dp_gateway_is_customer_visible(['code' => 'stripe', 'status' => 'active', 'connection_status' => 'pending', 'credentials' => '{"api_key":"live-key"}']), 'Complete but unverified gateways stay hidden');
 check(!dp_gateway_is_live_for_charge(['code' => 'stripe', 'status' => 'inactive', 'connection_status' => 'verified', 'credentials' => '{}']), 'Inactive gateways stay hidden');

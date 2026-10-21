@@ -46,13 +46,6 @@ class DirectAdvicePOSProcessor
             ];
         }
 
-        if (trim((string) $this->mid) === '' || trim((string) $this->tid) === '') {
-            return [
-                'status' => 'DECLINED',
-                'message' => 'خطأ: MID و TID مطلوبان لإرسال Advice للمضيف البنكي.',
-            ];
-        }
-
         if (trim((string) $referenceNumber) === '') {
             return [
                 'status' => 'DECLINED',
@@ -63,6 +56,10 @@ class DirectAdvicePOSProcessor
         $originalDate = is_array($cardToken)
             ? trim((string) ($cardToken['original_transaction_date'] ?? ''))
             : '';
+        $inputMode = is_array($cardToken)
+            ? strtolower(trim((string) ($cardToken['input_mode'] ?? 'manual')))
+            : 'manual';
+        $manualEntry = $inputMode !== 'physical';
         $dateParts = preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $originalDate, $dateMatch)
             ? array_map('intval', array_slice($dateMatch, 1))
             : [];
@@ -77,11 +74,51 @@ class DirectAdvicePOSProcessor
                 'gateway' => $this->gateway,
             ];
         }
+        if ($this->gateway === 'nuvei') {
+            $approval = is_array($cardToken)
+                ? trim((string) ($cardToken['auth_code'] ?? $cardToken['approval_code'] ?? ''))
+                : '';
+            if ($approval === '') {
+                return [
+                    'status' => 'DECLINED',
+                    'success' => false,
+                    'response_code' => '96',
+                    'reference_number' => $referenceNumber,
+                    'charged_amount' => abs((float) $amount),
+                    'message' => 'Original approval code is required for Nuvei Purchase Advice.',
+                    'gateway' => $this->gateway,
+                ];
+            }
+            if ($manualEntry) {
+                $pan = preg_replace('/\D/', '', (string) ($cardToken['card_number'] ?? '')) ?? '';
+                $expiry = trim((string) ($cardToken['card_expiry'] ?? ''));
+                $cvv = preg_replace('/\D/', '', (string) ($cardToken['card_cvv'] ?? '')) ?? '';
+                if (strlen($pan) < 13 || strlen($pan) > 19
+                    || !preg_match('/^(0[1-9]|1[0-2])\/\d{2}$/', $expiry)
+                    || !preg_match('/^\d{3,4}$/', $cvv)) {
+                    return [
+                        'status' => 'DECLINED',
+                        'success' => false,
+                        'response_code' => '96',
+                        'reference_number' => $referenceNumber,
+                        'charged_amount' => abs((float) $amount),
+                        'message' => 'Manual Nuvei Purchase Advice requires PAN, expiry, and a 3-4 digit CVV.',
+                        'gateway' => $this->gateway,
+                    ];
+                }
+            }
+        }
 
         if ($this->gateway === '') {
             return [
                 'status' => 'DECLINED',
                 'message' => 'خطأ: اختر بوابة الدفع أولاً.',
+            ];
+        }
+        if (trim((string) $this->mid) === '' || trim((string) $this->tid) === '') {
+            return [
+                'status' => 'DECLINED',
+                'message' => 'خطأ: MID و TID مطلوبان لإرسال Advice للمضيف البنكي.',
             ];
         }
 
@@ -121,6 +158,7 @@ class DirectAdvicePOSProcessor
         $pan = preg_replace('/\D/', '', (string) ($cardParams['card_number'] ?? ''));
         $approval = trim((string) ($cardParams['auth_code'] ?? $cardParams['approval_code'] ?? ''));
         $currency = strtoupper((string) ($cardParams['currency'] ?? 'USD'));
+        $inputMode = strtolower(trim((string) ($cardParams['input_mode'] ?? 'manual')));
 
         $dummyTokens = ['tok_secure_card_xyz', 'tok_test', 'dummy', 'test', 'sample'];
         if ($tokenStr !== '' && in_array(strtolower($tokenStr), $dummyTokens, true)) {
@@ -180,6 +218,9 @@ class DirectAdvicePOSProcessor
             'iso_bitmap' => $iso['bitmap'] ?? '',
             'iso_fields' => $iso['named'] ?? [],
         ]);
+        if ($this->gateway === 'nuvei' && $inputMode !== 'physical') {
+            $body['card_cvv'] = preg_replace('/\D/', '', (string) ($cardParams['card_cvv'] ?? '')) ?? '';
+        }
 
         $ch = curl_init(rtrim($bankUrl, '/'));
         curl_setopt_array($ch, [

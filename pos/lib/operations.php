@@ -1282,7 +1282,7 @@ function pos_is_real_cloud_token(string $token): bool
 /**
  * يتحقق من حقول العملية ويعيد قائمة أخطاء (فارغة = صالح).
  */
-function pos_validate_operation_fields(string $type, array $data): array
+function pos_validate_operation_fields(string $type, array $data, array $options = []): array
 {
     $type = pos_normalize_operation($type);
     $meta = pos_operation_meta($type);
@@ -1325,6 +1325,13 @@ function pos_validate_operation_fields(string $type, array $data): array
     }
     $requiresCard = !empty($meta['requires_card']) || !empty($modeMeta['requires_card']);
     $requiresExpiry = !empty($meta['requires_expiry']) || !empty($modeMeta['requires_expiry']);
+    $physicalAdvice = $type === 'purchase_advice'
+        && strtolower(trim((string) ($options['input_mode'] ?? $data['input_mode'] ?? ''))) === 'physical';
+    $requiresCvv = !empty($options['requires_cvv']);
+    if ($physicalAdvice) {
+        $requiresCard = false;
+        $requiresExpiry = false;
+    }
     $approvalLen = $modeMeta['approval_len'] ?? ($meta['approval_len'] ?? null);
 
     $cloudToken = trim((string)($data['cloud_token'] ?? $data['source_id'] ?? $data['payment_token'] ?? ''));
@@ -1373,6 +1380,9 @@ function pos_validate_operation_fields(string $type, array $data): array
     }
     if ($requiresExpiry && !preg_match('/^(0[1-9]|1[0-2])\/([0-9]{2})$/', $expiry)) {
         $errors[] = 'Expiry date required (MM/YY).';
+    }
+    if ($requiresCvv && !preg_match('/^\d{3,4}$/', (string) ($data['card_cvv'] ?? ''))) {
+        $errors[] = 'Invalid CVV. Must be 3-4 digits.';
     }
 
     return $errors;

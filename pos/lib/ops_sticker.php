@@ -30,7 +30,7 @@ function pos_render_ops_legend(bool $ar): void
 /**
  * @return list<array<string,mixed>>
  */
-function pos_ops_sticker_rows(): array
+function pos_ops_sticker_rows(string $gateway = ''): array
 {
     $rows = [
         ['op' => 'purchase_3d', 'group' => 'sale', 'card' => true, 'exp' => true, 'cvv' => true, 'otp' => true, 'rrn' => false, 'appr' => false, 'pid' => false, 'amt' => 'fixed', 'ledger' => 'after_sale'],
@@ -53,6 +53,11 @@ function pos_ops_sticker_rows(): array
     foreach ($rows as &$row) {
         if (!empty($row['card'])) {
             $row['cvv'] = 'optional';
+        }
+        if (strtolower($gateway) === 'nuvei' && $row['op'] === 'purchase_advice') {
+            $row['card'] = 'mode';
+            $row['exp'] = 'mode';
+            $row['cvv'] = 'mode';
         }
     }
     unset($row);
@@ -106,7 +111,7 @@ function pos_sticker_ledger($v, bool $ar): string
     return $map[$v] ?? (string) $v;
 }
 
-function pos_render_ops_sticker(bool $ar, array $txnTypes): void
+function pos_render_ops_sticker(bool $ar, array $txnTypes, string $gateway = ''): void
 {
     ?>
     <div class="ops-sticker" id="opsSticker">
@@ -131,7 +136,7 @@ function pos_render_ops_sticker(bool $ar, array $txnTypes): void
             </tr>
           </thead>
           <tbody>
-            <?php foreach (pos_ops_sticker_rows() as $row):
+            <?php foreach (pos_ops_sticker_rows($gateway) as $row):
                 $meta = $txnTypes[$row['op']] ?? null;
                 $label = $meta ? ($ar ? ($meta['ar'] ?? $row['op']) : ($meta['en'] ?? $row['op'])) : $row['op'];
                 $yesClass = static function ($v) {

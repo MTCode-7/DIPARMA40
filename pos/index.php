@@ -844,7 +844,7 @@ const HUB_VERIX = <?= $isVerix ? 'true' : 'false' ?>;
 const HUB_HOST = <?=json_encode($verifoneHost)?>;
 const HUB_TID = <?=json_encode($posDevice['terminal_id'])?>;
 const HUB_READY = true;
-const STICKER_ROWS = <?=json_encode(function_exists('pos_ops_sticker_rows') ? pos_ops_sticker_rows() : [], JSON_UNESCAPED_UNICODE)?>;
+const STICKER_ROWS = <?=json_encode(function_exists('pos_ops_sticker_rows') ? pos_ops_sticker_rows((string) $posGw) : [], JSON_UNESCAPED_UNICODE)?>;
 const AR = HUB_AR;
 function stickerRule(type) {
   return (STICKER_ROWS || []).find(r => r.op === type) || null;
@@ -1126,7 +1126,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
 
 <!-- ══ CENTER: POS Screen ══ -->
 <div class="center-panel">
-  <?php if (function_exists('pos_render_ops_sticker')) pos_render_ops_sticker($ar, $txnTypes); ?>
+  <?php if (function_exists('pos_render_ops_sticker')) pos_render_ops_sticker($ar, $txnTypes, (string) $posGw); ?>
   <div class="form-section" style="margin-top:0;margin-bottom:16px;max-width:720px;margin-left:auto;margin-right:auto">
     <div class="form-title"><i class="fas fa-sliders-h"></i> <?=$ar?'نوع العملية':'Transaction Type'?></div>
     <div class="txn-grid" id="centerTxnGrid">
@@ -1359,6 +1359,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     </div>
 
     <!-- حقول خاصة ببعض العمليات -->
+    <span id="extraFieldsHome"></span>
     <div id="extraFields"></div>
 
     <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:14px;padding:14px;margin:12px 0">
@@ -1653,7 +1654,7 @@ window.syncAmount = function(val, sourceId) {
   });
 })();
 
-const STICKER_ROWS = <?=json_encode(function_exists('pos_ops_sticker_rows') ? pos_ops_sticker_rows() : [], JSON_UNESCAPED_UNICODE)?>;
+const STICKER_ROWS = <?=json_encode(function_exists('pos_ops_sticker_rows') ? pos_ops_sticker_rows((string) $posGw) : [], JSON_UNESCAPED_UNICODE)?>;
 const TXN_META = <?=json_encode($txnTypes, JSON_UNESCAPED_UNICODE)?>;
 const TXN_LABELS = {};
 Object.keys(TXN_META).forEach(k => {
@@ -1834,7 +1835,7 @@ function selectPosGateway(code, el) {
   }
   renderSettlementTargets(code);
   POS_GATEWAY_REQUIRES_CARD = !!meta.requires_card;
-  POS_REQUIRES_CARD = POS_GATEWAY_REQUIRES_CARD && !isNuveiAdviceSettlement();
+  POS_REQUIRES_CARD = POS_GATEWAY_REQUIRES_CARD;
   document.querySelectorAll('[data-exec-gw]').forEach(b => b.classList.toggle('active', b.dataset.execGw === code));
   const name = meta.name || code;
   const hint = AR ? (meta.desc_ar || '') : (meta.desc_en || '');
@@ -2187,7 +2188,7 @@ function manualDirectSale(type) {
     && !['capture','refund','avoid','purchase_advice','auth','auth_hold','auth_moto','hold','withdrawal_pos','withdrawal_nfc'].includes(type);
 }
 
-function isNuveiAdviceSettlement(type) {
+function isNuveiPurchaseAdvice(type) {
   return String(POS_GW || '').toLowerCase() === 'nuvei'
     && (type || (typeof POS !== 'undefined' ? POS.txnType : '')) === 'purchase_advice';
 }
@@ -2205,7 +2206,6 @@ function approvalLenFor(type, chargeMode) {
 }
 
 function needsRrn(type, chargeMode) {
-  if (isNuveiAdviceSettlement(type)) return false;
   if (type === 'offline_sale_moto' || type === 'offline_sales_moto' || chargeMode === 'offline_sale_moto') return false;
   if (type === 'purchase_advice' || chargeMode === 'purchase_advice_offline' || chargeMode === 'purchase_advice_online') return true;
   if (['auth', 'auth_hold', 'auth_moto', 'hold'].includes(type)) return false;
@@ -2288,13 +2288,16 @@ window.applyOpsLegend = function(type) {
     row.appr = false;
     row.pid = false;
   }
-  const nuveiSettle = isNuveiAdviceSettlement(type);
-  if (nuveiSettle) {
-    row.card = false;
-    row.exp = false;
-    row.rrn = false;
+  const nuveiAdvice = isNuveiPurchaseAdvice(type);
+  const nuveiAdvicePhysical = nuveiAdvice && POS.inputMode === 'physical';
+  const nuveiAdviceManual = nuveiAdvice && !nuveiAdvicePhysical;
+  if (nuveiAdvice) {
+    row.card = !nuveiAdvicePhysical;
+    row.exp = !nuveiAdvicePhysical;
+    row.cvv = nuveiAdviceManual;
+    row.rrn = true;
     row.appr = true;
-    row.pid = true;
+    row.pid = false;
   } else if (type === 'purchase_advice' || cm === 'purchase_advice_offline' || cm === 'purchase_advice_online') {
     row.rrn = true;
     row.appr = true;
@@ -2308,20 +2311,37 @@ window.applyOpsLegend = function(type) {
     row.appr = false;
     row.pid = false;
   }
-  if (row.card === true) row.cvv = 'optional';
-  const needCard = !nuveiSettle && (legendNeed(row.card) || !!meta.requires_card);
-  const needExp = !nuveiSettle && (legendNeed(row.exp) || !!meta.requires_expiry);
-  const needCvv = needCard && document.getElementById('cardType')?.value !== 'CLOUD';
+  if (row.card === true && !nuveiAdviceManual) row.cvv = 'optional';
+  const needCard = !nuveiAdvicePhysical && (legendNeed(row.card) || !!meta.requires_card);
+  const needExp = !nuveiAdvicePhysical && (legendNeed(row.exp) || !!meta.requires_expiry);
+  const needCvv = needCard && (nuveiAdviceManual || (legendNeed(row.cvv) && document.getElementById('cardType')?.value !== 'CLOUD'));
   setFieldWrap('livePanWrap', needCard, 'cardNumber');
   setFieldWrap('liveNameWrap', needCard, 'cardName');
   setFieldWrap('liveExpWrap', needExp, 'cardExpiry');
   setFieldWrap('liveCvvWrap', needCvv, 'cardCVV');
   const cvvInput = document.getElementById('cardCVV');
-  if (cvvInput) cvvInput.required = false;
+  if (cvvInput) cvvInput.required = nuveiAdviceManual;
   const cardSec = document.getElementById('cardSection');
   if (cardSec) {
-    cardSec.style.display = nuveiSettle ? 'none' : '';
-    cardSec.style.opacity = needCard ? '1' : '.55';
+    cardSec.style.display = '';
+    cardSec.style.opacity = nuveiAdvice || needCard ? '1' : '.55';
+  }
+  const manualOnlyDetails = [
+    document.getElementById('cardDisplay'),
+    document.getElementById('cardType')?.closest('.fld'),
+    document.getElementById('cardAutoBox')?.closest('.fld'),
+    document.getElementById('liveNameWrap'),
+  ];
+  manualOnlyDetails.forEach(el => {
+    if (el) el.style.display = nuveiAdviceManual ? 'none' : '';
+  });
+  const cardNameInput = document.getElementById('cardName');
+  if (nuveiAdvice && cardNameInput) cardNameInput.required = false;
+  const physicalBox = document.getElementById('physicalBox');
+  if (physicalBox) {
+    [...physicalBox.children].forEach((el, index) => {
+      if (index > 0) el.style.display = nuveiAdvice ? 'none' : '';
+    });
   }
   const label = (typeof TXN_LABELS !== 'undefined' && TXN_LABELS[type]) || { ar: type, en: type };
   const opName = AR ? (label.ar || type) : (label.en || type);
@@ -2354,8 +2374,7 @@ window.selectTxnType = function(type, el) {
     return;
   }
   POS.txnType = type;
-  const nuveiSettle = isNuveiAdviceSettlement(type);
-  POS_REQUIRES_CARD = POS_GATEWAY_REQUIRES_CARD && !isNuveiAdviceSettlement(type);
+  POS_REQUIRES_CARD = POS_GATEWAY_REQUIRES_CARD;
   const cardEntryDisplay = POS_REQUIRES_CARD ? '' : 'none';
   ['cardModeRow', 'physicalBox', 'manualBox'].forEach(id => {
     const field = document.getElementById(id);
@@ -2363,7 +2382,7 @@ window.selectTxnType = function(type, el) {
   });
   const cloudCardOption = document.getElementById('optCloudGw');
   if (cloudCardOption) cloudCardOption.disabled = type === 'purchase_advice';
-  if (type === 'purchase_advice' && !nuveiSettle) {
+  if (type === 'purchase_advice') {
     const cardType = document.getElementById('cardType');
     if (cardType) cardType.value = 'LIVE';
     toggleCloudCard();
@@ -2410,21 +2429,22 @@ window.selectTxnType = function(type, el) {
 function arrangeAdviceSteps(type) {
   const cardHome = document.getElementById('cardSectionHome');
   const amountHome = document.getElementById('txnAmountHome');
+  const extraHome = document.getElementById('extraFieldsHome');
   const card = document.getElementById('cardSection');
   const amount = document.getElementById('txnAmountRow');
   const extra = document.getElementById('extraFields');
-  const nuveiSettle = isNuveiAdviceSettlement(type);
-  if (!cardHome || !amountHome || !card || !amount || !extra) return;
-  if (type === 'purchase_advice' && !nuveiSettle) {
+  if (!cardHome || !amountHome || !extraHome || !card || !amount || !extra) return;
+  if (type === 'purchase_advice') {
+    cardHome.insertAdjacentElement('afterend', extra);
     extra.insertAdjacentElement('afterend', amount);
-    amount.insertAdjacentElement('afterend', card);
   } else {
     cardHome.insertAdjacentElement('afterend', card);
     amountHome.insertAdjacentElement('afterend', amount);
+    extraHome.insertAdjacentElement('afterend', extra);
   }
   const title = document.getElementById('cardFormTitle');
   if (title) title.textContent = type === 'purchase_advice'
-    ? (AR ? 'الخطوة الأخيرة: إدخال البطاقة' : 'Final step: enter the card')
+    ? (AR ? 'بيانات بطاقة العملية' : 'Advice card details')
     : (AR ? 'بيانات البطاقة' : 'Card Details');
 }
 
@@ -2432,7 +2452,7 @@ function renderExtraFields(type) {
   const el = document.getElementById('extraFields');
   let html = '';
   const meta = TXN_META[type] || {};
-  const nuveiSettle = isNuveiAdviceSettlement(type);
+  const nuveiAdvice = isNuveiPurchaseAdvice(type);
   const moreCaptureButton = document.querySelector('[data-cap-cmp="more"]');
   if (moreCaptureButton && type === 'capture') {
     moreCaptureButton.style.display = '';
@@ -2444,7 +2464,7 @@ function renderExtraFields(type) {
       ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
       ${type === 'capture' ? '<br>• '+(AR?'RRN وApproval من إيصال الحجز. المبلغ أقل أو مساوٍ أو أكبر أو سالب. حد البنك 5,000,000 على القيمة المطلقة.':'RRN and approval come from the hold receipt. Amount may be lower, equal, higher, or negative. Bank cap 5,000,000 on the absolute value.') : ''}
       ${(type === 'offline_sale_moto' || type === 'offline_sales_moto') ? '<br>• '+(AR?'Approval Code مطلوب. لا RRN. الشحن يبقى أوفلاين حتى لو كان المبلغ سالباً. حد البنك 2,000,000 على القيمة المطلقة.':'Approval code is required. No RRN. The charge stays offline even when the amount is negative. Bank cap 2,000,000 on the absolute value.') : ''}
-      ${type === 'purchase_advice' ? '<br>• '+(nuveiSettle ? (AR?'تسوية Nuvei تستخدم معرّف معاملة AUTH ورمز الموافقة الأصليين. يمكن إدخال تفويض من جهاز آخر؛ لا تُدخل بيانات البطاقة.':'Nuvei settlement uses the original AUTH transaction ID and auth code. The authorization may be from another terminal; no card data is entered.') : (AR?'اربط الإشعار بتفويض سابق باستخدام RRN وApproval وتاريخه الأصلي. لا يلزم أن يكون الحجز من هذا الجهاز.':'Link the advice to a prior authorization using its original RRN, approval code, and date. The hold need not be from this terminal.')) : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز. بعد الموافقة يظهران في الإيصال.':'No RRN or approval fields while entering the hold. After approval they print on the receipt.') : '')}
+      ${type === 'purchase_advice' ? '<br>• '+(nuveiAdvice ? (AR?'أدخل RRN وتاريخ العملية الأصلية ورمز الموافقة. في وضع Physical مرّر البطاقة فقط؛ في وضع Manual أدخل رقم البطاقة وتاريخ الانتهاء وCVV.':'Enter the original RRN, transaction date, and approval code. Physical: swipe the card only. Manual: enter PAN, expiry, and CVV.') : (AR?'اربط الإشعار بتفويض سابق باستخدام RRN وApproval وتاريخه الأصلي. لا يلزم أن يكون الحجز من هذا الجهاز.':'Link the advice to a prior authorization using its original RRN, approval code, and date. The hold need not be from this terminal.')) : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز. بعد الموافقة يظهران في الإيصال.':'No RRN or approval fields while entering the hold. After approval they print on the receipt.') : '')}
     </div>`;
   }
 
@@ -2471,34 +2491,28 @@ function renderExtraFields(type) {
   }
 
   const offlineSale = type === 'offline_sale_moto' || type === 'offline_sales_moto';
-  const showRrn = ((type === 'online_sale_moto' && !manualDirectSale(type)) || (type === 'purchase_advice' && !nuveiSettle) || type === 'capture');
-  const showApproval = showRrn || offlineSale || nuveiSettle;
+  const showRrn = ((type === 'online_sale_moto' && !manualDirectSale(type)) || type === 'purchase_advice' || type === 'capture');
+  const showApproval = showRrn || offlineSale;
   if (type === 'purchase_advice') {
-    html += nuveiSettle
-      ? `<div class="fld">
-          <label>Original Nuvei AUTH Transaction ID <span style="color:var(--red)">*</span></label>
-          <input type="text" id="originalNuveiTransactionId" maxlength="64" autocomplete="off" required>
-          <div style="font-size:.62rem;color:var(--muted2);margin-top:4px">${AR?'من إيصال AUTH الأصلي. لا يلزم أن يكون التفويض من هذا الجهاز.':'From the original AUTH receipt. The authorization need not be from this terminal.'}</div>
-        </div>`
-      : `<div class="info-banner" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.74rem;line-height:1.7">
+    html += `<div class="info-banner" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.74rem;line-height:1.7">
       <strong style="color:#fbbf24">${AR ? 'خطوات Purchase Advice' : 'Purchase Advice steps'}</strong>
       <ol style="margin:6px 0 0;padding-inline-start:22px">
         <li>${AR ? 'أدخل RRN وتاريخ التفويض ورمز الموافقة من العملية الأصلية، حتى لو تمت على جهاز آخر.' : 'Enter the original authorization RRN, date, and approval code, even if it was created on another terminal.'}</li>
         <li>${AR ? 'أدخل مبلغ التسوية والعملة.' : 'Enter the settlement amount and currency.'}</li>
-        <li>${AR ? 'أدخل البطاقة يدوياً، أو اختر Physical ومرّرها عبر قارئ متصل.' : 'Enter the card manually, or choose Physical and swipe it through a connected reader.'}</li>
+        <li>${AR ? (nuveiAdvice ? 'في Physical مرّر البطاقة فقط. في Manual أدخل رقم البطاقة وتاريخ الانتهاء وCVV.' : 'أدخل البطاقة يدوياً، أو اختر Physical ومرّرها عبر قارئ متصل.') : (nuveiAdvice ? 'Physical: swipe the card only. Manual: enter PAN, expiry, and CVV.' : 'Enter the card manually, or choose Physical and swipe it through a connected reader.')}</li>
       </ol>
-      <div style="margin-top:6px;color:var(--muted2)">${AR ? 'لا تدخل CVV لهذه العملية. الشريحة أو NFC لا ترسل رقم البطاقة إلى صفحة الويب.' : 'Do not enter a CVV for this operation. Chip or NFC does not pass the card number to this web page.'}</div>
+      ${nuveiAdvice ? '' : `<div style="margin-top:6px;color:var(--muted2)">${AR ? 'لا تدخل CVV لهذه العملية. الشريحة أو NFC لا ترسل رقم البطاقة إلى صفحة الويب.' : 'Do not enter a CVV for this operation. Chip or NFC does not pass the card number to this web page.'}</div>`}
     </div>`;
   }
   if (showRrn) {
     const lock = type === 'capture' ? ' readonly' : '';
     html += `<div class="fld">
       <label>RRN ${type === 'capture' ? '<span style="color:var(--muted);font-weight:600">('+(AR?'من إيصال الحجز':'from the hold receipt')+')</span>' : '<span style="color:var(--red)">*</span>'}</label>
-      <input type="text" id="origRef" maxlength="12" inputmode="numeric" placeholder="000000000000"${lock}
+      <input type="text" id="origRef" maxlength="12" inputmode="numeric" placeholder="000000000000"${lock}${type === 'purchase_advice' ? ' required' : ''}
         oninput="if(!this.readOnly)this.value=this.value.replace(/\\D/g,'').slice(0,12)">
     </div>`;
   }
-  if (type === 'purchase_advice' && !nuveiSettle) {
+  if (type === 'purchase_advice') {
     html += `<div class="fld">
       <label>${AR ? 'تاريخ العملية الأصلية' : 'Original transaction date'} <span style="color:var(--red)">*</span></label>
       <input type="date" id="originalTransactionDate" required>
@@ -2506,9 +2520,10 @@ function renderExtraFields(type) {
   }
   if (showApproval) {
     const lock = type === 'capture' ? ' readonly' : '';
+    const required = type === 'purchase_advice' ? ' required' : '';
     html += `<div class="fld">
       <label>APPROVAL CODE <span style="color:var(--red)">*</span></label>
-      <input type="text" id="approvalCode" maxlength="6" placeholder="4 or 6"${lock}
+      <input type="text" id="approvalCode" maxlength="6" placeholder="4 or 6"${lock}${required}
         style="letter-spacing:4px;font-weight:800;text-align:center"
         oninput="if(!this.readOnly)this.value=this.value.replace(/[^0-9A-Za-z]/g,'').slice(0,6)">
     </div>`;
@@ -3137,6 +3152,10 @@ window.processTransaction = async function() {
     POS_ARRIVAL = 'gateway';
   }
   const type     = POS.txnType;
+  const isPhysical = POS.inputMode === 'physical';
+  const nuveiAdvice = isNuveiPurchaseAdvice(type);
+  const nuveiAdvicePhysical = nuveiAdvice && isPhysical;
+  const nuveiAdviceManual = nuveiAdvice && !isPhysical;
   const refundAmt  = parseFloat(document.getElementById('refundAmt')?.value) || 0;
   const holdAmt = parseFloat(POS.holdAmount || 0) || 0;
   const capMode = POS.captureMode || '';
@@ -3173,8 +3192,6 @@ window.processTransaction = async function() {
   const expiry   = document.getElementById('cardExpiry').value;
   const cvv      = document.getElementById('cardCVV').value;
   const cardType = document.getElementById('cardType').value;
-  const nuveiAdviceSettlement = isNuveiAdviceSettlement(type);
-  const originalNuveiTransactionId = String(document.getElementById('originalNuveiTransactionId')?.value || '').trim();
   const cardNetwork = document.getElementById('cardNetwork')?.value || 'auto';
   const cloudToken = document.getElementById('cloudToken').value.trim();
   const originalTransactionDate = document.getElementById('originalTransactionDate')?.value || '';
@@ -3201,19 +3218,18 @@ window.processTransaction = async function() {
   const walletSel = document.getElementById('linkedWallet');
   const walletAddr = walletSel?.value || '';
   const walletOpt = walletSel?.selectedOptions?.[0];
-  const isPhysical = POS.inputMode === 'physical';
   const useWallet = isPhysical && walletAddr !== '';
 
   const manualOffline = type === 'offline_sale_moto' || type === 'offline_sales_moto';
   const extraData = {
-    input_mode: nuveiAdviceSettlement ? 'authorization_reference' : POS.inputMode,
-    entry_mode: nuveiAdviceSettlement ? 'related_transaction' : (useWallet ? 'wallet_app' : (isPhysical
+    input_mode: POS.inputMode,
+    entry_mode: useWallet ? 'wallet_app' : (isPhysical
       ? (type === 'purchase_advice' ? 'pos_magstripe' : (type === 'withdrawal_nfc' ? 'nfc_contactless' : 'pos_chip'))
-      : 'keyed')),
+      : 'keyed'),
     is_offline: nuveiLargeUsd ? false : (manualOffline ? true : undefined),
     processing_mode: nuveiLargeUsd ? '3D' : (manualOffline ? 'OFFLINE' : (meta.security || '2D')),
     sec_mode: nuveiLargeUsd ? '3D' : (manualOffline ? 'OFFLINE' : (meta.security || '2D')),
-    card_present: nuveiAdviceSettlement ? false : isPhysical,
+    card_present: isPhysical,
     channels: ['pos', 'nfc'],
     channel: meta.channel || 'system_pos',
     merchant_name: POS_MERCHANT.legal_name,
@@ -3234,12 +3250,10 @@ window.processTransaction = async function() {
     charge_mode: ((type === 'withdrawal_pos' || type === 'withdrawal_nfc') && chargeMode === 'purchase_3d') ? 'purchase_2d' : (chargeMode || undefined),
     advice_channel: document.getElementById('adviceChannel')?.value || undefined,
     auth_channel: document.getElementById('authChannel')?.value || undefined,
-    is_moto: (!nuveiAdviceSettlement && !nuveiLargeUsd && (manualOffline || (!isPhysical && type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto' || (type === 'purchase_advice' && !isPhysical))) ? true : undefined,
-    moto_indicator: (!nuveiAdviceSettlement && !nuveiLargeUsd && ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto' || (type === 'purchase_advice' && !isPhysical))) ? 'M' : undefined,
-    original_transaction_date: !nuveiAdviceSettlement ? (originalTransactionDate || undefined) : undefined,
-    original_transaction_id: nuveiAdviceSettlement ? originalNuveiTransactionId : undefined,
-    related_transaction_id: nuveiAdviceSettlement ? originalNuveiTransactionId : undefined,
-    payment_id: nuveiAdviceSettlement ? undefined : (document.getElementById('paymentId')?.value || (holdPicked ? (function(){ try { return JSON.parse(holdOpt.dataset.hold).payment_id || undefined; } catch (e) { return undefined; } })() : undefined)),
+    is_moto: (!nuveiLargeUsd && (manualOffline || (!isPhysical && type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto' || (type === 'purchase_advice' && !isPhysical))) ? true : undefined,
+    moto_indicator: (!nuveiLargeUsd && ((type === 'auth' && ['online','offline'].includes(document.getElementById('authChannel')?.value)) || type === 'online_sale_moto' || type === 'offline_sale_moto' || (type === 'purchase_advice' && !isPhysical))) ? 'M' : undefined,
+    original_transaction_date: originalTransactionDate || undefined,
+    payment_id: document.getElementById('paymentId')?.value || (holdPicked ? (function(){ try { return JSON.parse(holdOpt.dataset.hold).payment_id || undefined; } catch (e) { return undefined; } })() : undefined),
     wallet_address: walletAddr || undefined,
     wallet_provider: walletOpt?.dataset?.provider || undefined,
     wallet_network: walletOpt?.dataset?.network || undefined,
@@ -3286,24 +3300,10 @@ window.processTransaction = async function() {
     toast(AR?'أدخل مبلغ السحب و/أو مبلغ الاسترجاع':'Enter withdraw amount and/or refund amount', 'error'); return;
   }
   if (type === 'purchase_advice' || type === 'offline_sale_moto' || type === 'offline_sales_moto') {
-    if (nuveiAdviceSettlement && amount <= 0) {
-      toast(AR ? 'مبلغ تسوية Nuvei يجب أن يكون أكبر من صفر' : 'Nuvei settlement amount must be greater than zero', 'error');
-      return;
-    }
     if (!isFinite(amount) || amount === 0) {
       toast(AR?'أدخل مبلغاً موجباً أو سالباً':'Enter a positive or negative amount', 'error'); return;
     }
-    if (nuveiAdviceSettlement && !originalNuveiTransactionId) {
-      toast(AR ? 'أدخل معرّف معاملة AUTH الأصلية في Nuvei' : 'Enter the original Nuvei AUTH transaction ID', 'error');
-      document.getElementById('originalNuveiTransactionId')?.focus();
-      return;
-    }
-    if (nuveiAdviceSettlement && !String(approval || gwApproval || '').trim()) {
-      toast(AR ? 'أدخل رمز AUTH الأصلي من إيصال Nuvei' : 'Enter the original Nuvei AUTH code', 'error');
-      document.getElementById('approvalCode')?.focus();
-      return;
-    }
-    if (type === 'purchase_advice' && !nuveiAdviceSettlement && !/^\d{4}-\d{2}-\d{2}$/.test(originalTransactionDate)) {
+    if (type === 'purchase_advice' && !/^\d{4}-\d{2}-\d{2}$/.test(originalTransactionDate)) {
       toast(AR ? 'أدخل تاريخ العملية الأصلية' : 'Enter the original transaction date', 'error');
       document.getElementById('originalTransactionDate')?.focus();
       return;
@@ -3336,8 +3336,16 @@ window.processTransaction = async function() {
       return;
     }
   }
-  const needsCard = POS_REQUIRES_CARD && cardType !== 'CLOUD' && meta.requires_card !== false && !['refund','avoid'].includes(type);
-  if (needsCard && !['capture'].includes(type) && !(type === 'purchase_advice' && isPhysical) && (!cardName || /^(cardholder|guest|test|customer|client)$/i.test(cardName.replace(/\s+/g, '')))) {
+  const needsCard = POS_REQUIRES_CARD && cardType !== 'CLOUD' && meta.requires_card !== false
+    && !['refund','avoid'].includes(type) && !nuveiAdvicePhysical;
+  if (nuveiAdviceManual && (cardNum.length < 13 || cardNum.length > 19 || !expiry || !/^\d{3,4}$/.test(cvv))) {
+    toast(AR ? 'أدخل رقم البطاقة وتاريخ الانتهاء وCVV صحيحاً' : 'Enter a valid PAN, expiry, and CVV', 'error');
+    if (cardNum.length < 13 || cardNum.length > 19) document.getElementById('cardNumber')?.focus();
+    else if (!expiry) document.getElementById('cardExpiry')?.focus();
+    else document.getElementById('cardCVV')?.focus();
+    return;
+  }
+  if (needsCard && !['capture'].includes(type) && !nuveiAdvice && !(type === 'purchase_advice' && isPhysical) && (!cardName || /^(cardholder|guest|test|customer|client)$/i.test(cardName.replace(/\s+/g, '')))) {
     toast(AR ? 'أدخل الاسم كما على البطاقة — ليس اسماً وهمياً.' : 'Enter the name on the card — not a placeholder.', 'error');
     document.getElementById('cardName')?.focus();
     return;
@@ -3440,8 +3448,8 @@ window.processTransaction = async function() {
     card_provider: POS_GW,
     channel: (POS_DEVICE && (POS_DEVICE.type === 'web' || /web/i.test(String(POS_DEVICE.code || '')))) ? 'web' : 'pos',
     withdraw_on: document.getElementById('withdrawOn')?.value || 'local',
-    input_mode: nuveiAdviceSettlement ? 'authorization_reference' : POS.inputMode,
-    is_physical: nuveiAdviceSettlement ? 0 : (isPhysical ? 1 : 0),
+    input_mode: POS.inputMode,
+    is_physical: isPhysical ? 1 : 0,
     pos_device: POS_DEVICE.code,
     pos_model: POS_DEVICE.model,
     pos_type: POS_DEVICE.type,
@@ -3451,9 +3459,7 @@ window.processTransaction = async function() {
     batch: extraData.batch,
     stan: extraData.stan,
     extra: extraData,
-    payment_id: nuveiAdviceSettlement ? undefined : (extraData.payment_id || undefined),
-    related_transaction_id: nuveiAdviceSettlement ? originalNuveiTransactionId : undefined,
-    original_transaction_id: nuveiAdviceSettlement ? originalNuveiTransactionId : undefined,
+    payment_id: extraData.payment_id || undefined,
     hold_id: holdPicked ? (holdOpt.value || undefined) : undefined,
   };
   if (type === 'capture' || type === 'purchase_advice') {
@@ -3465,9 +3471,9 @@ window.processTransaction = async function() {
       payload.refund_amount = refundAmt;
       payload.extra.refund_amount = refundAmt;
     }
-    payload.extra.linked_to_auth = type === 'capture' || nuveiAdviceSettlement || !!(extraData.payment_id || origRef);
+    payload.extra.linked_to_auth = type === 'capture' || type === 'purchase_advice' || !!(extraData.payment_id || origRef);
     payload.extra.repeatable_hold = true;
-    payload.card_cvv = type === 'purchase_advice' ? '' : payload.card_cvv;
+    payload.card_cvv = type === 'purchase_advice' && !nuveiAdviceManual ? '' : payload.card_cvv;
   }
 
   try {

@@ -242,42 +242,50 @@ if (!$nuveiIsLive) {
 $adviceAdapter = new NuveiAdapter();
 $merchantIdProperty = new ReflectionProperty(NuveiAdapter::class, 'merchantId');
 $merchantIdProperty->setValue($adviceAdapter, '');
-$missingAdviceTxn = $adviceAdapter->purchaseAdvice(['amount' => 10, 'auth_code' => '123456']);
+$missingAdviceTxn = $adviceAdapter->purchaseAdvice([
+    'amount' => 10,
+    'auth_code' => '123456',
+    'original_transaction_date' => '2026-10-21',
+]);
 check(empty($missingAdviceTxn['success'])
-    && str_contains((string) ($missingAdviceTxn['message'] ?? ''), 'original authorization transaction ID'),
-    'Nuvei Purchase Advice requires the original authorization transaction ID');
-$missingAdviceAuth = $adviceAdapter->purchaseAdvice([
+    && str_contains((string) ($missingAdviceTxn['message'] ?? ''), '12-digit bank RRN'),
+    'Nuvei Purchase Advice requires the original bank RRN');
+$missingAdviceDate = $adviceAdapter->purchaseAdvice([
     'amount' => 10,
-    'related_transaction_id' => 'AUTH-TXN-123',
-]);
-check(empty($missingAdviceAuth['success'])
-    && str_contains((string) ($missingAdviceAuth['message'] ?? ''), 'original authorization code'),
-    'Nuvei Purchase Advice requires the original authorization code');
-$negativeAdviceSettle = $adviceAdapter->purchaseAdvice([
-    'amount' => -10,
-    'related_transaction_id' => 'AUTH-TXN-123',
+    'rrn' => '123456789012',
     'auth_code' => '123456',
 ]);
-check(empty($negativeAdviceSettle['success'])
-    && str_contains((string) ($negativeAdviceSettle['message'] ?? ''), 'greater than zero'),
-    'Nuvei AUTH settlement rejects negative amounts');
-$validAdviceSettle = $adviceAdapter->purchaseAdvice([
+check(empty($missingAdviceDate['success'])
+    && str_contains((string) ($missingAdviceDate['message'] ?? ''), 'valid original transaction date'),
+    'Nuvei Purchase Advice requires the original transaction date');
+$missingManualCvv = $adviceAdapter->purchaseAdvice([
     'amount' => 10,
-    'currency' => 'USD',
-    'reference' => 'POS-ADVICE-TEST-001',
-    'related_transaction_id' => 'AUTH-TXN-123',
+    'rrn' => '123456789012',
     'auth_code' => '123456',
+    'original_transaction_date' => '2026-10-21',
+    'input_mode' => 'manual',
+    'card_number' => '4000000000000002',
+    'card_expiry' => '12/30',
 ]);
-check(empty($validAdviceSettle['success'])
-    && str_contains((string) ($validAdviceSettle['message'] ?? ''), 'merchant credentials')
-    && !str_contains((string) ($validAdviceSettle['message'] ?? ''), 'BANK_ADVICE_HOST'),
-    'Nuvei Advice uses settleTransaction without a local hold or BANK_ADVICE_HOST');
-$purchaseAdviceWithoutId = $adviceAdapter->purchase([
+check(empty($missingManualCvv['success'])
+    && str_contains((string) ($missingManualCvv['message'] ?? ''), 'requires PAN, expiry, and a 3-4 digit CVV'),
+    'Nuvei manual Advice requires PAN, expiry, and CVV');
+$physicalAdvice = $adviceAdapter->purchaseAdvice([
+    'amount' => 10,
+    'rrn' => '123456789012',
+    'auth_code' => '123456',
+    'original_transaction_date' => '2026-10-21',
+    'input_mode' => 'physical',
+]);
+check(empty($physicalAdvice['success'])
+    && str_contains((string) ($physicalAdvice['message'] ?? ''), 'MID و TID مطلوبان'),
+    'Nuvei physical Advice needs no manually entered PAN, expiry, or CVV');
+$purchaseAdviceWithoutRrn = $adviceAdapter->purchase([
     'txn_type' => 'purchase_advice',
     'amount' => 10,
 ]);
-check(empty($purchaseAdviceWithoutId['success'])
-    && str_contains((string) ($purchaseAdviceWithoutId['message'] ?? ''), 'original authorization transaction ID'),
-    'Nuvei purchase() routes Advice through AUTH settlement validation');
+check(empty($purchaseAdviceWithoutRrn['success'])
+    && str_contains((string) ($purchaseAdviceWithoutRrn['message'] ?? ''), '12-digit bank RRN'),
+    'Nuvei purchase() routes Advice through RRN validation');
 
 exit($fail === 0 ? 0 : 1);

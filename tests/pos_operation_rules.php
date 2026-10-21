@@ -54,19 +54,40 @@ $keyedAdvice = pos_prepare_operation_payload('purchase_advice', [
     'entry_mode' => 'keyed',
 ]);
 check(!empty($keyedAdvice['is_moto']) && empty($keyedAdvice['card_present']), 'manual advice stays keyed MOTO');
-$nuveiAuthSettlement = pos_prepare_operation_payload('purchase_advice', [
+$nuveiPhysicalAdvice = pos_prepare_operation_payload('purchase_advice', [
     'gateway' => 'nuvei',
-    'input_mode' => 'authorization_reference',
-    'related_transaction_id' => 'AUTH-TXN-123',
+    'input_mode' => 'physical',
+    'entry_mode' => 'pos_magstripe',
 ]);
-check(empty($nuveiAuthSettlement['is_moto'])
-    && empty($nuveiAuthSettlement['card_present'])
-    && empty($nuveiAuthSettlement['direct_advice'])
-    && ($nuveiAuthSettlement['processing_mode'] ?? '') !== 'MOTO'
-    && ($nuveiAuthSettlement['entry_mode'] ?? '') === 'related_transaction',
-    'Nuvei AUTH settlement is not mislabeled as card-entry MOTO or ISO Advice');
-check(stripos((string) ($adviceMeta['desc_en'] ?? ''), 'Nuvei') === false,
-    'generic Purchase Advice description does not imply a Nuvei-specific flow');
+check(empty($nuveiPhysicalAdvice['is_moto'])
+    && !empty($nuveiPhysicalAdvice['card_present'])
+    && !empty($nuveiPhysicalAdvice['direct_advice'])
+    && ($nuveiPhysicalAdvice['entry_mode'] ?? '') === 'pos_magstripe',
+    'Nuvei physical Advice uses card-present ISO Advice');
+$nuveiManualAdvice = pos_prepare_operation_payload('purchase_advice', [
+    'gateway' => 'nuvei',
+    'input_mode' => 'manual',
+    'entry_mode' => 'keyed',
+]);
+check(!empty($nuveiManualAdvice['is_moto'])
+    && empty($nuveiManualAdvice['card_present'])
+    && !empty($nuveiManualAdvice['direct_advice']),
+    'Nuvei manual Advice uses keyed ISO Advice');
+$physicalAdviceFields = pos_validate_operation_fields('purchase_advice', [
+    'rrn' => '123456789012',
+    'approval_code' => '123456',
+    'input_mode' => 'physical',
+], ['input_mode' => 'physical']);
+check($physicalAdviceFields === [], 'physical Advice requires references but no manual card fields');
+$manualAdviceFields = pos_validate_operation_fields('purchase_advice', [
+    'rrn' => '123456789012',
+    'approval_code' => '123456',
+    'card_number' => '4111111111111111',
+    'card_expiry' => '12/30',
+    'card_cvv' => '',
+], ['requires_cvv' => true]);
+check(in_array('Invalid CVV. Must be 3-4 digits.', $manualAdviceFields, true),
+    'manual Nuvei Advice requires a CVV');
 
 $offlineMissing = pos_validate_operation_fields('offline_sale_moto', $card);
 check($offlineMissing !== [] && !in_array('RRN must be exactly 12 digits.', $offlineMissing, true), 'offline requires approval and not RRN');

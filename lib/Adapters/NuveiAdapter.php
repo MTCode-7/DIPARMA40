@@ -975,65 +975,61 @@ class NuveiAdapter implements GatewayAdapterInterface {
     }
 
     /**
-     * Settle an approved Nuvei authorization by its original transaction ID.
+     * Submit a Nuvei POS Purchase Advice using the original bank references.
      */
     public function purchaseAdvice(array $params): array
     {
-        $relatedTransactionId = '';
-        foreach (['related_transaction_id', 'original_transaction_id', 'nuvei_txn_id', 'payment_id'] as $key) {
-            $candidateId = trim((string) ($params[$key] ?? ''));
-            if ($candidateId !== '') {
-                $relatedTransactionId = $candidateId;
-                break;
-            }
-        }
-        if ($relatedTransactionId === '') {
-            return ['success' => false, 'message' => 'Nuvei Purchase Advice requires the original authorization transaction ID'];
+        $rrn = $this->purchaseAdviceRrn($params);
+        if ($rrn === null) {
+            return ['success' => false, 'message' => 'Purchase advice requires a 12-digit bank RRN'];
         }
 
         $amountRaw = (float) ($params['amount'] ?? 0);
-        if (!is_finite($amountRaw) || $amountRaw <= 0) {
-            return ['success' => false, 'message' => 'Nuvei AUTH settlement amount must be greater than zero'];
+        if (!is_finite($amountRaw) || abs($amountRaw) < 0.00001) {
+            return ['success' => false, 'message' => 'Purchase advice amount is required'];
         }
 
-        $authCode = trim((string) ($params['auth_code'] ?? ''));
-        if ($authCode === '') {
-            $authCode = trim((string) ($params['approval_code'] ?? $params['bank_approval_code'] ?? ''));
-        }
-        if ($authCode === '') {
-            return ['success' => false, 'message' => 'Nuvei AUTH settlement requires the original authorization code'];
-        }
-
-        $reference = trim((string) ($params['reference'] ?? ''));
-        $result = $this->settleTransaction(
-            $relatedTransactionId,
-            $amountRaw,
-            strtoupper((string) ($params['currency'] ?? 'USD')),
-            $reference,
-            $authCode
+        require_once dirname(__DIR__, 2) . '/pos/lib/DirectAdvicePOSProcessor.php';
+        $processor = new DirectAdvicePOSProcessor(
+            (string) ($params['merchant_id'] ?? $params['mid'] ?? ''),
+            (string) ($params['terminal_id'] ?? $params['tid'] ?? ''),
+            'nuvei'
         );
+        $result = $processor->executeDirectAdviceSale($rrn, $amountRaw, $params);
         $success = !empty($result['success']);
+        $transactionId = trim((string) ($result['transaction_id'] ?? ''));
+
         return [
             'success' => $success,
             'status' => $success ? 'completed' : 'failed',
             'txn_type' => 'purchase_advice',
-            'reference' => (string) ($result['reference'] ?? $reference),
-            'transaction_id' => (string) ($result['transaction_id'] ?? ''),
-            'payment_id' => (string) ($result['transaction_id'] ?? ''),
-            'nuvei_txn_id' => (string) ($result['transaction_id'] ?? ''),
-            'related_transaction_id' => $relatedTransactionId,
-            'rrn' => (string) ($result['raw']['rrn'] ?? $result['raw']['retrievalReferenceNumber'] ?? ''),
-            'approval_code' => (string) (($result['approval_code'] ?? '') ?: $authCode),
+            'reference' => (string) ($params['reference'] ?? ''),
+            'transaction_id' => $transactionId,
+            'payment_id' => $transactionId,
+            'nuvei_txn_id' => $transactionId,
+            'rrn' => (string) ($result['reference_number'] ?? $rrn),
+            'approval_code' => (string) ($result['approval_code'] ?? ''),
             'response_code' => (string) ($result['response_code'] ?? ''),
             'amount' => abs($amountRaw),
             'currency' => strtoupper((string) ($params['currency'] ?? 'USD')),
-            'auth_code' => $authCode,
+            'mti' => (string) ($result['mti'] ?? ($success ? '0230' : '0220')),
             'auth_type' => 'PURCHASE_ADVICE_AFTER_AUTH',
-            'message' => (string) ($result['message'] ?? 'Nuvei settlement failed'),
-            'raw' => $result['raw'] ?? $result,
+            'message' => (string) ($result['message'] ?? 'Bank Advice host rejected the request'),
+            'raw' => $result['gateway_response'] ?? $result,
             'acquirer' => 'nuvei',
             'settlement_target' => 'gateway',
         ];
+    }
+
+    private function purchaseAdviceRrn(array $params): ?string
+    {
+        foreach (['bank_rrn', 'rrn', 'orig_ref'] as $key) {
+            $rrn = preg_replace('/\D+/', '', (string) ($params[$key] ?? '')) ?? '';
+            if (preg_match('/^\d{12}$/', $rrn)) {
+                return $rrn;
+            }
+        }
+        return null;
     }
 
     // ── Authorization — تفويض (حجز) ───────────────────────
