@@ -1948,6 +1948,17 @@ function posSlipStatus(d) {
   return 'PENDING';
 }
 
+function posReceiptOperationName(d, selectedType) {
+  const type = String((d && d.txn_type) || selectedType || '').trim().toLowerCase();
+  if (type === 'purchase_advice') return 'PURCHASE ADVICE';
+  return String((d && d.operation_name) || selectedType || 'SALE')
+    .replace(/_?moto/ig, '')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
 function posPlainReason(raw) {
   if (raw == null) return '';
   const generic = (s) => /^(DECLINED|CARD_DECLINED|UNKNOWN|رُفضت العملية)$/i.test(String(s || '').trim());
@@ -2094,7 +2105,7 @@ function posCardUseAlert(d, why) {
 
 function posShowDeclineReceipt(d, type, amount, currency, cardNum) {
   updateReceipt(d, type, amount, currency, cardNum);
-  showResultModal(false, d);
+  showResultModal(false, d, type);
   setPosStatus('DECLINED');
   const box = document.getElementById('receiptBox');
   if (box && box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -3396,7 +3407,7 @@ window.processTransaction = async function() {
     if (d.success) {
       POS.lastTxn = d;
       updateReceipt(d, type, amount, currency, cardNum);
-      showResultModal(true, d);
+      showResultModal(true, d, type);
       const okStatus = posSlipStatus(d);
       setPosStatus(okStatus);
       document.getElementById('openFullReceiptBtn').style.display = '';
@@ -3494,12 +3505,7 @@ function updateReceipt(d, type, amount, currency, cardNum) {
     : (d.batch || d.batch_number || '');
   const batchDigits = String(actualBatch || '').replace(/\D/g, '');
   const batch = batchDigits ? batchDigits.slice(-6) : (isNuvei ? '—' : (pad(when.getDate()) + pad(when.getMonth() + 1) + String(when.getFullYear()).slice(-2)));
-  const slipType = String(d.operation_name || type || 'SALE')
-    .replace(/_?moto/ig, '')
-    .replace(/_/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toUpperCase();
+  const slipType = posReceiptOperationName(d, type);
   set('rDate', dateStr);
   set('rTime', timeStr);
   set('rTid', String(tid).trim() || '—');
@@ -3579,7 +3585,7 @@ function updateReceipt(d, type, amount, currency, cardNum) {
 }
 
 // ── Result Modal ──────────────────────────────────
-function showResultModal(success, d) {
+function showResultModal(success, d, type) {
   const modal = document.getElementById('resultModal');
   const status = posSlipStatus(d);
   const amt = parseFloat(document.getElementById('txnAmount').value||0).toFixed(2);
@@ -3603,7 +3609,7 @@ function showResultModal(success, d) {
     <div style="background:#fff;color:#111;border-radius:4px;padding:16px;font-family:ui-monospace,monospace;text-align:center">
       <div style="font-weight:900;letter-spacing:.2em;margin-bottom:10px">${escapeHtml(status)}</div>
       <div style="font-size:1.4rem;font-weight:900">${escapeHtml(amt)} ${escapeHtml(cur)}</div>
-      <div style="margin-top:10px;font-size:.72rem;font-weight:700;letter-spacing:.04em">${escapeHtml((d && d.operation_name) || '')}</div>
+      <div style="margin-top:10px;font-size:.72rem;font-weight:700;letter-spacing:.04em">${escapeHtml(posReceiptOperationName(d, type))}</div>
       ${rrn ? `<div style="margin-top:6px;font-size:.72rem;font-family:Consolas,'Courier New',monospace">RRN ${escapeHtml(rrn)}</div>` : ''}
       ${auth ? `<div style="font-size:.72rem;font-family:Consolas,'Courier New',monospace">APPROVAL CODE ${escapeHtml(auth)}</div>` : ''}
       ${paymentId ? `<div style="font-size:.72rem;font-family:Consolas,'Courier New',monospace">PAYMENT / TXN ID ${escapeHtml(paymentId)}</div>` : ''}
