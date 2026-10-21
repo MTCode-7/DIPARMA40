@@ -727,7 +727,7 @@ if ($txnType === 'capture') {
 }
 
 // Capture looks up the AUTH hold in dp_transactions or dp_holds.
-// purchase_advice is an independent charge and does not require a prior hold.
+// Purchase Advice uses the original authorization references; no local hold record is required.
 $authorizedAmount = null;
 $priorCapturedTotal = 0.0;
 $priorCaptureCount = 0;
@@ -977,7 +977,7 @@ if ($useCardGateway) {
         }
         if ($runType === 'purchase_advice') {
             $params['card_cvv'] = '';
-            $params['linked_to_auth'] = ($paymentId !== '' || $origRef !== '');
+            $params['linked_to_auth'] = true;
             $params['allow_amount_override'] = true;
             $params['original_transaction_date'] = (string) ($extra['original_transaction_date'] ?? '');
             if (pos_entry_is_present($params)) {
@@ -1346,8 +1346,8 @@ try {
             'charge_mode' => $chargeMode ?: null,
             'capture_amount' => $txnType === 'capture' ? $captureAmount : null,
             'refund_amount' => $txnType === 'capture' ? $refundAmount : null,
-            'linked_to_auth' => $txnType === 'capture',
-            'advice_independent' => ($txnType === 'purchase_advice' && $paymentId === '' && $origRef === ''),
+            'linked_to_auth' => in_array($txnType, ['capture', 'purchase_advice'], true),
+            'advice_independent' => false,
             'capture_sequence' => in_array($txnType, ['capture', 'purchase_advice'], true) ? ($priorCaptureCount + 1) : null,
             'prior_captured_total' => in_array($txnType, ['capture', 'purchase_advice'], true) ? $priorCapturedTotal : null,
             'entry_mode' => $extra['entry_mode'] ?? ($opMeta['entry_mode'] ?? null),

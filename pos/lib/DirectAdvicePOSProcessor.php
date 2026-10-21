@@ -3,7 +3,7 @@
  * نظام تنفيذ السحب المباشر بالرقم المرجعي عبر Purchase Advice
  * يدعم المبالغ الكبيرة (مثل حد 5,000,000) بناءً على تعليمات البنك
  *
- * حساب التاجر مقيّد من البنك بـ 5,000,000 فقط.
+ * Uses the original authorization references; the prior hold may have been created on another terminal.
  * لا تُعاد SUCCESS إلا من مضيف Advice البنكي الفعلي.
  */
 if (defined('DI_PARMA_DIRECT_ADVICE_POS')) {
@@ -99,7 +99,7 @@ class DirectAdvicePOSProcessor
             'amount' => $amount,
             'processing_code' => $isCredit ? '200000' : '000000',
             'original_transaction_date' => $originalDate,
-            'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
+            'auth_type' => 'PURCHASE_ADVICE_AFTER_AUTH',
             'timestamp' => date('Y-m-d H:i:s'),
             'gateway' => $this->gateway,
         ];
@@ -191,7 +191,7 @@ class DirectAdvicePOSProcessor
                 'Content-Type: application/json',
                 'Accept: application/json',
                 'X-MTI: ' . ($iso['mti'] ?? '0220'),
-                'X-Auth-Type: DIRECT_ADVICE_NO_PRE_AUTH',
+                'X-Auth-Type: PURCHASE_ADVICE_AFTER_AUTH',
             ],
             CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE),
             CURLOPT_TIMEOUT => 90,

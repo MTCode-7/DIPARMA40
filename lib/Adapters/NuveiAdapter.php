@@ -1011,7 +1011,7 @@ class NuveiAdapter implements GatewayAdapterInterface {
             'amount' => abs($amountRaw),
             'currency' => strtoupper((string) ($params['currency'] ?? 'USD')),
             'mti' => (string) ($result['mti'] ?? ($success ? '0230' : '0220')),
-            'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
+            'auth_type' => 'PURCHASE_ADVICE_AFTER_AUTH',
             'message' => (string) ($result['message'] ?? 'Bank Advice host rejected the request'),
             'raw' => $result['gateway_response'] ?? $result,
             'acquirer' => 'nuvei',

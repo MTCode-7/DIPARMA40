@@ -2416,7 +2416,7 @@ function renderExtraFields(type) {
       ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
       ${type === 'capture' ? '<br>• '+(AR?'RRN وApproval من إيصال الحجز. المبلغ أقل أو مساوٍ أو أكبر أو سالب. حد البنك 5,000,000 على القيمة المطلقة.':'RRN and approval come from the hold receipt. Amount may be lower, equal, higher, or negative. Bank cap 5,000,000 on the absolute value.') : ''}
       ${(type === 'offline_sale_moto' || type === 'offline_sales_moto') ? '<br>• '+(AR?'Approval Code مطلوب. لا RRN. الشحن يبقى أوفلاين حتى لو كان المبلغ سالباً. حد البنك 2,000,000 على القيمة المطلقة.':'Approval code is required. No RRN. The charge stays offline even when the amount is negative. Bank cap 2,000,000 on the absolute value.') : ''}
-      ${type === 'purchase_advice' ? '<br>• '+(AR?'بدون حجز سابق. RRN وApproval مطلوبان. المبلغ موجب أو سالب ويُخصم على شبكة البطاقة.':'No prior hold. RRN and approval are required. Amount may be positive or negative and posts to the card scheme.') : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز. بعد الموافقة يظهران في الإيصال.':'No RRN or approval fields while entering the hold. After approval they print on the receipt.') : '')}
+      ${type === 'purchase_advice' ? '<br>• '+(AR?'اربط الإشعار بتفويض سابق باستخدام RRN وApproval وتاريخه الأصلي. لا يلزم أن يكون الحجز من هذا الجهاز.':'Link the advice to a prior authorization using its original RRN, approval code, and date. The hold need not be from this terminal.') : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز. بعد الموافقة يظهران في الإيصال.':'No RRN or approval fields while entering the hold. After approval they print on the receipt.') : '')}
     </div>`;
   }
 
@@ -2449,7 +2449,7 @@ function renderExtraFields(type) {
     html += `<div class="info-banner" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.74rem;line-height:1.7">
       <strong style="color:#fbbf24">${AR ? 'خطوات Purchase Advice' : 'Purchase Advice steps'}</strong>
       <ol style="margin:6px 0 0;padding-inline-start:22px">
-        <li>${AR ? 'أدخل رقم العملية الأصلية (RRN) وتاريخها ورمز الموافقة.' : 'Enter the original transaction RRN, date, and approval code.'}</li>
+        <li>${AR ? 'أدخل RRN وتاريخ التفويض ورمز الموافقة من العملية الأصلية، حتى لو تمت على جهاز آخر.' : 'Enter the original authorization RRN, date, and approval code, even if it was created on another terminal.'}</li>
         <li>${AR ? 'أدخل مبلغ التسوية والعملة.' : 'Enter the settlement amount and currency.'}</li>
         <li>${AR ? 'أدخل البطاقة يدوياً، أو اختر Physical ومرّرها عبر قارئ متصل.' : 'Enter the card manually, or choose Physical and swipe it through a connected reader.'}</li>
       </ol>

@@ -39,7 +39,8 @@ check($adviceMissingAp !== [] && !in_array('RRN must be exactly 12 digits.', $ad
 $adviceOk = pos_validate_operation_fields('purchase_advice', $card + ['rrn' => '123456789012', 'approval_code' => '123456']);
 check($adviceOk === [], 'advice with RRN and approval passes');
 $adviceMeta = pos_operation_meta('purchase_advice');
-check(!empty($adviceMeta['requires_rrn']) && !empty($adviceMeta['requires_approval']) && empty($adviceMeta['linked_to_auth']) && !empty($adviceMeta['direct_advice']), 'advice stays a direct settlement');
+check(!empty($adviceMeta['requires_rrn']) && !empty($adviceMeta['requires_approval']) && !empty($adviceMeta['linked_to_auth']) && !empty($adviceMeta['direct_advice']), 'advice links to a prior authorization using external references, without requiring a local hold');
+check(($adviceMeta['auth_type'] ?? '') === 'PURCHASE_ADVICE_AFTER_AUTH', 'advice is not described as an independent sale');
 $swipedAdvice = pos_prepare_operation_payload('purchase_advice', [
     'gateway' => 'nuvei',
     'input_mode' => 'physical',

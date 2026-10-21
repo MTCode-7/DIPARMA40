@@ -235,7 +235,7 @@ function pos_auth_followup_totals($db, string $paymentId, string $rrn): array
  *
  * قواعد الحقول:
  * - capture (AUTH Capture): نفس RRN + Approval من إيصال الحجز، والمبلغ أقل/مساوٍ/أكبر/سالب
- * - purchase_advice: تسوية مباشرة MTI 0220 بلا حجز — RRN(12) + Approval، والمبلغ موجب أو سالب
+ * - purchase_advice: Advice MTI 0220 linked to a prior authorization — RRN(12) + Approval + original date
  * - online_sale_moto: Approval = 4 أرقام
  * - offline_sale_moto: شحن أوفلاين — Approval مطلوب، بلا RRN، والمبلغ موجب أو سالب
  */
@@ -337,16 +337,16 @@ function pos_operation_catalog(): array
             'requires_approval' => true,
             'requires_payment_id' => false,
             'approval_len' => null,
-            'linked_to_auth' => false,
+            'linked_to_auth' => true,
             'amount_flexible' => true,
             'amount_signed' => true,
             'method' => 'purchase',
             'direct_advice' => true,
             'mti' => '0220',
-            'auth_type' => 'DIRECT_ADVICE_NO_PRE_AUTH',
+            'auth_type' => 'PURCHASE_ADVICE_AFTER_AUTH',
             'max_amount' => function_exists('pos_direct_advice_max_amount') ? pos_direct_advice_max_amount() : 5000000.00,
-            'desc_ar' => 'تسوية مباشرة (MTI 0220) بدون حجز سابق. RRN وApproval مطلوبان لهذه العملية وليسا من حجز. المبلغ يُخصم على شبكة البطاقة ويمكن أن يكون موجباً أو سالباً. بطاقة + انتهاء. CVV اختياري.',
-            'desc_en' => 'Direct settlement (MTI 0220) with no prior hold. RRN and approval are required on this operation and do not come from a hold. The amount posts to the card scheme and may be positive or negative. Card + expiry. CVV optional.',
+            'desc_ar' => 'إشعار تحصيل مرتبط بتفويض سابق (MTI 0220). أدخل RRN ورمز الموافقة وتاريخ التفويض من الإيصال الأصلي؛ لا يشترط تنفيذ الحجز على هذا الجهاز. المبلغ موجب أو سالب حسب تعليمات المستحوذ. بطاقة + انتهاء، وCVV اختياري.',
+            'desc_en' => 'Advice linked to a prior authorization (MTI 0220). Enter the original RRN, approval code, and authorization date; the hold need not have been created on this terminal. Amount may be positive or negative per acquirer rules. Card + expiry; CVV optional.',
         ],
         'online_sale_moto' => [
             'ar' => 'ONLINE SALES - MOTO',

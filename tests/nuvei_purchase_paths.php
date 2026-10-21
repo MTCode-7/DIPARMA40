@@ -267,10 +267,12 @@ $advice = $adapter->purchaseAdvice([
 check(empty($advice['success'])
     && str_contains((string) ($advice['message'] ?? ''), 'BANK_ADVICE_HOST')
     && str_contains((string) ($advice['message'] ?? ''), 'No card sale was sent'),
-    'Nuvei Advice fails closed without a bank host instead of sending a REST Sale');
+    'Nuvei Advice with external authorization references does not require a local hold and fails closed without an advice host');
 check(($advice['reference'] ?? '') === 'POS-ADVICE-TEST-001'
     && ($advice['rrn'] ?? '') === '123456789012',
     'Nuvei Advice preserves the POS receipt reference separately from the bank RRN');
+check(($advice['auth_type'] ?? '') === 'PURCHASE_ADVICE_AFTER_AUTH',
+    'Nuvei Advice is identified as linked to a prior authorization');
 
 putenv('BANK_ADVICE_HOST=http://bank-advice.example.test');
 $invalidHostAdvice = $adapter->purchaseAdvice([
