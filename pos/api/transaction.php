@@ -448,11 +448,11 @@ if ($terminalId === '' && function_exists('pos_session_terminal_id')) {
         $extra['terminal_id'] = $terminalId;
     }
 }
-if ($isWebCharge && $terminalId === '') {
+if ($isWebCharge && $terminalId === '' && $posGateway !== 'nuvei') {
     $terminalId = 'WEB' . strtoupper(bin2hex(random_bytes(4)));
     $resolvedDevice['terminal_id'] = $terminalId;
 }
-if ($terminalId === '' && function_exists('pos_default_terminal_id')) {
+if ($terminalId === '' && $posGateway !== 'nuvei' && function_exists('pos_default_terminal_id')) {
     $terminalId = pos_default_terminal_id();
     if ($terminalId !== '') {
         $resolvedDevice['terminal_id'] = $terminalId;
@@ -842,6 +842,8 @@ $stanDigits = preg_replace('/\D/', '', (string) ($extra['stan'] ?? $data['stan']
 $stan = $stanDigits !== '' ? str_pad(substr($stanDigits, -6), 6, '0', STR_PAD_LEFT) : date('His');
 $batchDigits = preg_replace('/\D/', '', (string) ($extra['batch'] ?? $data['batch'] ?? '')) ?? '';
 $batch = $batchDigits !== '' ? substr($batchDigits, -6) : date('dmy');
+$receiptStan = $stan;
+$receiptBatch = $batch;
 $approvalCode = '';
 $nuveiTxnId = null;
 $cardLast4 = '';
@@ -1082,7 +1084,7 @@ if ($useCardGateway) {
             ));
         }
         $offlineDirect = $txnType === 'offline_sale_moto' || !empty($manualOffline);
-        if ($rrn === '' && !$offlineDirect) {
+        if ($rrn === '' && !$offlineDirect && $posGateway !== 'nuvei') {
             $rrn = trim((string) ($result['transaction_id'] ?? $result['payment_id'] ?? ''));
         }
         if ($rrn !== '') {
@@ -1093,20 +1095,29 @@ if ($useCardGateway) {
             $result['auth_code'] = $result['auth_code'] ?? $approvalCode;
         }
         if ($success && empty($result['requires_3ds']) && $txnType === 'auth') {
-            $pair = pos_auth_receipt_pair(is_array($result) ? $result : [], (string) $stan, (string) $reference);
-            if (!pos_is_valid_rrn(pos_normalize_rrn($rrn))) {
+            $pair = pos_auth_receipt_pair(
+                is_array($result) ? $result : [],
+                (string) $stan,
+                (string) $reference,
+                $posGateway !== 'nuvei'
+            );
+            if ($pair['rrn'] !== '') {
                 $rrn = $pair['rrn'];
-            } else {
+            } elseif ($posGateway !== 'nuvei') {
                 $rrn = pos_normalize_rrn($rrn);
             }
-            if ($approvalCode === '' || !pos_is_valid_approval($approvalCode, null)) {
+            if ($pair['approval_code'] !== '') {
                 $approvalCode = $pair['approval_code'];
             }
             $bankApprovalCode = $approvalCode;
-            $result['rrn'] = $rrn;
-            $result['approval_code'] = $approvalCode;
-            $result['auth_code'] = $approvalCode;
-            $result['bank_approval_code'] = $approvalCode;
+            if ($rrn !== '') {
+                $result['rrn'] = $rrn;
+            }
+            if ($approvalCode !== '') {
+                $result['approval_code'] = $approvalCode;
+                $result['auth_code'] = $approvalCode;
+                $result['bank_approval_code'] = $approvalCode;
+            }
             $receiptIds['rrn'] = $rrn;
             $receiptIds['approval_code'] = $approvalCode;
         }
@@ -1124,6 +1135,12 @@ if ($useCardGateway) {
         if ($returnedStan !== '') {
             $stan = str_pad(substr($returnedStan, -6), 6, '0', STR_PAD_LEFT);
         }
+        $receiptStan = $posGateway === 'nuvei'
+            ? trim((string) ($result['stan'] ?? ''))
+            : $stan;
+        $receiptBatch = $posGateway === 'nuvei'
+            ? trim((string) ($result['batch'] ?? $result['batch_number'] ?? ''))
+            : $batch;
         $nuveiTxnId = $result['nuvei_txn_id'] ?? null;
         $requires3ds = !empty($result['requires_3ds']);
         $redirectUrl = $result['redirect_url'] ?? null;
@@ -1228,7 +1245,7 @@ $gatewayDetails = [
     'approval_code' => $approvalCode,
     'internal_approval_code' => $receiptIds['internal_approval_code'],
     'rrn' => $rrn,
-    'stan' => $stan,
+    'stan' => $receiptStan,
     'original_rrn' => $originalRrn,
     'status' => $message,
     'success' => $success,
@@ -1262,7 +1279,7 @@ try {
                 'card_type' => $cardType,
                 'card_network' => $cardNetwork,
                 'rrn' => $rrn,
-                'stan' => $stan,
+                'stan' => $receiptStan,
                 'approval_code' => $approvalCode,
                 'bank_approval_code' => $bankApprovalCode,
                 'gateway_response' => $gatewayResponse,
@@ -1309,7 +1326,8 @@ try {
             'card_use_ar' => $cardUseAlert['card_use_ar'],
             'card_use_en' => $cardUseAlert['card_use_en'],
             'rrn' => $rrn,
-            'stan' => $stan,
+            'stan' => $receiptStan,
+            'batch' => $receiptBatch,
             'original_rrn' => $originalRrn,
             'bank_approval_code' => $bankApprovalCode,
             'approval_code' => $approvalCode,
@@ -1356,7 +1374,7 @@ try {
         'auth_code' => $approvalCode,
         'approval_code' => $approvalCode,
         'rrn' => $rrn,
-        'stan' => $stan,
+        'stan' => $receiptStan,
         'bank_approval_code' => $bankApprovalCode,
         'acquirer' => $posGateway,
         'notes' => trim($entryChannel . '_order'
@@ -1580,8 +1598,8 @@ echo json_encode([
     'success' => $success,
     'reference' => $reference,
     'rrn' => $rrn,
-    'stan' => $stan,
-    'batch' => $batch,
+    'stan' => $receiptStan,
+    'batch' => $receiptBatch,
     'original_rrn' => $originalRrn,
     'approval_code' => $approvalCode,
     'gateway_approval_code' => $approvalCode,

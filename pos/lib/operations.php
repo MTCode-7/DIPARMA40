@@ -88,9 +88,10 @@ function pos_host_debit_amount(string $type, float $amount): float
  * and a 6-digit approval the hold store already accepts.
  *
  * @param array<string,mixed> $host
+ * @param bool $generateMissing Create local receipt identifiers when the host omits them.
  * @return array{rrn:string,approval_code:string}
  */
-function pos_auth_receipt_pair(array $host, string $stan = '', string $reference = ''): array
+function pos_auth_receipt_pair(array $host, string $stan = '', string $reference = '', bool $generateMissing = true): array
 {
     $ids = pos_gateway_receipt_identifiers($host);
     $rrn = pos_normalize_rrn($ids['rrn']);
@@ -100,6 +101,12 @@ function pos_auth_receipt_pair(array $host, string $stan = '', string $reference
     $approval = strtoupper(preg_replace('/[^0-9A-Za-z]/', '', $ids['approval_code']) ?? '');
     if ($approval === '' || !pos_is_valid_approval($approval, null)) {
         $approval = '';
+    }
+    if (!$generateMissing) {
+        return [
+            'rrn' => $rrn,
+            'approval_code' => $approval,
+        ];
     }
     $stanDigits = preg_replace('/\D/', '', $stan) ?? '';
     $stan6 = str_pad(substr($stanDigits !== '' ? $stanDigits : date('His'), -6), 6, '0', STR_PAD_LEFT);

@@ -75,12 +75,7 @@ $posDevice = pos_device_resolve([
     'pos_model' => $chosenModel,
     'terminal_id' => $pageTid,
 ]);
-if (($posDevice['terminal_id'] ?? '') === '' && function_exists('pos_default_terminal_id')) {
-    $fallbackTid = pos_default_terminal_id();
-    if ($fallbackTid !== '') {
-        $posDevice['terminal_id'] = $fallbackTid;
-    }
-}
+$posDeviceHasTerminalId = trim((string) ($posDevice['terminal_id'] ?? '')) !== '';
 $isVerix = pos_device_is_verix($posDevice);
 $verixCommission = pos_device_commission($posDevice);
 $posGw = pos_normalize_gateway((string)($_GET['gw'] ?? ''));
@@ -1440,10 +1435,10 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     </div>
     <div class="receipt-row"><span>DATE</span><span id="rDate"><?=htmlspecialchars(date('d/m/Y'))?></span></div>
     <div class="receipt-row"><span>TIME</span><span id="rTime"><?=htmlspecialchars(date('H:i:s'))?></span></div>
-    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars(($posDevice['terminal_id'] ?? '') !== '' ? $posDevice['terminal_id'] : '16526256')?></span></div>
-    <div class="receipt-row"><span>MID</span><span id="rMid">DIPARMA</span></div>
-    <div class="receipt-row"><span>BATCH</span><span id="rBatch"><?=htmlspecialchars(date('dmy'))?></span></div>
-    <div class="receipt-row"><span>STAN</span><span id="rStan"><?=htmlspecialchars(date('His'))?></span></div>
+    <div class="receipt-row"><span>TID</span><span id="rTid"><?=htmlspecialchars($posDeviceHasTerminalId ? (string) $posDevice['terminal_id'] : '—')?></span></div>
+    <div class="receipt-row"><span>MID</span><span id="rMid"><?= $posGw === 'nuvei' ? '—' : 'DIPARMA' ?></span></div>
+    <div class="receipt-row"><span>BATCH</span><span id="rBatch"><?= $posGw === 'nuvei' ? '—' : htmlspecialchars(date('dmy')) ?></span></div>
+    <div class="receipt-row"><span>STAN</span><span id="rStan"><?= $posGw === 'nuvei' ? '—' : htmlspecialchars(date('His')) ?></span></div>
     <div class="receipt-cut">------------------------</div>
     <div class="receipt-row"><span>TRANS</span><span id="rType">—</span></div>
     <div class="receipt-row"><span>ENTRY</span><span id="rEntry">—</span></div>
@@ -1452,6 +1447,7 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
     <div class="receipt-row"><span>CURR</span><span id="rCurrency">—</span></div>
     <div class="receipt-row" id="rRrnRow" style="display:none"><span>RRN</span><span id="rRrn"></span></div>
     <div class="receipt-row" id="rApprovalRow" style="display:none"><span>APPROVAL CODE</span><span id="rApproval"></span></div>
+    <div class="receipt-row" id="rPaymentIdRow" style="display:none"><span>NUVEI PAYMENT ID</span><span id="rPaymentId"></span></div>
     <div class="receipt-banner" id="rBanner">PENDING</div>
     <div class="receipt-reason" id="rReason" style="display:none"></div>
     <div class="receipt-advice" id="rAdvice" style="display:none"></div>
@@ -1886,6 +1882,7 @@ const POS_DEVICE = <?=json_encode([
     'type' => $posDevice['type'],
     'label' => $posDevice['label'],
     'terminal_id' => $posDevice['terminal_id'],
+    'terminal_id_configured' => $posDeviceHasTerminalId,
     'merchant_id' => $posDevice['merchant_id'] ?? ($posMerchant['brand'] ?? 'DIPARMA'),
     'wedge' => !empty($posDevice['wedge']),
 ], JSON_UNESCAPED_UNICODE)?>;
@@ -2441,7 +2438,7 @@ function renderExtraFields(type) {
     </div>
     <div class="fld">
       <label>TID — Terminal ID</label>
-      <input type="text" id="terminalId" value="${POS_DEVICE.terminal_id || ''}">
+      <input type="text" id="terminalId" value="${POS_DEVICE.terminal_id_configured ? POS_DEVICE.terminal_id : ''}">
     </div>
     <div class="fld">
       <label>MID — Merchant ID</label>
@@ -2467,7 +2464,7 @@ function renderExtraFields(type) {
     </div>
     <div class="fld">
       <label>TID — Terminal ID</label>
-      <input type="text" id="terminalId" value="${POS_DEVICE.terminal_id || ''}">
+      <input type="text" id="terminalId" value="${POS_DEVICE.terminal_id_configured ? POS_DEVICE.terminal_id : ''}">
     </div>
     <div class="fld">
       <label>MID — Merchant ID</label>
@@ -3113,7 +3110,9 @@ window.processTransaction = async function() {
     wallet_network: walletOpt?.dataset?.network || undefined,
     pos_model: POS_DEVICE.model,
     pos_type: POS_DEVICE.type,
-    terminal_id: document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || '16526256',
+    terminal_id: document.getElementById('terminalId')?.value || (POS_GW === 'nuvei'
+      ? (POS_DEVICE.terminal_id_configured ? POS_DEVICE.terminal_id : '')
+      : (POS_DEVICE.terminal_id || '16526256')),
     merchant_id: 'DIPARMA',
     batch: (document.getElementById('rBatch')?.textContent || '').replace(/[^\d]/g, ''),
     stan: (document.getElementById('rStan')?.textContent || '').replace(/[^\d]/g, ''),
@@ -3417,8 +3416,15 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const pad = (n) => String(n).padStart(2, '0');
   const dateStr = pad(when.getDate()) + '/' + pad(when.getMonth() + 1) + '/' + when.getFullYear();
   const timeStr = pad(when.getHours()) + ':' + pad(when.getMinutes()) + ':' + pad(when.getSeconds());
-  const tid = document.getElementById('terminalId')?.value || POS_DEVICE.terminal_id || d.terminal_id || '16526256';
-  const mid = 'DIPARMA';
+  const isNuvei = String(POS_GW || '').toLowerCase() === 'nuvei';
+  const nuveiResponse = (d.gateway_details && d.gateway_details.response) || {};
+  const nuveiRaw = nuveiResponse.raw || {};
+  const tid = document.getElementById('terminalId')?.value
+    || (POS_DEVICE.terminal_id_configured ? POS_DEVICE.terminal_id : '')
+    || (isNuvei ? '' : (d.terminal_id || '16526256'));
+  const mid = isNuvei
+    ? (nuveiRaw.merchantId || nuveiRaw.merchant_id || nuveiRaw.mid || '—')
+    : 'DIPARMA';
   const last4 = String(d.card_last4 || (cardNum ? String(cardNum).replace(/\D/g, '').slice(-4) : '')).replace(/\D/g, '').slice(-4);
   const pan = last4 ? ('************' + last4) : '************';
   const entry = (document.getElementById('posInputMode')?.value || POS.inputMode || 'manual').toString().toUpperCase();
@@ -3428,10 +3434,14 @@ function updateReceipt(d, type, amount, currency, cardNum) {
     const s = String(v == null ? '' : v).trim();
     return s ? s : '—';
   };
-  const stanDigits = String(d.stan || '').replace(/\D/g, '');
-  const stan = stanDigits ? stanDigits.slice(-6).padStart(6, '0') : timeStr.replace(/:/g, '');
-  const batchDigits = String(d.batch || d.batch_number || '').replace(/\D/g, '');
-  const batch = batchDigits ? batchDigits.slice(-6) : (pad(when.getDate()) + pad(when.getMonth() + 1) + String(when.getFullYear()).slice(-2));
+  const actualStan = isNuvei ? (nuveiResponse.stan || nuveiRaw.stan || '') : d.stan;
+  const stanDigits = String(actualStan || '').replace(/\D/g, '');
+  const stan = stanDigits ? stanDigits.slice(-6).padStart(6, '0') : (isNuvei ? '—' : timeStr.replace(/:/g, ''));
+  const actualBatch = isNuvei
+    ? (nuveiResponse.batch || nuveiRaw.batch || nuveiRaw.batchNumber || '')
+    : (d.batch || d.batch_number || '');
+  const batchDigits = String(actualBatch || '').replace(/\D/g, '');
+  const batch = batchDigits ? batchDigits.slice(-6) : (isNuvei ? '—' : (pad(when.getDate()) + pad(when.getMonth() + 1) + String(when.getFullYear()).slice(-2)));
   const slipType = String(d.operation_name || type || 'SALE')
     .replace(/_?moto/ig, '')
     .replace(/_/g, ' ')
@@ -3440,7 +3450,7 @@ function updateReceipt(d, type, amount, currency, cardNum) {
     .toUpperCase();
   set('rDate', dateStr);
   set('rTime', timeStr);
-  set('rTid', String(tid).trim() || '16526256');
+  set('rTid', String(tid).trim() || '—');
   set('rMid', mid);
   set('rBatch', batch);
   set('rStan', stan);
@@ -3453,10 +3463,16 @@ function updateReceipt(d, type, amount, currency, cardNum) {
   const slipAuth = approvalReceiptLabel(String((d && (d.gateway_approval_code || d.approval_code || d.bank_approval_code)) || '').trim());
   const rrnRow = document.getElementById('rRrnRow');
   const apprRow = document.getElementById('rApprovalRow');
+  const paymentIdRow = document.getElementById('rPaymentIdRow');
+  const paymentId = isNuvei
+    ? String(d.payment_id || d.nuvei_txn_id || d.authorization_id || '').trim()
+    : '';
   if (rrnRow) rrnRow.style.display = slipRrn ? '' : 'none';
   if (apprRow) apprRow.style.display = slipAuth ? '' : 'none';
+  if (paymentIdRow) paymentIdRow.style.display = paymentId ? '' : 'none';
   set('rRrn', slipRrn);
   set('rApproval', slipAuth);
+  set('rPaymentId', paymentId);
   set('rRc', clearDash(d.response_code || (status === 'APPROVED' || status === 'AUTHORIZED' ? '00' : '05')));
   const merch = document.getElementById('rMerchantSeal');
   if (merch) merch.textContent = (POS_MERCHANT && (POS_MERCHANT.legal_name || POS_MERCHANT.brand)) || 'DIPARMA';

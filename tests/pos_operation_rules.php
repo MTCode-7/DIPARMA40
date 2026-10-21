@@ -64,6 +64,10 @@ $kept = pos_auth_receipt_pair(['rrn' => '111122223333', 'approval_code' => '6543
 check($kept['rrn'] === '111122223333' && $kept['approval_code'] === '654321', 'auth receipt keeps host RRN and approval');
 $made = pos_auth_receipt_pair([], '123456', 'POS-MAKE');
 check(pos_is_valid_rrn($made['rrn']) && pos_is_valid_approval($made['approval_code'], null) && $made['rrn'] !== '—' && $made['approval_code'] !== '—', 'auth receipt generates both fields when the host omits them');
+$nuveiMissing = pos_auth_receipt_pair([], '123456', 'POS-NUVEI', false);
+check($nuveiMissing['rrn'] === '' && $nuveiMissing['approval_code'] === '', 'Nuvei AUTH leaves provider-missing receipt identifiers empty');
+$nuveiKept = pos_auth_receipt_pair(['rrn' => '111122223333', 'approval_code' => '654321'], '000001', 'POS-NUVEI', false);
+check($nuveiKept['rrn'] === '111122223333' && $nuveiKept['approval_code'] === '654321', 'Nuvei AUTH retains identifiers supplied by the provider');
 
 $mismatch = pos_bind_capture_pair(['rrn' => '111122223333', 'approval_code' => '654321'], '999988887777', '654321');
 check($mismatch['ok'] === false, 'capture rejects a different RRN');

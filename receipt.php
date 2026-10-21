@@ -380,6 +380,35 @@ $paymentId = $firstNonEmpty([
     $transactionId,
 ]);
 
+$isNuveiReceipt = $txnGateway === 'nuvei';
+if ($isNuveiReceipt) {
+    $nuveiRaw = is_array($gatewayResult['raw'] ?? null) ? $gatewayResult['raw'] : [];
+    $authCode = $firstNonEmpty([
+        $gatewayResult['auth_code'] ?? '',
+        $gatewayResult['approval_code'] ?? '',
+        $nuveiRaw['authCode'] ?? '',
+        $nuveiRaw['approvalCode'] ?? '',
+    ]);
+    $rrn = $firstNonEmpty([
+        $gatewayResult['rrn'] ?? '',
+        $nuveiRaw['rrn'] ?? '',
+        $nuveiRaw['retrievalReferenceNumber'] ?? '',
+    ]);
+    $stan = $firstNonEmpty([
+        $gatewayResult['stan'] ?? '',
+        $nuveiRaw['stan'] ?? '',
+    ]);
+    $transactionId = $firstNonEmpty([
+        $gatewayResult['nuvei_txn_id'] ?? '',
+        $gatewayResult['payment_id'] ?? '',
+        $gatewayResult['transaction_id'] ?? '',
+        $nuveiRaw['transactionId'] ?? '',
+        $nuveiRaw['gwTransactionId'] ?? '',
+    ]);
+    $paymentId = $transactionId;
+    $bankApprovalCode = $authCode;
+}
+
 // ── Internal Approval Code ───────────────────────────────────
 $internalApprovalCode = $firstNonEmpty([
     $receiptIds['internal_approval_code'],
@@ -405,7 +434,9 @@ $gatewayDisplayName = pos_gateway_display_name((string) ($txn['gateway'] ?? ''))
 
 // 6.7 تفاصيل التاجر
 $merchantName = 'TRANSCENDIO FZ-LLC';
-$merchantId = $gwResp['merchant_id'] ?? $txn['merchant_id'] ?? 'DI0001';
+$merchantId = $isNuveiReceipt
+    ? ($nuveiRaw['merchantId'] ?? $nuveiRaw['merchant_id'] ?? $nuveiRaw['mid'] ?? '')
+    : ($gwResp['merchant_id'] ?? $txn['merchant_id'] ?? 'DI0001');
 $merchantCity = 'Dubai';
 $merchantCountry = 'AE';
 $merchantCategory = $gwResp['mcc'] ?? $txn['mcc'] ?? '5999';
@@ -517,13 +548,26 @@ $clearAuthCode = $clearOrDash(pos_approval_receipt_label($authCode === '—' ? '
 $clearBankApprovalCode = $clearOrDash($bankApprovalCode);
 $clearRrn = $clearOrDash($rrn);
 $stanDigits = preg_replace('/\D/', '', (string) $stan) ?? '';
-$maskedStan = $stanDigits !== '' ? str_pad(substr($stanDigits, -6), 6, '0', STR_PAD_LEFT) : date('His');
-$receiptTid = trim((string) ($txn['terminal_id'] ?? $gwResp['terminal_id'] ?? $gwResp['tid'] ?? ''));
-if ($receiptTid === '') {
+$maskedStan = $stanDigits !== ''
+    ? str_pad(substr($stanDigits, -6), 6, '0', STR_PAD_LEFT)
+    : ($isNuveiReceipt ? '—' : date('His'));
+$receiptTid = trim((string) (
+    $isNuveiReceipt
+        ? ($txn['terminal_id'] ?? $gatewayResult['terminal_id'] ?? $gatewayResult['tid'] ?? '')
+        : ($txn['terminal_id'] ?? $gwResp['terminal_id'] ?? $gwResp['tid'] ?? '')
+));
+if ($receiptTid === '' && !$isNuveiReceipt) {
     $receiptTid = '16526256';
 }
-$receiptBatchDigits = preg_replace('/\D/', '', (string) ($txn['batch'] ?? $gwResp['batch'] ?? $gwResp['batch_number'] ?? '')) ?? '';
-$receiptBatch = $receiptBatchDigits !== '' ? substr($receiptBatchDigits, -6) : date('dmy');
+$receiptMid = $isNuveiReceipt ? trim((string) $merchantId) : 'DIPARMA';
+$receiptBatchDigits = preg_replace('/\D/', '', (string) (
+    $isNuveiReceipt
+        ? ($gatewayResult['batch'] ?? $nuveiRaw['batch'] ?? $nuveiRaw['batchNumber'] ?? '')
+        : ($txn['batch'] ?? $gwResp['batch'] ?? $gwResp['batch_number'] ?? '')
+)) ?? '';
+$receiptBatch = $receiptBatchDigits !== ''
+    ? substr($receiptBatchDigits, -6)
+    : ($isNuveiReceipt ? '—' : date('dmy'));
 $clearPaymentId = $clearOrDash($paymentId);
 $clearInternalApproval = $clearOrDash($internalApprovalCode);
 $maskedLedgerAddr = $ledgerAddr !== '—' ? $seal($ledgerAddr) : '—';
@@ -1148,14 +1192,14 @@ if ($txnGateway === 'paypal') {
         </div>
 
         <?php
-            $slipRrn = trim((string) ($txn['rrn'] ?? ''));
+            $slipRrn = $isNuveiReceipt ? '' : trim((string) ($txn['rrn'] ?? ''));
             if ($slipRrn === '' || $slipRrn === '—') {
                 $slipRrn = trim((string) ($rrn ?? ''));
             }
             if ($slipRrn === '—') {
                 $slipRrn = '';
             }
-            $slipApprovalRaw = trim((string) ($txn['approval_code'] ?? $txn['auth_code'] ?? ''));
+            $slipApprovalRaw = $isNuveiReceipt ? '' : trim((string) ($txn['approval_code'] ?? $txn['auth_code'] ?? ''));
             if ($slipApprovalRaw === '' || $slipApprovalRaw === '—') {
                 $slipApprovalRaw = ($authCode ?? '') === '—' ? '' : trim((string) ($authCode ?? ''));
             }
@@ -1165,18 +1209,29 @@ if ($txnGateway === 'paypal') {
             if ($slipApproval === '—') {
                 $slipApproval = '';
             }
-            $showSlipIds = $slipRrn !== '' || $slipApproval !== '';
+            $slipPaymentId = $isNuveiReceipt && $paymentId !== '—' ? $paymentId : '';
+            $showSlipIds = $slipRrn !== '' || $slipApproval !== '' || $slipPaymentId !== '';
         ?>
         <?php if ($showSlipIds): ?>
         <div class="section">
+            <?php if ($slipRrn !== ''): ?>
             <div class="row">
                 <span class="label">RRN</span>
                 <span class="value small"><?=htmlspecialchars($slipRrn)?></span>
             </div>
+            <?php endif; ?>
+            <?php if ($slipApproval !== ''): ?>
             <div class="row">
                 <span class="label">APPROVAL CODE</span>
                 <span class="value highlight"><?=htmlspecialchars($slipApproval)?></span>
             </div>
+            <?php endif; ?>
+            <?php if ($slipPaymentId !== ''): ?>
+            <div class="row">
+                <span class="label">NUVEI PAYMENT ID</span>
+                <span class="value small"><?=htmlspecialchars($slipPaymentId)?></span>
+            </div>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
         <?php if ($showOperatorRefs): ?>
@@ -1208,22 +1263,30 @@ if ($txnGateway === 'paypal') {
                 <span class="label">DATE / TIME</span>
                 <span class="value"><?=htmlspecialchars($sealedDate)?> <?=htmlspecialchars($sealedTime)?></span>
             </div>
+            <?php if ($receiptTid !== ''): ?>
             <div class="row">
                 <span class="label">TID</span>
                 <span class="value"><?=htmlspecialchars($receiptTid)?></span>
             </div>
+            <?php endif; ?>
+            <?php if ($receiptMid !== ''): ?>
             <div class="row">
                 <span class="label">MID</span>
-                <span class="value">DIPARMA</span>
+                <span class="value"><?=htmlspecialchars($receiptMid)?></span>
             </div>
+            <?php endif; ?>
+            <?php if ($receiptBatch !== '—'): ?>
             <div class="row">
                 <span class="label">BATCH</span>
                 <span class="value"><?=htmlspecialchars($receiptBatch)?></span>
             </div>
+            <?php endif; ?>
+            <?php if ($maskedStan !== '—'): ?>
             <div class="row">
                 <span class="label">STAN</span>
                 <span class="value small"><?=htmlspecialchars($maskedStan)?></span>
             </div>
+            <?php endif; ?>
         </div>
 
         <!-- المبلغ -->
