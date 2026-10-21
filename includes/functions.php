@@ -536,6 +536,23 @@ function protocol_display_name(?string $code): string
     return redact_protocol_numbers($code);
 }
 
+function transaction_display_label(?string $transactionType, ?string $label = null): string
+{
+    if (strtolower(trim((string) $transactionType)) === 'purchase_advice') {
+        return 'PURCHASE ADVICE';
+    }
+
+    $label = trim((string) $label);
+    if ($label !== '') {
+        return $label;
+    }
+
+    return in_array(strtolower(trim((string) $transactionType)), [
+        'auth_capture', 'purchase', 'purchase_2d', 'purchase_advice',
+        'purchase_offline', 'purchase_online',
+    ], true) ? 'SALE' : 'PURCHASE';
+}
+
 /**
  * يحذف من النص المعروض رموز البروتوكول 101 و 201 (ومشتقاتها 101.x / 201.x)
  * لا يُستخدم على IBAN أو أرقام حسابات — فقط على حقول البروتوكول/الرسائل.

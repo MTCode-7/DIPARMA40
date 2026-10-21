@@ -813,7 +813,10 @@ $totalPages = ceil($totalTransactions / $limit);
                                 </td>
                                 <td>
                                     <strong style="color:var(--gold);">
-                                        <?= htmlspecialchars($tx['transaction_label'] ?: (in_array($tx['transaction_type'] ?? '', ['auth_capture', 'purchase', 'purchase_2d', 'purchase_advice', 'purchase_offline', 'purchase_online'], true) ? 'SALE' : 'PURCHASE')) ?>
+                                        <?= htmlspecialchars(transaction_display_label(
+                                            $tx['transaction_type'] ?? '',
+                                            $tx['transaction_label'] ?? ''
+                                        )) ?>
                                     </strong>
                                 </td>
                                 <td style="font-size:0.7rem;color:#888;">

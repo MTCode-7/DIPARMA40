@@ -1222,7 +1222,7 @@ if ($txnType === 'settlement' && $posGateway !== 'diparma') {
 
 $displayOperation = in_array($txnType, [
     'purchase_2d', 'purchase_3d', 'online_sale_moto', 'offline_sale_moto',
-    'purchase_advice', 'capture', 'withdrawal_pos', 'withdrawal_nfc',
+    'capture', 'withdrawal_pos', 'withdrawal_nfc',
 ], true) ? 'SALE' : strtoupper(str_replace('_', ' ', $txnType));
 
 if ($txnType === 'auth') {
