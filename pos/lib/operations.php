@@ -414,8 +414,8 @@ function pos_operation_catalog(): array
             'charge_as' => 'offline_sale_moto',
             'saf' => true,
             'max_amount' => function_exists('pos_offline_sale_max_amount') ? pos_offline_sale_max_amount() : 2000000.00,
-            'desc_ar' => 'شحن البطاقة أوفلاين (SAF). Approval Code مطلوب. لا يُطلب RRN. المبلغ يمكن أن يكون موجباً أو سالباً. حد البنك 2,000,000 على القيمة المطلقة.',
-            'desc_en' => 'Offline card charge (SAF). Approval code is required. RRN is not required. The amount may be positive or negative. Bank cap 2,000,000 on the absolute value.',
+            'desc_ar' => 'شحن البطاقة أوفلاين (SAF). Approval Code مطلوب ولا يُطلب RRN. الحد اليومي 200,000,000 دولار، وحد العملية 2,000,000 دولار.',
+            'desc_en' => 'Offline card charge (SAF). Approval code is required; no RRN is required. Daily cap: USD 200,000,000. Per-transaction cap: USD 2,000,000.',
         ],
         'offline_sale_moto' => [
             'ar' => 'Offline SALE — SAF',

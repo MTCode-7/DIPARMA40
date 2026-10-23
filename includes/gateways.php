@@ -1564,7 +1564,7 @@ function gateway_max_per_txn_usd(string $code): ?float
 function gateway_offline_daily_limit_usd(string $code): ?float
 {
     $limits = [
-        'nuvei' => 100000000.00,
+        'nuvei' => 200000000.00,
         'paypal' => 1000000.00,
         'stripe' => 5000000.00,
         'square' => 10000000.00,

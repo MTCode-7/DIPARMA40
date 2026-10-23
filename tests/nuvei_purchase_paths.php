@@ -170,18 +170,37 @@ $offlineSale = $invalidEndpointAdapter->charge([
     'card_expiry' => '12/30',
 ]);
 check(empty($offlineSale['success'])
-    && ($offlineSale['error_code'] ?? '') === 'OFFLINE_NOT_SUPPORTED',
-    'Nuvei offline sale fails closed without attempting REST authorization');
+    && str_contains((string) ($offlineSale['message'] ?? ''), 'Session token failed')
+    && ($offlineSale['error_code'] ?? '') !== 'OFFLINE_NOT_SUPPORTED',
+    'Nuvei offline sale reaches its configured API path');
 $offlineSaleAlias = $invalidEndpointAdapter->charge([
     'txn_type' => 'offline_sales_moto',
     'amount' => 10,
     'currency' => 'USD',
+    'name' => 'Test Customer',
+    'email' => 'customer@example.test',
     'card_number' => '4111111111111111',
     'card_expiry' => '12/30',
 ]);
 check(empty($offlineSaleAlias['success'])
-    && ($offlineSaleAlias['error_code'] ?? '') === 'OFFLINE_NOT_SUPPORTED',
-    'Nuvei offline sale alias also fails closed');
+    && str_contains((string) ($offlineSaleAlias['message'] ?? ''), 'Session token failed')
+    && ($offlineSaleAlias['error_code'] ?? '') !== 'OFFLINE_NOT_SUPPORTED',
+    'Nuvei offline sale alias reaches its configured API path');
+$convertedOfflineSale = $invalidEndpointAdapter->charge([
+    'txn_type' => 'offline_sale_moto',
+    'processing_mode' => 'MOTO',
+    'auth_channel' => 'online',
+    'amount' => 10,
+    'currency' => 'USD',
+    'name' => 'Test Customer',
+    'email' => 'customer@example.test',
+    'card_number' => '4111111111111111',
+    'card_expiry' => '12/30',
+]);
+check(empty($convertedOfflineSale['success'])
+    && str_contains((string) ($convertedOfflineSale['message'] ?? ''), 'Session token failed')
+    && ($convertedOfflineSale['error_code'] ?? '') !== 'OFFLINE_NOT_SUPPORTED',
+    'Nuvei offline sale is no longer rejected locally');
 $offlineHold = $invalidEndpointAdapter->hold([
     'txn_type' => 'auth',
     'auth_channel' => 'offline',
@@ -191,8 +210,9 @@ $offlineHold = $invalidEndpointAdapter->hold([
     'payment_token' => 'nuvei-upo-token-123456',
 ]);
 check(empty($offlineHold['success'])
-    && ($offlineHold['error_code'] ?? '') === 'OFFLINE_NOT_SUPPORTED',
-    'Nuvei offline authorization fails closed without attempting REST authorization');
+    && str_contains((string) ($offlineHold['message'] ?? ''), 'Session token failed')
+    && ($offlineHold['error_code'] ?? '') !== 'OFFLINE_NOT_SUPPORTED',
+    'Nuvei offline authorization reaches its configured API path');
 $nestedOfflineHold = $invalidEndpointAdapter->hold([
     'txn_type' => 'auth',
     'auth_channel' => 'online',
@@ -202,8 +222,9 @@ $nestedOfflineHold = $invalidEndpointAdapter->hold([
     'payment_token' => 'nuvei-upo-token-123456',
 ]);
 check(empty($nestedOfflineHold['success'])
-    && ($nestedOfflineHold['error_code'] ?? '') === 'OFFLINE_NOT_SUPPORTED',
-    'Nuvei offline authorization is rejected when flagged in nested extra data');
+    && str_contains((string) ($nestedOfflineHold['message'] ?? ''), 'Session token failed')
+    && ($nestedOfflineHold['error_code'] ?? '') !== 'OFFLINE_NOT_SUPPORTED',
+    'Nuvei nested offline authorization reaches its configured API path');
 $invalidCard = $invalidEndpointAdapter->charge([
     'txn_type' => 'purchase_2d',
     'amount' => 10,
@@ -271,6 +292,22 @@ $missingManualCvv = $adviceAdapter->purchaseAdvice([
 check(empty($missingManualCvv['success'])
     && str_contains((string) ($missingManualCvv['message'] ?? ''), 'requires PAN, expiry, and a 3-4 digit CVV'),
     'Nuvei manual Advice requires PAN, expiry, and CVV');
+$validManualAdvice = $invalidEndpointAdapter->charge([
+    'txn_type' => 'purchase_advice',
+    'amount' => 10,
+    'rrn' => '123456789012',
+    'auth_code' => '123456',
+    'original_transaction_date' => '2026-10-21',
+    'input_mode' => 'manual',
+    'card_number' => '4000000000000002',
+    'card_expiry' => '12/30',
+    'card_cvv' => '123',
+    'name' => 'Test Customer',
+    'email' => 'customer@example.test',
+]);
+check(empty($validManualAdvice['success'])
+    && str_contains((string) ($validManualAdvice['message'] ?? ''), 'Session token failed'),
+    'Nuvei valid Advice reaches the MOTO request without recursive dispatch');
 $physicalAdvice = $adviceAdapter->purchaseAdvice([
     'amount' => 10,
     'rrn' => '123456789012',

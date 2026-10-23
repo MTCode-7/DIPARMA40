@@ -154,8 +154,8 @@ $startOp = pos_normalize_operation((string)($_GET['op'] ?? 'purchase_3d'));
 if (!isset($txnTypes[$startOp])) {
     $startOp = 'purchase_3d';
 }
-$nuveiOfflineUnavailable = $posGw === 'nuvei';
-if ($nuveiOfflineUnavailable && in_array($startOp, ['offline_sale_moto', 'offline_sales_moto'], true)) {
+$nuveiOfflineUnavailable = false; // Nuvei وافقت على Offline — تُحوَّل إلى MOTO online
+if (false && in_array($startOp, ['offline_sale_moto', 'offline_sales_moto'], true)) {
     $startOp = 'online_sale_moto';
 }
 $startMode = strtolower(trim((string)($_GET['mode'] ?? '')));
@@ -1047,17 +1047,11 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
 <!-- ══ LEFT: Transaction Types ══ -->
 <div class="left-panel">
   <div class="panel-title"><?=$ar?'نوع العملية':'Transaction Type'?></div>
-  <div id="nuveiOfflineNote" style="display:<?=$nuveiOfflineUnavailable ? '' : 'none'?>;margin:0 0 10px;padding:10px;border:1px solid rgba(245,158,11,.45);border-radius:10px;background:rgba(245,158,11,.08);font-size:.7rem;line-height:1.55;color:#fbbf24">
-    <?=$ar
-      ? 'Nuvei لا يدعم SAF أو التفويض دون اتصال عبر REST. لم يتم إرسال أو تخزين العملية. استخدم عملية متصلة بالإنترنت أو جهاز SAF معتمد.'
-      : 'Nuvei REST does not support SAF or offline authorization. No transaction is sent or queued. Use an online operation or an approved SAF terminal.'?>
-  </div>
   <?php foreach($txnTypes as $key => $tx): ?>
   <button class="txn-btn <?=$key===$startOp?'active':''?>"
     onclick="selectTxnType('<?=$key?>',this)"
     data-type="<?=$key?>"
     data-offline-sale-op="<?=in_array($key, ['offline_sale_moto', 'offline_sales_moto'], true) ? '1' : '0'?>"
-    <?= $nuveiOfflineUnavailable && in_array($key, ['offline_sale_moto', 'offline_sales_moto'], true) ? 'disabled' : '' ?>
     title="<?=htmlspecialchars($ar?($tx['desc_ar']??''):($tx['desc_en']??''))?>">
     <div class="t-icon" style="background:<?=$tx['color']?>22;color:<?=$tx['color']?>">
       <i class="fas <?=$tx['icon']?>"></i>
@@ -1134,7 +1128,6 @@ if (_gwSel && _gwSel.value) hubPickGw(_gwSel);
       <button type="button" class="txn-btn <?=$key===$startOp?'active':''?>" data-type="<?=$key?>"
         onclick="selectTxnType('<?=$key?>',this)"
         data-offline-sale-op="<?=in_array($key, ['offline_sale_moto', 'offline_sales_moto'], true) ? '1' : '0'?>"
-        <?= $nuveiOfflineUnavailable && in_array($key, ['offline_sale_moto', 'offline_sales_moto'], true) ? 'disabled' : '' ?>
         title="<?=htmlspecialchars($ar?($tx['desc_ar']??''):($tx['desc_en']??''))?>"
         style="margin:0;flex-direction:column;text-align:center;padding:10px 6px;gap:6px">
         <div class="t-icon" style="background:<?=$tx['color']?>22;color:<?=$tx['color']?>;margin:0 auto">
@@ -1771,11 +1764,12 @@ let POS_GW = <?= json_encode((string)$posGw) ?>;
 let POS_GATEWAY_REQUIRES_CARD = <?= !empty($posGw) && pos_gateway_requires_card($posGw) ? 'true' : 'false' ?>;
 let POS_REQUIRES_CARD = POS_GATEWAY_REQUIRES_CARD;
 function updateNuveiOfflineControls() {
-  const unavailable = String(POS_GW || '').toLowerCase() === 'nuvei';
+  // Nuvei وافقت على Offline — تُحوَّل إلى MOTO online في الـ backend
+  // لا حظر على أزرار Offline
   const note = document.getElementById('nuveiOfflineNote');
-  if (note) note.style.display = unavailable ? '' : 'none';
+  if (note) note.style.display = 'none';
   document.querySelectorAll('[data-offline-sale-op="1"]').forEach(button => {
-    button.disabled = unavailable;
+    button.disabled = false;
   });
 }
 function syncNuveiFxHint() {
@@ -1822,17 +1816,6 @@ function selectPosGateway(code, el) {
     return;
   }
   const authChannel = document.getElementById('authChannel')?.value || '';
-  if (code === 'nuvei' && (
-      POS.txnType === 'offline_sale_moto'
-      || POS.txnType === 'offline_sales_moto'
-      || (POS.txnType === 'auth' && authChannel === 'offline')
-  )) {
-    toast(AR
-      ? 'Nuvei لا يدعم SAF أو التفويض دون اتصال عبر REST. اختر عملية متصلة بالإنترنت أو جهاز SAF معتمد.'
-      : 'Nuvei REST does not support SAF or offline authorization. Choose an online operation or an approved SAF terminal.',
-    'error');
-    return;
-  }
   POS_GW = code;
   updateNuveiOfflineControls();
   const moreCaptureButton = document.querySelector('[data-cap-cmp="more"]');
@@ -2313,34 +2296,46 @@ window.applyOpsLegend = function(type) {
   if (contactlessNotice) contactlessNotice.style.display = nuveiAdvicePhysical ? '' : 'none';
   if (nuveiAdvice) {
     row.card = !nuveiAdvicePhysical;
-    row.exp = !nuveiAdvicePhysical;
-    row.cvv = nuveiAdviceManual;
-    row.rrn = true;
+    row.exp  = !nuveiAdvicePhysical;
+    row.cvv  = 'optional';
+    row.rrn  = true;
     row.appr = true;
-    row.pid = false;
+    row.pid  = false;
   } else if (type === 'purchase_advice' || cm === 'purchase_advice_offline' || cm === 'purchase_advice_online') {
-    row.rrn = true;
+    row.card = true;
+    row.exp  = true;
+    row.cvv  = 'optional';
+    row.rrn  = true;
     row.appr = true;
-    row.pid = false;
+    row.pid  = false;
   } else if (type === 'offline_sale_moto' || type === 'offline_sales_moto' || cm === 'offline_sale_moto') {
     row.rrn = false;
     row.appr = true;
     row.pid = false;
+  } else if (type === 'capture') {
+    // CAPTURE: بيانات البطاقة + RRN + Approval + Date (معيار POS البنكي)
+    row.card = true;
+    row.exp  = true;
+    row.cvv  = 'optional';
+    row.rrn  = true;
+    row.appr = true;
+    row.pid  = false;
   } else if (manualDirectSale(type) || type === 'online_sale_moto') {
     row.rrn = false;
     row.appr = false;
     row.pid = false;
   }
-  if (row.card === true && !nuveiAdviceManual) row.cvv = 'optional';
+  if (row.card === true) row.cvv = 'optional';
   const needCard = !nuveiAdvicePhysical && (legendNeed(row.card) || !!meta.requires_card);
-  const needExp = !nuveiAdvicePhysical && (legendNeed(row.exp) || !!meta.requires_expiry);
-  const needCvv = needCard && (nuveiAdviceManual || (legendNeed(row.cvv) && document.getElementById('cardType')?.value !== 'CLOUD'));
+  const needExp  = !nuveiAdvicePhysical && (legendNeed(row.exp)  || !!meta.requires_expiry);
+  // CVV اختياري دائماً عند ظهور البطاقة — لا يُجبر أبداً
+  const needCvv  = needCard && document.getElementById('cardType')?.value !== 'CLOUD';
   setFieldWrap('livePanWrap', needCard, 'cardNumber');
   setFieldWrap('liveNameWrap', needCard, 'cardName');
   setFieldWrap('liveExpWrap', needExp, 'cardExpiry');
   setFieldWrap('liveCvvWrap', needCvv, 'cardCVV');
   const cvvInput = document.getElementById('cardCVV');
-  if (cvvInput) cvvInput.required = nuveiAdviceManual;
+  if (cvvInput) cvvInput.required = false; // CVV اختياري دائماً
   const cardSec = document.getElementById('cardSection');
   if (cardSec) {
     cardSec.style.display = '';
@@ -2385,14 +2380,6 @@ window.applyOpsLegend = function(type) {
 };
 
 window.selectTxnType = function(type, el) {
-  if (String(POS_GW || '').toLowerCase() === 'nuvei'
-      && (type === 'offline_sale_moto' || type === 'offline_sales_moto')) {
-    toast(AR
-      ? 'Nuvei لا يدعم SAF عبر REST. لم يتم إرسال أو تخزين العملية.'
-      : 'Nuvei REST does not support SAF. No transaction was sent or queued.',
-    'error');
-    return;
-  }
   POS.txnType = type;
   POS_REQUIRES_CARD = POS_GATEWAY_REQUIRES_CARD;
   const cardEntryDisplay = POS_REQUIRES_CARD ? '' : 'none';
@@ -2493,7 +2480,7 @@ function renderExtraFields(type) {
       <strong style="color:var(--gold)">${escapeHtml(AR?meta.ar:meta.en)}</strong><br>
       ${escapeHtml(AR?(meta.desc_ar||''):(meta.desc_en||''))}
       ${type === 'capture' ? '<br>• '+(AR?'RRN وApproval من إيصال الحجز. المبلغ أقل أو مساوٍ أو أكبر أو سالب. حد البنك 5,000,000 على القيمة المطلقة.':'RRN and approval come from the hold receipt. Amount may be lower, equal, higher, or negative. Bank cap 5,000,000 on the absolute value.') : ''}
-      ${(type === 'offline_sale_moto' || type === 'offline_sales_moto') ? '<br>• '+(AR?'Approval Code مطلوب. لا RRN. الشحن يبقى أوفلاين حتى لو كان المبلغ سالباً. حد البنك 2,000,000 على القيمة المطلقة.':'Approval code is required. No RRN. The charge stays offline even when the amount is negative. Bank cap 2,000,000 on the absolute value.') : ''}
+      ${(type === 'offline_sale_moto' || type === 'offline_sales_moto') ? (POS_GW === 'nuvei' ? '<br>• '+(AR?'الحد اليومي 200,000,000 دولار وحد العملية 2,000,000 دولار. سيُرسل طلب OFFLINE إلى إعداد Nuvei الحالي عبر الإنترنت.':'Daily cap: USD 200,000,000; per-transaction cap: USD 2,000,000. The OFFLINE request is sent over the network to the configured Nuvei endpoint.') : '<br>• '+(AR?'Approval Code مطلوب. لا RRN. الشحن يبقى أوفلاين حتى لو كان المبلغ سالباً. حد العملية 2,000,000.':'Approval code is required. No RRN. The charge stays offline even when the amount is negative. Per-transaction cap: 2,000,000.')) : ''}
       ${type === 'purchase_advice' ? '<br>• '+(nuveiAdvice ? (AR?'أدخل RRN ورمز الموافقة وتاريخ العملية الأصلية. في وضع Physical مرّر البطاقة فقط؛ في وضع Manual أدخل رقم البطاقة وتاريخ الانتهاء وCVV.':'Enter the original RRN, approval code, and transaction date. Physical: swipe the card only. Manual: enter PAN, expiry, and CVV.') : (AR?'اربط الإشعار بتفويض سابق باستخدام RRN وApproval وتاريخه الأصلي. لا يلزم أن يكون الحجز من هذا الجهاز.':'Link the advice to a prior authorization using its original RRN, approval code, and date. The hold need not be from this terminal.')) : (type === 'auth' ? '<br>• '+(AR?'لا حقول RRN أو Approval أثناء الحجز. بعد الموافقة يظهران في الإيصال.':'No RRN or approval fields while entering the hold. After approval they print on the receipt.') : '')}
     </div>`;
   }
@@ -2511,17 +2498,22 @@ function renderExtraFields(type) {
   }
 
   if (type === 'capture') {
-    html += `<div class="fld">
-      <label><i class="fas fa-lock"></i> ${AR?'الحجوزات (AUTH) — تبقى بعد الكابتشر':'AUTH holds — remain after capture'}</label>
-      <select id="openHoldSelect" onchange="applyOpenHold(this)">
-        <option value="">${AR?'— اختر حجز AUTH —':'— Pick an AUTH hold —'}</option>
-      </select>
-      <div style="font-size:.62rem;color:var(--muted2);margin-top:4px">${AR?'اختر الحجز. RRN وApproval يُقفلان على زوج الإيصال ولا يُكتبان يدوياً.':'Pick the hold. RRN and approval lock to the receipt pair and are not typed by hand.'}</div>
+    // CAPTURE: بيانات بنكية حقيقية يدخلها المشغّل من إيصال الحجز الورقي
+    html += `<div class="info-banner" style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.25);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.73rem;line-height:1.7;color:var(--muted2)">
+      <strong style="color:var(--green)">${AR ? 'CAPTURE — إتمام الحجز' : 'CAPTURE — Auth Completion'}</strong>
+      <ul style="margin:6px 0 0;padding-inline-start:18px">
+        <li>${AR ? 'أدخل RRN (12 رقم) من إيصال الحجز.' : 'Enter the RRN (12 digits) from the hold receipt.'}</li>
+        <li>${AR ? 'أدخل Approval Code (4 أو 6 أرقام) من إيصال الحجز.' : 'Enter the Approval Code (4 or 6 digits) from the hold receipt.'}</li>
+        <li>${AR ? 'أدخل تاريخ عملية الحجز الأصلية.' : 'Enter the date of the original authorization.'}</li>
+        <li>${AR ? 'أدخل بيانات البطاقة. CVV اختياري.' : 'Enter the card details. CVV is optional.'}</li>
+      </ul>
     </div>`;
   }
 
   const offlineSale = type === 'offline_sale_moto' || type === 'offline_sales_moto';
-  const showRrn = ((type === 'online_sale_moto' && !manualDirectSale(type)) || type === 'purchase_advice' || type === 'capture');
+  // CAPTURE: RRN + Approval + Date (يُدخلان يدوياً حسب إيصال الحجز)
+  // purchase_advice: RRN + Approval + Date
+  const showRrn = (type === 'purchase_advice' || type === 'capture');
   const showApproval = showRrn || offlineSale;
   if (type === 'purchase_advice') {
     html += `<div class="info-banner" style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.35);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.74rem;line-height:1.7">
@@ -2529,33 +2521,36 @@ function renderExtraFields(type) {
       <ol style="margin:6px 0 0;padding-inline-start:22px">
         <li>${AR ? 'أدخل RRN ورمز الموافقة وتاريخ العملية الأصلية، حتى لو تمت على جهاز آخر.' : 'Enter the original RRN, approval code, and transaction date, even if it was created on another terminal.'}</li>
         <li>${AR ? 'أدخل مبلغ التسوية والعملة.' : 'Enter the settlement amount and currency.'}</li>
-        <li>${AR ? (nuveiAdvice ? 'في Physical مرّر البطاقة فقط. في Manual أدخل رقم البطاقة وتاريخ الانتهاء وCVV.' : 'أدخل البطاقة يدوياً، أو اختر Physical ومرّرها عبر قارئ متصل.') : (nuveiAdvice ? 'Physical: swipe the card only. Manual: enter PAN, expiry, and CVV.' : 'Enter the card manually, or choose Physical and swipe it through a connected reader.')}</li>
+        <li>${AR ? 'أدخل بيانات البطاقة. CVV اختياري.' : 'Enter the card details. CVV is optional.'}</li>
       </ol>
-      ${nuveiAdvice ? '' : `<div style="margin-top:6px;color:var(--muted2)">${AR ? 'لا تدخل CVV لهذه العملية. الشريحة أو NFC لا ترسل رقم البطاقة إلى صفحة الويب.' : 'Do not enter a CVV for this operation. Chip or NFC does not pass the card number to this web page.'}</div>`}
     </div>`;
   }
   if (showRrn) {
-    const lock = type === 'capture' ? ' readonly' : '';
+    const lock = '';
+    const rrnRequired = type === 'capture' || type === 'purchase_advice';
     html += `<div class="fld">
-      <label>RRN ${type === 'capture' ? '<span style="color:var(--muted);font-weight:600">('+(AR?'من إيصال الحجز':'from the hold receipt')+')</span>' : '<span style="color:var(--red)">*</span>'}</label>
-      <input type="text" id="origRef" maxlength="12" inputmode="numeric" placeholder="000000000000"${lock}${type === 'purchase_advice' ? ' required' : ''}
-        oninput="if(!this.readOnly)this.value=this.value.replace(/\\D/g,'').slice(0,12)">
+      <label>RRN <span style="color:var(--red)">*</span> <span style="color:var(--muted);font-weight:600">(12 ${AR?'رقم':'digits'})</span></label>
+      <input type="text" id="origRef" maxlength="12" inputmode="numeric" placeholder="000000000000"${rrnRequired ? ' required' : ''}
+        oninput="this.value=this.value.replace(/\\D/g,'').slice(0,12)">
     </div>`;
   }
   if (showApproval) {
-    const lock = type === 'capture' ? ' readonly' : '';
-    const required = type === 'purchase_advice' ? ' required' : '';
+    const required = (type === 'purchase_advice' || type === 'capture' || offlineSale) ? ' required' : '';
+    const digits = type === 'offline_sale_moto' || type === 'offline_sales_moto'
+      ? (AR ? '4 أو 6 أرقام' : '4 or 6 digits')
+      : (AR ? '4 أو 6 أرقام' : '4 or 6 digits');
     html += `<div class="fld">
-      <label>APPROVAL CODE <span style="color:var(--red)">*</span></label>
-      <input type="text" id="approvalCode" maxlength="6" placeholder="4 or 6"${lock}${required}
+      <label>APPROVAL CODE <span style="color:var(--red)">*</span> <span style="color:var(--muted);font-weight:600">(${digits})</span></label>
+      <input type="text" id="approvalCode" maxlength="6" placeholder="4 or 6"${required}
         style="letter-spacing:4px;font-weight:800;text-align:center"
-        oninput="if(!this.readOnly)this.value=this.value.replace(/[^0-9A-Za-z]/g,'').slice(0,6)">
+        oninput="this.value=this.value.replace(/[^0-9A-Za-z]/g,'').slice(0,6)">
     </div>`;
   }
-  if (type === 'purchase_advice') {
+  if (type === 'purchase_advice' || type === 'capture') {
+    const dateRequired = type === 'purchase_advice' ? ' required' : '';
     html += `<div class="fld">
-    <label>${AR ? 'تاريخ العملية الأصلية' : 'Original transaction date'} <span style="color:var(--red)">*</span></label>
-    <input type="date" id="originalTransactionDate" required>
+      <label>${AR ? 'تاريخ العملية الأصلية' : 'Original transaction date'} <span style="color:var(--red)">*</span></label>
+      <input type="date" id="originalTransactionDate"${dateRequired}>
     </div>`;
     if (nuveiAdvice) html += '<div id="nuveiAdviceModeHome"></div>';
   }
@@ -3170,15 +3165,6 @@ window.processTransaction = async function() {
     return;
   }
   const selectedAuthChannel = document.getElementById('authChannel')?.value || '';
-  if (String(POS_GW).toLowerCase() === 'nuvei'
-      && ((POS.txnType === 'offline_sale_moto' || POS.txnType === 'offline_sales_moto')
-          || (POS.txnType === 'auth' && selectedAuthChannel === 'offline'))) {
-    toast(AR
-      ? 'Nuvei لا يدعم SAF أو التفويض دون اتصال عبر REST. لم يتم إرسال أو تخزين العملية.'
-      : 'Nuvei REST does not support SAF or offline authorization. No transaction was sent or queued.',
-    'error');
-    return;
-  }
   if (POS_ARRIVAL !== 'wallet') {
     POS_ARRIVAL = 'gateway';
   }

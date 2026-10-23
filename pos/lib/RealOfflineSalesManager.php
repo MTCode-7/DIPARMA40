@@ -208,6 +208,6 @@ class RealOfflineSalesManager
 
 function pos_offline_sale_max_amount(): float
 {
-    // Bank refused to raise — hard lock at 2,000,000 per offline sale.
+    // Nuvei's approved USD 200,000,000 limit is daily, not per transaction.
     return 2000000.00;
 }

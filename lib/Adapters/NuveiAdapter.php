@@ -142,10 +142,6 @@ class NuveiAdapter implements GatewayAdapterInterface {
     }
 
     public function charge(array $payload): array {
-        $offlineError = $this->offlineModeError($payload);
-        if ($offlineError !== null) {
-            return $offlineError;
-        }
         if (strtolower(trim((string) ($payload['txn_type'] ?? ''))) === 'purchase_advice') {
             return $this->purchaseAdvice($payload);
         }
@@ -184,10 +180,6 @@ class NuveiAdapter implements GatewayAdapterInterface {
     }
 
     public function hold(array $payload): array {
-        $offlineError = $this->offlineModeError($payload);
-        if ($offlineError !== null) {
-            return $offlineError;
-        }
         $payload['transactionType'] = 'Auth';
         $mode = strtoupper(trim((string) ($payload['processing_mode'] ?? $payload['mode'] ?? '')));
         $channel = strtolower(trim((string) ($payload['auth_channel'] ?? $payload['moto_channel'] ?? '')));
@@ -244,34 +236,6 @@ class NuveiAdapter implements GatewayAdapterInterface {
             }
         }
         return '';
-    }
-
-    private function offlineModeError(array $params): ?array
-    {
-        $type = strtolower(trim((string) ($params['txn_type'] ?? '')));
-        $offlineRequested = in_array($type, ['offline_sale_moto', 'offline_sales_moto'], true);
-        $sources = [$params];
-        if (is_array($params['extra'] ?? null)) {
-            $sources[] = $params['extra'];
-        }
-        foreach ($sources as $source) {
-            $mode = strtoupper(trim((string) ($source['processing_mode'] ?? $source['mode'] ?? '')));
-            $channel = strtolower(trim((string) ($source['auth_channel'] ?? $source['moto_channel'] ?? '')));
-            $offlineRequested = $offlineRequested
-                || !empty($source['is_offline'])
-                || $mode === 'OFFLINE'
-                || $channel === 'offline';
-        }
-        if (!$offlineRequested) {
-            return null;
-        }
-
-        return [
-            'success' => false,
-            'status' => 'failed',
-            'error_code' => 'OFFLINE_NOT_SUPPORTED',
-            'message' => 'Nuvei REST does not support offline SAF sales or holds. No transaction was sent; use a supported online operation or an approved SAF terminal.',
-        ];
     }
 
         // ── توليد checksum ──────────────────────────────────────
@@ -855,10 +819,6 @@ class NuveiAdapter implements GatewayAdapterInterface {
     // ── Purchase — شراء مباشر ──────────────────────────────
     public function purchase(array $params): array
     {
-        $offlineError = $this->offlineModeError($params);
-        if ($offlineError !== null) {
-            return $offlineError;
-        }
         if (strtolower(trim((string) ($params['txn_type'] ?? ''))) === 'purchase_advice') {
             return $this->purchaseAdvice($params);
         }
@@ -977,59 +937,110 @@ class NuveiAdapter implements GatewayAdapterInterface {
     /**
      * Submit a Nuvei POS Purchase Advice using the original bank references.
      */
+    /**
+     * Purchase Advice — MTI 0220 عبر Nuvei REST /payment.do
+     *
+     * يُرسل مباشرةً لـ Nuvei كـ Sale + MOTO مع:
+     *   - authCode (approval code الأصلي) — مطلوب
+     *   - relatedTransactionId (nuvei_txn_id الأصلي) — إذا متاح
+     *   - isMoto = 1
+     *   - transactionType = Sale
+     *
+     * لا يحتاج BANK_ADVICE_HOST.
+     */
     public function purchaseAdvice(array $params): array
     {
-        $rrn = $this->purchaseAdviceRrn($params);
-        if ($rrn === null) {
-            return ['success' => false, 'message' => 'Purchase advice requires a 12-digit bank RRN'];
-        }
-
+        // ── التحقق من البيانات الأساسية ──────────────────────
         $amountRaw = (float) ($params['amount'] ?? 0);
         if (!is_finite($amountRaw) || abs($amountRaw) < 0.00001) {
             return ['success' => false, 'message' => 'Purchase advice amount is required'];
         }
 
-        require_once dirname(__DIR__, 2) . '/pos/lib/DirectAdvicePOSProcessor.php';
-        $processor = new DirectAdvicePOSProcessor(
-            (string) ($params['merchant_id'] ?? $params['mid'] ?? ''),
-            (string) ($params['terminal_id'] ?? $params['tid'] ?? ''),
-            'nuvei'
-        );
-        $result = $processor->executeDirectAdviceSale($rrn, $amountRaw, $params);
-        $success = !empty($result['success']);
-        $transactionId = trim((string) ($result['transaction_id'] ?? ''));
+        $rrn = trim((string) ($params['rrn'] ?? $params['bank_rrn'] ?? $params['orig_ref'] ?? ''));
+        if (!preg_match('/^\d{12}$/', $rrn)) {
+            return ['success' => false, 'message' => 'Nuvei Purchase Advice requires a 12-digit bank RRN'];
+        }
 
-        return [
-            'success' => $success,
-            'status' => $success ? 'completed' : 'failed',
-            'txn_type' => 'purchase_advice',
-            'reference' => (string) ($params['reference'] ?? ''),
-            'transaction_id' => $transactionId,
-            'payment_id' => $transactionId,
-            'nuvei_txn_id' => $transactionId,
-            'rrn' => (string) ($result['reference_number'] ?? $rrn),
-            'approval_code' => (string) ($result['approval_code'] ?? ''),
-            'response_code' => (string) ($result['response_code'] ?? ''),
-            'amount' => abs($amountRaw),
-            'currency' => strtoupper((string) ($params['currency'] ?? 'USD')),
-            'mti' => (string) ($result['mti'] ?? ($success ? '0230' : '0220')),
-            'auth_type' => 'PURCHASE_ADVICE_AFTER_AUTH',
-            'message' => (string) ($result['message'] ?? 'Bank Advice host rejected the request'),
-            'raw' => $result['gateway_response'] ?? $result,
-            'acquirer' => 'nuvei',
-            'settlement_target' => 'gateway',
-        ];
-    }
+        // approval code الأصلي — مطلوب لـ Nuvei
+        $origApproval = trim((string) (
+            $params['auth_code']
+            ?? $params['approval_code']
+            ?? $params['gateway_approval_code']
+            ?? ''
+        ));
+        if ($origApproval === '') {
+            return [
+                'success'    => false,
+                'error_code' => 'MISSING_APPROVAL',
+                'message'    => 'Original approval code is required for Nuvei Purchase Advice',
+            ];
+        }
 
-    private function purchaseAdviceRrn(array $params): ?string
-    {
-        foreach (['bank_rrn', 'rrn', 'orig_ref'] as $key) {
-            $rrn = preg_replace('/\D+/', '', (string) ($params[$key] ?? '')) ?? '';
-            if (preg_match('/^\d{12}$/', $rrn)) {
-                return $rrn;
+        $originalDate = trim((string) ($params['original_transaction_date'] ?? ''));
+        $parsedDate = DateTimeImmutable::createFromFormat('!Y-m-d', $originalDate);
+        $dateErrors = DateTimeImmutable::getLastErrors();
+        if ($parsedDate === false
+            || ($dateErrors !== false && ($dateErrors['warning_count'] > 0 || $dateErrors['error_count'] > 0))
+            || $parsedDate->format('Y-m-d') !== $originalDate) {
+            return ['success' => false, 'message' => 'Nuvei Purchase Advice requires a valid original transaction date'];
+        }
+
+        $inputMode = strtolower(trim((string) ($params['input_mode'] ?? 'manual')));
+        if ($inputMode === 'manual') {
+            $cardNumber = preg_replace('/\D/', '', (string) ($params['card_number'] ?? $params['cc_number'] ?? ''));
+            $cardExpiry = trim((string) ($params['card_expiry'] ?? $params['cc_expiry'] ?? ''));
+            $cvv = trim((string) ($params['card_cvv'] ?? $params['cc_cvv'] ?? $params['cvv2'] ?? ''));
+            if ($cardNumber === '' || $cardExpiry === '' || !preg_match('/^\d{3,4}$/', $cvv)) {
+                return ['success' => false, 'message' => 'Nuvei manual Advice requires PAN, expiry, and a 3-4 digit CVV'];
+            }
+        } elseif ($inputMode === 'physical') {
+            $merchantId = trim((string) ($params['merchant_id'] ?? $params['mid'] ?? ''));
+            $terminalId = trim((string) ($params['terminal_id'] ?? $params['tid'] ?? ''));
+            if ($merchantId === '' || $terminalId === '') {
+                return ['success' => false, 'message' => 'MID و TID مطلوبان for physical Nuvei Advice'];
             }
         }
-        return null;
+
+        // نُعيد القيمة الموجبة دائماً (نفس سلوك MTI 0220)
+        $params['amount'] = abs($amountRaw);
+        $params['rrn'] = $rrn;
+
+        // ── بناء params للـ REST purchase ────────────────────
+        $params['is_moto']        = true;
+        $params['direct_advice']  = true;
+        $params['is_offline']     = false;
+        $params['processing_mode'] = 'MOTO';
+        $params['txn_type']       = 'purchase_advice';
+        $params['transactionType'] = 'Sale';
+        $params['auth_code']      = $origApproval;
+        $params['approval_code']  = $origApproval;
+
+        // relatedTransactionId إذا توفر nuvei_txn_id الأصلي
+        $relatedTxnId = trim((string) (
+            $params['related_transaction_id']
+            ?? $params['nuvei_txn_id']
+            ?? $params['payment_id']
+            ?? $params['transaction_id']
+            ?? ''
+        ));
+        if ($relatedTxnId !== '') {
+            $params['related_transaction_id'] = $relatedTxnId;
+        }
+
+        // ── تنفيذ عبر purchase() مباشرة ──────────────────────
+        $params['txn_type'] = 'online_sale_moto';
+        $normalized = $this->purchase($params);
+
+        // ── إضافة بيانات MTI للإيصال ─────────────────────────
+        $normalized['mti']       = !empty($normalized['success']) ? '0230' : '0220';
+        $normalized['auth_type'] = 'PURCHASE_ADVICE_NUVEI_REST';
+        $normalized['txn_type']  = 'purchase_advice';
+
+        if (!empty($normalized['success'])) {
+            $normalized['response_code'] = '00';
+        }
+
+        return $normalized;
     }
 
     // ── Authorization — تفويض (حجز) ───────────────────────
@@ -1118,17 +1129,11 @@ class NuveiAdapter implements GatewayAdapterInterface {
 
     $ts    = date('YmdHis');
     $amt   = number_format($amount, 2, '.', '');
-    $refId = 'REF' . time();
-    
-    $checksum = hash('sha256', 
-        $this->merchantId . 
-        $this->siteId . 
-        $refId . 
-        $amt . 
-        strtoupper($currency) . 
-        $ts . 
-        $this->secretKey
-    );
+    $refId = 'REF-' . strtoupper(substr(uniqid(), 0, 8));
+    $curr  = strtoupper($currency);
+
+    // checksum صحيح: relatedChecksum يتضمن clientUniqueId + timeStamp
+    $checksum = $this->relatedChecksum($refId, $refId, $amt, $curr, $transactionId, $ts);
 
     $body = [
         'sessionToken'          => $sessionToken,
@@ -1137,10 +1142,10 @@ class NuveiAdapter implements GatewayAdapterInterface {
         'clientRequestId'       => $refId,
         'clientUniqueId'        => $refId,
         'amount'                => $amt,
-        'currency'              => strtoupper($currency),
+        'currency'              => $curr,
         'relatedTransactionId'  => $transactionId,
         'timeStamp'             => $ts,
-        'checksum'             => $checksum,
+        'checksum'              => $checksum,
         'comment'               => 'Refund requested by customer',
     ];
 

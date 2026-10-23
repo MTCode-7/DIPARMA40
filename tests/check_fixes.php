@@ -298,7 +298,7 @@ check(activity_gateway_checkout_operations('wise') === [], 'Wise uses transfer f
 check(activity_gateway_checkout_operations('binance') === ['crypto_purchase'], 'Binance exposes crypto purchase only');
 check(activity_gateway_checkout_operations('mashreq') === ['purchase_3d'], 'Bank checkout exposes the supported purchase flow');
 check(activity_gateway_checkout_operations('square_online') === [], 'Square Online is fulfillment, not a card charge');
-check(gateway_offline_daily_limit_usd('nuvei') === 100000000.00, 'Nuvei offline daily limit is 100 million USD');
+check(gateway_offline_daily_limit_usd('nuvei') === 200000000.00, 'Nuvei offline daily limit is 200 million USD');
 check(gateway_offline_daily_limit_usd('paypal') === 1000000.00, 'PayPal offline daily limit is 1 million USD');
 check(gateway_offline_daily_limit_usd('stripe') === 5000000.00, 'Stripe offline daily limit is 5 million USD');
 check(gateway_offline_daily_limit_usd('square') === 10000000.00, 'Square 1 offline daily limit is 10 million USD');
@@ -349,11 +349,11 @@ $largeUsd = static function (string $type) use ($nuveiRoute, $keyed): array {
     return $nuveiRoute($type, $keyed + ['amount' => 1000, 'currency' => 'USD']);
 };
 check($largeUsd('purchase_2d')['type'] === 'purchase_2d' && $largeUsd('purchase_2d')['mode'] !== '3D' && $largeUsd('purchase_2d')['offline'] === false, 'Nuvei large USD 2D sale is not forced to 3DS');
-check($largeUsd('offline_sale_moto')['type'] === 'offline_sale_moto' && $largeUsd('offline_sale_moto')['offline'] === true, 'Nuvei offline sale is explicitly marked for the fail-closed SAF guard');
+check($largeUsd('offline_sale_moto')['type'] === 'offline_sale_moto' && $largeUsd('offline_sale_moto')['offline'] === true, 'Nuvei offline sale remains marked OFFLINE for its configured gateway path');
 check($nuveiRoute('purchase_2d', $keyed + ['amount' => 1000, 'currency' => 'AED'])['type'] === 'purchase_2d' && $nuveiRoute('purchase_2d', $keyed + ['amount' => 1000, 'currency' => 'AED'])['offline'] === false, 'Keyed sale stays the operation the operator chose');
 check($nuveiRoute('purchase_3d', $keyed)['type'] === 'purchase_3d' && $nuveiRoute('purchase_3d', $keyed)['offline'] === false, 'Keyed purchase 3D stays 3D when the operator chose it');
 check($nuveiRoute('purchase_advice', $chip)['mode'] === 'MOTO' && $nuveiRoute('purchase_advice', $chip)['offline'] === false, 'Purchase advice stays a direct MOTO sale');
-check($nuveiRoute('offline_sale_moto', $chip)['offline'] === true, 'Nuvei offline sale remains identifiable for the SAF guard on the chip path');
+check($nuveiRoute('offline_sale_moto', $chip)['offline'] === true, 'Nuvei offline sale remains identifiable on the chip path');
 check($nuveiRoute('online_sale_moto', $chip)['mode'] === 'MOTO' && $nuveiRoute('online_sale_moto', $chip)['offline'] === false, 'Chip online sale stays MOTO');
 $stickerRows = pos_ops_sticker_rows();
 check(count(array_filter($stickerRows, static fn($row) => !empty($row['card']) && $row['cvv'] !== 'optional')) === 0, 'CVV is optional on every card operation');

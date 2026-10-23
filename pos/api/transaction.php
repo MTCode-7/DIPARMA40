@@ -505,9 +505,6 @@ $reference = $data['reference'] ?? 'POS-' . strtoupper(substr($txnType, 0, 4)) .
 
 $errors = [];
 
-if (pos_nuvei_offline_operation_requested($posGateway, $txnType, $data)) {
-    $errors[] = 'Nuvei REST does not support offline SAF sales or holds. No transaction was sent; use a supported online operation or an approved SAF terminal.';
-}
 // Capture / advice / offline keep a signed amount. Other types stay greater than zero.
 $policyAmount = $amount;
 if ($txnType === 'capture') {

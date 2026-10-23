@@ -130,7 +130,7 @@ check(pos_keyed_entry_forces_offline('purchase_2d') === false, 'keyed 2D is not 
 check(pos_keyed_entry_forces_offline('online_sale_moto') === false, 'keyed online sale is not forced offline');
 check(pos_keyed_entry_forces_offline('purchase_advice') === false, 'advice is not forced offline');
 check(pos_keyed_entry_forces_offline('offline_sale_moto') === true, 'explicit offline stays offline');
-check(pos_nuvei_offline_operation_requested('nuvei', 'offline_sale_moto') === true, 'Nuvei SAF sale is identified for fail-closed handling');
+check(pos_nuvei_offline_operation_requested('nuvei', 'offline_sale_moto') === true, 'Nuvei SAF sale is identified as offline');
 check(pos_nuvei_offline_operation_requested('nuvei', 'auth', ['auth_channel' => 'offline']) === true, 'Nuvei offline authorization is identified for fail-closed handling');
 check(pos_nuvei_offline_operation_requested('nuvei', 'auth', ['auth_channel' => 'online', 'extra' => ['auth_channel' => 'offline']]) === true, 'Nuvei offline authorization is detected in nested extra data');
 check(pos_nuvei_offline_operation_requested('nuvei', 'purchase_2d') === false, 'Nuvei online 2D operation remains available');
